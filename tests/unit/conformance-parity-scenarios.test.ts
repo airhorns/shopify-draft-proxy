@@ -7,6 +7,7 @@ import {
   classifyParityScenarioState,
   executeParityScenario,
   type ParitySpec,
+  validateParityScenarioOperationNames,
   validateParityScenarioInventoryEntry,
 } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
@@ -39,6 +40,43 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
     expect(readyScenarios.length).toBeGreaterThan(0);
   });
 
+  it('validates declared mutation operations against executed mutation roots', () => {
+    const validation = validateParityScenarioOperationNames({
+      scenario: {
+        id: 'operation-name-validation-example',
+        status: 'captured',
+        operationNames: ['fileCreate', 'fileUpdate', 'files'],
+      },
+      paritySpec: {},
+      executedOperations: [
+        {
+          type: 'mutation',
+          name: 'CreateFile',
+          rootFields: ['fileCreate'],
+        },
+        {
+          type: 'query',
+          name: 'ReadFiles',
+          rootFields: ['files'],
+        },
+        {
+          type: 'mutation',
+          name: 'StageUpload',
+          rootFields: ['stagedUploadsCreate'],
+        },
+      ],
+    });
+
+    expect(validation.declaredMutationOperationNames).toEqual(['fileCreate', 'fileUpdate']);
+    expect(validation.actualMutationOperationNames).toEqual(['fileCreate', 'stagedUploadsCreate']);
+    expect(validation.missingMutationOperationNames).toEqual(['fileUpdate']);
+    expect(validation.unexpectedMutationOperationNames).toEqual(['stagedUploadsCreate']);
+    expect(validation.errors).toEqual([
+      'Scenario operation-name-validation-example declares mutation operation(s) fileUpdate in operationNames but did not execute them. Actual executed mutation operation(s): fileCreate, stagedUploadsCreate.',
+      'Scenario operation-name-validation-example executed mutation operation(s) stagedUploadsCreate but does not declare them in operationNames. Declared mutation operation(s): fileCreate, fileUpdate.',
+    ]);
+  });
+
   it.each(readyScenarios.map((scenario) => [scenario.id, scenario] as const))(
     'executes ready-for-comparison scenario %s against the local proxy harness',
     async (_id, scenario) => {
@@ -52,6 +90,10 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
       expect(
         result.comparisons.filter((comparison) => !comparison.ok),
         `scenario ${scenario.id} had failing comparisons`,
+      ).toEqual([]);
+      expect(
+        result.operationNameValidation.errors,
+        `scenario ${scenario.id} declared mutation operationNames that did not match executed mutation roots`,
       ).toEqual([]);
       expect(result.ok).toBe(true);
     },

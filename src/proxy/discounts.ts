@@ -1123,7 +1123,7 @@ function normalizeDiscountValue(
     };
   }
 
-  const fixedAmount = readNestedRecord(value, 'fixedAmount');
+  const fixedAmount = readNestedRecord(value, 'discountAmount') ?? readNestedRecord(value, 'fixedAmount');
   const amount = readMoneyAmount(fixedAmount?.['amount']);
   if (amount !== null) {
     return {

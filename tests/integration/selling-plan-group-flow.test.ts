@@ -400,4 +400,144 @@ describe('selling plan group flow', () => {
     expect(logResponse.body.entries[1].requestBody.variables).toMatchObject(createVariables);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages product and variant selling-plan join/leave roots locally', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('selling plan membership roots must not fetch upstream'));
+    const app = createApp(config).callback();
+
+    const productCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title variants(first: 1) { nodes { id title } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          product: {
+            title: 'Membership coffee',
+          },
+        },
+      });
+    expect(productCreateResponse.status).toBe(200);
+    const productId = productCreateResponse.body.data.productCreate.product.id as string;
+    const variantId = productCreateResponse.body.data.productCreate.product.variants.nodes[0].id as string;
+
+    const groupCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id name merchantCode productsCount { count precision } productVariantsCount { count precision } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            name: 'Weekly subscription',
+            merchantCode: 'weekly-subscription',
+            options: ['Frequency'],
+            sellingPlansToCreate: [
+              {
+                name: 'Weekly',
+                options: ['Weekly'],
+                billingPolicy: { recurring: { interval: 'WEEK', intervalCount: 1 } },
+                deliveryPolicy: { recurring: { interval: 'WEEK', intervalCount: 1 } },
+                pricingPolicies: [],
+              },
+            ],
+          },
+        },
+      });
+    expect(groupCreateResponse.status).toBe(200);
+    const groupId = groupCreateResponse.body.data.sellingPlanGroupCreate.sellingPlanGroup.id as string;
+
+    const joinProductResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) { productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { product { id sellingPlanGroups(first: 5) { nodes { id name merchantCode } } sellingPlanGroupsCount { count precision } } userErrors { field message code } } }',
+        variables: {
+          id: productId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(joinProductResponse.status).toBe(200);
+    expect(joinProductResponse.body.data.productJoinSellingPlanGroups).toEqual({
+      product: {
+        id: productId,
+        sellingPlanGroups: {
+          nodes: [{ id: groupId, name: 'Weekly subscription', merchantCode: 'weekly-subscription' }],
+        },
+        sellingPlanGroupsCount: { count: 1, precision: 'EXACT' },
+      },
+      userErrors: [],
+    });
+
+    const joinVariantResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) { productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { productVariant { id sellingPlanGroups(first: 5) { nodes { id name merchantCode } } sellingPlanGroupsCount { count precision } } userErrors { field message code } } }',
+        variables: {
+          id: variantId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(joinVariantResponse.status).toBe(200);
+    expect(joinVariantResponse.body.data.productVariantJoinSellingPlanGroups).toEqual({
+      productVariant: {
+        id: variantId,
+        sellingPlanGroups: {
+          nodes: [{ id: groupId, name: 'Weekly subscription', merchantCode: 'weekly-subscription' }],
+        },
+        sellingPlanGroupsCount: { count: 1, precision: 'EXACT' },
+      },
+      userErrors: [],
+    });
+
+    const leaveProductResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation LeaveProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) { productLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { product { id sellingPlanGroups(first: 5) { nodes { id } } sellingPlanGroupsCount { count precision } } userErrors { field message code } } }',
+        variables: {
+          id: productId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(leaveProductResponse.status).toBe(200);
+    expect(leaveProductResponse.body.data.productLeaveSellingPlanGroups).toEqual({
+      product: {
+        id: productId,
+        sellingPlanGroups: { nodes: [{ id: groupId }] },
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+      },
+      userErrors: [],
+    });
+
+    const leaveVariantResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation LeaveVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) { productVariantLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { productVariant { id sellingPlanGroups(first: 5) { nodes { id } } sellingPlanGroupsCount { count precision } } userErrors { field message code } } }',
+        variables: {
+          id: variantId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(leaveVariantResponse.status).toBe(200);
+    expect(leaveVariantResponse.body.data.productVariantLeaveSellingPlanGroups).toEqual({
+      productVariant: {
+        id: variantId,
+        sellingPlanGroups: { nodes: [] },
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

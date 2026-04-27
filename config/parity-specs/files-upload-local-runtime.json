@@ -1,6 +1,6 @@
 {
   "scenarioId": "files-upload-local-runtime",
-  "operationNames": ["files", "fileSavedSearches", "stagedUploadsCreate"],
+  "operationNames": ["files", "fileSavedSearches", "fileCreate", "stagedUploadsCreate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "empty-state-parity", "downstream-read-parity", "side-effect-boundary"],
   "liveCaptureFiles": [

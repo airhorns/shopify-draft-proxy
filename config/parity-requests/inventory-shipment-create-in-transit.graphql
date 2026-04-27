@@ -1,0 +1,38 @@
+mutation InventoryShipmentCreateInTransitParity($input: InventoryShipmentCreateInput!) {
+  inventoryShipmentCreateInTransit(input: $input) {
+    inventoryShipment {
+      id
+      name
+      status
+      lineItemTotalQuantity
+      totalAcceptedQuantity
+      totalReceivedQuantity
+      totalRejectedQuantity
+      tracking {
+        trackingNumber
+        company
+        trackingUrl
+        arrivesAt
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          acceptedQuantity
+          rejectedQuantity
+          unreceivedQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

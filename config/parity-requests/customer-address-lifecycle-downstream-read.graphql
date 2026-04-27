@@ -1,0 +1,135 @@
+#graphql
+query CustomerAddressLifecycleDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!) {
+  customer(id: $id) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    defaultAddress {
+      id
+      address1
+      city
+      country
+      countryCodeV2
+      provinceCode
+      zip
+      formattedArea
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        address1
+        city
+        country
+        countryCodeV2
+        provinceCode
+        zip
+        formattedArea
+      }
+      edges {
+        cursor
+        node {
+          id
+          city
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    firstName
+    lastName
+    displayName
+    defaultAddress {
+      id
+      address1
+      city
+      country
+      countryCodeV2
+      provinceCode
+      zip
+      formattedArea
+    }
+    addressesV2(first: 5) {
+      nodes {
+        id
+        address1
+        city
+        country
+        countryCodeV2
+        provinceCode
+        zip
+        formattedArea
+      }
+      edges {
+        cursor
+        node {
+          id
+          city
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  customers(first: 5, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      defaultAddress {
+        id
+        address1
+        city
+        country
+        countryCodeV2
+        provinceCode
+        zip
+        formattedArea
+      }
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+          city
+          country
+          countryCodeV2
+          provinceCode
+          zip
+          formattedArea
+        }
+        edges {
+          cursor
+          node {
+            id
+            city
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

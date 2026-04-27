@@ -1,0 +1,34 @@
+query DiscountFreeShippingLifecycleRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+  discountNode(id: $codeId) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeFreeShipping {
+        title
+        status
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    id
+  }
+  automaticDiscountNode(id: $automaticId) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticFreeShipping {
+        title
+        status
+      }
+    }
+  }
+  discountNodes(first: 5, query: "type:free_shipping") {
+    nodes {
+      id
+    }
+  }
+  discountNodesCount(query: "type:free_shipping") {
+    count
+    precision
+  }
+}

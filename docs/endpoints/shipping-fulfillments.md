@@ -72,6 +72,8 @@ Delete support covers unknown-id userErrors and inventory actions at the local s
 
 Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
 
+Executable parity evidence for the fulfillment-service lifecycle lives in `config/parity-specs/fulfillment-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream `fulfillmentService(id:)` and `location(id:)` reads, after-delete absence, and validation branches through local proxy requests. It compares the created service/location directly instead of the full captured `shop.fulfillmentServices` catalog because the disposable live store contained unrelated pre-existing services that are not required preconditions for isolated local staging.
+
 Carrier service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they affect checkout rate-provider configuration:
 
 - `availableCarrierServices`
@@ -92,6 +94,8 @@ Create/update support covers `input.name`, `input.callbackUrl`, `input.active`, 
 Delete support is enabled because the 2026-04 schema exposes `carrierServiceDelete(id:)` and the live lifecycle capture verified `deletedId` plus downstream detail/catalog absence after cleanup. Local delete only removes the staged/local record; it does not call Shopify or any external callback.
 
 Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
+
+Executable parity evidence for the carrier-service lifecycle lives in `config/parity-specs/carrier-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream detail and active-filter catalog reads, after-delete absence, and validation branches through local proxy requests. It omits the captured opaque id-filter cursor branch from the replay comparison because the isolated proxy execution uses synthetic carrier-service IDs, while runtime coverage still exercises id-filter behavior directly.
 
 Delivery-profile reads are implemented as fixture-backed snapshot reads:
 
@@ -115,6 +119,32 @@ Delivery-profile writes are implemented for a deliberately bounded, conformance-
 - Successful create/update/remove mutations append staged mutation-log entries with the original GraphQL request body for commit replay. Validation branches with no state change return local `userErrors` and are not added to the commit log.
 - Variant association moves the variant into the target local profile and removes it from other locally known delivery profiles so downstream `deliveryProfile` / `deliveryProfiles` reads stay single-owner for the modeled variant.
 - Captured 2026-04 write evidence is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json` and registered by `config/parity-specs/delivery-profile-lifecycle.json`. The capture covered blank-name validation, nested create, nested update, condition delete, variant dissociation, missing update/remove, default-profile removal denial, async removal job payload, and downstream null read after removal. No access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
+
+Delivery settings and promise settings have a narrow read-only snapshot slice:
+
+- `deliverySettings`
+- `deliveryPromiseSettings`
+
+The HAR-324 live probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01 captured the current empty/no-feature settings branch: `deliverySettings.legacyModeProfiles` is `false`, `legacyModeBlocked.blocked` is `false`, `legacyModeBlocked.reasons` is `null`, `deliveryPromiseSettings.deliveryDatesEnabled` is `false`, and `deliveryPromiseSettings.processingTime` is `null`. Snapshot mode returns that shape locally without hitting upstream Shopify.
+
+`deliverySettingUpdate` remains unsupported. Changing delivery settings can alter shop delivery configuration and legacy-mode behavior, so it must not be marked supported until success, rollback/cleanup, validation errors, and downstream read-after-write effects are captured and modeled locally.
+
+Delivery customization and delivery promise roots remain explicit HAR-324 declared gaps:
+
+- `deliveryCustomization`
+- `deliveryCustomizations`
+- `deliveryCustomizationCreate`
+- `deliveryCustomizationUpdate`
+- `deliveryCustomizationDelete`
+- `deliveryCustomizationActivation`
+- `deliveryPromiseParticipants`
+- `deliveryPromiseParticipantsUpdate`
+- `deliveryPromiseProvider`
+- `deliveryPromiseProviderUpsert`
+
+Current live evidence is blocker-only for these families. The configured conformance credential has `read_shipping` / `write_shipping`, but it does not have `read_delivery_customizations`, `read_delivery_promises`, or the corresponding delivery-write scope families. Probing `deliveryCustomization` and `deliveryCustomizations` returned `ACCESS_DENIED` requiring `read_delivery_customizations`; probing `deliveryPromiseParticipants` and `deliveryPromiseProvider` returned `ACCESS_DENIED` requiring `read_delivery_promises`.
+
+Delivery customization mutations are Shopify Function-backed and depend on external function IDs, activation eligibility, function ownership, and metafields. Delivery promise mutations depend on branded promise handles, participant owner eligibility, provider state by location, and delivery-promise access scopes. Until those branches are captured and locally modeled, they stay on the unsupported mutation passthrough path with registered-operation and safety metadata in the mutation log.
 
 Shipping settings roots implemented by HAR-320:
 
@@ -155,6 +185,20 @@ Fulfillment constraint rules:
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
 
+Delivery customizations and promises:
+
+- `deliveryCustomization`
+- `deliveryCustomizations`
+- `deliveryCustomizationCreate`
+- `deliveryCustomizationUpdate`
+- `deliveryCustomizationDelete`
+- `deliveryCustomizationActivation`
+- `deliveryPromiseParticipants`
+- `deliveryPromiseParticipantsUpdate`
+- `deliveryPromiseProvider`
+- `deliveryPromiseProviderUpsert`
+- `deliverySettingUpdate`
+
 Shipping-line order-edit roots:
 
 - `orderEditAddShippingLine`
@@ -171,6 +215,9 @@ Shipping-line order-edit roots:
 - Fulfillment-service mutations couple service records to locations. Creation automatically creates a location, update does not replace `LocationEdit` for service-managed location details, and deletion has inventory/location disposition semantics. HAR-236 covers the first local service/location lifecycle slice; broader inventory transfer fidelity still needs dedicated inventory-level captures.
 - Broader carrier-service support still depends on app ownership, `write_shipping` access, plan eligibility, available-service/location pairing, and service-discovery callback semantics outside the locally staged catalog/lifecycle slice.
 - Delivery-profile write support is intentionally limited to custom merchant-owned profiles with static rate definitions. Carrier/service participants, callback-backed rates, full selling-plan routing semantics, legacy-mode transitions, default-profile mutation behavior beyond captured remove denial, and Shopify's full delivery-setting eligibility/access matrix remain excluded until separately captured and modeled.
+- Delivery settings read support is read-only and reflects the captured no-legacy-mode/no-promise-settings branch. Do not infer that `deliverySettingUpdate` is safe to stage merely because the read shape is local.
+- Delivery customization roots are Shopify Function-backed. Do not convert validation-only or access-denied evidence into local create/update/delete/activation support without modeling function ownership, function interface eligibility, metafields, activation limits, and downstream reads.
+- Delivery promise provider/participant roots are access-scope and eligibility sensitive. The current credential blocker is evidence for declared-gap status, not evidence for empty successful reads.
 - Local-pickup support is limited to `Location.localPickupSettingsV2` read-after-write behavior. Checkout pickup option ranking, pickup inventory eligibility, notification behavior, and local-delivery coupling require separate captures.
 - Shipping package support is a local staging slice for known package records. Package discovery, carrier package compatibility, checkout rate calculation, and full package validation remain future work because the captured schema has no direct package read root.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
@@ -181,6 +228,7 @@ Shipping-line order-edit roots:
 - Implemented top-level fulfillment reads: `tests/integration/order-query-shapes.test.ts`
 - Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
 - Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
+- Implemented delivery settings reads: `tests/integration/delivery-settings-query-shapes.test.ts`
 - Implemented shipping settings/package/pickup slice: `tests/integration/shipping-settings-flow.test.ts`
 - Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`
 - Implemented delivery-profile writes: `tests/integration/delivery-profile-lifecycle-flow.test.ts`
@@ -189,6 +237,7 @@ Shipping-line order-edit roots:
 - Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json` and `config/parity-specs/carrier-service-lifecycle.json`
 - Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`
 - Delivery-profile write capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json`
+- Delivery settings/customization/promise probe evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/delivery-customization-promise-settings-blockers.json`
 - Shipping settings/package/pickup/constraint evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-settings-package-pickup-constraints.json` and `config/parity-specs/shipping-settings-package-pickup-constraints.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

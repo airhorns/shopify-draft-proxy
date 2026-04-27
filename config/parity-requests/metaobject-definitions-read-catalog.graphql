@@ -1,0 +1,65 @@
+fragment MetaobjectDefinitionParityFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  hasThumbnailField
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+query MetaobjectDefinitionsReadCatalog {
+  metaobjectDefinitions(first: 10) {
+    edges {
+      cursor
+      node {
+        ...MetaobjectDefinitionParityFields
+      }
+    }
+    nodes {
+      ...MetaobjectDefinitionParityFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

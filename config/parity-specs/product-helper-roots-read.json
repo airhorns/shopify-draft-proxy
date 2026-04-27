@@ -11,9 +11,7 @@
     "productSavedSearches",
     "productOperation",
     "productDuplicateJob",
-    "productResourceFeedback",
-    "bulkProductResourceFeedbackCreate",
-    "shopResourceFeedbackCreate"
+    "productResourceFeedback"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "empty-state-parity", "local-runtime-backed", "unsupported-branch-observability"],

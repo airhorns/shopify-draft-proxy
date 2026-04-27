@@ -32,6 +32,7 @@ import type {
   DraftOrderRecord,
   FileRecord,
   FulfillmentServiceRecord,
+  InventoryShipmentRecord,
   GiftCardConfigurationRecord,
   GiftCardRecord,
   LocationRecord,
@@ -61,6 +62,7 @@ import type {
   ProductVariantRecord,
   PriceListRecord,
   PublicationRecord,
+  SavedSearchRecord,
   SegmentRecord,
   ShippingPackageRecord,
   SellingPlanGroupRecord,
@@ -100,6 +102,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   fulfillmentServiceOrder: [],
   carrierServices: {},
   carrierServiceOrder: [],
+  inventoryShipments: {},
+  inventoryShipmentOrder: [],
   shippingPackages: {},
   shippingPackageOrder: [],
   giftCards: {},
@@ -137,8 +141,11 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  savedSearches: {},
+  savedSearchOrder: [],
   bulkOperations: {},
   bulkOperationOrder: [],
+  bulkOperationResults: {},
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -197,6 +204,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedLocationIds: {},
   deletedFulfillmentServiceIds: {},
   deletedCarrierServiceIds: {},
+  deletedInventoryShipmentIds: {},
   deletedShippingPackageIds: {},
   deletedGiftCardIds: {},
   deletedCustomerIds: {},
@@ -208,6 +216,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedOnlineStoreBlogIds: {},
   deletedOnlineStorePageIds: {},
   deletedOnlineStoreCommentIds: {},
+  deletedSavedSearchIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
   deletedValidationIds: {},
@@ -884,6 +893,14 @@ export class InMemoryStore {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productIds.includes(productId));
   }
 
+  listEffectiveSellingPlanGroupsVisibleForProduct(productId: string): SellingPlanGroupRecord[] {
+    const variantIds = new Set(this.getEffectiveVariantsByProductId(productId).map((variant) => variant.id));
+    return this.listEffectiveSellingPlanGroups().filter(
+      (group) =>
+        group.productIds.includes(productId) || group.productVariantIds.some((variantId) => variantIds.has(variantId)),
+    );
+  }
+
   listEffectiveSellingPlanGroupsForProductVariant(variantId: string): SellingPlanGroupRecord[] {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productVariantIds.includes(variantId));
   }
@@ -1340,6 +1357,71 @@ export class InMemoryStore {
     );
   }
 
+  upsertBaseSavedSearches(records: SavedSearchRecord[]): void {
+    for (const record of records) {
+      delete this.baseState.deletedSavedSearchIds[record.id];
+      delete this.stagedState.deletedSavedSearchIds[record.id];
+      this.baseState.savedSearches[record.id] = structuredClone(record);
+      if (!this.baseState.savedSearchOrder.includes(record.id)) {
+        this.baseState.savedSearchOrder.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedSavedSearch(record: SavedSearchRecord): SavedSearchRecord {
+    delete this.stagedState.deletedSavedSearchIds[record.id];
+    this.stagedState.savedSearches[record.id] = structuredClone(record);
+    if (
+      !this.baseState.savedSearchOrder.includes(record.id) &&
+      !this.stagedState.savedSearchOrder.includes(record.id)
+    ) {
+      this.stagedState.savedSearchOrder.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  deleteStagedSavedSearch(savedSearchId: string): void {
+    delete this.stagedState.savedSearches[savedSearchId];
+    this.stagedState.deletedSavedSearchIds[savedSearchId] = true;
+  }
+
+  getEffectiveSavedSearchById(savedSearchId: string): SavedSearchRecord | null {
+    if (this.stagedState.deletedSavedSearchIds[savedSearchId] || this.baseState.deletedSavedSearchIds[savedSearchId]) {
+      return null;
+    }
+
+    const record = this.stagedState.savedSearches[savedSearchId] ?? this.baseState.savedSearches[savedSearchId];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveSavedSearches(): SavedSearchRecord[] {
+    const orderedIds = new Set([...this.baseState.savedSearchOrder, ...this.stagedState.savedSearchOrder]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveSavedSearchById(id))
+      .filter((record): record is SavedSearchRecord => record !== null);
+    const unorderedRecords = Object.values({
+      ...this.baseState.savedSearches,
+      ...this.stagedState.savedSearches,
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .map((record) => this.getEffectiveSavedSearchById(record.id))
+      .filter((record): record is SavedSearchRecord => record !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasSavedSearches(): boolean {
+    return Object.keys(this.baseState.savedSearches).length > 0 || this.hasStagedSavedSearches();
+  }
+
+  hasStagedSavedSearches(): boolean {
+    return (
+      Object.keys(this.stagedState.savedSearches).length > 0 ||
+      Object.keys(this.stagedState.deletedSavedSearchIds).length > 0
+    );
+  }
+
   upsertBaseBulkOperations(operations: BulkOperationRecord[]): void {
     for (const operation of operations) {
       this.baseState.bulkOperations[operation.id] = structuredClone(operation);
@@ -1358,6 +1440,12 @@ export class InMemoryStore {
       this.stagedState.bulkOperationOrder.push(operation.id);
     }
     return structuredClone(operation);
+  }
+
+  stageBulkOperationResult(operation: BulkOperationRecord, jsonl: string): BulkOperationRecord {
+    const stagedOperation = this.stageBulkOperation(operation);
+    this.stagedState.bulkOperationResults[operation.id] = jsonl;
+    return stagedOperation;
   }
 
   getEffectiveBulkOperationById(operationId: string): BulkOperationRecord | null {
@@ -1387,6 +1475,12 @@ export class InMemoryStore {
       .map((operation) => structuredClone(operation));
 
     return [...orderedOperations, ...unorderedOperations];
+  }
+
+  getEffectiveBulkOperationResultJsonl(operationId: string): string | null {
+    return (
+      this.stagedState.bulkOperationResults[operationId] ?? this.baseState.bulkOperationResults[operationId] ?? null
+    );
   }
 
   cancelStagedBulkOperation(operationId: string): BulkOperationRecord | null {
@@ -1924,6 +2018,72 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.carrierServices).length > 0 ||
       Object.keys(this.stagedState.deletedCarrierServiceIds).length > 0
+    );
+  }
+
+  upsertBaseInventoryShipments(shipments: InventoryShipmentRecord[]): void {
+    for (const shipment of shipments) {
+      delete this.baseState.deletedInventoryShipmentIds[shipment.id];
+      delete this.stagedState.deletedInventoryShipmentIds[shipment.id];
+      this.baseState.inventoryShipments[shipment.id] = structuredClone(shipment);
+      if (!this.baseState.inventoryShipmentOrder.includes(shipment.id)) {
+        this.baseState.inventoryShipmentOrder.push(shipment.id);
+      }
+    }
+  }
+
+  stageInventoryShipment(shipment: InventoryShipmentRecord): InventoryShipmentRecord {
+    delete this.stagedState.deletedInventoryShipmentIds[shipment.id];
+    this.stagedState.inventoryShipments[shipment.id] = structuredClone(shipment);
+    if (
+      !this.baseState.inventoryShipmentOrder.includes(shipment.id) &&
+      !this.stagedState.inventoryShipmentOrder.includes(shipment.id)
+    ) {
+      this.stagedState.inventoryShipmentOrder.push(shipment.id);
+    }
+    return structuredClone(shipment);
+  }
+
+  stageDeleteInventoryShipment(shipmentId: string): void {
+    delete this.stagedState.inventoryShipments[shipmentId];
+    this.stagedState.deletedInventoryShipmentIds[shipmentId] = true;
+  }
+
+  getEffectiveInventoryShipmentById(shipmentId: string): InventoryShipmentRecord | null {
+    if (
+      this.stagedState.deletedInventoryShipmentIds[shipmentId] ||
+      this.baseState.deletedInventoryShipmentIds[shipmentId]
+    ) {
+      return null;
+    }
+
+    const shipment =
+      this.stagedState.inventoryShipments[shipmentId] ?? this.baseState.inventoryShipments[shipmentId] ?? null;
+    return shipment ? structuredClone(shipment) : null;
+  }
+
+  listEffectiveInventoryShipments(): InventoryShipmentRecord[] {
+    const orderedIds = new Set([...this.baseState.inventoryShipmentOrder, ...this.stagedState.inventoryShipmentOrder]);
+    const orderedShipments = [...orderedIds]
+      .map((id) => this.getEffectiveInventoryShipmentById(id))
+      .filter((shipment): shipment is InventoryShipmentRecord => shipment !== null);
+    const unorderedShipments = Object.values({
+      ...this.baseState.inventoryShipments,
+      ...this.stagedState.inventoryShipments,
+    })
+      .filter((shipment) => !orderedIds.has(shipment.id))
+      .map((shipment) => this.getEffectiveInventoryShipmentById(shipment.id))
+      .filter((shipment): shipment is InventoryShipmentRecord => shipment !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedShipments, ...unorderedShipments]);
+  }
+
+  hasInventoryShipments(): boolean {
+    return (
+      Object.keys(this.baseState.inventoryShipments).length > 0 ||
+      Object.keys(this.stagedState.inventoryShipments).length > 0 ||
+      Object.keys(this.stagedState.deletedInventoryShipmentIds).length > 0
     );
   }
 

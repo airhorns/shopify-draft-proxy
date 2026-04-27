@@ -1,0 +1,23 @@
+mutation ProductRelationshipProductJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+    product {
+      id
+      sellingPlanGroups(first: 5) {
+        nodes {
+          id
+          name
+          merchantCode
+        }
+      }
+      sellingPlanGroupsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

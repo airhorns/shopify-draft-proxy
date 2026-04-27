@@ -1,6 +1,6 @@
 {
   "scenarioId": "order-edit-add-variant-live-parity",
-  "operationNames": ["orderEditAddVariant"],
+  "operationNames": ["orderEditBegin", "orderEditAddVariant"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [

@@ -20,6 +20,7 @@ type CapturedInteraction = {
 type BulkOperationNode = {
   id?: unknown;
   status?: unknown;
+  url?: unknown;
 };
 
 const terminalStatuses = new Set(['CANCELED', 'COMPLETED', 'EXPIRED', 'FAILED']);
@@ -316,6 +317,10 @@ function readBulkOperationStatus(node: BulkOperationNode | null): string | null 
   return typeof node?.status === 'string' ? node.status : null;
 }
 
+function readBulkOperationUrl(node: BulkOperationNode | null): string | null {
+  return typeof node?.url === 'string' ? node.url : null;
+}
+
 function numericIdFromGid(gid: string): string {
   return gid.slice(gid.lastIndexOf('/') + 1);
 }
@@ -337,6 +342,35 @@ async function pollBulkOperationToTerminal(id: string): Promise<CapturedInteract
   }
 
   return polls;
+}
+
+function findTerminalBulkOperation(polls: CapturedInteraction[]): BulkOperationNode | null {
+  for (const poll of polls) {
+    const operation = readBulkOperationFromField(poll, 'bulkOperation');
+    const status = readBulkOperationStatus(operation);
+    if (status !== null && terminalStatuses.has(status)) {
+      return operation;
+    }
+  }
+
+  return null;
+}
+
+async function captureBulkOperationResult(url: string): Promise<Record<string, unknown>> {
+  const response = await fetch(url);
+  const text = await response.text();
+  const records = text
+    .trim()
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as unknown);
+
+  return {
+    status: response.status,
+    contentType: response.headers.get('content-type'),
+    byteLength: Buffer.byteLength(text, 'utf8'),
+    records,
+  };
 }
 
 async function captureRunQueryLifecycle(
@@ -366,6 +400,14 @@ async function captureRunQueryLifecycle(
   }
 
   lifecycle['statusPolls'] = await pollBulkOperationToTerminal(id);
+  const terminalOperation = findTerminalBulkOperation(lifecycle['statusPolls'] as CapturedInteraction[]);
+  if (terminalOperation) {
+    lifecycle['terminalOperation'] = terminalOperation;
+    const resultUrl = readBulkOperationUrl(terminalOperation);
+    if (resultUrl) {
+      lifecycle['result'] = await captureBulkOperationResult(resultUrl);
+    }
+  }
   lifecycle['catalogById'] = await capture('BulkOperationsCatalogCapture', bulkOperationsCatalogQuery, {
     first: 5,
     query: `id:${numericIdFromGid(id)}`,

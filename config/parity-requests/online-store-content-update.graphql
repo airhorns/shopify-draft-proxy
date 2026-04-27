@@ -1,0 +1,55 @@
+mutation OnlineStoreContentUpdate(
+  $blogId: ID!
+  $blog: BlogUpdateInput!
+  $pageId: ID!
+  $page: PageUpdateInput!
+  $articleId: ID!
+  $article: ArticleUpdateInput!
+) {
+  blogUpdate(id: $blogId, blog: $blog) {
+    blog {
+      id
+      title
+      handle
+      commentPolicy
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  pageUpdate(id: $pageId, page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+      bodySummary
+      isPublished
+      publishedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  articleUpdate(id: $articleId, article: $article) {
+    article {
+      id
+      title
+      handle
+      body
+      summary
+      tags
+      isPublished
+      publishedAt
+      author {
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

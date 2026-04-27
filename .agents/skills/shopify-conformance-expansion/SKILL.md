@@ -30,13 +30,23 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
 3. Use Linear for operation/project tracking; do not recreate `docs/shopify-admin-worklist.md`.
 4. Identify the root operation and whether it is already implemented in `config/operation-registry.json`.
 5. Add or update runtime tests for proxy behavior before relying on parity evidence.
-6. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
-7. Add proxy replay files under `config/parity-requests/` only when a captured scenario can be replayed locally as working evidence.
-8. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
-9. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
-10. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
-11. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
-12. If the task specifically requires recording or re-recording live conformance
+6. Decide the evidence path before recording: every new live fixture, recorder,
+   or parity spec must have a same-change consumer that runs as strict proxy
+   parity or a documented runtime-test-backed replay path.
+7. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
+8. Add proxy replay files under `config/parity-requests/` only when a captured scenario can be replayed locally as working evidence.
+9. Prefer full-response strict parity targets over `selectedPaths` allowlists.
+   When stable fields differ, model the behavior or expand the fixture/request
+   first; use `expectedDifferences` as a narrow denylist only for unavoidable
+   opaque or intentionally divergent fields, and document each reason.
+10. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
+    If the store lacks required objects, create/update/activate/delete realistic
+    setup data in the capture script or setup flow and clean it up afterward
+    instead of falling back to validation-only evidence.
+11. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
+12. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
+13. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
+14. If the task specifically requires recording or re-recording live conformance
     evidence and valid Shopify credentials cannot be restored with the
     documented auth/probe paths, stop before implementation handoff: update the
     Linear workpad with the blocker, move the issue to Human Review, and do
@@ -220,7 +230,7 @@ Each parity spec must carry the scenario metadata:
 - `scenarioStatus`: `captured`; new planned-only or blocked-only specs are not acceptable.
 - `assertionKinds`: what confidence the scenario builds, such as `payload-shape`, `user-errors-parity`, or `downstream-read-parity`.
 - `liveCaptureFiles`: fixture paths for captured scenarios.
-- `proxyRequest`: `documentPath` and `variablesPath` when a captured scenario can be replayed through the proxy as working evidence; `null` when capture-only or not ready.
+- `proxyRequest`: `documentPath` and `variablesPath` when a captured scenario can be replayed through the proxy as working evidence. New scenarios should not set this to `null` unless proxy replay is genuinely hard-blocked by the current harness and the blocker is documented in the spec notes and Linear workpad.
 - `comparison`: strict JSON comparison contract for captured scenarios that are ready to execute.
 - `notes`: concise fidelity findings, blockers, or promotion criteria.
 
@@ -232,7 +242,7 @@ Explicit scenario override config is only for unusual cases that cannot fit this
 
 `tests/unit/conformance-parity-scenarios.test.ts` is the single convention-driven vitest suite that discovers every parity spec, filters to `ready-for-comparison`, and runs `executeParityScenario` against each. Adding or promoting a parity spec is enough to get CI coverage — do not write a new `it(...)` block that runs the same scenario explicitly. If you need richer per-scenario assertions (e.g. specific comparison target names), encode them in the parity spec itself; the runner validates them from the spec.
 
-Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later.
+Scenarios become `ready-for-comparison` only after they declare both a proxy request and a strict JSON comparison contract. Valid high-assurance scenarios must compare explicit targets and list every allowed difference as a path-scoped rule with a reason. Use matchers for legitimate nondeterminism such as Shopify IDs, timestamps, and throttle metadata. An `ignore: true` rule means the proxy has not reached parity for that path; it must also set `regrettable: true` and should only be used for hard temporary gaps that will be fixed later. Do not use `expectedDifferences`, `ignore`, or a narrow target list merely to make an incomplete implementation pass.
 
 When a scenario compares a resource selected by the proxy request, prefer a target at the whole selected resource object, such as `$.mutation.response.data.productCreate.product` or `$.downstreamRead.response.data.order.fulfillments[0]`, instead of allowlisting individual scalar fields. Add path-scoped exceptions for volatile fields such as generated IDs, cursors, and timestamps only when the comparator proves they differ. This keeps new selected fields covered by default and makes exceptions a denylist rather than an allowlist.
 

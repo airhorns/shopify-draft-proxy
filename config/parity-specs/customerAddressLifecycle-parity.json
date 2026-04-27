@@ -1,6 +1,7 @@
 {
   "scenarioId": "customer-address-lifecycle-parity",
   "operationNames": [
+    "customerCreate",
     "customerAddressCreate",
     "customerAddressUpdate",
     "customerAddressDelete",
@@ -13,10 +14,321 @@
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-address-lifecycle.json"],
   "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
-  "notes": "Captured evidence covers Admin customer address create/update/delete/default-address roots, downstream customer/customerByIdentifier/customers address reads, unknown-customer payload userErrors, unknown-address RESOURCE_NOT_FOUND GraphQL errors, cross-customer address ownership userErrors, blank/invalid/duplicate address branches, default-address deletion, setAsDefault omitted/false behavior, customerSet address replacement, and a bounded maximum-address probe. Runtime parity is covered by integration tests while the generic parity runner lacks multi-step mutation chaining between target proxy requests.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customer-address-lifecycle-create-customer.graphql",
+    "variablesCapturePath": "$.createCustomer.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison now replays the captured customer-address lifecycle through the local proxy harness: customer setup, two address creates, update, default-address selection, delete, downstream customer/customerByIdentifier/customers reads, omitted setAsDefault create, duplicate validation, ordering read, default-address deletion, and final read. The request chain materializes locally generated customer/address IDs between steps, so supported mutations stage locally and downstream reads are compared without runtime Shopify writes. Additional validation branches from the same capture remain covered by customer-draft-flow because they require isolated setup variants outside this single happy-path chain.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [
+      {
+        "path": "$.address.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy uses the locally staged customer ID from the setup mutation."
+      },
+      {
+        "path": "$.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy uses the locally staged customer ID from the setup mutation."
+      },
+      {
+        "path": "$.customerByIdentifier.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customers.nodes[*].id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy uses the locally staged customer ID from the setup mutation."
+      },
+      {
+        "path": "$.customers.nodes[*].defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customers.nodes[*].addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customers.nodes[*].addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customers.nodes[*].addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customers.nodes[*].addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customers.nodes[*].addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.deletedAddressId",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customers.nodes",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The live capture shows Shopify's customer search index lagging behind the staged address lifecycle customer, while the local customer search currently exposes staged customers immediately; direct customer and customerByIdentifier reads remain strictly compared for address read-after-write behavior."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-first-address",
+        "capturePath": "$.createFirstAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "firstName": "Hermes",
+              "lastName": "Default",
+              "address1": "1 Main St",
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "K1A 0B1",
+              "phone": "+14155550123"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "create-second-address",
+        "capturePath": "$.createSecondAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "address1": "2 Side St",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "M5H 2N2"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "update-second-address",
+        "capturePath": "$.updateSecondAddress.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "addressId": {
+              "fromProxyResponse": "create-second-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "city": "Montreal",
+              "provinceCode": "QC",
+              "zip": "H2Y 1C6"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "default-address",
+        "capturePath": "$.defaultAddress.response.data.customerUpdateDefaultAddress",
+        "proxyPath": "$.data.customerUpdateDefaultAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-default-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "addressId": {
+              "fromProxyResponse": "create-second-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "delete-first-address",
+        "capturePath": "$.deleteFirstAddress.response.data.customerAddressDelete",
+        "proxyPath": "$.data.customerAddressDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-delete-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "addressId": {
+              "fromProxyResponse": "create-first-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream-read",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "query": "email:hermes-address-1777157408181@example.com"
+          }
+        }
+      },
+      {
+        "name": "create-third-address",
+        "capturePath": "$.createThirdAddressOmittedSetAsDefault.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "address1": "3 Null Default St",
+              "city": "Vancouver",
+              "countryCode": "CA",
+              "provinceCode": "BC",
+              "zip": "V6B 1A1"
+            }
+          }
+        }
+      },
+      {
+        "name": "create-duplicate-address",
+        "capturePath": "$.createDuplicateAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "address1": "3 Null Default St",
+              "city": "Vancouver",
+              "countryCode": "CA",
+              "provinceCode": "BC",
+              "zip": "V6B 1A1"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "ordering-read",
+        "capturePath": "$.orderingRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "query": "email:hermes-address-1777157408181@example.com"
+          }
+        }
+      },
+      {
+        "name": "delete-default-address",
+        "capturePath": "$.deleteDefaultAddress.response.data.customerAddressDelete",
+        "proxyPath": "$.data.customerAddressDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-delete-address.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "addressId": {
+              "fromProxyResponse": "create-second-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "delete-default-read",
+        "capturePath": "$.deleteDefaultRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-address-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "identifier": { "emailAddress": "hermes-address-1777157408181@example.com" },
+            "query": "email:hermes-address-1777157408181@example.com"
+          }
+        }
+      }
+    ]
   }
 }
