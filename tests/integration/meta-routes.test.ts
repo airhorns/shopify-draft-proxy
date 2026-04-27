@@ -24,6 +24,8 @@ const emptySnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  storeCreditAccounts: {},
+  storeCreditAccountTransactions: {},
   customerSegmentMembersQueries: {},
   segments: {},
   webhookSubscriptions: {},
