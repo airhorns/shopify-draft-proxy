@@ -2592,3 +2592,25 @@ Practical rule:
 - keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
+
+## 69. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+
+HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
+
+Useful setup and behavior:
+
+- creating a temporary `fulfillmentService` without a callback URL produced a third-party API fulfillment service plus a service-managed location
+- moving a disposable order's fulfillment order to that location with `fulfillmentOrderMove` was enough to exercise the request roots
+- partial `fulfillmentOrderSubmitFulfillmentRequest` shrank the submitted fulfillment order's line-item `totalQuantity` / `remainingQuantity` to the requested quantity and created an `UNSUBMITTED` replacement fulfillment order for the remaining quantity
+- submit fulfillment request records a `FULFILLMENT_REQUEST` merchant request with the message and `requestOptions.notify_customer`
+- accept fulfillment request transitions `status` to `IN_PROGRESS` and `requestStatus` to `ACCEPTED`; the selected merchant request `responseData` remained `null` even when `message` and `estimatedShippedAt` were passed
+- submit cancellation request appends a `CANCELLATION_REQUEST` merchant request, but the selected fulfillment order still reported `requestStatus: ACCEPTED` immediately after submission
+- accept cancellation transitions to `status: CLOSED`, `requestStatus: CANCELLATION_ACCEPTED`, and selected line-item quantities of `0`
+- reject fulfillment request transitions to `requestStatus: REJECTED`; reject cancellation request transitions to `requestStatus: CANCELLATION_REJECTED`
+- all six scoped roots returned top-level `RESOURCE_NOT_FOUND` errors for `gid://shopify/FulfillmentOrder/0`
+
+Practical rule:
+
+- model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
+- keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
+- do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence

@@ -1,0 +1,269 @@
+{
+  "capturedAt": "2026-04-26T01:06:52.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "fulfillmentServiceCreate": {
+      "response": {
+        "data": {
+          "fulfillmentServiceCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/71890010418?id=true",
+              "serviceName": "HAR233 Lifecycle 1777165605041",
+              "handle": "har233-lifecycle-1777165605041",
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/112681910578",
+                "name": "HAR233 Lifecycle 1777165605041"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "notes": "Disposable orders were created with orderCreate and moved to the temporary API fulfillment-service location with fulfillmentOrderMove before request/cancellation lifecycle probes."
+  },
+  "invalidIdBranches": {
+    "id": "gid://shopify/FulfillmentOrder/0",
+    "expectedError": {
+      "messagePattern": "Invalid id: gid://shopify/FulfillmentOrder/0",
+      "extensions": {
+        "code": "RESOURCE_NOT_FOUND"
+      }
+    },
+    "operations": [
+      "fulfillmentOrderSubmitFulfillmentRequest",
+      "fulfillmentOrderAcceptFulfillmentRequest",
+      "fulfillmentOrderRejectFulfillmentRequest",
+      "fulfillmentOrderSubmitCancellationRequest",
+      "fulfillmentOrderAcceptCancellationRequest",
+      "fulfillmentOrderRejectCancellationRequest"
+    ]
+  },
+  "partialSubmit": {
+    "operationName": "fulfillmentOrderSubmitFulfillmentRequest",
+    "variables": {
+      "id": "gid://shopify/FulfillmentOrder/9633912684850",
+      "fulfillmentOrderLineItems": [
+        {
+          "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+          "quantity": 1
+        }
+      ],
+      "message": "HAR-233 partial submit",
+      "notifyCustomer": false
+    },
+    "response": {
+      "data": {
+        "fulfillmentOrderSubmitFulfillmentRequest": {
+          "originalFulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "status": "OPEN",
+            "requestStatus": "SUBMITTED",
+            "merchantRequests": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderMerchantRequest/380861677874",
+                  "kind": "FULFILLMENT_REQUEST",
+                  "message": "HAR-233 partial submit",
+                  "requestOptions": {
+                    "notify_customer": false
+                  },
+                  "responseData": null,
+                  "sentAt": "2026-04-26T01:06:46Z"
+                }
+              ]
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                  "totalQuantity": 1,
+                  "remainingQuantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19268425515314",
+                    "title": "HAR-233 accept-cancel-accept 1777165605041"
+                  }
+                }
+              ]
+            }
+          },
+          "submittedFulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "status": "OPEN",
+            "requestStatus": "SUBMITTED"
+          },
+          "unsubmittedFulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912750386",
+            "status": "OPEN",
+            "requestStatus": "UNSUBMITTED",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386484018",
+                  "totalQuantity": 1,
+                  "remainingQuantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19268425515314",
+                    "title": "HAR-233 accept-cancel-accept 1777165605041"
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "acceptFulfillmentRequest": {
+    "operationName": "fulfillmentOrderAcceptFulfillmentRequest",
+    "response": {
+      "data": {
+        "fulfillmentOrderAcceptFulfillmentRequest": {
+          "fulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "status": "IN_PROGRESS",
+            "requestStatus": "ACCEPTED"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "submitCancellationRequest": {
+    "operationName": "fulfillmentOrderSubmitCancellationRequest",
+    "response": {
+      "data": {
+        "fulfillmentOrderSubmitCancellationRequest": {
+          "fulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "status": "IN_PROGRESS",
+            "requestStatus": "ACCEPTED",
+            "merchantRequests": {
+              "nodes": [
+                {
+                  "kind": "FULFILLMENT_REQUEST",
+                  "message": "HAR-233 partial submit",
+                  "requestOptions": {
+                    "notify_customer": false
+                  },
+                  "responseData": null
+                },
+                {
+                  "kind": "CANCELLATION_REQUEST",
+                  "message": "HAR-233 cancel requested",
+                  "requestOptions": {},
+                  "responseData": null
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "acceptCancellationRequest": {
+    "operationName": "fulfillmentOrderAcceptCancellationRequest",
+    "response": {
+      "data": {
+        "fulfillmentOrderAcceptCancellationRequest": {
+          "fulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912684850",
+            "status": "CLOSED",
+            "requestStatus": "CANCELLATION_ACCEPTED",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19417386418482",
+                  "totalQuantity": 0,
+                  "remainingQuantity": 0
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "rejectFulfillmentRequest": {
+    "operationName": "fulfillmentOrderRejectFulfillmentRequest",
+    "response": {
+      "data": {
+        "fulfillmentOrderRejectFulfillmentRequest": {
+          "fulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912815922",
+            "status": "OPEN",
+            "requestStatus": "REJECTED"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "rejectCancellationRequest": {
+    "operationName": "fulfillmentOrderRejectCancellationRequest",
+    "response": {
+      "data": {
+        "fulfillmentOrderRejectCancellationRequest": {
+          "fulfillmentOrder": {
+            "id": "gid://shopify/FulfillmentOrder/9633912914226",
+            "status": "IN_PROGRESS",
+            "requestStatus": "CANCELLATION_REJECTED",
+            "merchantRequests": {
+              "nodes": [
+                {
+                  "kind": "FULFILLMENT_REQUEST",
+                  "message": "HAR-233 submit cancel reject",
+                  "requestOptions": {
+                    "notify_customer": false
+                  },
+                  "responseData": null
+                },
+                {
+                  "kind": "CANCELLATION_REQUEST",
+                  "message": "HAR-233 cancellation to reject",
+                  "requestOptions": {},
+                  "responseData": null
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "orderCancelAcceptedCancellationOrder": {
+      "userErrors": [],
+      "orderCancelUserErrors": []
+    },
+    "orderCancelRejectedFulfillmentOrder": {
+      "userErrors": [],
+      "orderCancelUserErrors": []
+    },
+    "orderCancelRejectedCancellationOrder": {
+      "userErrors": [
+        {
+          "field": ["orderId"],
+          "message": "Cannot cancel an order that has outstanding fulfillments"
+        }
+      ],
+      "orderCancelUserErrors": [
+        {
+          "field": ["orderId"],
+          "message": "Cannot cancel an order that has outstanding fulfillments",
+          "code": "INVALID"
+        }
+      ]
+    },
+    "fulfillmentServiceDelete": {
+      "deletedId": "gid://shopify/FulfillmentService/71890010418",
+      "userErrors": []
+    }
+  }
+}
