@@ -25,6 +25,7 @@
     "conformance:capture-customer-set": "tsx ./scripts/capture-customer-set-conformance.mts",
     "conformance:capture-customer-addresses": "tsx ./scripts/capture-customer-address-conformance.mts",
     "conformance:capture-customer-merge": "tsx ./scripts/capture-customer-merge-conformance.mts",
+    "conformance:capture-customer-merge-attached-resources": "tsx ./scripts/capture-customer-merge-attached-resources-conformance.mts",
     "conformance:capture-customer-consent": "tsx ./scripts/capture-customer-consent-conformance.ts",
     "conformance:capture-customer-tax-exemptions": "tsx ./scripts/capture-customer-tax-exemption-conformance.ts",
     "conformance:capture-customer-order-summary": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-customer-order-summary-conformance.ts",

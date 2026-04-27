@@ -456,7 +456,7 @@ function mergeCustomerRecords(base: CustomerRecord | null, staged: CustomerRecor
     emailMarketingConsent: staged.emailMarketingConsent ?? base.emailMarketingConsent,
     smsMarketingConsent: staged.smsMarketingConsent ?? base.smsMarketingConsent,
     defaultAddress: staged.defaultAddress ?? base.defaultAddress,
-    createdAt: base.createdAt,
+    createdAt: staged.createdAt ?? base.createdAt,
     updatedAt:
       base.updatedAt && staged.updatedAt
         ? ensureUpdatedAtAfterBase(base.updatedAt, staged.updatedAt)
@@ -3770,19 +3770,14 @@ export class InMemoryStore {
       .filter((metafield) => metafield.customerId === customerId)
       .map((metafield) => structuredClone(metafield));
 
-    const sourceMetafields =
-      stagedMetafields.length > 0
-        ? stagedMetafields
-        : Object.values(this.baseState.customerMetafields)
-            .filter((metafield) => metafield.customerId === customerId)
-            .map((metafield) => structuredClone(metafield));
+    if (stagedMetafields.length > 0) {
+      return stagedMetafields;
+    }
 
-    return sourceMetafields.sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    );
+    return Object.values(this.baseState.customerMetafields)
+      .filter((metafield) => metafield.customerId === customerId)
+      .map((metafield) => structuredClone(metafield))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
   }
 
   hasStagedProducts(): boolean {

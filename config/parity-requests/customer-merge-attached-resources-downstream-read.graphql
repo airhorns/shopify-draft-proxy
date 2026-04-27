@@ -1,4 +1,4 @@
-query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!, $jobId: ID!) {
+query CustomerMergeAttachedResourcesDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!) {
   source: customer(id: $one) {
     id
     firstName
@@ -156,28 +156,110 @@ query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $e
   byEmailOne: customerByIdentifier(identifier: { emailAddress: $emailOne }) {
     id
     email
-    defaultEmailAddress {
-      emailAddress
+    defaultAddress {
+      id
+      address1
+      city
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+      }
+    }
+    lastOrder {
+      id
+      name
     }
   }
   byEmailTwo: customerByIdentifier(identifier: { emailAddress: $emailTwo }) {
     id
     email
-    defaultEmailAddress {
-      emailAddress
+    defaultAddress {
+      id
+      address1
+      city
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+      }
+    }
+    lastOrder {
+      id
+      name
     }
   }
-  customersCount {
+  customers(first: 10, query: "tag:har-291-merge") {
+    nodes {
+      id
+      email
+      tags
+      numberOfOrders
+      defaultAddress {
+        id
+        address1
+        city
+      }
+      addressesV2(first: 10) {
+        nodes {
+          id
+          address1
+          city
+        }
+      }
+      metafields(first: 10) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+      orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          id
+          name
+        }
+      }
+      lastOrder {
+        id
+        name
+      }
+    }
+  }
+  customersCount(query: "tag:har-291-merge") {
     count
     precision
-  }
-  mergeStatus: customerMergeJobStatus(jobId: $jobId) {
-    jobId
-    resultingCustomerId
-    status
-    customerMergeErrors {
-      errorFields
-      message
-    }
   }
 }

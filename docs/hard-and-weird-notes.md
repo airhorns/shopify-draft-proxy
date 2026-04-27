@@ -2290,16 +2290,21 @@ Captured safe happy path for two synthetic customers:
 
 - Shopify selected `customerTwoId` as the resulting customer id
 - the mutation returned a job with `done: false`
-- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- HAR-291 polling observed `customerMergeJobStatus` return `IN_PROGRESS` immediately after the mutation and `COMPLETED` on the next poll
 - downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
 - downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
 - override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+- HAR-291 keeps the base two-customer merge fixture separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
+- when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
+- the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
+- the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
 
 Practical rule:
 
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
-- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
+- model only attached resources with captured non-empty behavior and normalized local state: HAR-291 covers customer addresses, customer metafields, and orders
+- draft-order setup was captured, but not a downstream draft-order transfer read; draft orders, gift cards, discounts, and other attached resources remain deferred until fixtures capture their non-empty post-merge behavior
 
 ## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
 
