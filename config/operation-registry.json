@@ -1235,6 +1235,16 @@
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
   },
   {
+    "name": "customerAccountPage",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerAccountPage", "CustomerAccountPage"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "HAR-322: snapshot mode resolves customer account page details from normalized local state and returns null for absent IDs. Live capture on harry-test-heelo showed the built-in Orders, Profile, and Settings pages; live-hybrid keeps upstream payloads authoritative for this read-only system surface."
+  },
+  {
     "name": "event",
     "type": "query",
     "domain": "events",
@@ -1272,6 +1282,16 @@
     "implemented": true,
     "matchNames": ["customers", "Customers"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customerAccountPages",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerAccountPages", "CustomerAccountPages"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "HAR-322: snapshot mode serializes normalized customer account pages through the shared connection helpers and returns an empty connection when no account-page snapshot state exists. Live capture on harry-test-heelo showed Orders, Profile, and Settings default pages."
   },
   {
     "name": "customersCount",
@@ -1335,6 +1355,26 @@
     "implemented": true,
     "matchNames": ["customerDelete", "CustomerDelete"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerRequestDataErasure",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerRequestDataErasure", "CustomerRequestDataErasure"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-322: stages a local customer data-erasure request intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads and DOES_NOT_EXIST unknown-customer userErrors."
+  },
+  {
+    "name": "customerCancelDataErasure",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerCancelDataErasure", "CustomerCancelDataErasure"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-322: stages a local data-erasure cancellation intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads, DOES_NOT_EXIST unknown-customer userErrors, and NOT_BEING_ERASED repeat-cancel cleanup behavior."
   },
   {
     "name": "customerAddressCreate",

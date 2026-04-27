@@ -2171,6 +2171,8 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
     mutationName !== 'customerSmsMarketingConsentUpdate' &&
     mutationName !== 'dataSaleOptOut' &&
+    mutationName !== 'customerRequestDataErasure' &&
+    mutationName !== 'customerCancelDataErasure' &&
     mutationName !== 'customerAddTaxExemptions' &&
     mutationName !== 'customerRemoveTaxExemptions' &&
     mutationName !== 'customerReplaceTaxExemptions'
@@ -2180,13 +2182,16 @@ function seedCustomerMutationPreconditions(
 
   const input = readRecordField(variables, 'input');
   const customerPayload = readRecordField(payload, 'customer');
-  const preconditionPayload = firstObjectValue(readJsonPath(capture, '$.precondition.response.data'));
+  const preconditionPayload =
+    firstObjectValue(readJsonPath(capture, '$.precondition.response.data')) ??
+    readCustomerCreatePayloadFromCapture(capture as Record<string, unknown>, 'customerCreate');
   const preconditionCustomerPayload = readRecordField(preconditionPayload, 'customer');
   const downstreamRead = readRecordField(capture as Record<string, unknown>, 'downstreamRead');
   const downstreamData =
     readRecordField(downstreamRead, 'data') ?? readRecordField(readRecordField(downstreamRead, 'response'), 'data');
   const downstreamCount = readNumberField(readRecordField(downstreamData, 'customersCount'), 'count');
   const targetCustomerId =
+    readStringField(variables, 'customerId') ??
     readStringField(input, 'id') ??
     readStringField(input, 'customerId') ??
     readStringField(customerPayload, 'id') ??
