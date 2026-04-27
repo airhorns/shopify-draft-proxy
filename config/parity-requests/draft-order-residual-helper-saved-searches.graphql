@@ -1,0 +1,18 @@
+query DraftOrderSavedSearches {
+  draftOrderSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

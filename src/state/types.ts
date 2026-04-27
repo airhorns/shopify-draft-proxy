@@ -254,6 +254,21 @@ export const productOptionRecordSchema = z.strictObject({
 });
 export type ProductOptionRecord = z.infer<typeof productOptionRecordSchema>;
 
+export const productOperationUserErrorRecordSchema = z.strictObject({
+  field: z.array(z.string()).nullable(),
+  message: z.string(),
+});
+export type ProductOperationUserErrorRecord = z.infer<typeof productOperationUserErrorRecordSchema>;
+
+export const productOperationRecordSchema = z.strictObject({
+  id: z.string(),
+  typeName: z.enum(['ProductSetOperation']),
+  productId: nullableStringSchema,
+  status: z.string(),
+  userErrors: z.array(productOperationUserErrorRecordSchema).default([]),
+});
+export type ProductOperationRecord = z.infer<typeof productOperationRecordSchema>;
+
 export const collectionRecordSchema = z.strictObject({
   id: z.string(),
   legacyResourceId: nullableStringSchema.optional(),
@@ -1720,6 +1735,7 @@ export const stateSnapshotSchema = z.strictObject({
   products: z.record(z.string(), productRecordSchema),
   productVariants: z.record(z.string(), productVariantRecordSchema),
   productOptions: z.record(z.string(), productOptionRecordSchema),
+  productOperations: z.record(z.string(), productOperationRecordSchema).default({}),
   locations: z.record(z.string(), locationRecordSchema).default({}),
   locationOrder: z.array(z.string()).default([]),
   fulfillmentServices: z.record(z.string(), fulfillmentServiceRecordSchema).default({}),
