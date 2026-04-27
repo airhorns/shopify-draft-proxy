@@ -739,9 +739,9 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unknown {
+function materializeValue(rawValue: unknown, primaryProxyResponse: unknown, capture?: unknown): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse));
+    return rawValue.map((item) => materializeValue(item, primaryProxyResponse, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -752,13 +752,21 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unk
     return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
   }
 
+  if (typeof rawValue['fromCapturePath'] === 'string') {
+    return readJsonPath(capture, rawValue['fromCapturePath']);
+  }
+
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]),
+    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse, capture)]),
   );
 }
 
-function materializeVariables(rawVariables: unknown, primaryProxyResponse: unknown): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse);
+function materializeVariables(
+  rawVariables: unknown,
+  primaryProxyResponse: unknown,
+  capture?: unknown,
+): Record<string, unknown> {
+  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -7067,13 +7075,13 @@ function readRequestVariables(
   primaryProxyResponse: unknown,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
+    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse, capture);
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse);
+  return materializeVariables(rawVariables, primaryProxyResponse, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
