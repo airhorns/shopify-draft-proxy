@@ -494,6 +494,26 @@
     "supportNotes": "Returns the captured 2025-01 quantity-name catalog used by inventory-level reads and staged quantity mutations."
   },
   {
+    "name": "inventoryTransfer",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryTransfer", "InventoryTransfer"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Reads locally staged inventory transfers by id, including Shopify-like null misses in snapshot mode."
+  },
+  {
+    "name": "inventoryTransfers",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryTransfers", "InventoryTransfers"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Lists locally staged inventory transfers with shared cursor pagination and empty no-data connections."
+  },
+  {
     "name": "collection",
     "type": "query",
     "domain": "products",
@@ -2888,10 +2908,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationRunMutation", "BulkOperationRunMutation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations import mutation gap. Future support must stage a local asynchronous mutation-import job from stagedUploadPath/clientIdentifier inputs, model BulkOperation results and failures, and avoid runtime Shopify writes until explicit commit replay."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-265: stages mutation imports locally only for single-root product inner mutations that are already locally implemented. Uploaded JSONL variables must come from the proxy's staged upload handoff; unsupported inner roots create an explicit failed local BulkOperation and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata."
   },
   {
     "name": "bulkOperationCancel",
@@ -3135,6 +3155,96 @@
     "implemented": true,
     "matchNames": ["inventoryBulkToggleActivation", "InventoryBulkToggleActivation"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryTransferCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferCreate", "InventoryTransferCreate"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages draft transfers over product-backed inventory items with captured tracked-item validation and downstream transfer reads."
+  },
+  {
+    "name": "inventoryTransferCreateAsReadyToShip",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferCreateAsReadyToShip", "InventoryTransferCreateAsReadyToShip"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages a ready-to-ship transfer and reserves origin inventory locally when sufficient available quantity exists."
+  },
+  {
+    "name": "inventoryTransferEdit",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferEdit", "InventoryTransferEdit"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages editable transfer metadata and location snapshot changes for locally modeled transfer records."
+  },
+  {
+    "name": "inventoryTransferSetItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferSetItems", "InventoryTransferSetItems"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages replacement line-item quantities for draft transfers and returns Shopify-shaped line item update deltas."
+  },
+  {
+    "name": "inventoryTransferRemoveItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferRemoveItems", "InventoryTransferRemoveItems"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages line-item removal for locally modeled transfers and returns removed quantity deltas."
+  },
+  {
+    "name": "inventoryTransferMarkAsReadyToShip",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferMarkAsReadyToShip", "InventoryTransferMarkAsReadyToShip"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Transitions draft transfers to READY_TO_SHIP and mirrors captured inventory effects by moving origin available quantity into reserved quantity."
+  },
+  {
+    "name": "inventoryTransferDuplicate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferDuplicate", "InventoryTransferDuplicate"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Duplicates locally modeled transfers as new draft transfer records without runtime Shopify writes."
+  },
+  {
+    "name": "inventoryTransferCancel",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferCancel", "InventoryTransferCancel"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Stages transfer cancellation and releases locally reserved origin inventory for ready-to-ship transfers."
+  },
+  {
+    "name": "inventoryTransferDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryTransferDelete", "InventoryTransferDelete"],
+    "runtimeTests": ["tests/integration/inventory-transfer-flow.test.ts"],
+    "supportNotes": "Deletes draft transfers locally and mirrors Shopify's captured non-draft delete guardrail."
   },
   {
     "name": "inventoryShipmentCreate",

@@ -42,6 +42,17 @@ type BulkOperationFixture = {
   lifecycle: Record<string, unknown>;
 };
 
+type BulkImportLogEntryBody = {
+  operationName: string;
+  variables: Record<string, unknown>;
+  interpreted: {
+    bulkOperationImport?: {
+      lineNumber: number;
+      outerRequestBody: unknown;
+    };
+  };
+};
+
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
 }
@@ -229,7 +240,14 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     expect(scenario).toMatchObject({
       status: 'captured',
-      operationNames: ['bulkOperation', 'bulkOperations', 'currentBulkOperation', 'bulkOperationCancel'],
+      operationNames: [
+        'bulkOperation',
+        'bulkOperations',
+        'currentBulkOperation',
+        'bulkOperationRunQuery',
+        'bulkOperationRunMutation',
+        'bulkOperationCancel',
+      ],
       captureFiles: [fixturePath],
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');
@@ -239,6 +257,7 @@ describe('BulkOperation conformance fixture and local model', () => {
       ['query', 'bulkOperations', true],
       ['query', 'currentBulkOperation', true],
       ['mutation', 'bulkOperationRunQuery', true],
+      ['mutation', 'bulkOperationRunMutation', true],
       ['mutation', 'bulkOperationCancel', true],
     ] as const) {
       expect(findOperationRegistryEntry(operationType, [rootField])).toMatchObject({
@@ -847,6 +866,350 @@ describe('BulkOperation conformance fixture and local model', () => {
       interpreted: {
         operationType: 'mutation',
         rootFields: ['bulkOperationCancel', 'bulkOperationCancel', 'bulkOperationCancel'],
+        capability: {
+          domain: 'bulk-operations',
+          execution: 'stage-locally',
+        },
+      },
+    });
+  });
+
+  it('stages supported product bulk mutation imports from uploaded JSONL and preserves line-order commit logs', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation product imports should stay local'));
+    const app = createApp(config).callback();
+
+    const stagedUploadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation PrepareBulkImport($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: [
+            {
+              resource: 'BULK_MUTATION_VARIABLES',
+              filename: 'product-create.jsonl',
+              mimeType: 'text/jsonl',
+              httpMethod: 'POST',
+            },
+          ],
+        },
+      });
+    const target = stagedUploadResponse.body.data.stagedUploadsCreate.stagedTargets[0] as {
+      resourceUrl: string;
+      parameters: Array<{ name: string; value: string }>;
+    };
+    const stagedUploadPath = target.parameters.find((parameter) => parameter.name === 'key')?.value;
+
+    expect(stagedUploadPath).toEqual(expect.stringContaining('/product-create.jsonl'));
+    expect(stagedUploadResponse.body.data.stagedUploadsCreate.userErrors).toEqual([]);
+    if (!stagedUploadPath) {
+      throw new Error('stagedUploadsCreate did not return a key parameter');
+    }
+
+    const jsonl = [
+      JSON.stringify({ product: { title: 'Bulk Hat One', status: 'DRAFT' } }),
+      JSON.stringify({ product: { title: '', status: 'DRAFT' } }),
+      JSON.stringify({ product: { title: 'Bulk Hat Two', status: 'ACTIVE' } }),
+    ].join('\n');
+    const uploadResponse = await request(app)
+      .post(new URL(target.resourceUrl).pathname)
+      .set('content-type', 'text/jsonl')
+      .send(`${jsonl}\n`);
+
+    expect(uploadResponse.status).toBe(201);
+
+    const innerMutation = `mutation ProductCreate($product: ProductCreateInput!) {
+      productCreate(product: $product) {
+        product {
+          id
+          title
+          handle
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkRequestBody = {
+      query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+        bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+          bulkOperation {
+            id
+            status
+            type
+            objectCount
+            rootObjectCount
+            fileSize
+            url
+            query
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      variables: {
+        mutation: innerMutation,
+        stagedUploadPath,
+      },
+    };
+    const bulkResponse = await request(app).post('/admin/api/2026-04/graphql.json').send(bulkRequestBody);
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '2',
+      rootObjectCount: '2',
+      query: innerMutation,
+    });
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(3);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          productCreate: {
+            product: {
+              title: 'Bulk Hat One',
+              handle: 'bulk-hat-one',
+              status: 'DRAFT',
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+    expect(resultRows[1]).toMatchObject({
+      line: 2,
+      response: {
+        data: {
+          productCreate: {
+            product: null,
+            userErrors: [{ field: ['title'], message: "Title can't be blank" }],
+          },
+        },
+      },
+    });
+    expect(resultRows[2]).toMatchObject({
+      line: 3,
+      response: {
+        data: {
+          productCreate: {
+            product: {
+              title: 'Bulk Hat Two',
+              handle: 'bulk-hat-two',
+              status: 'ACTIVE',
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+
+    const firstResultResponse = resultRows[0]?.['response'] as {
+      data: { productCreate: { product: { id: string } } };
+    };
+    const secondResultResponse = resultRows[2]?.['response'] as {
+      data: { productCreate: { product: { id: string } } };
+    };
+    const firstProductId = firstResultResponse.data.productCreate.product.id;
+    const secondProductId = secondResultResponse.data.productCreate.product.id;
+    const readAfterWriteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkImportedProducts($firstId: ID!, $secondId: ID!) {
+          first: product(id: $firstId) {
+            id
+            title
+            handle
+            status
+          }
+          second: product(id: $secondId) {
+            id
+            title
+            handle
+            status
+          }
+        }`,
+        variables: {
+          firstId: firstProductId,
+          secondId: secondProductId,
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const stateResponse = await request(app).get('/__meta/state');
+
+    expect(readAfterWriteResponse.body.data).toEqual({
+      first: {
+        id: firstProductId,
+        title: 'Bulk Hat One',
+        handle: 'bulk-hat-one',
+        status: 'DRAFT',
+      },
+      second: {
+        id: secondProductId,
+        title: 'Bulk Hat Two',
+        handle: 'bulk-hat-two',
+        status: 'ACTIVE',
+      },
+    });
+    expect(stateResponse.body.stagedState.bulkOperations[operationId]).toMatchObject({
+      status: 'COMPLETED',
+      resultJsonl: resultResponse.text,
+    });
+    const bulkImportLogEntries = (logResponse.body.entries as BulkImportLogEntryBody[]).filter(
+      (
+        entry,
+      ): entry is BulkImportLogEntryBody & {
+        interpreted: { bulkOperationImport: { lineNumber: number; outerRequestBody: unknown } };
+      } => Boolean(entry.interpreted.bulkOperationImport),
+    );
+
+    expect(logResponse.body.entries).toHaveLength(4);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'stagedUploadsCreate',
+      status: 'staged',
+    });
+    expect(bulkImportLogEntries.map((entry) => entry.operationName)).toEqual([
+      'ProductCreate',
+      'ProductCreate',
+      'ProductCreate',
+    ]);
+    expect(
+      bulkImportLogEntries.map((entry) => ({
+        lineNumber: entry.interpreted.bulkOperationImport.lineNumber,
+        outerRequestBody: entry.interpreted.bulkOperationImport.outerRequestBody,
+      })),
+    ).toEqual([
+      {
+        lineNumber: 1,
+        outerRequestBody: bulkRequestBody,
+      },
+      {
+        lineNumber: 2,
+        outerRequestBody: bulkRequestBody,
+      },
+      {
+        lineNumber: 3,
+        outerRequestBody: bulkRequestBody,
+      },
+    ]);
+    expect(bulkImportLogEntries.map((entry) => entry.variables)).toEqual([
+      { product: { title: 'Bulk Hat One', status: 'DRAFT' } },
+      { product: { title: '', status: 'DRAFT' } },
+      { product: { title: 'Bulk Hat Two', status: 'ACTIVE' } },
+    ]);
+  });
+
+  it('fails unsupported bulk mutation import roots locally without upstream passthrough', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('unsupported bulkOperationRunMutation imports should not proxy upstream'));
+    const app = createApp(config).callback();
+
+    store.stageUploadContent(
+      ['shopify-draft-proxy/gid://shopify/StagedUploadTarget0/unsupported.jsonl'],
+      `${JSON.stringify({ input: { email: 'bulk@example.com' } })}\n`,
+    );
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              url
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: `mutation CustomerCreate($input: CustomerInput!) {
+            customerCreate(input: $input) {
+              customer {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }`,
+          stagedUploadPath: 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/unsupported.jsonl',
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const operationId = response.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(response.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'FAILED',
+      type: 'MUTATION',
+      objectCount: '0',
+      rootObjectCount: '0',
+    });
+    expect(response.body.data.bulkOperationRunMutation.userErrors).toEqual([
+      {
+        field: ['mutation'],
+        message: 'Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.',
+      },
+    ]);
+    expect(JSON.parse(resultResponse.text.trim())).toMatchObject({
+      line: null,
+      errors: [
+        {
+          message:
+            'bulkOperationRunMutation locally supports only single-root product mutations that are already staged by the proxy.',
+        },
+      ],
+    });
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'bulkOperationRunMutation',
+      status: 'failed',
+      interpreted: {
         capability: {
           domain: 'bulk-operations',
           execution: 'stage-locally',

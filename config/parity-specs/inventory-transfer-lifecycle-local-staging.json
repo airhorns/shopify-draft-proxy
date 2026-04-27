@@ -1,0 +1,101 @@
+{
+  "scenarioId": "inventory-transfer-lifecycle-local-staging",
+  "operationNames": [
+    "inventoryTransfer",
+    "inventoryTransfers",
+    "inventoryTransferCreate",
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransferEdit",
+    "inventoryTransferSetItems",
+    "inventoryTransferRemoveItems",
+    "inventoryTransferMarkAsReadyToShip",
+    "inventoryTransferDuplicate",
+    "inventoryTransferCancel",
+    "inventoryTransferDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "empty-state-parity",
+    "downstream-read-parity",
+    "inventory-quantity-side-effect",
+    "no-upstream-passthrough"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/inventory-transfer-create.graphql",
+    "variablesCapturePath": "$.workflow.createDraft.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "draft-create-mutation-data",
+        "capturePath": "$.draftCreate.data.inventoryTransferCreate",
+        "proxyPath": "$.data.inventoryTransferCreate",
+        "excludedPaths": ["$.inventoryTransfer.id"],
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.name",
+            "matcher": "non-empty-string",
+            "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence during parity replay."
+          }
+        ]
+      },
+      {
+        "name": "mark-ready-mutation-data",
+        "capturePath": "$.readyTransition.data.inventoryTransferMarkAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferMarkAsReadyToShip",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventory-transfer-mark-ready.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "after-ready-inventory-read",
+        "capturePath": "$.readyInventoryReadAfterWriteGraphql.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventory-transfer-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterReadyInventoryRead.variables"
+        }
+      },
+      {
+        "name": "cancel-ready-transfer",
+        "capturePath": "$.cancelReadyTransfer.data.inventoryTransferCancel",
+        "proxyPath": "$.data.inventoryTransferCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventory-transfer-cancel.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "delete-non-draft-guardrail",
+        "capturePath": "$.deleteNonDraftGuardrail.data.inventoryTransferDelete",
+        "proxyPath": "$.data.inventoryTransferDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventory-transfer-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/inventory-transfer-lifecycle-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
+  "notes": "HAR-307 replays the captured Shopify draft create, ready transition, downstream inventory reservation read, cancel transition, and non-draft delete guardrail through the local proxy harness. The generic parity runner seeds the captured product-backed inventory item and origin/destination inventory levels before replay, while the runtime test continues to cover edit/set/remove/duplicate/delete draft branches, empty reads, validation guardrails, raw log ordering, and no runtime Shopify writes."
+}
