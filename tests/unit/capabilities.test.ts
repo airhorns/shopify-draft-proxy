@@ -688,8 +688,15 @@ describe('getOperationCapability', () => {
     });
   });
 
-  it('routes implemented metaobject definition read roots through the local overlay', () => {
-    for (const rootField of ['metaobjectDefinition', 'metaobjectDefinitionByType', 'metaobjectDefinitions']) {
+  it('routes implemented metaobject read roots through the local overlay', () => {
+    for (const rootField of [
+      'metaobject',
+      'metaobjectByHandle',
+      'metaobjects',
+      'metaobjectDefinition',
+      'metaobjectDefinitionByType',
+      'metaobjectDefinitions',
+    ]) {
       expect(
         getOperationCapability({
           type: 'query',
@@ -711,6 +718,11 @@ describe('getOperationCapability', () => {
       'metaobjectDefinitionUpdate',
       'metaobjectDefinitionDelete',
       'standardMetaobjectDefinitionEnable',
+      'metaobjectCreate',
+      'metaobjectUpdate',
+      'metaobjectUpsert',
+      'metaobjectDelete',
+      'metaobjectBulkDelete',
     ]) {
       expect(
         getOperationCapability({
@@ -728,31 +740,45 @@ describe('getOperationCapability', () => {
   });
 
   it('routes implemented payment customization read roots through the local overlay', () => {
-    expect(
-      getOperationCapability({
+    for (const rootField of ['paymentCustomizations', 'paymentCustomization']) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'overlay-read',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
         type: 'query',
-        name: 'PaymentCustomizations',
-        rootFields: ['paymentCustomizations'],
-      }),
-    ).toEqual({
-      domain: 'payments',
-      execution: 'overlay-read',
-      operationName: 'PaymentCustomizations',
-      type: 'query',
-    });
+      });
+    }
+  });
 
-    expect(
-      getOperationCapability({
+  it('routes implemented finance risk no-data read roots through the payment overlay', () => {
+    for (const rootField of [
+      'cashTrackingSession',
+      'cashTrackingSessions',
+      'pointOfSaleDevice',
+      'dispute',
+      'disputes',
+      'shopPayPaymentRequestReceipt',
+      'shopPayPaymentRequestReceipts',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'overlay-read',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
         type: 'query',
-        name: 'PaymentCustomization',
-        rootFields: ['paymentCustomization'],
-      }),
-    ).toEqual({
-      domain: 'payments',
-      execution: 'overlay-read',
-      operationName: 'PaymentCustomization',
-      type: 'query',
-    });
+      });
+    }
   });
 
   it('routes implemented payment customization mutations through local staging', () => {
@@ -770,6 +796,47 @@ describe('getOperationCapability', () => {
         }),
       ).toEqual({
         domain: 'payments',
+        execution: 'stage-locally',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'mutation',
+      });
+    }
+  });
+
+  it('routes implemented Shopify Function metadata reads through the local overlay', () => {
+    for (const rootField of ['validation', 'validations', 'cartTransforms', 'shopifyFunction', 'shopifyFunctions']) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'functions',
+        execution: 'overlay-read',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'query',
+      });
+    }
+  });
+
+  it('routes implemented Shopify Function metadata mutations through local staging', () => {
+    for (const rootField of [
+      'validationCreate',
+      'validationUpdate',
+      'validationDelete',
+      'cartTransformCreate',
+      'cartTransformDelete',
+      'taxAppConfigure',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'functions',
         execution: 'stage-locally',
         operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
         type: 'mutation',

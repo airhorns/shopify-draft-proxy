@@ -5,7 +5,11 @@ import type { JsonValue } from '../json-schemas.js';
 import { normalizeSearchQueryValue, parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
 import { makeSyntheticGid } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord } from '../state/types.js';
+import type {
+  PaymentCustomizationMetafieldRecord,
+  PaymentCustomizationRecord,
+  PaymentTermsTemplateRecord,
+} from '../state/types.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -295,6 +299,77 @@ function serializePaymentCustomizationsConnection(
 }
 
 function serializeEmptyPaymentCustomizationsConnection(field: FieldNode): Record<string, unknown> {
+  const connection: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+      case 'edges':
+        connection[key] = [];
+        break;
+      case 'pageInfo':
+        connection[key] = serializeEmptyConnectionPageInfo(selection);
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+  return connection;
+}
+
+function listPaymentTermsTemplatesForField(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): PaymentTermsTemplateRecord[] {
+  const args = getFieldArguments(field, variables);
+  const paymentTermsType = typeof args['paymentTermsType'] === 'string' ? args['paymentTermsType'] : null;
+  const templates = store.listEffectivePaymentTermsTemplates();
+  return paymentTermsType === null
+    ? templates
+    : templates.filter((template) => template.paymentTermsType === paymentTermsType);
+}
+
+function serializePaymentTermsTemplate(
+  template: PaymentTermsTemplateRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'PaymentTermsTemplate';
+        break;
+      case 'id':
+        result[key] = template.id;
+        break;
+      case 'name':
+        result[key] = template.name;
+        break;
+      case 'description':
+        result[key] = template.description;
+        break;
+      case 'dueInDays':
+        result[key] = template.dueInDays;
+        break;
+      case 'paymentTermsType':
+        result[key] = template.paymentTermsType;
+        break;
+      case 'translatedName':
+        result[key] = template.translatedName;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
   const connection: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -695,6 +770,11 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
     switch (field.name.value) {
+      case 'paymentTermsTemplates':
+        data[key] = listPaymentTermsTemplatesForField(field, variables).map((template) =>
+          serializePaymentTermsTemplate(template, field),
+        );
+        break;
       case 'paymentCustomizations':
         data[key] = store.hasPaymentCustomizations()
           ? serializePaymentCustomizationsConnection(field, variables)
@@ -708,6 +788,18 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
                 return customization ? serializePaymentCustomization(customization, field, variables) : null;
               })()
             : null;
+        break;
+      case 'cashTrackingSession':
+      case 'pointOfSaleDevice':
+      case 'dispute':
+      case 'disputeEvidence':
+      case 'shopPayPaymentRequestReceipt':
+        data[key] = null;
+        break;
+      case 'cashTrackingSessions':
+      case 'disputes':
+      case 'shopPayPaymentRequestReceipts':
+        data[key] = serializeEmptyConnectionSelection(field);
         break;
       default:
         data[key] = null;

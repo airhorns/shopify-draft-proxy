@@ -1,0 +1,107 @@
+{
+  "kind": "local-runtime-fixture",
+  "apiVersion": "2026-04",
+  "scenarioId": "files-upload-local-runtime",
+  "issue": "HAR-313",
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "coveredOperations": ["fileCreate", "files", "fileSavedSearches", "stagedUploadsCreate"],
+  "liveEvidenceFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-create-delete-parity.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-update-parity.json"
+  ],
+  "evidence": [
+    "Snapshot-mode fileCreate stages Files API records without upstream fetch.",
+    "Staged file records are visible through the top-level files connection.",
+    "fileSavedSearches returns Shopify-like empty connection data until saved-search records are modeled.",
+    "stagedUploadsCreate returns inert local target metadata and does not create external upload storage."
+  ],
+  "create": {
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local runtime file",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "filename": "local-runtime.jpg",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local runtime file",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "filename": "local-runtime.jpg",
+              "image": null
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/MediaImage/2",
+            "endCursor": "cursor:gid://shopify/MediaImage/2"
+          }
+        },
+        "fileSavedSearches": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    }
+  },
+  "stagedUploadsCreate": {
+    "response": {
+      "data": {
+        "stagedUploadsCreate": {
+          "stagedTargets": [
+            {
+              "url": "https://shopify-draft-proxy.local/staged-uploads/gid%3A%2F%2Fshopify%2FStagedUploadTarget0%2F4",
+              "resourceUrl": "https://shopify-draft-proxy.local/staged-uploads/gid%3A%2F%2Fshopify%2FStagedUploadTarget0%2F4/safe-upload.txt",
+              "parameters": [
+                {
+                  "name": "key",
+                  "value": "shopify-draft-proxy/gid://shopify/StagedUploadTarget0/4/safe-upload.txt"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain"
+                },
+                {
+                  "name": "x-shopify-draft-proxy-resource",
+                  "value": "FILE"
+                },
+                {
+                  "name": "x-shopify-draft-proxy-http-method",
+                  "value": "POST"
+                }
+              ]
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "unsupportedExternalSideEffects": [
+    "The staged target URL is intentionally local/inert; the proxy does not allocate external storage.",
+    "Completing or acknowledging external upload state remains unsupported until modeled locally."
+  ]
+}

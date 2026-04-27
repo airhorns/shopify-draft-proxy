@@ -1,0 +1,22 @@
+mutation PublicationCreateLocalRuntime($input: PublicationInput!) {
+  publicationCreate(input: $input) {
+    publication {
+      id
+      name
+      autoPublish
+      supportsFuturePublishing
+      channel {
+        id
+        name
+        publication {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

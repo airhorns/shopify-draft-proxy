@@ -1,0 +1,17 @@
+mutation ProductVariantsBulkCreateValidationAtomicity($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    product {
+      id
+      totalInventory
+      tracksInventory
+    }
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

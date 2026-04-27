@@ -1,0 +1,36 @@
+query PublicationLifecycleAfterDeleteRead($publicationId: ID!, $channelId: ID!, $productId: ID!, $collectionId: ID!) {
+  publication(id: $publicationId) {
+    id
+    name
+  }
+  channel(id: $channelId) {
+    id
+    name
+  }
+  channels(first: 5) {
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  publicationsCount {
+    count
+    precision
+  }
+  publishedProductsCount(publicationId: $publicationId) {
+    count
+    precision
+  }
+  product(id: $productId) {
+    publishedOnPublication(publicationId: $publicationId)
+  }
+  collection(id: $collectionId) {
+    publishedOnPublication(publicationId: $publicationId)
+  }
+}

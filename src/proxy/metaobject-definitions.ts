@@ -1,13 +1,23 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import {
+  matchesSearchQueryDate,
+  matchesSearchQueryText,
+  normalizeSearchQueryValue,
+  parseSearchQuery,
+  type SearchQueryNode,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { makeProxySyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
+import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
   MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionRecord,
+  MetaobjectFieldRecord,
   MetaobjectFieldDefinitionRecord,
+  MetaobjectRecord,
   MetaobjectFieldDefinitionValidationRecord,
 } from '../state/types.js';
 import {
@@ -31,6 +41,11 @@ type MetaobjectUserError = {
   code: string;
   elementKey?: string | null;
   elementIndex?: number | null;
+};
+
+type MetaobjectBulkDeleteJob = {
+  id: string;
+  done: boolean;
 };
 
 type StandardMetaobjectDefinitionTemplate = {
@@ -354,6 +369,318 @@ function buildMetaobjectDefinitionFromCreateInput(input: Record<string, unknown>
   };
 }
 
+function buildMetaobjectFieldDefinitionReference(
+  definition: MetaobjectFieldDefinitionRecord,
+): MetaobjectFieldRecord['definition'] {
+  return {
+    key: definition.key,
+    name: definition.name,
+    required: definition.required,
+    type: structuredClone(definition.type),
+  };
+}
+
+function readMetaobjectJsonValue(typeName: string | null, value: string | null): MetaobjectFieldRecord['jsonValue'] {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeName !== 'json') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value) as MetaobjectFieldRecord['jsonValue'];
+  } catch {
+    return value;
+  }
+}
+
+function buildMetaobjectFieldFromInput(
+  rawField: Record<string, unknown>,
+  fieldDefinition: MetaobjectFieldDefinitionRecord,
+): MetaobjectFieldRecord {
+  const value = readStringValue(rawField['value']);
+  return {
+    key: fieldDefinition.key,
+    type: fieldDefinition.type.name,
+    value,
+    jsonValue: readMetaobjectJsonValue(fieldDefinition.type.name, value),
+    definition: buildMetaobjectFieldDefinitionReference(fieldDefinition),
+  };
+}
+
+function buildMetaobjectFieldsFromInput(
+  input: Record<string, unknown>,
+  definition: MetaobjectDefinitionRecord,
+  existingFields: MetaobjectFieldRecord[] = [],
+  options: { requireRequiredFields?: boolean } = {},
+): { fields: MetaobjectFieldRecord[]; userErrors: MetaobjectUserError[] } {
+  const userErrors: MetaobjectUserError[] = [];
+  const fieldsByKey = new Map(existingFields.map((field) => [field.key, structuredClone(field)]));
+  const definitionsByKey = new Map(
+    definition.fieldDefinitions.map((fieldDefinition) => [fieldDefinition.key, fieldDefinition]),
+  );
+
+  for (const [index, rawField] of readPlainObjectArray(input['fields']).entries()) {
+    const key = readStringValue(rawField['key']);
+    if (!key) {
+      userErrors.push({
+        field: ['metaobject', 'fields', String(index), 'key'],
+        message: "Key can't be blank",
+        code: 'BLANK',
+        elementIndex: index,
+      });
+      continue;
+    }
+
+    const fieldDefinition = definitionsByKey.get(key);
+    if (!fieldDefinition) {
+      userErrors.push({
+        field: ['metaobject', 'fields', String(index), 'key'],
+        message: 'Field definition not found.',
+        code: 'NOT_FOUND',
+        elementKey: key,
+        elementIndex: index,
+      });
+      continue;
+    }
+
+    fieldsByKey.set(key, buildMetaobjectFieldFromInput(rawField, fieldDefinition));
+  }
+
+  if (options.requireRequiredFields === true) {
+    for (const fieldDefinition of definition.fieldDefinitions) {
+      if (fieldDefinition.required === true && !fieldsByKey.has(fieldDefinition.key)) {
+        userErrors.push({
+          field: ['metaobject', 'fields', fieldDefinition.key],
+          message: `${fieldDefinition.name ?? fieldDefinition.key} can't be blank`,
+          code: 'BLANK',
+          elementKey: fieldDefinition.key,
+        });
+      }
+    }
+  }
+
+  const fields = definition.fieldDefinitions.flatMap((fieldDefinition) => {
+    const field = fieldsByKey.get(fieldDefinition.key);
+    return field ? [field] : [];
+  });
+
+  return { fields, userErrors };
+}
+
+function metaobjectDisplayName(definition: MetaobjectDefinitionRecord, fields: MetaobjectFieldRecord[]): string | null {
+  const displayNameKey = definition.displayNameKey;
+  if (!displayNameKey) {
+    return null;
+  }
+
+  return fields.find((field) => field.key === displayNameKey)?.value ?? null;
+}
+
+function normalizeMetaobjectHandle(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/^-+|-+$/gu, '');
+}
+
+function makeUniqueMetaobjectHandle(type: string, preferredHandle: string): string {
+  const baseHandle = normalizeMetaobjectHandle(preferredHandle) || normalizeMetaobjectHandle(type) || 'metaobject';
+  let handle = baseHandle;
+  let suffix = 1;
+
+  while (store.findEffectiveMetaobjectByHandle({ type, handle })) {
+    suffix += 1;
+    handle = `${baseHandle}-${suffix}`;
+  }
+
+  return handle;
+}
+
+function readMetaobjectHandleInput(rawHandle: unknown): { type: string | null; handle: string | null } {
+  const handle = isPlainObject(rawHandle) ? rawHandle : {};
+  return {
+    type: readStringValue(handle['type']),
+    handle: readStringValue(handle['handle']),
+  };
+}
+
+function readMetaobjectPublishableStatus(rawCapabilities: unknown): string | null {
+  const capabilities = isPlainObject(rawCapabilities) ? rawCapabilities : null;
+  const publishable = capabilities && isPlainObject(capabilities['publishable']) ? capabilities['publishable'] : null;
+  return publishable ? readStringValue(publishable['status']) : null;
+}
+
+function readMetaobjectOnlineStoreCapability(
+  rawCapabilities: unknown,
+): MetaobjectRecord['capabilities']['onlineStore'] | undefined {
+  const capabilities = isPlainObject(rawCapabilities) ? rawCapabilities : null;
+  if (!capabilities || !hasOwnProperty(capabilities, 'onlineStore')) {
+    return undefined;
+  }
+
+  const onlineStore = capabilities['onlineStore'];
+  return isPlainObject(onlineStore) ? { templateSuffix: readStringValue(onlineStore['templateSuffix']) } : null;
+}
+
+function buildMetaobjectCapabilitiesFromInput(
+  input: Record<string, unknown>,
+  definition: MetaobjectDefinitionRecord,
+  existing: MetaobjectRecord['capabilities'] | null = null,
+): MetaobjectRecord['capabilities'] {
+  const publishableStatus = readMetaobjectPublishableStatus(input['capabilities']);
+  const onlineStore = readMetaobjectOnlineStoreCapability(input['capabilities']);
+  const result: MetaobjectRecord['capabilities'] = structuredClone(existing ?? {});
+
+  if (publishableStatus) {
+    result.publishable = { status: publishableStatus };
+  } else if (!existing && definition.capabilities.publishable?.enabled === true) {
+    result.publishable = { status: 'ACTIVE' };
+  }
+
+  if (onlineStore !== undefined) {
+    result.onlineStore = onlineStore;
+  } else if (!existing) {
+    result.onlineStore = null;
+  }
+
+  return result;
+}
+
+function adjustDefinitionMetaobjectsCount(type: string, delta: number): void {
+  const definition = store.findEffectiveMetaobjectDefinitionByType(type);
+  if (!definition) {
+    return;
+  }
+
+  store.upsertStagedMetaobjectDefinitions([
+    {
+      ...definition,
+      metaobjectsCount: Math.max(0, (definition.metaobjectsCount ?? 0) + delta),
+      updatedAt: makeSyntheticTimestamp(),
+    },
+  ]);
+}
+
+function buildCreateMetaobjectUserErrors(
+  input: Record<string, unknown>,
+  definition: MetaobjectDefinitionRecord | null,
+): MetaobjectUserError[] {
+  const userErrors: MetaobjectUserError[] = [];
+  const type = readStringValue(input['type']);
+  const handle = readStringValue(input['handle']);
+
+  if (!type) {
+    userErrors.push({
+      field: ['metaobject', 'type'],
+      message: "Type can't be blank",
+      code: 'BLANK',
+    });
+  }
+
+  if (type && !definition) {
+    userErrors.push({
+      field: ['metaobject', 'type'],
+      message: 'Metaobject definition not found.',
+      code: 'NOT_FOUND',
+    });
+  }
+
+  if (type && handle && store.findEffectiveMetaobjectByHandle({ type, handle })) {
+    userErrors.push({
+      field: ['metaobject', 'handle'],
+      message: 'Handle has already been taken',
+      code: 'TAKEN',
+    });
+  }
+
+  return userErrors;
+}
+
+function buildMetaobjectFromCreateInput(
+  input: Record<string, unknown>,
+  definition: MetaobjectDefinitionRecord,
+): { metaobject: MetaobjectRecord | null; userErrors: MetaobjectUserError[] } {
+  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, [], { requireRequiredFields: true });
+  if (fieldResult.userErrors.length > 0) {
+    return { metaobject: null, userErrors: fieldResult.userErrors };
+  }
+
+  const displayName = metaobjectDisplayName(definition, fieldResult.fields);
+  const handle =
+    readStringValue(input['handle']) ?? makeUniqueMetaobjectHandle(definition.type, displayName ?? definition.type);
+  const now = makeSyntheticTimestamp();
+
+  return {
+    metaobject: {
+      id: makeProxySyntheticGid('Metaobject'),
+      handle,
+      type: definition.type,
+      displayName,
+      fields: fieldResult.fields,
+      capabilities: buildMetaobjectCapabilitiesFromInput(input, definition),
+      createdAt: now,
+      updatedAt: now,
+    },
+    userErrors: [],
+  };
+}
+
+function applyMetaobjectUpdateInput(
+  existing: MetaobjectRecord,
+  input: Record<string, unknown>,
+  definition: MetaobjectDefinitionRecord,
+): { metaobject: MetaobjectRecord | null; userErrors: MetaobjectUserError[] } {
+  const requestedHandle = hasOwnProperty(input, 'handle') ? readStringValue(input['handle']) : existing.handle;
+  if (!requestedHandle) {
+    return {
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['metaobject', 'handle'],
+          message: "Handle can't be blank",
+          code: 'BLANK',
+        },
+      ],
+    };
+  }
+
+  const handleOwner = store.findEffectiveMetaobjectByHandle({ type: existing.type, handle: requestedHandle });
+  if (handleOwner && handleOwner.id !== existing.id) {
+    return {
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['metaobject', 'handle'],
+          message: 'Handle has already been taken',
+          code: 'TAKEN',
+        },
+      ],
+    };
+  }
+
+  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, existing.fields);
+  if (fieldResult.userErrors.length > 0) {
+    return { metaobject: null, userErrors: fieldResult.userErrors };
+  }
+
+  const fields = hasOwnProperty(input, 'fields') ? fieldResult.fields : existing.fields;
+  return {
+    metaobject: {
+      ...existing,
+      handle: requestedHandle,
+      displayName: metaobjectDisplayName(definition, fields),
+      fields,
+      capabilities: buildMetaobjectCapabilitiesFromInput(input, definition, existing.capabilities),
+      updatedAt: makeSyntheticTimestamp(),
+    },
+    userErrors: [],
+  };
+}
+
 function applyDefinitionScalarUpdates(
   existing: MetaobjectDefinitionRecord,
   input: Record<string, unknown>,
@@ -566,6 +893,105 @@ function normalizeMetaobjectDefinition(rawDefinition: unknown): MetaobjectDefini
   };
 }
 
+function normalizeMetaobjectCapabilities(rawCapabilities: unknown): MetaobjectRecord['capabilities'] {
+  const capabilities = isPlainObject(rawCapabilities) ? rawCapabilities : {};
+  const result: MetaobjectRecord['capabilities'] = {};
+
+  const rawPublishable = capabilities['publishable'];
+  if (isPlainObject(rawPublishable)) {
+    result.publishable = {
+      status: readStringValue(rawPublishable['status']),
+    };
+  }
+
+  result.onlineStore = isPlainObject(capabilities['onlineStore'])
+    ? {
+        templateSuffix: readStringValue(capabilities['onlineStore']['templateSuffix']),
+      }
+    : null;
+
+  return result;
+}
+
+function normalizeMetaobjectFieldDefinition(rawDefinition: unknown): MetaobjectFieldRecord['definition'] {
+  if (!isPlainObject(rawDefinition)) {
+    return null;
+  }
+
+  const key = readStringValue(rawDefinition['key']);
+  const rawType = isPlainObject(rawDefinition['type']) ? rawDefinition['type'] : null;
+  const typeName = rawType ? readStringValue(rawType['name']) : null;
+  if (!key || !typeName) {
+    return null;
+  }
+
+  return {
+    key,
+    name: readStringValue(rawDefinition['name']),
+    required: readBooleanValue(rawDefinition['required']),
+    type: {
+      name: typeName,
+      category: rawType ? readStringValue(rawType['category']) : null,
+    },
+  };
+}
+
+function normalizeMetaobjectField(rawField: Record<string, unknown>): MetaobjectFieldRecord | null {
+  const key = readStringValue(rawField['key']);
+  if (!key) {
+    return null;
+  }
+
+  return {
+    key,
+    type: readStringValue(rawField['type']),
+    value: readStringValue(rawField['value']),
+    jsonValue: (rawField['jsonValue'] === undefined
+      ? null
+      : rawField['jsonValue']) as MetaobjectFieldRecord['jsonValue'],
+    definition: normalizeMetaobjectFieldDefinition(rawField['definition']),
+  };
+}
+
+function normalizeMetaobject(rawMetaobject: unknown): MetaobjectRecord | null {
+  if (!isPlainObject(rawMetaobject)) {
+    return null;
+  }
+
+  const id = readStringValue(rawMetaobject['id']);
+  const handle = readStringValue(rawMetaobject['handle']);
+  const type = readStringValue(rawMetaobject['type']);
+  if (!id || !handle || !type) {
+    return null;
+  }
+
+  const fieldsByKey = new Map<string, MetaobjectFieldRecord>();
+  for (const rawField of readPlainObjectArray(rawMetaobject['fields'])) {
+    const field = normalizeMetaobjectField(rawField);
+    if (field) {
+      fieldsByKey.set(field.key, field);
+    }
+  }
+
+  for (const value of Object.values(rawMetaobject)) {
+    const field = normalizeMetaobjectField(isPlainObject(value) ? value : {});
+    if (field && !fieldsByKey.has(field.key)) {
+      fieldsByKey.set(field.key, field);
+    }
+  }
+
+  return {
+    id,
+    handle,
+    type,
+    displayName: readStringValue(rawMetaobject['displayName']),
+    fields: [...fieldsByKey.values()],
+    capabilities: normalizeMetaobjectCapabilities(rawMetaobject['capabilities']),
+    createdAt: readStringValue(rawMetaobject['createdAt']),
+    updatedAt: readStringValue(rawMetaobject['updatedAt']),
+  };
+}
+
 function buildSerializableDefinition(definition: MetaobjectDefinitionRecord): Record<string, unknown> {
   return {
     __typename: 'MetaobjectDefinition',
@@ -597,12 +1023,102 @@ function buildSerializableDefinition(definition: MetaobjectDefinitionRecord): Re
   };
 }
 
+function buildSerializableMetaobjectField(field: MetaobjectFieldRecord): Record<string, unknown> {
+  return {
+    __typename: 'MetaobjectField',
+    key: field.key,
+    type: field.type,
+    value: field.value,
+    jsonValue: field.jsonValue,
+    definition: field.definition
+      ? {
+          __typename: 'MetaobjectFieldDefinition',
+          ...field.definition,
+          type: {
+            __typename: 'MetafieldDefinitionType',
+            ...field.definition.type,
+          },
+        }
+      : null,
+  };
+}
+
+function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<string, unknown> {
+  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  return {
+    __typename: 'Metaobject',
+    id: metaobject.id,
+    handle: metaobject.handle,
+    type: metaobject.type,
+    displayName: metaobject.displayName,
+    createdAt: metaobject.createdAt ?? null,
+    updatedAt: metaobject.updatedAt ?? null,
+    capabilities: {
+      publishable: metaobject.capabilities.publishable ?? null,
+      onlineStore: metaobject.capabilities.onlineStore ?? null,
+    },
+    definition: definition ? buildSerializableDefinition(definition) : null,
+    fields: metaobject.fields.map(buildSerializableMetaobjectField),
+  };
+}
+
 function serializeDefinitionSelection(
   definition: MetaobjectDefinitionRecord,
   selections: readonly SelectionNode[],
   document: string,
 ): Record<string, unknown> {
   return projectGraphqlObject(buildSerializableDefinition(definition), selections, getDocumentFragments(document));
+}
+
+function serializeEmptyReferencedByConnection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
+}
+
+function serializeMetaobjectSelection(
+  metaobject: MetaobjectRecord,
+  selections: readonly SelectionNode[],
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const fragments = getDocumentFragments(document);
+
+  return projectGraphqlObject(buildSerializableMetaobject(metaobject), selections, fragments, {
+    projectFieldValue: ({ source, field, fieldName }) => {
+      if (source['__typename'] !== 'Metaobject') {
+        return { handled: false };
+      }
+
+      if (fieldName === 'field') {
+        const key = readStringValue(getFieldArguments(field, variables)['key']);
+        const selectedField = key ? metaobject.fields.find((candidate) => candidate.key === key) : null;
+        return {
+          handled: true,
+          value: selectedField
+            ? projectGraphqlObject(
+                buildSerializableMetaobjectField(selectedField),
+                field.selectionSet?.selections ?? [],
+                fragments,
+              )
+            : null,
+        };
+      }
+
+      if (fieldName === 'referencedBy') {
+        return {
+          handled: true,
+          value: serializeEmptyReferencedByConnection(field),
+        };
+      }
+
+      return { handled: false };
+    },
+  });
 }
 
 function readRootStringArgument(
@@ -619,6 +1135,132 @@ function sortDefinitions(definitions: MetaobjectDefinitionRecord[], reverse: unk
     (left, right) => compareShopifyResourceIds(left.id, right.id) || left.type.localeCompare(right.type),
   );
   return reverse === true ? sorted.reverse() : sorted;
+}
+
+function compareNullableStrings(left: string | null | undefined, right: string | null | undefined): number {
+  return (left ?? '').localeCompare(right ?? '');
+}
+
+function sortMetaobjects(metaobjects: MetaobjectRecord[], sortKey: unknown, reverse: unknown): MetaobjectRecord[] {
+  const normalizedSortKey = typeof sortKey === 'string' ? sortKey.toLowerCase() : 'id';
+  const sorted = [...metaobjects].sort((left, right) => {
+    switch (normalizedSortKey) {
+      case 'display_name':
+        return (
+          compareNullableStrings(left.displayName, right.displayName) || compareShopifyResourceIds(left.id, right.id)
+        );
+      case 'type':
+        return (
+          left.type.localeCompare(right.type) ||
+          left.handle.localeCompare(right.handle) ||
+          compareShopifyResourceIds(left.id, right.id)
+        );
+      case 'updated_at':
+        return compareNullableStrings(left.updatedAt, right.updatedAt) || compareShopifyResourceIds(left.id, right.id);
+      case 'id':
+      default:
+        return compareShopifyResourceIds(left.id, right.id);
+    }
+  });
+
+  return reverse === true ? sorted.reverse() : sorted;
+}
+
+function matchesStringValue(value: string | null | undefined, expected: string): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return normalizeSearchQueryValue(value).includes(normalizeSearchQueryValue(expected));
+}
+
+function metaobjectSearchTextMatches(metaobject: MetaobjectRecord, rawValue: string): boolean {
+  const searchableValues = [
+    metaobject.id,
+    metaobject.handle,
+    metaobject.type,
+    metaobject.displayName ?? '',
+    ...metaobject.fields.flatMap((field) => [
+      field.key,
+      field.type ?? '',
+      field.value ?? '',
+      typeof field.jsonValue === 'string' ? field.jsonValue : JSON.stringify(field.jsonValue),
+    ]),
+  ];
+
+  return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue));
+}
+
+function matchesMetaobjectFieldQuery(metaobject: MetaobjectRecord, fieldKey: string, term: SearchQueryTerm): boolean {
+  const field = metaobject.fields.find((candidate) => candidate.key === fieldKey);
+  if (!field) {
+    return false;
+  }
+
+  const values = [field.value, typeof field.jsonValue === 'string' ? field.jsonValue : JSON.stringify(field.jsonValue)];
+  return values.some((value) => matchesSearchQueryText(value, term));
+}
+
+function matchesPositiveMetaobjectQueryTerm(metaobject: MetaobjectRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null) {
+    return metaobjectSearchTextMatches(metaobject, term.value);
+  }
+
+  const field = term.field.toLowerCase();
+  switch (field) {
+    case 'id':
+      return matchesStringValue(metaobject.id, term.value);
+    case 'handle':
+      return normalizeSearchQueryValue(metaobject.handle) === normalizeSearchQueryValue(term.value);
+    case 'type':
+      return normalizeSearchQueryValue(metaobject.type) === normalizeSearchQueryValue(term.value);
+    case 'display_name':
+      return matchesSearchQueryText(metaobject.displayName, term);
+    case 'created_at':
+      return matchesSearchQueryDate(metaobject.createdAt, term);
+    case 'updated_at':
+      return matchesSearchQueryDate(metaobject.updatedAt, term);
+    default:
+      if (field.startsWith('fields.')) {
+        return matchesMetaobjectFieldQuery(metaobject, field.slice('fields.'.length), term);
+      }
+      return true;
+  }
+}
+
+function matchesMetaobjectQueryTerm(metaobject: MetaobjectRecord, term: SearchQueryTerm): boolean {
+  if (!term.raw) {
+    return true;
+  }
+
+  const matches = matchesPositiveMetaobjectQueryTerm(metaobject, term);
+  return term.negated ? !matches : matches;
+}
+
+function matchesMetaobjectQueryNode(metaobject: MetaobjectRecord, node: SearchQueryNode): boolean {
+  switch (node.type) {
+    case 'term':
+      return matchesMetaobjectQueryTerm(metaobject, node.term);
+    case 'and':
+      return node.children.every((child) => matchesMetaobjectQueryNode(metaobject, child));
+    case 'or':
+      return node.children.some((child) => matchesMetaobjectQueryNode(metaobject, child));
+    case 'not':
+      return !matchesMetaobjectQueryNode(metaobject, node.child);
+  }
+}
+
+function applyMetaobjectQuery(metaobjects: MetaobjectRecord[], rawQuery: unknown): MetaobjectRecord[] {
+  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
+    return metaobjects;
+  }
+
+  const parsedQuery = parseSearchQuery(rawQuery, { recognizeNotKeyword: true });
+  if (!parsedQuery) {
+    return metaobjects;
+  }
+
+  return metaobjects.filter((metaobject) => matchesMetaobjectQueryNode(metaobject, parsedQuery));
 }
 
 function serializeMetaobjectDefinitionsConnection(
@@ -642,6 +1284,35 @@ function serializeMetaobjectDefinitionsConnection(
     getCursorValue: (definition) => definition.id,
     serializeNode: (definition, nodeField) =>
       serializeDefinitionSelection(definition, nodeField.selectionSet?.selections ?? [], document),
+  });
+}
+
+function serializeMetaobjectsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  document: string,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const type = readStringValue(args['type']);
+  const metaobjects = sortMetaobjects(
+    applyMetaobjectQuery(type ? store.listEffectiveMetaobjectsByType(type) : [], args['query']),
+    args['sortKey'],
+    args['reverse'],
+  );
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    metaobjects,
+    field,
+    variables,
+    (metaobject) => metaobject.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (metaobject) => metaobject.id,
+    serializeNode: (metaobject, nodeField) =>
+      serializeMetaobjectSelection(metaobject, nodeField.selectionSet?.selections ?? [], document, variables),
   });
 }
 
@@ -713,6 +1384,37 @@ function serializeDefinitionMutationPayload(
   return result;
 }
 
+function serializeMetaobjectMutationPayload(
+  field: FieldNode,
+  document: string,
+  variables: Record<string, unknown>,
+  metaobject: MetaobjectRecord | null,
+  userErrors: MetaobjectUserError[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'metaobject':
+        result[key] = metaobject
+          ? serializeMetaobjectSelection(metaobject, selection.selectionSet?.selections ?? [], document, variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((userError) =>
+          serializeUserError(selection.selectionSet?.selections ?? [], userError),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
 function serializeDeleteDefinitionPayload(
   field: FieldNode,
   deletedId: string | null,
@@ -725,6 +1427,81 @@ function serializeDeleteDefinitionPayload(
     switch (selection.name.value) {
       case 'deletedId':
         result[key] = deletedId;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((userError) =>
+          serializeUserError(selection.selectionSet?.selections ?? [], userError),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeMetaobjectDeletePayload(
+  field: FieldNode,
+  deletedId: string | null,
+  userErrors: MetaobjectUserError[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedId':
+        result[key] = deletedId;
+        break;
+      case 'userErrors':
+        result[key] = userErrors.map((userError) =>
+          serializeUserError(selection.selectionSet?.selections ?? [], userError),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeMetaobjectBulkDeleteJob(field: FieldNode, job: MetaobjectBulkDeleteJob): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = job.id;
+        break;
+      case 'done':
+        result[key] = job.done;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeMetaobjectBulkDeletePayload(
+  field: FieldNode,
+  job: MetaobjectBulkDeleteJob | null,
+  userErrors: MetaobjectUserError[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'job':
+        result[key] = job ? serializeMetaobjectBulkDeleteJob(selection, job) : null;
         break;
       case 'userErrors':
         result[key] = userErrors.map((userError) =>
@@ -887,6 +1664,215 @@ function serializeStandardMetaobjectDefinitionEnableMutation(
   return serializeDefinitionMutationPayload(field, document, definition, []);
 }
 
+function serializeMetaobjectCreateMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  document: string,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
+  const type = readStringValue(input['type']);
+  const definition = type ? store.findEffectiveMetaobjectDefinitionByType(type) : null;
+  const userErrors = buildCreateMetaobjectUserErrors(input, definition);
+  if (userErrors.length > 0 || !definition) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, userErrors);
+  }
+
+  const createResult = buildMetaobjectFromCreateInput(input, definition);
+  if (!createResult.metaobject) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, createResult.userErrors);
+  }
+
+  store.upsertStagedMetaobjects([createResult.metaobject]);
+  adjustDefinitionMetaobjectsCount(createResult.metaobject.type, 1);
+  return serializeMetaobjectMutationPayload(field, document, variables, createResult.metaobject, []);
+}
+
+function serializeMetaobjectUpdateMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  document: string,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = readStringValue(args['id']);
+  const existingMetaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+  if (!id || !existingMetaobject) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+      {
+        field: ['id'],
+        message: 'Metaobject not found.',
+        code: 'NOT_FOUND',
+      },
+    ]);
+  }
+
+  const definition = store.findEffectiveMetaobjectDefinitionByType(existingMetaobject.type);
+  if (!definition) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+      {
+        field: ['id'],
+        message: 'Metaobject definition not found.',
+        code: 'NOT_FOUND',
+      },
+    ]);
+  }
+
+  const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
+  const updateResult = applyMetaobjectUpdateInput(existingMetaobject, input, definition);
+  if (!updateResult.metaobject) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, updateResult.userErrors);
+  }
+
+  store.upsertStagedMetaobjects([updateResult.metaobject]);
+  return serializeMetaobjectMutationPayload(field, document, variables, updateResult.metaobject, []);
+}
+
+function serializeMetaobjectUpsertMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  document: string,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const handle = readMetaobjectHandleInput(args['handle']);
+  if (!handle.type || !handle.handle) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+      {
+        field: ['handle'],
+        message: 'Handle type and value are required.',
+        code: 'BLANK',
+      },
+    ]);
+  }
+
+  const definition = store.findEffectiveMetaobjectDefinitionByType(handle.type);
+  if (!definition) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+      {
+        field: ['handle', 'type'],
+        message: 'Metaobject definition not found.',
+        code: 'NOT_FOUND',
+      },
+    ]);
+  }
+
+  const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
+  const existingMetaobject = store.findEffectiveMetaobjectByHandle({ type: handle.type, handle: handle.handle });
+  if (existingMetaobject) {
+    const updateResult = applyMetaobjectUpdateInput(
+      existingMetaobject,
+      hasOwnProperty(input, 'handle') ? input : { ...input, handle: existingMetaobject.handle },
+      definition,
+    );
+    if (!updateResult.metaobject) {
+      return serializeMetaobjectMutationPayload(field, document, variables, null, updateResult.userErrors);
+    }
+
+    store.upsertStagedMetaobjects([updateResult.metaobject]);
+    return serializeMetaobjectMutationPayload(field, document, variables, updateResult.metaobject, []);
+  }
+
+  const createResult = buildMetaobjectFromCreateInput(
+    {
+      ...input,
+      type: handle.type,
+      handle: readStringValue(input['handle']) ?? handle.handle,
+    },
+    definition,
+  );
+  if (!createResult.metaobject) {
+    return serializeMetaobjectMutationPayload(field, document, variables, null, createResult.userErrors);
+  }
+
+  store.upsertStagedMetaobjects([createResult.metaobject]);
+  adjustDefinitionMetaobjectsCount(createResult.metaobject.type, 1);
+  return serializeMetaobjectMutationPayload(field, document, variables, createResult.metaobject, []);
+}
+
+function serializeMetaobjectDeleteMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = readStringValue(args['id']);
+  const metaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+
+  if (!id || !metaobject) {
+    return serializeMetaobjectDeletePayload(field, null, [
+      {
+        field: ['id'],
+        message: 'Metaobject not found.',
+        code: 'NOT_FOUND',
+      },
+    ]);
+  }
+
+  store.deleteStagedMetaobject(id);
+  adjustDefinitionMetaobjectsCount(metaobject.type, -1);
+  return serializeMetaobjectDeletePayload(field, id, []);
+}
+
+function readMetaobjectBulkDeleteIds(args: Record<string, unknown>): string[] {
+  const directIds = Array.isArray(args['ids']) ? args['ids'] : null;
+  if (directIds) {
+    return directIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  }
+
+  const where = isPlainObject(args['where']) ? args['where'] : null;
+  const whereIds = where && Array.isArray(where['ids']) ? where['ids'] : null;
+  if (whereIds) {
+    return whereIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  }
+
+  const type = where ? readStringValue(where['type']) : null;
+  return type ? store.listEffectiveMetaobjectsByType(type).map((metaobject) => metaobject.id) : [];
+}
+
+function serializeMetaobjectBulkDeleteMutation(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const ids = readMetaobjectBulkDeleteIds(args);
+  const userErrors: MetaobjectUserError[] = [];
+  const deletedCountsByType = new Map<string, number>();
+
+  if (ids.length === 0) {
+    return serializeMetaobjectBulkDeletePayload(field, null, [
+      {
+        field: ['ids'],
+        message: 'No metaobjects were selected for deletion.',
+        code: 'BLANK',
+      },
+    ]);
+  }
+
+  for (const [index, id] of ids.entries()) {
+    const metaobject = store.getEffectiveMetaobjectById(id);
+    if (!metaobject) {
+      userErrors.push({
+        field: ['ids', String(index)],
+        message: 'Metaobject not found.',
+        code: 'NOT_FOUND',
+        elementIndex: index,
+      });
+      continue;
+    }
+
+    store.deleteStagedMetaobject(id);
+    deletedCountsByType.set(metaobject.type, (deletedCountsByType.get(metaobject.type) ?? 0) + 1);
+  }
+
+  for (const [type, count] of deletedCountsByType) {
+    adjustDefinitionMetaobjectsCount(type, -count);
+  }
+
+  return serializeMetaobjectBulkDeletePayload(
+    field,
+    deletedCountsByType.size > 0 ? { id: makeSyntheticGid('Job'), done: true } : null,
+    userErrors,
+  );
+}
+
 export function handleMetaobjectDefinitionQuery(
   document: string,
   variables: Record<string, unknown>,
@@ -915,6 +1901,29 @@ export function handleMetaobjectDefinitionQuery(
       case 'metaobjectDefinitions':
         data[responseKey] = serializeMetaobjectDefinitionsConnection(field, variables, document);
         break;
+      case 'metaobject': {
+        const id = readRootStringArgument(field, variables, 'id');
+        const metaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+        data[responseKey] = metaobject
+          ? serializeMetaobjectSelection(metaobject, field.selectionSet?.selections ?? [], document, variables)
+          : null;
+        break;
+      }
+      case 'metaobjectByHandle': {
+        const args = getFieldArguments(field, variables);
+        const handle = isPlainObject(args['handle']) ? args['handle'] : null;
+        const type = handle ? readStringValue(handle['type']) : null;
+        const handleValue = handle ? readStringValue(handle['handle']) : null;
+        const metaobject =
+          type && handleValue ? store.findEffectiveMetaobjectByHandle({ type, handle: handleValue }) : null;
+        data[responseKey] = metaobject
+          ? serializeMetaobjectSelection(metaobject, field.selectionSet?.selections ?? [], document, variables)
+          : null;
+        break;
+      }
+      case 'metaobjects':
+        data[responseKey] = serializeMetaobjectsConnection(field, variables, document);
+        break;
       default:
         data[responseKey] = null;
         break;
@@ -923,6 +1932,8 @@ export function handleMetaobjectDefinitionQuery(
 
   return { data };
 }
+
+export const handleMetaobjectQuery = handleMetaobjectDefinitionQuery;
 
 export function handleMetaobjectDefinitionMutation(
   document: string,
@@ -944,6 +1955,21 @@ export function handleMetaobjectDefinitionMutation(
         break;
       case 'standardMetaobjectDefinitionEnable':
         data[responseKey] = serializeStandardMetaobjectDefinitionEnableMutation(field, variables, document);
+        break;
+      case 'metaobjectCreate':
+        data[responseKey] = serializeMetaobjectCreateMutation(field, variables, document);
+        break;
+      case 'metaobjectUpdate':
+        data[responseKey] = serializeMetaobjectUpdateMutation(field, variables, document);
+        break;
+      case 'metaobjectUpsert':
+        data[responseKey] = serializeMetaobjectUpsertMutation(field, variables, document);
+        break;
+      case 'metaobjectDelete':
+        data[responseKey] = serializeMetaobjectDeleteMutation(field, variables);
+        break;
+      case 'metaobjectBulkDelete':
+        data[responseKey] = serializeMetaobjectBulkDeleteMutation(field, variables);
         break;
       default:
         data[responseKey] = null;
@@ -977,12 +2003,36 @@ function collectDefinitionsFromConnection(connection: unknown): MetaobjectDefini
   return [...byId.values()];
 }
 
+function collectMetaobjectsFromConnection(connection: unknown): MetaobjectRecord[] {
+  if (!isPlainObject(connection)) {
+    return [];
+  }
+
+  const byId = new Map<string, MetaobjectRecord>();
+  for (const rawMetaobject of readPlainObjectArray(connection['nodes'])) {
+    const metaobject = normalizeMetaobject(rawMetaobject);
+    if (metaobject) {
+      byId.set(metaobject.id, metaobject);
+    }
+  }
+
+  for (const edge of readPlainObjectArray(connection['edges'])) {
+    const metaobject = normalizeMetaobject(edge['node']);
+    if (metaobject) {
+      byId.set(metaobject.id, metaobject);
+    }
+  }
+
+  return [...byId.values()];
+}
+
 export function hydrateMetaobjectDefinitionsFromUpstreamResponse(
   document: string,
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
 ): void {
   const definitions: MetaobjectDefinitionRecord[] = [];
+  const metaobjects: MetaobjectRecord[] = [];
 
   for (const field of getRootFields(document)) {
     const responseKey = getFieldResponseKey(field);
@@ -999,6 +2049,17 @@ export function hydrateMetaobjectDefinitionsFromUpstreamResponse(
       case 'metaobjectDefinitions':
         definitions.push(...collectDefinitionsFromConnection(payload));
         break;
+      case 'metaobject':
+      case 'metaobjectByHandle': {
+        const metaobject = normalizeMetaobject(payload);
+        if (metaobject) {
+          metaobjects.push(metaobject);
+        }
+        break;
+      }
+      case 'metaobjects':
+        metaobjects.push(...collectMetaobjectsFromConnection(payload));
+        break;
       default:
         break;
     }
@@ -1007,4 +2068,10 @@ export function hydrateMetaobjectDefinitionsFromUpstreamResponse(
   if (definitions.length > 0) {
     store.upsertBaseMetaobjectDefinitions(definitions);
   }
+
+  if (metaobjects.length > 0) {
+    store.upsertBaseMetaobjects(metaobjects);
+  }
 }
+
+export const hydrateMetaobjectsFromUpstreamResponse = hydrateMetaobjectDefinitionsFromUpstreamResponse;

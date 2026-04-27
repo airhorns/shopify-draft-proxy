@@ -19,7 +19,7 @@ describe('proxy capability classification', () => {
   });
 
   it('logs supported product mutations as staged-local intent instead of generic passthrough', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
           data: {
@@ -37,20 +37,23 @@ describe('proxy capability classification', () => {
     );
 
     const app = createApp(config);
+    const query =
+      'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }';
 
     const response = await request(app.callback())
       .post('/admin/api/2025-01/graphql.json')
       .set('x-shopify-access-token', 'shpat_test')
       .send({
-        query:
-          'mutation ProductCreate { productCreate(product: { title: "Hat" }) { product { id } userErrors { field message } } }',
+        query,
       });
 
     expect(response.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
 
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
       operationName: 'ProductCreate',
+      requestBody: { query },
       status: 'staged',
       notes: 'Staged locally in the in-memory product draft store.',
     });

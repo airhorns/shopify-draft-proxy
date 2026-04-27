@@ -1,0 +1,51 @@
+{
+  "productId": "gid://shopify/Product/10171897807154",
+  "variantId": "gid://shopify/ProductVariant/51104286736690",
+  "resources": {
+    "productIds": ["gid://shopify/Product/10171897807154"]
+  },
+  "input": {
+    "name": "HAR-308 subscription mohaplvo",
+    "merchantCode": "har-308-mohaplvo",
+    "description": "Temporary selling plan group for HAR-308 conformance capture",
+    "options": ["Delivery frequency"],
+    "position": 1,
+    "sellingPlansToCreate": [
+      {
+        "name": "Monthly delivery",
+        "description": "Ships every month",
+        "options": ["Monthly"],
+        "position": 1,
+        "category": "SUBSCRIPTION",
+        "billingPolicy": {
+          "recurring": {
+            "interval": "MONTH",
+            "intervalCount": 1,
+            "minCycles": 1,
+            "maxCycles": 12
+          }
+        },
+        "deliveryPolicy": {
+          "recurring": {
+            "interval": "MONTH",
+            "intervalCount": 1,
+            "cutoff": 0
+          }
+        },
+        "inventoryPolicy": {
+          "reserve": "ON_FULFILLMENT"
+        },
+        "pricingPolicies": [
+          {
+            "fixed": {
+              "adjustmentType": "PERCENTAGE",
+              "adjustmentValue": {
+                "percentage": 10
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

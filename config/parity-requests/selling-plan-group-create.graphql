@@ -1,0 +1,96 @@
+mutation CreateSellingPlanGroup(
+  $input: SellingPlanGroupInput!
+  $resources: SellingPlanGroupResourceInput
+  $productId: ID!
+  $variantId: ID!
+) {
+  sellingPlanGroupCreate(input: $input, resources: $resources) {
+    sellingPlanGroup {
+      id
+      appId
+      name
+      merchantCode
+      description
+      options
+      position
+      summary
+      createdAt
+      productsCount {
+        count
+        precision
+      }
+      productVariantsCount {
+        count
+        precision
+      }
+      appliesToProduct(productId: $productId)
+      appliesToProductVariant(productVariantId: $variantId)
+      appliesToProductVariants(productId: $productId)
+      products(first: 5) {
+        nodes {
+          id
+          title
+        }
+      }
+      productVariants(first: 5) {
+        nodes {
+          id
+          title
+          product {
+            id
+          }
+        }
+      }
+      sellingPlans(first: 5) {
+        nodes {
+          id
+          name
+          description
+          options
+          position
+          category
+          createdAt
+          billingPolicy {
+            __typename
+            ... on SellingPlanRecurringBillingPolicy {
+              interval
+              intervalCount
+              minCycles
+              maxCycles
+            }
+          }
+          deliveryPolicy {
+            __typename
+            ... on SellingPlanRecurringDeliveryPolicy {
+              interval
+              intervalCount
+              cutoff
+              intent
+              preAnchorBehavior
+            }
+          }
+          inventoryPolicy {
+            reserve
+          }
+          pricingPolicies {
+            __typename
+            ... on SellingPlanFixedPricingPolicy {
+              adjustmentType
+              adjustmentValue {
+                __typename
+                ... on SellingPlanPricingPolicyPercentageValue {
+                  percentage
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
