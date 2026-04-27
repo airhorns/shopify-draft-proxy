@@ -92,6 +92,9 @@ import type {
   ProductRecord,
   SellingPlanGroupRecord,
   SellingPlanRecord,
+  InventoryTransferLineItemRecord,
+  InventoryTransferLocationSnapshotRecord,
+  InventoryTransferRecord,
   ProductVariantRecord,
   PublicationRecord,
 } from '../state/types.js';
@@ -4877,6 +4880,498 @@ function serializeInventoryLevelsConnection(
       prefixCursors: false,
     },
   });
+}
+
+type InventoryTransferUserError = {
+  field: string[] | null;
+  message: string;
+};
+
+type InventoryTransferLineItemInput = {
+  inventoryItemId: string | null;
+  quantity: number | null;
+};
+
+type InventoryTransferLineItemUpdate = {
+  inventoryItemId: string;
+  newQuantity: number;
+  deltaQuantity: number;
+};
+
+function readInventoryTransferLineItemInputs(raw: unknown): InventoryTransferLineItemInput[] {
+  return readPlainObjectArray(raw).map((entry) => ({
+    inventoryItemId: typeof entry['inventoryItemId'] === 'string' ? entry['inventoryItemId'] : null,
+    quantity: typeof entry['quantity'] === 'number' && Number.isInteger(entry['quantity']) ? entry['quantity'] : null,
+  }));
+}
+
+function makeInventoryTransferLocationSnapshot(
+  locationId: string | null,
+): InventoryTransferLocationSnapshotRecord | null {
+  if (!locationId) {
+    return null;
+  }
+
+  const location = findKnownLocationById(locationId);
+  return {
+    id: locationId,
+    name: location?.name ?? locationId,
+    snapshottedAt: makeSyntheticTimestamp(),
+  };
+}
+
+function makeInventoryTransferLineItem(input: InventoryTransferLineItemInput): InventoryTransferLineItemRecord | null {
+  if (!input.inventoryItemId || input.quantity === null) {
+    return null;
+  }
+
+  const variant = store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
+  const product = variant ? store.getEffectiveProductById(variant.productId) : null;
+  return {
+    id: makeProxySyntheticGid('InventoryTransferLineItem'),
+    inventoryItemId: input.inventoryItemId,
+    title: product?.title ?? variant?.title ?? null,
+    totalQuantity: input.quantity,
+    shippedQuantity: 0,
+    pickedForShipmentQuantity: 0,
+  };
+}
+
+function validateInventoryTransferLineItems(inputs: InventoryTransferLineItemInput[]): InventoryTransferUserError[] {
+  const errors: InventoryTransferUserError[] = [];
+  inputs.forEach((input, index) => {
+    if (!input.inventoryItemId || !store.findEffectiveVariantByInventoryItemId(input.inventoryItemId)) {
+      errors.push({
+        field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
+        message: "The inventory item can't be found.",
+      });
+      return;
+    }
+
+    const variant = store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
+    if (variant?.inventoryItem?.tracked !== true) {
+      errors.push({
+        field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
+        message: 'The inventory item does not track inventory.',
+      });
+    }
+
+    if (input.quantity === null || input.quantity <= 0) {
+      errors.push({
+        field: ['input', 'lineItems', `${index}`, 'quantity'],
+        message: 'Quantity must be greater than 0.',
+      });
+    }
+  });
+  return errors;
+}
+
+function makeInventoryTransferRecord(
+  input: Record<string, unknown>,
+  status: InventoryTransferRecord['status'],
+): { transfer: InventoryTransferRecord | null; userErrors: InventoryTransferUserError[] } {
+  const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
+  const userErrors = validateInventoryTransferLineItems(lineItemInputs);
+  if (userErrors.length > 0) {
+    return { transfer: null, userErrors };
+  }
+
+  const transferIndex = store.listEffectiveInventoryTransfers().length + 1;
+  const id = makeSyntheticGid('InventoryTransfer');
+  const lineItems = lineItemInputs
+    .map((lineItemInput) => makeInventoryTransferLineItem(lineItemInput))
+    .filter((lineItem): lineItem is InventoryTransferLineItemRecord => lineItem !== null);
+  const dateCreated = typeof input['dateCreated'] === 'string' ? input['dateCreated'] : makeSyntheticTimestamp();
+
+  return {
+    transfer: {
+      id,
+      name: `#T${String(transferIndex).padStart(4, '0')}`,
+      referenceName: typeof input['referenceName'] === 'string' ? input['referenceName'] : null,
+      status,
+      note: typeof input['note'] === 'string' ? input['note'] : null,
+      tags: Array.isArray(input['tags']) ? input['tags'].filter((tag): tag is string => typeof tag === 'string') : [],
+      dateCreated,
+      origin: makeInventoryTransferLocationSnapshot(
+        typeof input['originLocationId'] === 'string' ? input['originLocationId'] : null,
+      ),
+      destination: makeInventoryTransferLocationSnapshot(
+        typeof input['destinationLocationId'] === 'string' ? input['destinationLocationId'] : null,
+      ),
+      lineItems,
+    },
+    userErrors,
+  };
+}
+
+function findInventoryTransferOriginLevel(
+  transfer: InventoryTransferRecord,
+  lineItem: InventoryTransferLineItemRecord,
+): { variant: ProductVariantRecord; level: InventoryLevelRecord } | null {
+  const variant = store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
+  if (!variant || !transfer.origin?.id) {
+    return null;
+  }
+
+  const level = getEffectiveInventoryLevels(variant).find(
+    (candidate) => candidate.location?.id === transfer.origin?.id,
+  );
+  return level ? { variant, level } : null;
+}
+
+function applyInventoryTransferReservation(
+  transfer: InventoryTransferRecord,
+  direction: 'reserve' | 'release',
+): InventoryTransferUserError[] {
+  const errors: InventoryTransferUserError[] = [];
+  const nextLevelsByVariantId = new Map<string, InventoryLevelRecord[]>();
+
+  for (const lineItem of transfer.lineItems) {
+    const target = findInventoryTransferOriginLevel(transfer, lineItem);
+    if (!target) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+      });
+      continue;
+    }
+
+    const levels = nextLevelsByVariantId.get(target.variant.id) ?? getEffectiveInventoryLevels(target.variant);
+    const levelIndex = levels.findIndex((level) => level.id === target.level.id);
+    const level = levels[levelIndex] ?? target.level;
+    const available = readInventoryQuantityAmount(level.quantities, 'available', 0);
+    const reserved = readInventoryQuantityAmount(level.quantities, 'reserved', 0);
+    if (direction === 'reserve' && available < lineItem.totalQuantity) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+      });
+      continue;
+    }
+
+    const quantity = direction === 'reserve' ? lineItem.totalQuantity : -lineItem.totalQuantity;
+    const quantitiesWithAvailable = writeInventoryQuantityAmount(level.quantities, 'available', available - quantity);
+    const nextQuantities = writeInventoryQuantityAmount(quantitiesWithAvailable, 'reserved', reserved + quantity);
+    const nextLevel = { ...level, quantities: nextQuantities };
+    const nextLevels = levels.map((candidate, index) => (index === levelIndex ? nextLevel : candidate));
+    nextLevelsByVariantId.set(target.variant.id, nextLevels);
+  }
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  for (const [variantId, nextLevels] of nextLevelsByVariantId.entries()) {
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    const nextVariant = stageVariantInventoryLevels(variant, nextLevels);
+    const inventoryQuantity = sumAvailableInventoryLevels(getEffectiveInventoryLevels(nextVariant));
+    store.replaceStagedVariantsForProduct(
+      nextVariant.productId,
+      store
+        .getEffectiveVariantsByProductId(nextVariant.productId)
+        .map((candidate) => (candidate.id === nextVariant.id ? { ...nextVariant, inventoryQuantity } : candidate)),
+    );
+  }
+
+  return [];
+}
+
+function serializeInventoryTransferUserErrors(
+  field: FieldNode | null,
+  errors: InventoryTransferUserError[],
+): Array<Record<string, unknown>> {
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field?.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = getResponseKey(selection);
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeInventoryTransferLocationSnapshot(
+  snapshot: InventoryTransferLocationSnapshotRecord | null,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getResponseKey(selection);
+    switch (selection.name.value) {
+      case 'name':
+        result[key] = snapshot.name;
+        break;
+      case 'snapshottedAt':
+        result[key] = snapshot.snapshottedAt;
+        break;
+      case 'location': {
+        const location = snapshot.id ? findKnownLocationById(snapshot.id) : null;
+        result[key] = location
+          ? serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      }
+      case 'address':
+        result[key] = {};
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeInventoryTransferLineItem(
+  transfer: InventoryTransferRecord,
+  lineItem: InventoryTransferLineItemRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const isReady = transfer.status === 'READY_TO_SHIP' || transfer.status === 'IN_PROGRESS';
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = lineItem.id;
+        break;
+      case 'title':
+        result[key] = lineItem.title;
+        break;
+      case 'totalQuantity':
+        result[key] = lineItem.totalQuantity;
+        break;
+      case 'shippedQuantity':
+        result[key] = lineItem.shippedQuantity;
+        break;
+      case 'pickedForShipmentQuantity':
+        result[key] = lineItem.pickedForShipmentQuantity;
+        break;
+      case 'processableQuantity':
+        result[key] = lineItem.totalQuantity - lineItem.shippedQuantity;
+        break;
+      case 'shippableQuantity':
+        result[key] = isReady ? lineItem.totalQuantity - lineItem.shippedQuantity : 0;
+        break;
+      case 'inventoryItem': {
+        const variant = store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
+        result[key] = variant
+          ? serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeInventoryTransferLineItemsConnection(
+  transfer: InventoryTransferRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const getCursor = (lineItem: InventoryTransferLineItemRecord): string => `cursor:${lineItem.id}`;
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    transfer.lineItems,
+    field,
+    variables,
+    getCursor,
+  );
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getCursor,
+    serializeNode: (lineItem, selection) =>
+      serializeInventoryTransferLineItem(transfer, lineItem, selection, variables),
+    pageInfoOptions: { prefixCursors: false },
+  });
+}
+
+function serializeEmptyInventoryTransferConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems([], field, variables, () => '');
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+    pageInfoOptions: { prefixCursors: false },
+  });
+}
+
+function serializeInventoryTransfer(
+  transfer: InventoryTransferRecord | null,
+  field: FieldNode | null,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!transfer || !field) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  const totalQuantity = transfer.lineItems.reduce((total, lineItem) => total + lineItem.totalQuantity, 0);
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = transfer.id;
+        break;
+      case 'name':
+        result[key] = transfer.name;
+        break;
+      case 'referenceName':
+        result[key] = transfer.referenceName;
+        break;
+      case 'status':
+        result[key] = transfer.status;
+        break;
+      case 'note':
+        result[key] = transfer.note;
+        break;
+      case 'tags':
+        result[key] = transfer.tags;
+        break;
+      case 'dateCreated':
+        result[key] = transfer.dateCreated;
+        break;
+      case 'totalQuantity':
+        result[key] = totalQuantity;
+        break;
+      case 'receivedQuantity':
+        result[key] = 0;
+        break;
+      case 'origin':
+        result[key] = serializeInventoryTransferLocationSnapshot(transfer.origin, selection);
+        break;
+      case 'destination':
+        result[key] = serializeInventoryTransferLocationSnapshot(transfer.destination, selection);
+        break;
+      case 'lineItems':
+        result[key] = serializeInventoryTransferLineItemsConnection(transfer, selection, variables);
+        break;
+      case 'lineItemsCount':
+        result[key] = serializeCountObject(totalQuantity, selection.selectionSet?.selections ?? []);
+        break;
+      case 'events':
+      case 'shipments':
+      case 'metafields':
+        result[key] = serializeEmptyInventoryTransferConnection(selection, variables);
+        break;
+      case 'metafield':
+        result[key] = null;
+        break;
+      case 'hasTimelineComment':
+        result[key] = false;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeInventoryTransfersConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const transfers = store.listEffectiveInventoryTransfers();
+  const getCursor = (transfer: InventoryTransferRecord): string => `cursor:${transfer.id}`;
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(transfers, field, variables, getCursor);
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: getCursor,
+    serializeNode: (transfer, selection) => serializeInventoryTransfer(transfer, selection, variables),
+    pageInfoOptions: { prefixCursors: false },
+  });
+}
+
+function serializeInventoryTransferLineItemUpdates(
+  field: FieldNode | null,
+  updates: InventoryTransferLineItemUpdate[] | null,
+): Array<Record<string, unknown>> | null {
+  if (updates === null) {
+    return null;
+  }
+
+  return updates.map((update) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field?.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = getResponseKey(selection);
+      switch (selection.name.value) {
+        case 'inventoryItemId':
+          result[key] = update.inventoryItemId;
+          break;
+        case 'newQuantity':
+          result[key] = update.newQuantity;
+          break;
+        case 'deltaQuantity':
+          result[key] = update.deltaQuantity;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function inventoryTransferNotFoundPayload(rootName: string, field: FieldNode): Record<string, unknown> {
+  return {
+    [rootName]: {
+      inventoryTransfer: rootName === 'inventoryTransferDelete' ? undefined : null,
+      deletedId: rootName === 'inventoryTransferDelete' ? null : undefined,
+      userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), [
+        { field: ['id'], message: "The inventory transfer can't be found." },
+      ]),
+    },
+  };
 }
 
 function serializeCountObject(count: number, selections: readonly SelectionNode[]): Record<string, unknown> {
@@ -10413,6 +10908,279 @@ export function handleProductMutation(
         },
       };
     }
+    case 'inventoryTransferCreate':
+    case 'inventoryTransferCreateAsReadyToShip': {
+      const input = readProductInput(args['input']);
+      const status = field.name.value === 'inventoryTransferCreateAsReadyToShip' ? 'READY_TO_SHIP' : 'DRAFT';
+      const result = makeInventoryTransferRecord(input, status);
+      let transfer = result.transfer;
+      let userErrors = result.userErrors;
+      if (transfer && status === 'READY_TO_SHIP') {
+        userErrors = applyInventoryTransferReservation(transfer, 'reserve');
+        if (userErrors.length > 0) {
+          transfer = null;
+        }
+      }
+
+      if (transfer) {
+        store.upsertStagedInventoryTransfer(transfer);
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              transfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), userErrors),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferEdit': {
+      const rawId = args['id'];
+      const id = typeof rawId === 'string' ? rawId : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      const input = readProductInput(args['input']);
+      const nextTransfer: InventoryTransferRecord = {
+        ...transfer,
+        referenceName: typeof input['referenceName'] === 'string' ? input['referenceName'] : transfer.referenceName,
+        note: typeof input['note'] === 'string' ? input['note'] : transfer.note,
+        tags: Array.isArray(input['tags'])
+          ? input['tags'].filter((tag): tag is string => typeof tag === 'string')
+          : transfer.tags,
+        dateCreated: typeof input['dateCreated'] === 'string' ? input['dateCreated'] : transfer.dateCreated,
+        origin:
+          typeof input['originId'] === 'string'
+            ? makeInventoryTransferLocationSnapshot(input['originId'])
+            : transfer.origin,
+        destination:
+          typeof input['destinationId'] === 'string'
+            ? makeInventoryTransferLocationSnapshot(input['destinationId'])
+            : transfer.destination,
+      };
+      store.upsertStagedInventoryTransfer(nextTransfer);
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              nextTransfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferSetItems': {
+      const input = readProductInput(args['input']);
+      const id = typeof input['id'] === 'string' ? input['id'] : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
+      const userErrors = validateInventoryTransferLineItems(lineItemInputs);
+      const priorByItemId = new Map(transfer.lineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
+      const updatedLineItems = lineItemInputs
+        .map((lineItemInput) => {
+          const lineItem = makeInventoryTransferLineItem(lineItemInput);
+          const prior = lineItemInput.inventoryItemId ? priorByItemId.get(lineItemInput.inventoryItemId) : null;
+          return lineItem && prior ? { ...lineItem, id: prior.id } : lineItem;
+        })
+        .filter((lineItem): lineItem is InventoryTransferLineItemRecord => lineItem !== null);
+      const updates: InventoryTransferLineItemUpdate[] = updatedLineItems.map((lineItem) => {
+        const priorQuantity = priorByItemId.get(lineItem.inventoryItemId)?.totalQuantity ?? 0;
+        return {
+          inventoryItemId: lineItem.inventoryItemId,
+          newQuantity: lineItem.totalQuantity,
+          deltaQuantity: lineItem.totalQuantity - priorQuantity,
+        };
+      });
+      const nextTransfer = { ...transfer, lineItems: updatedLineItems };
+      if (userErrors.length === 0) {
+        store.upsertStagedInventoryTransfer(nextTransfer);
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              userErrors.length === 0 ? nextTransfer : transfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            updatedLineItems: serializeInventoryTransferLineItemUpdates(
+              getChildField(field, 'updatedLineItems'),
+              userErrors.length === 0 ? updates : null,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), userErrors),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferRemoveItems': {
+      const input = readProductInput(args['input']);
+      const id = typeof input['id'] === 'string' ? input['id'] : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      const removeIds = Array.isArray(input['transferLineItemIds'])
+        ? input['transferLineItemIds'].filter((value): value is string => typeof value === 'string')
+        : [];
+      const removedItems = transfer.lineItems.filter((lineItem) => removeIds.includes(lineItem.id));
+      const nextTransfer = {
+        ...transfer,
+        lineItems: transfer.lineItems.filter((lineItem) => !removeIds.includes(lineItem.id)),
+      };
+      const updates = removedItems.map((lineItem) => ({
+        inventoryItemId: lineItem.inventoryItemId,
+        newQuantity: 0,
+        deltaQuantity: -lineItem.totalQuantity,
+      }));
+      store.upsertStagedInventoryTransfer(nextTransfer);
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              nextTransfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            removedQuantities: serializeInventoryTransferLineItemUpdates(
+              getChildField(field, 'removedQuantities'),
+              updates,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferMarkAsReadyToShip': {
+      const rawId = args['id'];
+      const id = typeof rawId === 'string' ? rawId : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      const userErrors = transfer.status === 'DRAFT' ? applyInventoryTransferReservation(transfer, 'reserve') : [];
+      const nextTransfer = userErrors.length === 0 ? { ...transfer, status: 'READY_TO_SHIP' as const } : null;
+      if (nextTransfer) {
+        store.upsertStagedInventoryTransfer(nextTransfer);
+      }
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              nextTransfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), userErrors),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferCancel': {
+      const rawId = args['id'];
+      const id = typeof rawId === 'string' ? rawId : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      if (transfer.status === 'READY_TO_SHIP') {
+        applyInventoryTransferReservation(transfer, 'release');
+      }
+      const nextTransfer: InventoryTransferRecord = { ...transfer, status: 'CANCELED' };
+      store.upsertStagedInventoryTransfer(nextTransfer);
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              nextTransfer,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferDuplicate': {
+      const rawId = args['id'];
+      const id = typeof rawId === 'string' ? rawId : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      const duplicated: InventoryTransferRecord = {
+        ...structuredClone(transfer),
+        id: makeSyntheticGid('InventoryTransfer'),
+        name: `#T${String(store.listEffectiveInventoryTransfers().length + 1).padStart(4, '0')}`,
+        status: 'DRAFT',
+        lineItems: transfer.lineItems.map((lineItem) => ({
+          ...lineItem,
+          id: makeProxySyntheticGid('InventoryTransferLineItem'),
+        })),
+      };
+      store.upsertStagedInventoryTransfer(duplicated);
+      return {
+        data: {
+          [responseKey]: {
+            inventoryTransfer: serializeInventoryTransfer(
+              duplicated,
+              getChildField(field, 'inventoryTransfer'),
+              variables,
+            ),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+          },
+        },
+      };
+    }
+    case 'inventoryTransferDelete': {
+      const rawId = args['id'];
+      const id = typeof rawId === 'string' ? rawId : null;
+      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      if (!transfer) {
+        return { data: inventoryTransferNotFoundPayload(responseKey, field) };
+      }
+
+      if (transfer.status !== 'DRAFT') {
+        return {
+          data: {
+            [responseKey]: {
+              deletedId: null,
+              userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), [
+                { field: ['id'], message: "Can't delete the transfer if it's not in the draft status." },
+              ]),
+            },
+          },
+        };
+      }
+
+      store.deleteStagedInventoryTransfer(transfer.id);
+      return {
+        data: {
+          [responseKey]: {
+            deletedId: transfer.id,
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+          },
+        },
+      };
+    }
     case 'inventoryItemUpdate': {
       const rawId = args['id'];
       const inventoryItemId = typeof rawId === 'string' ? rawId : null;
@@ -11398,6 +12166,20 @@ export function handleProductQuery(
       }
       case 'inventoryProperties': {
         data[responseKey] = serializeInventoryPropertiesSelectionSet(field.selectionSet?.selections ?? []);
+        break;
+      }
+      case 'inventoryTransfer': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        data[responseKey] = serializeInventoryTransfer(
+          id ? store.getEffectiveInventoryTransferById(id) : null,
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'inventoryTransfers': {
+        data[responseKey] = serializeInventoryTransfersConnection(field, variables);
         break;
       }
       case 'collection': {

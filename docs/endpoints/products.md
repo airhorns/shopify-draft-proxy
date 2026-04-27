@@ -29,6 +29,8 @@ Overlay reads:
 - `inventoryItems`
 - `inventoryLevel`
 - `inventoryProperties`
+- `inventoryTransfer`
+- `inventoryTransfers`
 - `collection`
 - `collectionByIdentifier`
 - `collectionByHandle`
@@ -74,6 +76,15 @@ Local staged mutations:
 - `inventoryActivate`
 - `inventoryDeactivate`
 - `inventoryBulkToggleActivation`
+- `inventoryTransferCreate`
+- `inventoryTransferCreateAsReadyToShip`
+- `inventoryTransferEdit`
+- `inventoryTransferSetItems`
+- `inventoryTransferRemoveItems`
+- `inventoryTransferMarkAsReadyToShip`
+- `inventoryTransferDuplicate`
+- `inventoryTransferCancel`
+- `inventoryTransferDelete`
 - `metafieldsSet`
 - `metafieldsDelete`
 - `metafieldDelete`
@@ -147,6 +158,9 @@ These product-adjacent roots are registered in the operation registry as product
 - `inventoryProperties` returns the captured 2025-01 inventory quantity-name catalog: `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`, including `belongsTo` / `comprises` relationships used by local quantity staging.
 - `inventorySetQuantities` stages absolute quantity writes over effective inventory item levels without runtime Shopify writes. Captured 2025-01 evidence showed `ignoreCompareQuantity: true` accepting available set writes, returning an `InventoryAdjustmentGroup`, mirroring available deltas into `on_hand` changes, immediately updating `inventoryItem.variant.inventoryQuantity`, and leaving `product.totalInventory` stale in immediate downstream reads. The local model also applies the same `on_hand` relationship for other component quantity names and rejects `on_hand` as a directly staged quantity name.
 - `inventoryMoveQuantities` stages same-location quantity moves over effective inventory item levels. Captured 2025-01 evidence showed an available-to-damaged move returning two `InventoryChange` rows, keeping `on_hand` unchanged because both names belong to `on_hand`, updating variant inventory quantity from available totals, and preserving stale product-level `totalInventory`. Different-location moves, same-name moves, and unsupported ledger-document branches return visible local `userErrors` and do not contact Shopify.
+- `inventoryTransfer` and `inventoryTransfers` are modeled for locally staged transfer records. Empty snapshot state returns `inventoryTransfer(id:)` as `null` and `inventoryTransfers(first:)` as an empty connection with false page booleans and null cursors. The current search/sort slice is intentionally narrow: locally staged transfers are listed in staging order with shared cursor pagination.
+- Inventory transfer lifecycle mutations stage records in memory and never proxy supported roots at runtime. Draft create/edit/set-items/remove-items/duplicate/delete preserve downstream transfer reads and raw mutation log order. `inventoryTransferCreateAsReadyToShip` and `inventoryTransferMarkAsReadyToShip` mirror the captured 2025-01 inventory effect by moving origin-level `available` quantity into `reserved`; `inventoryTransferCancel` releases that local reservation when canceling a ready transfer. Product-level `totalInventory` remains stale, matching the existing inventory quantity timing rule.
+- Transfer conformance probes on `harry-test-heelo.myshopify.com` confirmed `InventoryTransferLineItem` exposes `totalQuantity`, `shippableQuantity`, `shippedQuantity`, `processableQuantity`, and `pickedForShipmentQuantity`, not a generic `quantity` field. A draft create with an untracked inventory item returns `userErrors[{ field: ["input","lineItems","0","inventoryItemId"], message: "The inventory item does not track inventory." }]`. Marking a stocked draft transfer ready returned `READY_TO_SHIP`, made the line item shippable, and changed immediate downstream inventory quantities from `available: 5, reserved: 0, on_hand: 5` to `available: 3, reserved: 2, on_hand: 5`.
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
 - Missing product-adjacent by-id roots return `null` without inventing records. The `product-related-by-id-not-found-read` parity scenario captures this for `collection(id:)`, `productVariant(id:)`, `inventoryItem(id:)`, and `inventoryLevel(id:)`.
@@ -159,6 +173,7 @@ These product-adjacent roots are registered in the operation registry as product
 
 - Runtime flows: `tests/integration/product-draft-flow.test.ts`
 - Inventory quantity roots: `tests/integration/inventory-quantity-roots.test.ts`
+- Inventory transfer lifecycle roots: `tests/integration/inventory-transfer-flow.test.ts`
 - Product reads: `tests/integration/product-query-shapes.test.ts`
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`

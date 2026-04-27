@@ -1,0 +1,147 @@
+{
+  "scenario": "inventory-transfer-lifecycle-local-staging",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-04-27T20:12:58Z",
+  "scopeProbe": {
+    "readReachedSchema": true,
+    "cancelUnknownId": {
+      "data": {
+        "inventoryTransferCancel": {
+          "inventoryTransfer": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "The inventory transfer can't be found."
+            }
+          ]
+        }
+      }
+    }
+  },
+  "emptyCatalogRead": {
+    "data": {
+      "inventoryTransfers": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "lineItemSchema": {
+    "fields": [
+      "id",
+      "inventoryItem",
+      "pickedForShipmentQuantity",
+      "processableQuantity",
+      "shippableQuantity",
+      "shippedQuantity",
+      "title",
+      "totalQuantity"
+    ],
+    "notPresent": ["quantity"]
+  },
+  "untrackedItemCreateValidation": {
+    "data": {
+      "inventoryTransferCreate": {
+        "inventoryTransfer": null,
+        "userErrors": [
+          {
+            "field": ["input", "lineItems", "0", "inventoryItemId"],
+            "message": "The inventory item does not track inventory."
+          }
+        ]
+      }
+    }
+  },
+  "draftCreate": {
+    "data": {
+      "inventoryTransferCreate": {
+        "inventoryTransfer": {
+          "name": "#T0002",
+          "status": "DRAFT",
+          "totalQuantity": 2,
+          "lineItems": {
+            "nodes": [
+              {
+                "totalQuantity": 2,
+                "shippableQuantity": 0,
+                "shippedQuantity": 0,
+                "processableQuantity": 2,
+                "pickedForShipmentQuantity": 0
+              }
+            ]
+          }
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "readyTransition": {
+    "data": {
+      "inventoryTransferMarkAsReadyToShip": {
+        "inventoryTransfer": {
+          "status": "READY_TO_SHIP",
+          "totalQuantity": 2,
+          "lineItems": {
+            "nodes": [
+              {
+                "totalQuantity": 2,
+                "shippableQuantity": 2,
+                "shippedQuantity": 0,
+                "processableQuantity": 2,
+                "pickedForShipmentQuantity": 0
+              }
+            ]
+          }
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "readyInventoryReadAfterWrite": {
+    "before": {
+      "available": 5,
+      "reserved": 0,
+      "on_hand": 5
+    },
+    "afterReady": {
+      "available": 3,
+      "reserved": 2,
+      "on_hand": 5,
+      "variantInventoryQuantity": 3
+    }
+  },
+  "cancelReadyTransfer": {
+    "data": {
+      "inventoryTransferCancel": {
+        "inventoryTransfer": {
+          "status": "CANCELED"
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "deleteNonDraftGuardrail": {
+    "data": {
+      "inventoryTransferDelete": {
+        "deletedId": null,
+        "userErrors": [
+          {
+            "field": ["id"],
+            "message": "Can't delete the transfer if it's not in the draft status."
+          }
+        ]
+      }
+    }
+  },
+  "cleanup": {
+    "productsDeleted": true,
+    "readyTransferCanceled": true,
+    "canceledTransfersRemainBecauseShopifyRejectsNonDraftDelete": true
+  }
+}

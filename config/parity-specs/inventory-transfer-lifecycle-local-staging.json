@@ -1,0 +1,34 @@
+{
+  "scenarioId": "inventory-transfer-lifecycle-local-staging",
+  "operationNames": [
+    "inventoryTransfer",
+    "inventoryTransfers",
+    "inventoryTransferCreate",
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransferEdit",
+    "inventoryTransferSetItems",
+    "inventoryTransferRemoveItems",
+    "inventoryTransferMarkAsReadyToShip",
+    "inventoryTransferDuplicate",
+    "inventoryTransferCancel",
+    "inventoryTransferDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "empty-state-parity",
+    "downstream-read-parity",
+    "inventory-quantity-side-effect",
+    "no-upstream-passthrough"
+  ],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/inventory-transfer-lifecycle-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
+  "notes": "HAR-307 uses a captured fixture plus runtime-test-backed local parity because the lifecycle flow is multi-step and the generic parity runner does not yet seed product-backed inventory levels plus transfer operations in one scenario. The runtime test covers empty reads, draft lifecycle edits/items/delete, ready/cancel inventory reservation effects, validation branches, raw log ordering, and no runtime Shopify writes."
+}
