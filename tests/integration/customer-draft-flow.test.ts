@@ -5024,13 +5024,42 @@ describe('customer draft flow', () => {
     expect(erasureRequest?.requestedAt).toBeTruthy();
     expect(erasureRequest?.canceledAt).toBeTruthy();
 
+    const repeatCancelResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RepeatCustomerDataErasureCancel($customerId: ID!) {
+          customerCancelDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/7007' },
+      });
+
+    expect(repeatCancelResponse.status).toBe(200);
+    expect(repeatCancelResponse.body).toEqual({
+      data: {
+        customerCancelDataErasure: {
+          customerId: null,
+          userErrors: [
+            {
+              field: ['customerId'],
+              message: "Customer's data is not scheduled for erasure",
+              code: 'NOT_BEING_ERASED',
+            },
+          ],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
     const missingResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query: `mutation MissingCustomerDataErasure($customerId: ID!) {
           customerRequestDataErasure(customerId: $customerId) {
             customerId
-            userErrors { field message }
+            userErrors { field message code }
           }
         }`,
         variables: { customerId: 'gid://shopify/Customer/999999999999999' },
@@ -5044,7 +5073,8 @@ describe('customer draft flow', () => {
           userErrors: [
             {
               field: ['customerId'],
-              message: 'Customer does not exist.',
+              message: 'Customer does not exist',
+              code: 'DOES_NOT_EXIST',
             },
           ],
         },

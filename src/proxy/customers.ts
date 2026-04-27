@@ -2748,7 +2748,16 @@ function buildDataSaleOptOutFailedError(): CustomerMutationUserError {
 function buildCustomerDataErasureMissingCustomerError(): CustomerMutationUserError {
   return {
     field: ['customerId'],
-    message: 'Customer does not exist.',
+    message: 'Customer does not exist',
+    code: 'DOES_NOT_EXIST',
+  };
+}
+
+function buildCustomerDataErasureNotBeingErasedError(): CustomerMutationUserError {
+  return {
+    field: ['customerId'],
+    message: "Customer's data is not scheduled for erasure",
+    code: 'NOT_BEING_ERASED',
   };
 }
 
@@ -4121,6 +4130,22 @@ export function handleCustomerMutation(
           {
             customerId: null,
             userErrors: [buildCustomerDataErasureMissingCustomerError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const state = store.getState();
+      const existingRequest =
+        state.stagedState.customerDataErasureRequests[customerId] ??
+        state.baseState.customerDataErasureRequests[customerId];
+      if (!existingRequest || existingRequest.canceledAt) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildCustomerDataErasureNotBeingErasedError()],
           },
           variables,
         );

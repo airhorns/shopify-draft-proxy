@@ -1966,6 +1966,22 @@ Practical rule for the proxy:
 - for unknown valid emails, create a local opted-out customer instead of returning a not-found userError
 - treat invalid email strings as captured payload userErrors, not as top-level GraphQL errors, when local request parsing reaches the resolver path
 
+### 44c. Customer data-erasure roots are privacy side effects without visible customer-field mutation
+
+HAR-322 recapture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 after `write_customer_data_erasure` was granted settled the first success path:
+
+- `customerRequestDataErasure(customerId:)` returns the requested `customerId` and an empty `userErrors` array for a disposable customer
+- an immediate `customer(id:)` read after the request returned the same selected customer fields; no explicit customer-field marker exposed the scheduled erasure
+- `customerCancelDataErasure(customerId:)` returns the same `customerId` and empty `userErrors` after a request is scheduled
+- unknown customer ids return payload `userErrors[{ field: ["customerId"], message: "Customer does not exist", code: "DOES_NOT_EXIST" }]`
+- canceling again after the scheduled erasure was already canceled returns `customerId: null` with `code: "NOT_BEING_ERASED"`
+
+Practical rule for the proxy:
+
+- keep request/cancel as local audit intents rather than customer-field updates
+- use the captured no-period / `DOES_NOT_EXIST` unknown-customer error for these roots, even though older customer tax-exemption captures used a period in the message
+- preserve original raw mutations for commit replay because the real side effect remains sensitive and intentionally deferred
+
 ## 45. Rich collection fields need a real collection row, not only membership rows
 
 Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.

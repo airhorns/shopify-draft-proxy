@@ -30,7 +30,7 @@ HAR-322 adds customer data-erasure request/cancel roots under the customers endp
 - `customerRequestDataErasure`
 - `customerCancelDataErasure`
 
-These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay, but live success-path conformance capture is blocked until the conformance app/user has `write_customer_data_erasure` and the Shopify permission to erase customer data.
+These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay. Granted-scope HAR-322 capture records real request/cancel success payloads, unchanged immediate downstream customer reads, unknown-customer `DOES_NOT_EXIST` userErrors, and repeat-cancel `NOT_BEING_ERASED` cleanup behavior.
 
 ## Coverage boundaries
 

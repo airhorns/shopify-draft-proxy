@@ -639,6 +639,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    packageScript: 'conformance:capture-customer-account-page-data-erasure',
+    scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
+    purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-account-page-data-erasure.json`,
+      'config/parity-specs/customer-account-page-data-erasure.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, requests and cancels data erasure, then cancels again and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     packageScript: 'conformance:capture-customer-set',
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',

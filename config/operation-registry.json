@@ -1247,7 +1247,7 @@
     "implemented": true,
     "matchNames": ["customerRequestDataErasure", "CustomerRequestDataErasure"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
-    "supportNotes": "HAR-322: stages a local customer data-erasure request intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Live conformance success capture is blocked by missing write_customer_data_erasure scope/user permission; the local payload shape is schema-backed and blocker-documented."
+    "supportNotes": "HAR-322: stages a local customer data-erasure request intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads and DOES_NOT_EXIST unknown-customer userErrors."
   },
   {
     "name": "customerCancelDataErasure",
@@ -1257,7 +1257,7 @@
     "implemented": true,
     "matchNames": ["customerCancelDataErasure", "CustomerCancelDataErasure"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
-    "supportNotes": "HAR-322: stages a local data-erasure cancellation intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Live conformance success capture is blocked by missing write_customer_data_erasure scope/user permission; the local payload shape is schema-backed and blocker-documented."
+    "supportNotes": "HAR-322: stages a local data-erasure cancellation intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads, DOES_NOT_EXIST unknown-customer userErrors, and NOT_BEING_ERASED repeat-cancel cleanup behavior."
   },
   {
     "name": "customerAddressCreate",
