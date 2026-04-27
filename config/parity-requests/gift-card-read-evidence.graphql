@@ -1,0 +1,29 @@
+query GiftCardReadEvidence($unknownId: ID!, $query: String!) {
+  missingGiftCard: giftCard(id: $unknownId) {
+    id
+  }
+  filteredEmptyGiftCards: giftCards(first: 2, query: $query, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  filteredEmptyGiftCardsCount: giftCardsCount(query: $query) {
+    count
+    precision
+  }
+  giftCardConfiguration {
+    issueLimit {
+      amount
+      currencyCode
+    }
+    purchaseLimit {
+      amount
+      currencyCode
+    }
+  }
+}
