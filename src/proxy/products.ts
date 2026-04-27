@@ -23,13 +23,13 @@ import {
   isObject,
   readLegacyResourceIdFromGid,
   stripHtmlToDescription,
-} from './product-runtime/helpers.js';
+} from './products/helpers.js';
 import {
   ensureUniqueProductHandle,
   findEffectiveProductByHandle,
   prepareProductInputWithResolvedHandle,
   slugifyHandle,
-} from './product-runtime/handles.js';
+} from './products/handles.js';
 import {
   addInventoryQuantityAmount,
   buildStableSyntheticInventoryLevelId,
@@ -37,7 +37,7 @@ import {
   readInventoryQuantityAmount,
   sumAvailableInventoryLevels,
   writeInventoryQuantityAmount,
-} from './product-runtime/inventory-quantities.js';
+} from './products/inventory-quantities.js';
 import {
   buildInvalidProductMediaContentTypeVariableError,
   buildInvalidProductMediaProductIdVariableError,
@@ -48,8 +48,8 @@ import {
   transitionMediaToProcessing,
   transitionMediaToReady,
   updateMediaRecord,
-} from './product-runtime/media.js';
-import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './product-runtime/metafield-values.js';
+} from './products/media.js';
+import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './products/metafield-values.js';
 import {
   buildProductSetOptionRecords,
   deleteOptionRecords,
@@ -62,8 +62,8 @@ import {
   remapDefaultVariantToCreatedOptions,
   restoreDefaultOptionState,
   updateOptionRecords,
-} from './product-runtime/options.js';
-import { serializeCountValue, serializeJobSelectionSet } from './product-runtime/serializers.js';
+} from './products/options.js';
+import { serializeCountValue, serializeJobSelectionSet } from './products/serializers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
