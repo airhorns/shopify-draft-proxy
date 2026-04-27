@@ -1,0 +1,26 @@
+{
+  "scenarioId": "bulk-operation-status-catalog-cancel",
+  "operationNames": [
+    "bulkOperation",
+    "bulkOperations",
+    "currentBulkOperation",
+    "bulkOperationRunQuery",
+    "bulkOperationCancel"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "passthrough-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operation-catalog-empty-running-mutation.graphql",
+    "variablesPath": "config/parity-requests/bulk-operation-catalog-empty-running-mutation.variables.json"
+  },
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. The proxy does not yet implement a local BulkOperation job model, so the runtime test enforces that the captured fixture is discoverable while current proxy behavior remains an explicit passthrough gap rather than guessed local emulation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
