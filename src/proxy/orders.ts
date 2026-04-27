@@ -4111,7 +4111,7 @@ function deriveOrderNetPaymentSet(order: OrderRecord): { shopMoney: MoneyV2Recor
   );
 }
 
-function serializeOrderNode(
+export function serializeOrderNode(
   field: FieldNode,
   order: OrderRecord,
   variables: Record<string, unknown> = {},

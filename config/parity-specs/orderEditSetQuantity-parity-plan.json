@@ -1,31 +1,39 @@
 {
   "scenarioId": "order-edit-set-quantity-live-parity",
   "operationNames": ["orderEditSetQuantity"],
-  "scenarioStatus": "planned",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/order-edit-existing-order-zero-removal.json"
+  ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orderEditSetQuantity-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/orderEditSetQuantity-parity-plan.variables.json"
+    "documentPath": "config/parity-requests/orderEditExistingWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-order-edit-set-quantity-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-115",
-      "requiredScopes": ["write_order_edits"],
-      "probeRoots": ["orderEditSetQuantity"],
-      "blockedMutations": ["orderEditSetQuantity"],
-      "failingMessage": "Access denied for orderEditSetQuantity field. Required access: `write_order_edits` access scope.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "First order-edit parity scaffold for `orderEditSetQuantity`. Live capture stays blocked until the conformance credential can write order edits."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable replacement for the old single-root `orderEditSetQuantity` access-scope plan. It runs the captured zero-quantity edit against the locally staged calculated order and compares Shopify's stable calculated-line quantity/userErrors shape.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-zero-payload",
+        "capturePath": "$.setZero.response.data.orderEditSetQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderEditExistingWorkflow-setQuantity-payload.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.lineItems.nodes[2].id"
+            },
+            "quantity": 0,
+            "restock": true
+          }
+        },
+        "proxyPath": "$.data.orderEditSetQuantity"
+      }
+    ]
+  }
 }

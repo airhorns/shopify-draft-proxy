@@ -1,0 +1,235 @@
+{
+  "capturedAt": "2026-04-27T01:10:00.000Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scopeEvidence": {
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
+  },
+  "schema": {
+    "mutationArgs": {
+      "marketingEngagementCreate": ["marketingActivityId", "remoteId", "channelHandle", "marketingEngagement"],
+      "marketingEngagementsDelete": ["channelHandle", "deleteEngagementsForAllChannels"]
+    },
+    "inputFields": [
+      "occurredOn",
+      "impressionsCount",
+      "viewsCount",
+      "clicksCount",
+      "sharesCount",
+      "favoritesCount",
+      "commentsCount",
+      "unsubscribesCount",
+      "complaintsCount",
+      "failsCount",
+      "sendsCount",
+      "uniqueViewsCount",
+      "uniqueClicksCount",
+      "adSpend",
+      "isCumulative",
+      "utcOffset",
+      "sales",
+      "sessionsCount",
+      "orders",
+      "firstTimeCustomers",
+      "returningCustomers"
+    ],
+    "downstreamReadTargets": {
+      "MarketingActivity": ["adSpend"],
+      "MarketingEvent": []
+    }
+  },
+  "operations": {
+    "createActivity": {
+      "response": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196844552498",
+              "adSpend": null,
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242201362738",
+                "remoteId": "har-214-engagement-mogi2f2u",
+                "channelHandle": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "createByRemoteId": {
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-26",
+              "utcOffset": "+00:00",
+              "isCumulative": false,
+              "impressionsCount": 7,
+              "viewsCount": 5,
+              "clicksCount": 2,
+              "uniqueClicksCount": 1,
+              "adSpend": {
+                "amount": "3.21",
+                "currencyCode": "USD"
+              },
+              "sales": {
+                "amount": "12.34",
+                "currencyCode": "USD"
+              },
+              "orders": "1.5",
+              "firstTimeCustomers": "1.0",
+              "returningCustomers": "0.5",
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/196844552498",
+                "adSpend": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "duplicateSameDay": {
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-26",
+              "impressionsCount": 9,
+              "clicksCount": 4,
+              "adSpend": {
+                "amount": "4.56",
+                "currencyCode": "USD"
+              },
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/196844552498",
+                "adSpend": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "downstreamReadAfterCreate": {
+      "response": {
+        "data": {
+          "marketingActivity": {
+            "id": "gid://shopify/MarketingActivity/196844552498",
+            "adSpend": null
+          }
+        }
+      }
+    },
+    "deleteAllChannels": {
+      "response": {
+        "data": {
+          "marketingEngagementsDelete": {
+            "result": "Engagement data marked for deletion for 0 channel(s)",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "validation": {
+      "missingIdentifier": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"
+              }
+            ]
+          }
+        }
+      },
+      "invalidRemoteId": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        }
+      },
+      "multipleIdentifiers": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
+              }
+            ]
+          }
+        }
+      },
+      "invalidChannel": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["channelHandle"],
+                "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                "code": "INVALID_CHANNEL_HANDLE"
+              }
+            ]
+          }
+        }
+      },
+      "negativeMetric": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-25",
+              "impressionsCount": -1,
+              "clicksCount": -2
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "deleteMissingSelector": {
+        "data": {
+          "marketingEngagementsDelete": {
+            "result": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
+                "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "deleteActivity": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/196844552498",
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Activity-level engagement creates were captured against a disposable external marketing activity and cleaned up afterward.",
+    "Immediate downstream marketingActivity.adSpend remained null after activity-level engagement writes; the proxy therefore records engagement state without inventing aggregate attribution.",
+    "No recognized channel handle was available in the conformance shop; unrecognized channelHandle branches return INVALID_CHANNEL_HANDLE."
+  ]
+}

@@ -512,10 +512,10 @@ Current live findings on this host:
   - `orderEditSetQuantity` now also has that same first safe GraphQL-validation slice before the access gate: omitting the required `$id` variable while still sending `lineItemId` and `quantity` returns the same top-level `INVALID_VARIABLE` payload before Shopify reaches the root's separate `write_order_edits` blocker
   - `orderEditCommit` also fails on the same missing-`$id` variables-path validation branch before the access gate: omitting the required `$id` variable while still sending `notifyCustomer` / `staffNote` returns top-level `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker
 - current practical split for that family:
-  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and those captured branches are enough to cover each root narrowly while keeping happy-path parity blocked separately
-  - the remaining calculated-order edit work is the happy-path non-local Shopify parity family, which still needs explicit blocker-note + parity-plan scaffolding until a `write_order_edits`-capable install exists
+  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and captured existing-order workflows now cover the initial lifecycle and downstream read-after-write paths
+  - the remaining calculated-order edit work is represented by captured existing-order workflow evidence plus executable single-root begin/add/set/commit parity slices; those scenario IDs must not return to planned access-scope-only blockers
 
-- keep concrete parity requests checked in for each root so later live capture can compare the real payload slice once an order-edit capable credential exists
+- keep the captured workflow parity requests checked in so later live capture can compare full begin/add/set/commit sequences rather than isolated root placeholders
 - refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
 - do not skip ahead to fulfillment just because the edit roots introspect cleanly; the current host still needs a `write_order_edits`-capable credential before broader order-edit parity can become evidence-backed runtime work
 - newer local-runtime consequence: even without that credential, the proxy can still support a minimal but coherent local calculated-order session for synthetic/local orders only
@@ -1178,7 +1178,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -1985,6 +1985,30 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
+
+## B2B company roots
+
+HAR-302 captured the first B2B company/contact/location read slice against
+`harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01. The app credential
+can read the B2B company roots on that store. The capture showed:
+
+- `companies(first:)` returns a non-null connection, and `companiesCount`
+  returned `{ count: 2 }`.
+- Unknown `company`, `companyContact`, `companyContactRole`, and
+  `companyLocation` IDs returned `null`.
+- Company records exposed `contactsCount`, `locationsCount`,
+  `contactRoles(first:)`, `locations(first:)`, `contacts(first:)`,
+  `mainContact`, and `defaultRole` in the safe selected slice.
+- `companyLocations(first:)` returned locations with their parent `company`.
+- Safe unknown-ID `companyUpdate`, `companyLocationUpdate`, and
+  `companyContactUpdate` returned `RESOURCE_NOT_FOUND` userErrors. The field
+  paths differ: `companyId`, `input`, and `companyContactId` respectively.
+
+The mutation roots are only inventoried as B2B blockers. Do not mark them
+supported from validation-only evidence; company/contact/location create,
+update, delete, assignment, revoke, address, tax, staff, and welcome-email
+behavior needs local lifecycle modeling before runtime support.
+
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
@@ -2184,6 +2208,20 @@ Practical rule for the proxy:
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
 
+### 53a. `orderCustomerSet` updates `Customer.orders` before the scalar summaries
+
+HAR-288 captured a focused 2026-04 live sequence with a disposable customer and an existing order:
+
+- before linking, `customer.orders` was empty, `lastOrder` was `null`, `numberOfOrders` was `"0"`, and `amountSpent` was zero
+- immediately after `orderCustomerSet`, `customer.orders(first: 5)` contained the linked order with its `customer` object pointing at the disposable customer
+- in that same immediate read, `lastOrder` stayed `null`, `numberOfOrders` stayed `"0"`, and `amountSpent` stayed zero
+- after `orderCustomerRemove`, `customer.orders` returned to the empty connection shape
+
+Practical rule:
+
+- model the immediate read-after-write bridge from order customer mutations by deriving `Customer.orders` from normalized `OrderRecord.customer`
+- do not increment `Customer.numberOfOrders`, add to `Customer.amountSpent`, or synthesize `Customer.lastOrder` from local order customer set/remove mutations unless a future capture proves a different lifecycle branch
+
 ## 54. Markets reads are safe to capture, but writes are not harmless
 
 The first Shopify Markets inventory was captured against Admin GraphQL 2026-04 with `corepack pnpm conformance:capture-markets`.
@@ -2194,6 +2232,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
 

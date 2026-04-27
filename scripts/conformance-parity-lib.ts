@@ -29,6 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
@@ -56,6 +57,10 @@ import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
 } from '../src/proxy/metafield-definitions.js';
+import {
+  handleMetaobjectDefinitionMutation,
+  handleMetaobjectDefinitionQuery,
+} from '../src/proxy/metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
@@ -66,6 +71,10 @@ import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../sr
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
+  B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord,
+  B2BCompanyRecord,
   BusinessEntityRecord,
   CollectionRecord,
   CustomerRecord,
@@ -915,18 +924,20 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Marketing-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
-      operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
-      query: document,
-      variables,
-      status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
-      stagedResourceIds: marketingMutation.stagedResourceIds,
-      notes: marketingMutation.notes,
-    });
+    if (marketingMutation.shouldLog) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2025-01/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: marketingMutation.stagedResourceIds,
+        notes: marketingMutation.notes,
+      });
+    }
 
     return {
       status: 200,
@@ -950,6 +961,27 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMetafieldDefinitionMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+    const body = handleMetaobjectDefinitionMutation(document, variables);
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
     };
   }
 
@@ -1085,6 +1117,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMetafieldDefinitionQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
+    return {
+      status: 200,
+      body: handleMetaobjectDefinitionQuery(document, variables),
     };
   }
 
@@ -1233,6 +1272,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
+    return {
+      status: 200,
+      body: handleB2BQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1251,6 +1297,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.metafieldDefinitions).length > 0 ||
+    Object.keys(stagedState.metaobjectDefinitions).length > 0 ||
+    Object.keys(stagedState.deletedMetaobjectDefinitionIds).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedFileIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||
@@ -2951,6 +2999,178 @@ function seedBusinessEntityPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function readB2BConnectionEntries(connection: Record<string, unknown> | null): Array<{
+  node: Record<string, unknown>;
+  cursor: string | null;
+}> {
+  return readConnectionEntries(connection).filter((entry) => readStringField(entry.node, 'id') !== null);
+}
+
+function seedB2BCompanyPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const companiesConnection = readRecordField(data, 'companies');
+  const topLevelLocationsConnection = readRecordField(data, 'companyLocations');
+  const companies = new Map<string, B2BCompanyRecord>();
+  const contacts = new Map<string, B2BCompanyContactRecord>();
+  const roles = new Map<string, B2BCompanyContactRoleRecord>();
+  const locations = new Map<string, B2BCompanyLocationRecord>();
+
+  const addCompany = (source: Record<string, unknown>, cursor: string | null): void => {
+    const id = readStringField(source, 'id');
+    if (!id?.startsWith('gid://shopify/Company/')) {
+      return;
+    }
+
+    const contactIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'contacts'))) {
+      const contactId = readStringField(entry.node, 'id');
+      if (!contactId) {
+        continue;
+      }
+      contactIds.push(contactId);
+      contacts.set(contactId, {
+        id: contactId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyContactRecord['data'],
+      });
+    }
+
+    const contactRoleIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'contactRoles'))) {
+      const roleId = readStringField(entry.node, 'id');
+      if (!roleId) {
+        continue;
+      }
+      contactRoleIds.push(roleId);
+      roles.set(roleId, {
+        id: roleId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyContactRoleRecord['data'],
+      });
+    }
+
+    const locationIds: string[] = [];
+    for (const entry of readB2BConnectionEntries(readRecordField(source, 'locations'))) {
+      const locationId = readStringField(entry.node, 'id');
+      if (!locationId) {
+        continue;
+      }
+      locationIds.push(locationId);
+      locations.set(locationId, {
+        id: locationId,
+        companyId: id,
+        cursor: entry.cursor,
+        data: structuredClone(entry.node) as B2BCompanyLocationRecord['data'],
+      });
+    }
+
+    const existing = companies.get(id);
+    companies.set(id, {
+      id,
+      cursor: cursor ?? existing?.cursor,
+      data: {
+        ...existing?.data,
+        ...(structuredClone(source) as B2BCompanyRecord['data']),
+      },
+      contactIds: contactIds.length > 0 ? contactIds : (existing?.contactIds ?? []),
+      locationIds: locationIds.length > 0 ? locationIds : (existing?.locationIds ?? []),
+      contactRoleIds: contactRoleIds.length > 0 ? contactRoleIds : (existing?.contactRoleIds ?? []),
+    });
+  };
+
+  for (const entry of readB2BConnectionEntries(companiesConnection)) {
+    addCompany(entry.node, entry.cursor);
+  }
+
+  for (const entry of readB2BConnectionEntries(topLevelLocationsConnection)) {
+    const locationId = readStringField(entry.node, 'id');
+    const companyId = readStringField(readRecordField(entry.node, 'company'), 'id');
+    if (!locationId || !companyId) {
+      continue;
+    }
+
+    const existingCompany = companies.get(companyId);
+    if (existingCompany && !existingCompany.locationIds.includes(locationId)) {
+      existingCompany.locationIds.push(locationId);
+    }
+
+    const existingLocation = locations.get(locationId);
+    locations.set(locationId, {
+      id: locationId,
+      companyId,
+      cursor: entry.cursor ?? existingLocation?.cursor,
+      data: {
+        ...existingLocation?.data,
+        ...(structuredClone(entry.node) as B2BCompanyLocationRecord['data']),
+      },
+    });
+  }
+
+  const singularCompany = readRecordField(data, 'company');
+  if (singularCompany) {
+    addCompany(singularCompany, null);
+  }
+
+  const singularContact = readRecordField(data, 'companyContact');
+  const singularContactId = readStringField(singularContact, 'id');
+  const singularContactCompanyId = readStringField(readRecordField(singularContact, 'company'), 'id');
+  if (singularContactId && singularContactCompanyId) {
+    const existingContact = contacts.get(singularContactId);
+    contacts.set(singularContactId, {
+      id: singularContactId,
+      companyId: singularContactCompanyId,
+      cursor: existingContact?.cursor,
+      data: {
+        ...existingContact?.data,
+        ...(structuredClone(singularContact) as B2BCompanyContactRecord['data']),
+      },
+    });
+  }
+
+  const singularRole = readRecordField(data, 'companyContactRole');
+  const singularRoleId = readStringField(singularRole, 'id');
+  if (singularRoleId) {
+    const existingRole = roles.get(singularRoleId);
+    roles.set(singularRoleId, {
+      id: singularRoleId,
+      companyId: existingRole?.companyId ?? '',
+      cursor: existingRole?.cursor,
+      data: {
+        ...existingRole?.data,
+        ...(structuredClone(singularRole) as B2BCompanyContactRoleRecord['data']),
+      },
+    });
+  }
+
+  const singularLocation = readRecordField(data, 'companyLocation');
+  const singularLocationId = readStringField(singularLocation, 'id');
+  const singularLocationCompanyId = readStringField(readRecordField(singularLocation, 'company'), 'id');
+  if (singularLocationId && singularLocationCompanyId) {
+    const existingLocation = locations.get(singularLocationId);
+    locations.set(singularLocationId, {
+      id: singularLocationId,
+      companyId: singularLocationCompanyId,
+      cursor: existingLocation?.cursor,
+      data: {
+        ...existingLocation?.data,
+        ...(structuredClone(singularLocation) as B2BCompanyLocationRecord['data']),
+      },
+    });
+  }
+
+  if (companies.size === 0 && contacts.size === 0 && roles.size === 0 && locations.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseB2BCompanies([...companies.values()]);
+  store.upsertBaseB2BCompanyContacts([...contacts.values()]);
+  store.upsertBaseB2BCompanyContactRoles([...roles.values()]);
+  store.upsertBaseB2BCompanyLocations([...locations.values()]);
+  return true;
+}
+
 function readCapturedOrderMetafields(orderId: string, order: Record<string, unknown> | null): OrderMetafieldRecord[] {
   const byIdentity = new Map<string, OrderMetafieldRecord>();
   const addMetafield = (candidate: unknown): void => {
@@ -4102,6 +4322,38 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
   ]);
 }
 
+function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): boolean {
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const seedProductId = readStringField(seed, 'productId');
+  const setupProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(seed, 'setupOptionsResponse'), 'data'), 'productOptionsCreate'),
+    'product',
+  );
+  const firstCase = readArrayField(capture as Record<string, unknown>, 'cases').find(isPlainObject) ?? null;
+  const beforeProduct = readRecordField(readRecordField(firstCase, 'before'), 'product');
+  const productId = seedProductId ?? readStringField(setupProduct, 'id') ?? readStringField(beforeProduct, 'id');
+
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const productSource = beforeProduct ?? setupProduct;
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
+
+  const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
+  const options = readCapturedProductOptions(productId, optionsSource);
+  if (options.length > 0) {
+    store.replaceBaseOptionsForProduct(productId, options);
+  }
+
+  const variants = readCapturedProductVariants(productId, beforeProduct ?? setupProduct);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
   const collectionMemberships: ProductCollectionRecord[] = [];
   for (const [position, node] of productNodes.filter(isPlainObject).entries()) {
@@ -5111,6 +5363,10 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
+    return;
+  }
+
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
     const productId = readStringField(seedProduct, 'id');
@@ -5166,6 +5422,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerByIdentifierPreconditions(capture)) {
+    return;
+  }
+
+  if (seedB2BCompanyPreconditions(capture)) {
     return;
   }
 

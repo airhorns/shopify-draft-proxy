@@ -1,4 +1,8 @@
 import type {
+  B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord,
+  B2BCompanyRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
@@ -10,6 +14,7 @@ import type {
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  CustomerSegmentMembersQueryRecord,
   DeliveryProfileRecord,
   DiscountRecord,
   DiscountBulkOperationRecord,
@@ -19,6 +24,7 @@ import type {
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
+  MarketingEngagementRecord,
   MarketingRecord,
   MetaobjectDefinitionRecord,
   MetafieldDefinitionRecord,
@@ -75,14 +81,18 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   customerPaymentMethods: {},
   segments: {},
+  customerSegmentMembersQueries: {},
   webhookSubscriptions: {},
   webhookSubscriptionOrder: [],
   marketingActivities: {},
   marketingActivityOrder: [],
   marketingEvents: {},
   marketingEventOrder: [],
+  marketingEngagements: {},
+  marketingEngagementOrder: [],
   deletedMarketingActivityIds: {},
   deletedMarketingEventIds: {},
+  deletedMarketingEngagementIds: {},
   onlineStoreArticles: {},
   onlineStoreArticleOrder: [],
   onlineStoreBlogs: {},
@@ -97,6 +107,14 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   paymentCustomizationOrder: [],
   businessEntities: {},
   businessEntityOrder: [],
+  b2bCompanies: {},
+  b2bCompanyOrder: [],
+  b2bCompanyContacts: {},
+  b2bCompanyContactOrder: [],
+  b2bCompanyContactRoles: {},
+  b2bCompanyContactRoleOrder: [],
+  b2bCompanyLocations: {},
+  b2bCompanyLocationOrder: [],
   markets: {},
   marketOrder: [],
   webPresences: {},
@@ -137,6 +155,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedPriceListIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -218,6 +237,17 @@ function readMarketingRemoteId(source: Record<string, unknown>): string | null {
   const event = readMarketingNestedObject(source, 'marketingEvent');
   const eventRemoteId = event?.['remoteId'];
   return typeof eventRemoteId === 'string' && eventRemoteId.length > 0 ? eventRemoteId : null;
+}
+
+function readMarketingChannelHandle(source: Record<string, unknown>): string | null {
+  const channelHandle = source['channelHandle'];
+  if (typeof channelHandle === 'string' && channelHandle.length > 0) {
+    return channelHandle;
+  }
+
+  const event = readMarketingNestedObject(source, 'marketingEvent');
+  const eventChannelHandle = event?.['channelHandle'];
+  return typeof eventChannelHandle === 'string' && eventChannelHandle.length > 0 ? eventChannelHandle : null;
 }
 
 function mergeCollectionRecords(
@@ -835,8 +865,76 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.marketingActivities).length > 0 ||
       Object.keys(this.stagedState.marketingEvents).length > 0 ||
+      Object.keys(this.stagedState.marketingEngagements).length > 0 ||
       Object.keys(this.stagedState.deletedMarketingActivityIds).length > 0 ||
-      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0
+      Object.keys(this.stagedState.deletedMarketingEventIds).length > 0 ||
+      Object.keys(this.stagedState.deletedMarketingEngagementIds).length > 0
+    );
+  }
+
+  stageMarketingEngagement(record: MarketingEngagementRecord): MarketingEngagementRecord {
+    delete this.stagedState.deletedMarketingEngagementIds[record.id];
+    this.stagedState.marketingEngagements[record.id] = structuredClone(record);
+    if (!this.stagedState.marketingEngagementOrder.includes(record.id)) {
+      this.stagedState.marketingEngagementOrder.push(record.id);
+    }
+    return structuredClone(record);
+  }
+
+  stageDeleteMarketingEngagement(engagementId: string): void {
+    delete this.stagedState.marketingEngagements[engagementId];
+    this.stagedState.deletedMarketingEngagementIds[engagementId] = true;
+  }
+
+  stageDeleteMarketingEngagementsByChannelHandle(channelHandle: string): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle === channelHandle) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  stageDeleteAllChannelMarketingEngagements(): string[] {
+    const deletedIds: string[] = [];
+    for (const engagement of this.listEffectiveMarketingEngagements()) {
+      if (engagement.channelHandle !== null && engagement.channelHandle !== undefined) {
+        this.stageDeleteMarketingEngagement(engagement.id);
+        deletedIds.push(engagement.id);
+      }
+    }
+    return deletedIds;
+  }
+
+  listEffectiveMarketingEngagements(): MarketingEngagementRecord[] {
+    const merged = new Map<string, MarketingEngagementRecord>();
+    const orderedIds = [...this.baseState.marketingEngagementOrder, ...this.stagedState.marketingEngagementOrder];
+    const allRecords = {
+      ...this.baseState.marketingEngagements,
+      ...this.stagedState.marketingEngagements,
+    };
+
+    for (const id of orderedIds) {
+      const record = allRecords[id];
+      if (record && !this.stagedState.deletedMarketingEngagementIds[id]) {
+        merged.set(id, record);
+      }
+    }
+
+    for (const record of Object.values(allRecords)) {
+      if (!merged.has(record.id) && !this.stagedState.deletedMarketingEngagementIds[record.id]) {
+        merged.set(record.id, record);
+      }
+    }
+
+    return structuredClone([...merged.values()]);
+  }
+
+  hasKnownMarketingChannelHandle(channelHandle: string): boolean {
+    return this.listEffectiveMarketingEvents().some(
+      (event) => readMarketingChannelHandle(event.data) === channelHandle,
     );
   }
 
@@ -1026,6 +1124,26 @@ export class InMemoryStore {
   stageDeleteSegment(segmentId: string): void {
     delete this.stagedState.segments[segmentId];
     this.stagedState.deletedSegmentIds[segmentId] = true;
+  }
+
+  stageCustomerSegmentMembersQuery(query: CustomerSegmentMembersQueryRecord): CustomerSegmentMembersQueryRecord {
+    this.stagedState.customerSegmentMembersQueries[query.id] = structuredClone(query);
+    return structuredClone(query);
+  }
+
+  getEffectiveCustomerSegmentMembersQueryById(queryId: string): CustomerSegmentMembersQueryRecord | null {
+    const query =
+      this.stagedState.customerSegmentMembersQueries[queryId] ??
+      this.baseState.customerSegmentMembersQueries[queryId] ??
+      null;
+    return query ? structuredClone(query) : null;
+  }
+
+  hasCustomerSegmentMembersQueries(): boolean {
+    return (
+      Object.keys(this.baseState.customerSegmentMembersQueries).length > 0 ||
+      Object.keys(this.stagedState.customerSegmentMembersQueries).length > 0
+    );
   }
 
   getEffectiveSegmentById(segmentId: string): SegmentRecord | null {
@@ -1371,6 +1489,96 @@ export class InMemoryStore {
   getPrimaryBusinessEntity(): BusinessEntityRecord | null {
     const businessEntity = this.listEffectiveBusinessEntities().find((candidate) => candidate.primary) ?? null;
     return businessEntity ? structuredClone(businessEntity) : null;
+  }
+
+  upsertBaseB2BCompanies(companies: B2BCompanyRecord[]): void {
+    for (const company of companies) {
+      this.baseState.b2bCompanies[company.id] = structuredClone(company);
+      if (!this.baseState.b2bCompanyOrder.includes(company.id)) {
+        this.baseState.b2bCompanyOrder.push(company.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyContacts(contacts: B2BCompanyContactRecord[]): void {
+    for (const contact of contacts) {
+      this.baseState.b2bCompanyContacts[contact.id] = structuredClone(contact);
+      if (!this.baseState.b2bCompanyContactOrder.includes(contact.id)) {
+        this.baseState.b2bCompanyContactOrder.push(contact.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyContactRoles(roles: B2BCompanyContactRoleRecord[]): void {
+    for (const role of roles) {
+      this.baseState.b2bCompanyContactRoles[role.id] = structuredClone(role);
+      if (!this.baseState.b2bCompanyContactRoleOrder.includes(role.id)) {
+        this.baseState.b2bCompanyContactRoleOrder.push(role.id);
+      }
+    }
+  }
+
+  upsertBaseB2BCompanyLocations(locations: B2BCompanyLocationRecord[]): void {
+    for (const location of locations) {
+      this.baseState.b2bCompanyLocations[location.id] = structuredClone(location);
+      if (!this.baseState.b2bCompanyLocationOrder.includes(location.id)) {
+        this.baseState.b2bCompanyLocationOrder.push(location.id);
+      }
+    }
+  }
+
+  listEffectiveB2BCompanies(): B2BCompanyRecord[] {
+    const orderedIds = new Set(this.baseState.b2bCompanyOrder);
+    const orderedCompanies = this.baseState.b2bCompanyOrder
+      .map((id) => this.baseState.b2bCompanies[id] ?? null)
+      .filter((company): company is B2BCompanyRecord => company !== null);
+    const unorderedCompanies = Object.values(this.baseState.b2bCompanies)
+      .filter((company) => !orderedIds.has(company.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedCompanies, ...unorderedCompanies]);
+  }
+
+  getEffectiveB2BCompanyById(companyId: string): B2BCompanyRecord | null {
+    const company = this.baseState.b2bCompanies[companyId] ?? null;
+    return company ? structuredClone(company) : null;
+  }
+
+  listEffectiveB2BCompanyContacts(): B2BCompanyContactRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyContacts, this.baseState.b2bCompanyContactOrder);
+  }
+
+  getEffectiveB2BCompanyContactById(contactId: string): B2BCompanyContactRecord | null {
+    const contact = this.baseState.b2bCompanyContacts[contactId] ?? null;
+    return contact ? structuredClone(contact) : null;
+  }
+
+  listEffectiveB2BCompanyContactRoles(): B2BCompanyContactRoleRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyContactRoles, this.baseState.b2bCompanyContactRoleOrder);
+  }
+
+  getEffectiveB2BCompanyContactRoleById(roleId: string): B2BCompanyContactRoleRecord | null {
+    const role = this.baseState.b2bCompanyContactRoles[roleId] ?? null;
+    return role ? structuredClone(role) : null;
+  }
+
+  listEffectiveB2BCompanyLocations(): B2BCompanyLocationRecord[] {
+    return this.listOrderedB2BRecords(this.baseState.b2bCompanyLocations, this.baseState.b2bCompanyLocationOrder);
+  }
+
+  getEffectiveB2BCompanyLocationById(locationId: string): B2BCompanyLocationRecord | null {
+    const location = this.baseState.b2bCompanyLocations[locationId] ?? null;
+    return location ? structuredClone(location) : null;
+  }
+
+  private listOrderedB2BRecords<T extends { id: string }>(records: Record<string, T>, order: string[]): T[] {
+    const orderedIds = new Set(order);
+    const orderedRecords = order.map((id) => records[id] ?? null).filter((record): record is T => record !== null);
+    const unorderedRecords = Object.values(records)
+      .filter((record) => !orderedIds.has(record.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
   }
 
   upsertBaseMarkets(markets: Array<MarketRecord | { market: unknown; cursor?: string | null } | unknown>): void {
@@ -2428,8 +2636,14 @@ export class InMemoryStore {
 
   upsertStagedMetaobjectDefinitions(definitions: MetaobjectDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.stagedState.deletedMetaobjectDefinitionIds[definition.id];
       this.stagedState.metaobjectDefinitions[definition.id] = structuredClone(definition);
     }
+  }
+
+  deleteStagedMetaobjectDefinition(definitionId: string): void {
+    delete this.stagedState.metaobjectDefinitions[definitionId];
+    this.stagedState.deletedMetaobjectDefinitionIds[definitionId] = true;
   }
 
   replaceBaseMetafieldsForProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
@@ -3105,6 +3319,9 @@ export class InMemoryStore {
     const definitionsById = new Map<string, MetaobjectDefinitionRecord>();
 
     for (const definition of Object.values(this.baseState.metaobjectDefinitions)) {
+      if (this.stagedState.deletedMetaobjectDefinitionIds[definition.id]) {
+        continue;
+      }
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
@@ -3118,6 +3335,10 @@ export class InMemoryStore {
   }
 
   getEffectiveMetaobjectDefinitionById(definitionId: string): MetaobjectDefinitionRecord | null {
+    if (this.stagedState.deletedMetaobjectDefinitionIds[definitionId]) {
+      return null;
+    }
+
     const definition =
       this.stagedState.metaobjectDefinitions[definitionId] ?? this.baseState.metaobjectDefinitions[definitionId];
     return definition ? structuredClone(definition) : null;
@@ -3131,7 +3352,8 @@ export class InMemoryStore {
   hasEffectiveMetaobjectDefinitions(): boolean {
     return (
       Object.keys(this.baseState.metaobjectDefinitions).length > 0 ||
-      Object.keys(this.stagedState.metaobjectDefinitions).length > 0
+      Object.keys(this.stagedState.metaobjectDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetaobjectDefinitionIds).length > 0
     );
   }
 
