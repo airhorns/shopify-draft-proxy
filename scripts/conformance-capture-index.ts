@@ -579,6 +579,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'shipping-fulfillments',
+    packageScript: 'conformance:capture-shipping-settings',
+    scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
+    purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-settings-package-pickup-constraints.json`,
+      'config/parity-specs/shipping-settings-package-pickup-constraints.json',
+    ],
+    cleanupBehavior: 'Enables and disables local pickup on an active location to restore the pre-capture setting.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'bulk-operations',
     packageScript: 'conformance:capture-bulk-operations',
     scriptPath: 'scripts/capture-bulk-operation-status-conformance.ts',

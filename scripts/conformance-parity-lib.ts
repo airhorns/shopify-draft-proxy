@@ -90,6 +90,7 @@ import type {
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
   BusinessEntityRecord,
+  CarrierServiceRecord,
   CollectionRecord,
   CustomerAddressRecord,
   CustomerMetafieldRecord,
@@ -99,6 +100,7 @@ import type {
   DeliveryProfileLocationGroupZoneRecord,
   DeliveryProfileMethodDefinitionRecord,
   DeliveryProfileRecord,
+  DeliveryLocalPickupSettingsRecord,
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
@@ -2818,6 +2820,20 @@ function readLocationAddressRecord(source: Record<string, unknown> | null): Loca
   };
 }
 
+function readDeliveryLocalPickupSettingsRecord(
+  source: Record<string, unknown> | null,
+): DeliveryLocalPickupSettingsRecord | null {
+  const pickupTime = readStringField(source, 'pickupTime');
+  if (!pickupTime) {
+    return null;
+  }
+
+  return {
+    pickupTime,
+    instructions: readStringField(source, 'instructions') ?? '',
+  };
+}
+
 function readLocationRecord(source: Record<string, unknown> | null): LocationRecord | null {
   const id = readStringField(source, 'id');
   if (!id) {
@@ -2858,7 +2874,53 @@ function readLocationRecord(source: Record<string, unknown> | null): LocationRec
         countryCode: readNullableStringField(address, 'countryCode'),
         formatted: readStringArrayField(address, 'formatted'),
       })),
+    localPickupSettings: readDeliveryLocalPickupSettingsRecord(
+      readRecordField(source, 'localPickupSettings') ?? readRecordField(source, 'localPickupSettingsV2'),
+    ),
   };
+}
+
+function readShippingSettingsCarrierServiceRecord(source: Record<string, unknown> | null): CarrierServiceRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readNullableStringField(source, 'name'),
+    formattedName: readNullableStringField(source, 'formattedName'),
+    callbackUrl: readNullableStringField(source, 'callbackUrl'),
+    active: readBooleanField(source, 'active') ?? true,
+    supportsServiceDiscovery: readBooleanField(source, 'supportsServiceDiscovery') ?? false,
+    createdAt: readStringField(source, 'createdAt') ?? '1970-01-01T00:00:00.000Z',
+    updatedAt: readStringField(source, 'updatedAt') ?? '1970-01-01T00:00:00.000Z',
+  };
+}
+
+function seedShippingSettingsPreconditions(capture: unknown): boolean {
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const carrierServices = readArrayField(seed, 'carrierServices')
+    .filter(isPlainObject)
+    .map((service) => readShippingSettingsCarrierServiceRecord(service))
+    .filter((service): service is CarrierServiceRecord => service !== null);
+  const locations = readArrayField(seed, 'locations')
+    .filter(isPlainObject)
+    .map((location) => readLocationRecord(location))
+    .filter((location): location is LocationRecord => location !== null);
+
+  if (carrierServices.length === 0 && locations.length === 0) {
+    return false;
+  }
+
+  if (carrierServices.length > 0) {
+    store.upsertBaseCarrierServices(carrierServices);
+  }
+  if (locations.length > 0) {
+    store.upsertBaseLocations(locations);
+  }
+
+  return true;
 }
 
 function makeLocationDetailSeedVariant(
@@ -6259,6 +6321,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedB2BCompanyPreconditions(capture)) {
+    return;
+  }
+
+  if (seedShippingSettingsPreconditions(capture)) {
     return;
   }
 

@@ -1,0 +1,10 @@
+mutation ShippingLocalPickupDisable($locationId: ID!) {
+  locationLocalPickupDisable(locationId: $locationId) {
+    locationId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
