@@ -1,0 +1,163 @@
+{
+  "query": "mutation DraftOrderCreateValidationMatrix($noLineItems: DraftOrderInput!, $unknownVariant: DraftOrderInput!, $customMissingTitle: DraftOrderInput!, $zeroQuantity: DraftOrderInput!, $paymentTerms: DraftOrderInput!, $negativePrice: DraftOrderInput!, $pastReserve: DraftOrderInput!, $badEmail: DraftOrderInput!) { noLineItems: draftOrderCreate(input: $noLineItems) { draftOrder { id } userErrors { field message } } unknownVariant: draftOrderCreate(input: $unknownVariant) { draftOrder { id } userErrors { field message } } customMissingTitle: draftOrderCreate(input: $customMissingTitle) { draftOrder { id } userErrors { field message } } zeroQuantity: draftOrderCreate(input: $zeroQuantity) { draftOrder { id } userErrors { field message } } paymentTerms: draftOrderCreate(input: $paymentTerms) { draftOrder { id } userErrors { field message } } negativePrice: draftOrderCreate(input: $negativePrice) { draftOrder { id } userErrors { field message } } pastReserve: draftOrderCreate(input: $pastReserve) { draftOrder { id } userErrors { field message } } badEmail: draftOrderCreate(input: $badEmail) { draftOrder { id } userErrors { field message } } }",
+  "variables": {
+    "noLineItems": {
+      "email": "hermes-draft-validation-no-lines@example.com",
+      "lineItems": []
+    },
+    "unknownVariant": {
+      "email": "hermes-draft-validation-unknown-variant@example.com",
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/999999999999999999",
+          "quantity": 1
+        }
+      ]
+    },
+    "customMissingTitle": {
+      "email": "hermes-draft-validation-missing-title@example.com",
+      "lineItems": [
+        {
+          "quantity": 1,
+          "originalUnitPrice": "10.00"
+        }
+      ]
+    },
+    "zeroQuantity": {
+      "email": "hermes-draft-validation-zero-qty@example.com",
+      "lineItems": [
+        {
+          "title": "Hermes invalid draft item",
+          "quantity": 0,
+          "originalUnitPrice": "10.00"
+        }
+      ]
+    },
+    "paymentTerms": {
+      "email": "hermes-draft-validation-payment-terms@example.com",
+      "paymentTerms": {
+        "paymentSchedules": [
+          {
+            "dueAt": "2026-05-22T12:00:00Z"
+          }
+        ]
+      },
+      "lineItems": [
+        {
+          "title": "Hermes invalid draft item",
+          "quantity": 1,
+          "originalUnitPrice": "10.00"
+        }
+      ]
+    },
+    "negativePrice": {
+      "email": "hermes-draft-validation-negative-price@example.com",
+      "lineItems": [
+        {
+          "title": "Hermes invalid draft item",
+          "quantity": 1,
+          "originalUnitPrice": "-1.00"
+        }
+      ]
+    },
+    "pastReserve": {
+      "email": "hermes-draft-validation-past-reserve@example.com",
+      "reserveInventoryUntil": "2020-01-01T00:00:00Z",
+      "lineItems": [
+        {
+          "title": "Hermes invalid draft item",
+          "quantity": 1,
+          "originalUnitPrice": "10.00"
+        }
+      ]
+    },
+    "badEmail": {
+      "email": "not-an-email",
+      "lineItems": [
+        {
+          "title": "Hermes invalid draft item",
+          "quantity": 1,
+          "originalUnitPrice": "10.00"
+        }
+      ]
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "noLineItems": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Add at least 1 product"
+            }
+          ]
+        },
+        "unknownVariant": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Product with ID 999999999999999999 is no longer available."
+            }
+          ]
+        },
+        "customMissingTitle": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Merchandise title is empty."
+            }
+          ]
+        },
+        "zeroQuantity": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["lineItems", "0", "quantity"],
+              "message": "Quantity must be greater than or equal to 1"
+            }
+          ]
+        },
+        "paymentTerms": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Payment terms template id can not be empty."
+            }
+          ]
+        },
+        "negativePrice": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Cannot send negative price for line_item"
+            }
+          ]
+        },
+        "pastReserve": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Reserve until can't be in the past"
+            }
+          ]
+        },
+        "badEmail": {
+          "draftOrder": null,
+          "userErrors": [
+            {
+              "field": ["email"],
+              "message": "Email is invalid"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

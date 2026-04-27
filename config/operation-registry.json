@@ -27,6 +27,26 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productFeed",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeed", "ProductFeed"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns null for an absent productFeed id. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "productFeeds",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeeds", "ProductFeeds"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
     "name": "productVariant",
     "type": "query",
     "domain": "products",
@@ -173,8 +193,8 @@
     "execution": "overlay-read",
     "implemented": false,
     "matchNames": ["customerPaymentMethod", "CustomerPaymentMethod"],
-    "runtimeTests": [],
-    "supportNotes": "Payment-area scaffold only. The 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future capture requires read_customers plus read_customer_payment_methods and should settle revoked/empty payment-method behavior before local overlay support."
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "Seeded/snapshot customer payment method reads serialize from normalized customerPaymentMethods state, including showRevoked filtering, instrument unions, customer links, and payment-method subscription contracts. Formal live overlay support remains false because the 2026-04-25 harry-test-heelo probe still returned ACCESS_DENIED without read_customer_payment_methods; future live capture requires read_customers plus read_customer_payment_methods."
   },
   {
     "name": "orderPaymentStatus",
@@ -273,6 +293,36 @@
     "implemented": true,
     "matchNames": ["customer", "Customer"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "event",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["event", "Event"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "events",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["events", "Events"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "eventsCount",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["eventsCount", "EventsCount"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
   },
   {
     "name": "customers",
@@ -551,6 +601,66 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productFeedCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedCreate", "ProductFeedCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo probe for country US/language EN returned a top-level NOT_FOUND error: Unable to find channel for product feed. Full local support needs channel-backed success evidence and downstream productFeed/productFeeds read-after-write behavior."
+  },
+  {
+    "name": "productFeedDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedDelete", "ProductFeedDelete"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned deletedId null plus userErrors field [id], message ProductFeed does not exist. Full support needs delete success evidence and downstream productFeeds removal behavior."
+  },
+  {
+    "name": "productFullSync",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFullSync", "ProductFullSync"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned id null plus userErrors field [id], message ProductFeed does not exist. Full support needs product-feed job/status success evidence before staging locally."
+  },
+  {
+    "name": "productBundleCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleCreate", "ProductBundleCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo empty-components probe returned productBundleOperation null plus userErrors message At least one component is required. Full support needs component-backed success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "productBundleUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleUpdate", "ProductBundleUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-product probe returned productBundleOperation null plus userErrors message Product does not exist. Full support needs bundle update success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "combinedListingUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
+  },
+  {
     "name": "productPublish",
     "type": "mutation",
     "domain": "products",
@@ -664,6 +774,606 @@
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
   },
   {
+    "name": "article",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["article", "Article"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields are resolved from the local online-store content graph."
+  },
+  {
+    "name": "articleAuthors",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleAuthors", "ArticleAuthors"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives the author connection from locally staged or hydrated article authors with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "articles",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articles", "Articles"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, and staged read-after-write effects."
+  },
+  {
+    "name": "articleTags",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleTags", "ArticleTags"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives article tags from the effective local article graph and returns an empty list when no articles carry tags."
+  },
+  {
+    "name": "articleCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleCreate", "ArticleCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article creation locally, including handle/publication/tag/author fields and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
+  },
+  {
+    "name": "articleUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleUpdate", "ArticleUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article updates locally for the supported scalar lifecycle fields and keeps downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
+  },
+  {
+    "name": "articleDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleDelete", "ArticleDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article tombstones locally so detail reads return null and catalog/blog article reads omit the deleted article."
+  },
+  {
+    "name": "blog",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blog", "Blog"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Blog detail reads return staged or hydrated records with nested articles/counts and null for missing IDs."
+  },
+  {
+    "name": "blogs",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogs", "Blogs"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Blog catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "blogsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogsCount", "BlogsCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local blog graph, honoring the same simple query filter as blogs."
+  },
+  {
+    "name": "blogCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogCreate", "BlogCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog creation locally with title, handle, template suffix, and comment policy, then updates downstream blog/blogs/blogsCount reads without upstream writes."
+  },
+  {
+    "name": "blogUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogUpdate", "BlogUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog scalar updates locally and keeps nested article/catalog/count reads coherent."
+  },
+  {
+    "name": "blogDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogDelete", "BlogDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog."
+  },
+  {
+    "name": "page",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["page", "Page"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Page detail reads return staged or hydrated records and null for missing IDs."
+  },
+  {
+    "name": "pages",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pages", "Pages"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Page catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "pagesCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pagesCount", "PagesCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local page graph."
+  },
+  {
+    "name": "pageCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageCreate", "PageCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page creation locally with handle/body/publication/template fields and downstream page/pages/pagesCount visibility."
+  },
+  {
+    "name": "pageUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageUpdate", "PageUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page scalar updates locally and keeps downstream reads coherent."
+  },
+  {
+    "name": "pageDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageDelete", "PageDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page tombstones locally so detail reads return null and page catalog/count reads omit deleted pages."
+  },
+  {
+    "name": "comment",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comment", "Comment"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Comment detail reads return staged or hydrated records and null for missing local IDs; live Shopify returned an internal error for an unknown comment ID during capture and that quirk is documented rather than emulated."
+  },
+  {
+    "name": "comments",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comments", "Comments"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Comment catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged moderation/delete visibility."
+  },
+  {
+    "name": "commentApprove",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentApprove", "CommentApprove"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment approval locally for hydrated/snapshot comments, setting the local status to PUBLISHED and updating downstream comment reads without upstream writes."
+  },
+  {
+    "name": "commentSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentSpam", "CommentSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment spam classification locally for hydrated/snapshot comments, setting the local status to SPAM."
+  },
+  {
+    "name": "commentNotSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentNotSpam", "CommentNotSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages not-spam moderation locally for hydrated/snapshot comments, returning the comment to a pending local status."
+  },
+  {
+    "name": "commentDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentDelete", "CommentDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment."
+  },
+  {
+    "name": "menu",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["menu", "Menu"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured menu null/detail behavior, menu-item tree shape, and a local online-store navigation overlay model before support."
+  },
+  {
+    "name": "menus",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["menus", "Menus"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured menu catalog pagination/filtering and empty-store behavior before overlay-read support."
+  },
+  {
+    "name": "theme",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["theme", "Theme"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured theme detail/null behavior, role/state fields, and a local theme asset model before support."
+  },
+  {
+    "name": "themes",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["themes", "Themes"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured theme catalog pagination, main/unpublished roles, and empty-store behavior before overlay-read support."
+  },
+  {
+    "name": "scriptTag",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["scriptTag", "ScriptTag"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured script tag detail/null behavior and a local storefront script model before support."
+  },
+  {
+    "name": "scriptTags",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["scriptTags", "ScriptTags"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured script tag catalog pagination/filtering and empty-store behavior before overlay-read support."
+  },
+  {
+    "name": "webPixel",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["webPixel", "WebPixel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured pixel detail/null behavior and a local pixel configuration model before support."
+  },
+  {
+    "name": "serverPixel",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["serverPixel", "ServerPixel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured server pixel detail/null behavior, app-scope constraints, and a local pixel configuration model before support."
+  },
+  {
+    "name": "mobilePlatformApplication",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["mobilePlatformApplication", "MobilePlatformApplication"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured mobile platform application detail/null behavior and a local integration settings model before support."
+  },
+  {
+    "name": "mobilePlatformApplications",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["mobilePlatformApplications", "MobilePlatformApplications"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store read gap. Requires captured mobile platform application catalog pagination and empty-store behavior before overlay-read support."
+  },
+  {
+    "name": "menuCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["menuCreate", "MenuCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store mutation gap. Future support must stage menus and downstream menu/menu catalog reads locally while preserving the original raw mutation for commit replay."
+  },
+  {
+    "name": "menuUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["menuUpdate", "MenuUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store mutation gap. Future support must stage menu updates, validation branches, and read-after-write effects locally without runtime Shopify writes."
+  },
+  {
+    "name": "menuDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["menuDelete", "MenuDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 online-store mutation gap. Future support must stage menu deletion/tombstones and downstream empty/null reads locally before this root is supported."
+  },
+  {
+    "name": "themeCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeCreate", "ThemeCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme mutation gap. Theme creation is externally visible; keep unsupported until a local theme model, validation capture, and downstream read behavior exist."
+  },
+  {
+    "name": "themeUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeUpdate", "ThemeUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme mutation gap. Future support must stage theme metadata changes locally and overlay theme/themes reads without runtime Shopify writes."
+  },
+  {
+    "name": "themeDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeDelete", "ThemeDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme mutation gap. Future support must model deletion safety, validation errors, and downstream null/catalog effects locally before support."
+  },
+  {
+    "name": "themePublish",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themePublish", "ThemePublish"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme publish gap. Publishing changes storefront presentation and must remain unsupported until explicit local staging safety and conformance evidence exist."
+  },
+  {
+    "name": "themeFilesCopy",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeFilesCopy", "ThemeFilesCopy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme file mutation gap. Future support must model local theme asset copies, userErrors, and downstream file reads before this root is supported."
+  },
+  {
+    "name": "themeFilesUpsert",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeFilesUpsert", "ThemeFilesUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme file mutation gap. Future support must stage local theme asset writes and preserve raw mutation replay order without runtime Shopify writes."
+  },
+  {
+    "name": "themeFilesDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["themeFilesDelete", "ThemeFilesDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 theme file mutation gap. Future support must stage asset deletion/tombstones and downstream read effects locally before support."
+  },
+  {
+    "name": "scriptTagCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["scriptTagCreate", "ScriptTagCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 script tag mutation gap. Script tags alter storefront script execution; keep unsupported until local staging and downstream scriptTag/scriptTags reads are modeled."
+  },
+  {
+    "name": "scriptTagUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["scriptTagUpdate", "ScriptTagUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 script tag mutation gap. Future support must stage updates and validation branches locally before this root is supported."
+  },
+  {
+    "name": "scriptTagDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["scriptTagDelete", "ScriptTagDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 script tag mutation gap. Future support must stage deletion and downstream catalog/detail effects locally before support."
+  },
+  {
+    "name": "webPixelCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPixelCreate", "WebPixelCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 web pixel mutation gap. Pixel creation has externally visible tracking side effects; keep unsupported until local staging safety and read-after-write evidence exist."
+  },
+  {
+    "name": "webPixelUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPixelUpdate", "WebPixelUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 web pixel mutation gap. Future support must stage configuration updates locally and overlay webPixel reads without runtime Shopify writes."
+  },
+  {
+    "name": "webPixelDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["webPixelDelete", "WebPixelDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 web pixel mutation gap. Future support must stage deletion and downstream null behavior locally before support."
+  },
+  {
+    "name": "serverPixelCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["serverPixelCreate", "ServerPixelCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 server pixel mutation gap. Pixel creation has externally visible tracking side effects; keep unsupported until local staging safety and conformance evidence exist."
+  },
+  {
+    "name": "serverPixelDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["serverPixelDelete", "ServerPixelDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 server pixel mutation gap. Future support must stage deletion and downstream null behavior locally before support."
+  },
+  {
+    "name": "eventBridgeServerPixelUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["eventBridgeServerPixelUpdate", "EventBridgeServerPixelUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 server pixel integration gap. EventBridge updates must remain unsupported until the proxy can model app-specific server pixel configuration and side effects locally."
+  },
+  {
+    "name": "pubSubServerPixelUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["pubSubServerPixelUpdate", "PubSubServerPixelUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 server pixel integration gap. Pub/Sub updates must remain unsupported until local server pixel configuration staging and read-after-write effects are modeled."
+  },
+  {
+    "name": "storefrontAccessTokenCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["storefrontAccessTokenCreate", "StorefrontAccessTokenCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 storefront token mutation gap. Token creation has credential side effects; keep unsupported until explicit safety, validation capture, and local commit replay semantics exist."
+  },
+  {
+    "name": "storefrontAccessTokenDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["storefrontAccessTokenDelete", "StorefrontAccessTokenDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 storefront token mutation gap. Token deletion has credential side effects; keep unsupported until local token lifecycle modeling and downstream evidence exist."
+  },
+  {
+    "name": "mobilePlatformApplicationCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["mobilePlatformApplicationCreate", "MobilePlatformApplicationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage app integration settings locally and preserve raw commit replay order before support."
+  },
+  {
+    "name": "mobilePlatformApplicationUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["mobilePlatformApplicationUpdate", "MobilePlatformApplicationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage updates and downstream reads locally without runtime Shopify writes."
+  },
+  {
+    "name": "mobilePlatformApplicationDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["mobilePlatformApplicationDelete", "MobilePlatformApplicationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage deletion and downstream null/catalog behavior locally before support."
+  },
+  {
     "name": "privacySettings",
     "type": "query",
     "domain": "privacy",
@@ -712,6 +1422,16 @@
     "matchNames": ["privacyFeaturesDisable", "PrivacyFeaturesDisable"],
     "runtimeTests": [],
     "supportNotes": "HAR-250 registry-only privacy mutation coverage. Keep unimplemented until live capture and a local privacy feature staging model exist; registry presence must not make this a supported passthrough."
+  },
+  {
+    "name": "dataSaleOptOut",
+    "type": "mutation",
+    "domain": "privacy",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["dataSaleOptOut", "DataSaleOptOut"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-255: stages customer email data-sale opt-out locally without runtime Shopify writes, returns customerId/userErrors, creates a local opted-out customer for unknown valid emails, and overlays downstream Customer.dataSaleOptOut reads."
   },
   {
     "name": "bulkOperation",
@@ -1363,7 +2083,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreateFromDuplicationData", "CustomerPaymentMethodCreateFromDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and must avoid creating reusable vaulted payment data without an isolated test customer/payment method lifecycle; duplication data must be treated as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodCreditCardCreate",
@@ -1373,7 +2093,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardCreate", "CustomerPaymentMethodCreditCardCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; future capture must use safe non-real payment data and record async/processing behavior before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and PCI-sensitive card session inputs; capture must use safe non-real payment data and record read-after-write behavior before support."
   },
   {
     "name": "customerPaymentMethodCreditCardUpdate",
@@ -1383,7 +2103,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodCreditCardUpdate", "CustomerPaymentMethodCreditCardUpdate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; future capture must avoid real card data and document revoked/updated read-after-write behavior."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated vaulted payment method; capture must avoid real card data and document revoked/updated read-after-write behavior."
   },
   {
     "name": "customerPaymentMethodGetDuplicationData",
@@ -1393,7 +2113,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetDuplicationData", "CustomerPaymentMethodGetDuplicationData"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and should treat returned duplication data as sensitive ephemeral payment material."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned duplication data as sensitive ephemeral payment material."
   },
   {
     "name": "customerPaymentMethodGetUpdateUrl",
@@ -1403,7 +2123,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodGetUpdateUrl", "CustomerPaymentMethodGetUpdateUrl"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links."
+    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and must treat returned update URLs as sensitive, expiring customer-payment links that should not be generated or emailed by the proxy."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementCreate",
@@ -1416,7 +2136,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementCreate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and isolated PayPal billing-agreement test data before support."
   },
   {
     "name": "customerPaymentMethodPaypalBillingAgreementUpdate",
@@ -1429,7 +2149,7 @@
       "CustomerPaymentMethodPaypalBillingAgreementUpdate"
     ],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated PayPal billing-agreement test method before support."
   },
   {
     "name": "customerPaymentMethodRemoteCreate",
@@ -1439,7 +2159,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRemoteCreate", "CustomerPaymentMethodRemoteCreate"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling evidence through customerPaymentMethod before local staging support."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods, safe remote gateway identifiers, and polling/asynchronous status evidence through customerPaymentMethod before support."
   },
   {
     "name": "customerPaymentMethodRevoke",
@@ -1449,7 +2169,7 @@
     "implemented": false,
     "matchNames": ["customerPaymentMethodRevoke", "CustomerPaymentMethodRevoke"],
     "runtimeTests": [],
-    "supportNotes": "Customer payment method scaffold only. Future capture requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows."
+    "supportNotes": "Customer payment method scaffold only. Future local staging requires write_customers plus write_customer_payment_methods and an isolated payment method because revoke is destructive for recurring billing flows; unsupported runtime passthrough must stay visible in logs."
   },
   {
     "name": "orderCapture",
@@ -1479,7 +2199,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationActivation", "PaymentCustomizationActivation"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior."
+    "supportNotes": "Payment customization activation is staged locally against normalized payment customization records. Unknown ids mirror captured PAYMENT_CUSTOMIZATION_NOT_FOUND userErrors; existing records update enabled without invoking Shopify Functions or checkout payment behavior, and duplicate ids are handled idempotently."
   },
   {
     "name": "paymentCustomizationCreate",
@@ -1489,7 +2209,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationCreate", "PaymentCustomizationCreate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, and downstream detail/catalog visibility. Captured missing required fields and missing Function id validation are handled locally without runtime Shopify writes."
+    "supportNotes": "Payment customization create stages a normalized record locally with selected metafields, stable synthetic ids, current functionHandle input support, deprecated functionId input support, and downstream detail/catalog visibility. Captured missing required fields plus Function/metafield validation branches are handled locally without runtime Shopify writes."
   },
   {
     "name": "paymentCustomizationDelete",
@@ -1509,7 +2229,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records. Unknown ids and captured missing Function ids return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
+    "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records, including current functionHandle and deprecated functionId identifier changes. Unknown ids and captured Function/metafield validation branches return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
   },
   {
     "name": "paymentReminderSend",
@@ -2333,19 +3053,23 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBxgyCreate", "DiscountCodeBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-bxgy-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-195 stages native code BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior."
   },
   {
     "name": "discountCodeBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBxgyUpdate", "DiscountCodeBxgyUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-bxgy-flow.test.ts"],
+    "supportNotes": "HAR-195 stages native code BXGY updates for existing local BXGY code discounts and preserves downstream reads. Shared code activate/deactivate/delete roots apply to staged BXGY code discounts through the normalized discount state."
   },
   {
     "name": "discountCodeFreeShippingCreate",
@@ -2479,19 +3203,23 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBxgyCreate", "DiscountAutomaticBxgyCreate"],
-    "runtimeTests": ["tests/integration/discount-mutation-validation.test.ts"],
-    "supportNotes": "HAR-198 captures validation guardrails only. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "runtimeTests": [
+      "tests/integration/discount-bxgy-flow.test.ts",
+      "tests/integration/discount-mutation-validation.test.ts"
+    ],
+    "supportNotes": "HAR-195 stages native automatic BXGY create locally with product, variant, and collection references, read-after-write discount detail/catalog visibility, and captured validation guardrails. This models Admin GraphQL visibility only and does not claim checkout price-calculation behavior."
   },
   {
     "name": "discountAutomaticBxgyUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBxgyUpdate", "DiscountAutomaticBxgyUpdate"],
-    "runtimeTests": ["tests/unit/capabilities.test.ts", "tests/integration/proxy-capability-classification.test.ts"]
+    "runtimeTests": ["tests/integration/discount-bxgy-flow.test.ts"],
+    "supportNotes": "HAR-195 stages native automatic BXGY updates for existing local BXGY automatic discounts and preserves downstream reads. Shared automatic activate/deactivate/delete roots apply to staged BXGY automatic discounts through the normalized discount state."
   },
   {
     "name": "discountAutomaticFreeShippingCreate",
@@ -2759,30 +3487,30 @@
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionCreate", "WebhookSubscriptionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures successful registration inputs and missing URI validation, but supported runtime staging must wait for a local webhook-subscription state model and downstream read visibility."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging is supported for the HAR-267 captured Admin API-created HTTP URI registration subset, including topic, format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, missing URI userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility. App TOML webhook config and webhook delivery remain out of scope."
   },
   {
     "name": "webhookSubscriptionUpdate",
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionUpdate", "WebhookSubscriptionUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures update payloads and unknown-id userErrors, but supported runtime staging must wait for local lifecycle emulation."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging updates staged or hydrated webhook subscriptions for the HAR-267 captured Admin API-created HTTP URI subset, including format, includeFields, metafieldNamespaces, filter, endpoint callbackUrl projection, unknown-id userErrors, mutation-log retention, and downstream detail/catalog/count read-after-write visibility without runtime Shopify writes."
   },
   {
     "name": "webhookSubscriptionDelete",
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures delete payloads, post-delete absence, and unknown-id userErrors, but supported runtime deregistration must wait for local state/read-after-delete modeling."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally."
   },
   {
     "name": "segment",
@@ -3007,6 +3735,72 @@
       "tests/integration/markets-query-shapes.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ]
+  },
+  {
+    "name": "priceListCreate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListCreate", "PriceListCreate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages local price-list lifecycle state for Markets reads. Validation is conservative and fixture gaps are documented in docs/endpoints/markets.md."
+  },
+  {
+    "name": "priceListUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListUpdate", "PriceListUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages local name, currency, parent adjustment, catalog link, and fixed-price reset-on-currency-change behavior for PriceList records."
+  },
+  {
+    "name": "priceListDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListDelete", "PriceListDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesAdd",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesAdd", "PriceListFixedPricesAdd"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesUpdate", "PriceListFixedPricesUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesDelete", "PriceListFixedPricesDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "priceListFixedPricesByProductUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["priceListFixedPricesByProductUpdate", "PriceListFixedPricesByProductUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state."
   },
   {
     "name": "webPresences",
