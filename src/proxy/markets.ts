@@ -78,6 +78,262 @@ const COUNTRY_CURRENCIES: Record<string, string> = {
   US: 'USD',
 };
 
+const SHOPIFY_COUNTRY_CODES = new Set(
+  [
+    'AF',
+    'AX',
+    'AL',
+    'DZ',
+    'AD',
+    'AO',
+    'AI',
+    'AG',
+    'AR',
+    'AM',
+    'AW',
+    'AC',
+    'AU',
+    'AT',
+    'AZ',
+    'BS',
+    'BH',
+    'BD',
+    'BB',
+    'BY',
+    'BE',
+    'BZ',
+    'BJ',
+    'BM',
+    'BT',
+    'BO',
+    'BA',
+    'BW',
+    'BV',
+    'BR',
+    'IO',
+    'BN',
+    'BG',
+    'BF',
+    'BI',
+    'KH',
+    'CA',
+    'CV',
+    'BQ',
+    'KY',
+    'CF',
+    'TD',
+    'CL',
+    'CN',
+    'CX',
+    'CC',
+    'CO',
+    'KM',
+    'CG',
+    'CD',
+    'CK',
+    'CR',
+    'HR',
+    'CU',
+    'CW',
+    'CY',
+    'CZ',
+    'CI',
+    'DK',
+    'DJ',
+    'DM',
+    'DO',
+    'EC',
+    'EG',
+    'SV',
+    'GQ',
+    'ER',
+    'EE',
+    'SZ',
+    'ET',
+    'FK',
+    'FO',
+    'FJ',
+    'FI',
+    'FR',
+    'GF',
+    'PF',
+    'TF',
+    'GA',
+    'GM',
+    'GE',
+    'DE',
+    'GH',
+    'GI',
+    'GR',
+    'GL',
+    'GD',
+    'GP',
+    'GT',
+    'GG',
+    'GN',
+    'GW',
+    'GY',
+    'HT',
+    'HM',
+    'VA',
+    'HN',
+    'HK',
+    'HU',
+    'IS',
+    'IN',
+    'ID',
+    'IR',
+    'IQ',
+    'IE',
+    'IM',
+    'IL',
+    'IT',
+    'JM',
+    'JP',
+    'JE',
+    'JO',
+    'KZ',
+    'KE',
+    'KI',
+    'KP',
+    'XK',
+    'KW',
+    'KG',
+    'LA',
+    'LV',
+    'LB',
+    'LS',
+    'LR',
+    'LY',
+    'LI',
+    'LT',
+    'LU',
+    'MO',
+    'MG',
+    'MW',
+    'MY',
+    'MV',
+    'ML',
+    'MT',
+    'MQ',
+    'MR',
+    'MU',
+    'YT',
+    'MX',
+    'MD',
+    'MC',
+    'MN',
+    'ME',
+    'MS',
+    'MA',
+    'MZ',
+    'MM',
+    'NA',
+    'NR',
+    'NP',
+    'NL',
+    'AN',
+    'NC',
+    'NZ',
+    'NI',
+    'NE',
+    'NG',
+    'NU',
+    'NF',
+    'MK',
+    'NO',
+    'OM',
+    'PK',
+    'PS',
+    'PA',
+    'PG',
+    'PY',
+    'PE',
+    'PH',
+    'PN',
+    'PL',
+    'PT',
+    'QA',
+    'CM',
+    'RE',
+    'RO',
+    'RU',
+    'RW',
+    'BL',
+    'SH',
+    'KN',
+    'LC',
+    'MF',
+    'PM',
+    'WS',
+    'SM',
+    'ST',
+    'SA',
+    'SN',
+    'RS',
+    'SC',
+    'SL',
+    'SG',
+    'SX',
+    'SK',
+    'SI',
+    'SB',
+    'SO',
+    'ZA',
+    'GS',
+    'KR',
+    'SS',
+    'ES',
+    'LK',
+    'VC',
+    'SD',
+    'SR',
+    'SJ',
+    'SE',
+    'CH',
+    'SY',
+    'TW',
+    'TJ',
+    'TZ',
+    'TH',
+    'TL',
+    'TG',
+    'TK',
+    'TO',
+    'TT',
+    'TA',
+    'TN',
+    'TR',
+    'TM',
+    'TC',
+    'TV',
+    'UG',
+    'UA',
+    'AE',
+    'GB',
+    'US',
+    'UM',
+    'UY',
+    'UZ',
+    'VU',
+    'VE',
+    'VN',
+    'VG',
+    'WF',
+    'EH',
+    'YE',
+    'ZM',
+    'ZW',
+    'ZZ',
+  ].sort(),
+);
+
+const SHOPIFY_COUNTRY_CODE_LIST = Array.from(SHOPIFY_COUNTRY_CODES).join(', ');
+
+function marketsResolvedValuesPayloadKey(countryCode: string | null): string {
+  return `marketsResolvedValues:${countryCode ?? '*'}`;
+}
+
 const LOCALE_NAMES: Record<string, string> = {
   de: 'German',
   en: 'English',
@@ -559,9 +815,74 @@ function collectPriceListNodes(
   return priceLists;
 }
 
+function buyerSignalCountryCode(rawBuyerSignal: unknown): string | null {
+  if (!isPlainObject(rawBuyerSignal) || typeof rawBuyerSignal['countryCode'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = rawBuyerSignal['countryCode'];
+  return SHOPIFY_COUNTRY_CODES.has(countryCode) ? countryCode : null;
+}
+
+function buyerSignalVariableName(field: FieldNode): string | null {
+  const argument = field.arguments?.find((candidate) => candidate.name.value === 'buyerSignal') ?? null;
+  return argument?.value.kind === Kind.VARIABLE ? argument.value.name.value : null;
+}
+
+function invalidBuyerSignalCountryCodeError(field: FieldNode, rawCountryCode: unknown): Record<string, unknown> {
+  const variableName = buyerSignalVariableName(field);
+  const value = typeof rawCountryCode === 'string' ? rawCountryCode : String(rawCountryCode);
+  const message = variableName
+    ? `Variable $${variableName} of type BuyerSignalInput! was provided invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST})`
+    : `Argument 'buyerSignal' on Field 'marketsResolvedValues' has an invalid value for countryCode (Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}).`;
+
+  return {
+    message,
+    extensions: {
+      code: variableName ? 'INVALID_VARIABLE' : 'argumentLiteralsIncompatible',
+      value: variableName ? { countryCode: rawCountryCode } : undefined,
+      problems: [
+        {
+          path: ['countryCode'],
+          explanation: `Expected "${value}" to be one of: ${SHOPIFY_COUNTRY_CODE_LIST}`,
+        },
+      ],
+    },
+  };
+}
+
+function validateMarketsResolvedValuesBuyerSignal(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown>[] {
+  if (!field.arguments?.some((argument) => argument.name.value === 'buyerSignal')) {
+    return [];
+  }
+
+  const args = getFieldArguments(field, variables);
+  const buyerSignal = args['buyerSignal'];
+  const countryCode = isPlainObject(buyerSignal) ? buyerSignal['countryCode'] : undefined;
+
+  if (typeof countryCode !== 'string' || !SHOPIFY_COUNTRY_CODES.has(countryCode)) {
+    return [invalidBuyerSignalCountryCodeError(field, countryCode)];
+  }
+
+  return [];
+}
+
+function marketsResolvedValuesPayloadKeyFromDocument(document: string, variables: Record<string, unknown>): string {
+  const resolvedValuesField = getRootFields(document).find((field) => field.name.value === 'marketsResolvedValues');
+  if (!resolvedValuesField) {
+    return marketsResolvedValuesPayloadKey(null);
+  }
+
+  const args = getFieldArguments(resolvedValuesField, variables);
+  return marketsResolvedValuesPayloadKey(buyerSignalCountryCode(args['buyerSignal']));
+}
+
 export function hydrateMarketsFromUpstreamResponse(
-  _document: string,
-  _variables: Record<string, unknown>,
+  document: string,
+  variables: Record<string, unknown>,
   upstreamPayload: unknown,
 ): void {
   for (const rootField of [
@@ -584,6 +905,9 @@ export function hydrateMarketsFromUpstreamResponse(
     }
 
     store.setBaseMarketsRootPayload(rootField, rootPayload);
+    if (rootField === 'marketsResolvedValues') {
+      store.setBaseMarketsRootPayload(marketsResolvedValuesPayloadKeyFromDocument(document, variables), rootPayload);
+    }
     store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
     store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
     store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
@@ -3400,6 +3724,179 @@ function serializeWebPresencesConnection(
   });
 }
 
+function marketRegionCountryEdges(market: MarketRecord): ConnectionEdge[] {
+  const conditions = isPlainObject(market.data['conditions']) ? market.data['conditions'] : {};
+  const regionsCondition = isPlainObject(conditions['regionsCondition'])
+    ? (conditions['regionsCondition'] as Record<string, unknown>)
+    : {};
+  return readConnectionEdges(regionsCondition['regions']);
+}
+
+function marketRegionCountryCode(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node) || typeof edge.node['code'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = edge.node['code'].toUpperCase();
+  return /^[A-Z]{2}$/u.test(countryCode) ? countryCode : null;
+}
+
+function marketMatchesBuyerCountry(market: MarketRecord, countryCode: string): boolean {
+  if (market.data['status'] !== 'ACTIVE') {
+    return false;
+  }
+
+  return marketRegionCountryEdges(market).some((edge) => marketRegionCountryCode(edge) === countryCode);
+}
+
+function resolveMarketForBuyerCountry(countryCode: string): MarketRecord | null {
+  return store.listEffectiveMarkets().find((market) => marketMatchesBuyerCountry(market, countryCode)) ?? null;
+}
+
+function resolvedCurrencyCode(market: MarketRecord | null, countryCode: string | null): string {
+  if (market) {
+    for (const edge of marketRegionCountryEdges(market)) {
+      if (countryCode !== null && marketRegionCountryCode(edge) !== countryCode) {
+        continue;
+      }
+
+      if (
+        isPlainObject(edge.node) &&
+        isPlainObject(edge.node['currency']) &&
+        typeof edge.node['currency']['currencyCode'] === 'string'
+      ) {
+        return edge.node['currency']['currencyCode'];
+      }
+    }
+
+    if (
+      isPlainObject(market.data['currencySettings']) &&
+      isPlainObject(market.data['currencySettings']['baseCurrency']) &&
+      typeof market.data['currencySettings']['baseCurrency']['currencyCode'] === 'string'
+    ) {
+      return market.data['currencySettings']['baseCurrency']['currencyCode'];
+    }
+  }
+
+  return countryCode ? (COUNTRY_CURRENCIES[countryCode] ?? 'USD') : 'USD';
+}
+
+function resolvedPriceInclusivity(market: MarketRecord | null): Record<string, boolean> {
+  const priceInclusions = market && isPlainObject(market.data['priceInclusions']) ? market.data['priceInclusions'] : {};
+  const dutiesStrategy =
+    typeof priceInclusions['inclusiveDutiesPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveDutiesPricingStrategy']
+      : null;
+  const taxStrategy =
+    typeof priceInclusions['inclusiveTaxPricingStrategy'] === 'string'
+      ? priceInclusions['inclusiveTaxPricingStrategy']
+      : null;
+
+  return {
+    dutiesIncluded: dutiesStrategy === 'INCLUDES_DUTIES_IN_PRICE',
+    taxesIncluded: taxStrategy === 'INCLUDES_TAXES_IN_PRICE',
+  };
+}
+
+function webPresenceReferencesMarket(webPresence: WebPresenceRecord, marketId: string): boolean {
+  return readConnectionEdges(webPresence.data['markets']).some(
+    (edge) => isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === marketId,
+  );
+}
+
+function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const webPresencesById = new Map<string, WebPresenceRecord>();
+  for (const edge of readConnectionEdges(market.data['webPresences'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveWebPresence = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    webPresencesById.set(
+      edge.node['id'],
+      effectiveWebPresence ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const webPresence of store.listEffectiveWebPresences()) {
+    if (webPresenceReferencesMarket(webPresence, market.id)) {
+      webPresencesById.set(webPresence.id, webPresence);
+    }
+  }
+
+  return Array.from(webPresencesById.values());
+}
+
+function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
+  if (!market) {
+    return [];
+  }
+
+  const catalogsById = new Map<string, CatalogRecord>();
+  for (const edge of readConnectionEdges(market.data['catalogs'])) {
+    if (!isPlainObject(edge.node) || typeof edge.node['id'] !== 'string') {
+      continue;
+    }
+
+    const effectiveCatalog = store.getEffectiveCatalogRecordById(edge.node['id']);
+    catalogsById.set(
+      edge.node['id'],
+      effectiveCatalog ?? {
+        id: edge.node['id'],
+        cursor: edge.cursor,
+        data: edge.node as Record<string, JsonValue>,
+      },
+    );
+  }
+
+  for (const catalog of store.listEffectiveCatalogs()) {
+    if (catalogReferencesMarket(catalog, market.id)) {
+      catalogsById.set(catalog.id, catalog);
+    }
+  }
+
+  return Array.from(catalogsById.values());
+}
+
+function connectionPayloadFromRecords<
+  T extends { id: string; cursor?: string | null | undefined; data: Record<string, JsonValue> },
+>(records: T[], getCursorValue: (record: T) => string): Record<string, unknown> {
+  const edges = records.map((record) => ({
+    cursor: getCursorValue(record),
+    node: record.data,
+  }));
+
+  return {
+    edges,
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
+function buildMarketsResolvedValuesPayload(
+  market: MarketRecord | null,
+  countryCode: string | null,
+): Record<string, unknown> {
+  return {
+    currencyCode: resolvedCurrencyCode(market, countryCode),
+    priceInclusivity: resolvedPriceInclusivity(market),
+    catalogs: connectionPayloadFromRecords(catalogsForMarket(market), catalogCursor),
+    webPresences: connectionPayloadFromRecords(webPresencesForMarket(market), webPresenceCursor),
+  };
+}
+
 function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
   if (!isPlainObject(rootPayload)) {
     return rootPayload;
@@ -3425,6 +3922,30 @@ function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown
       },
     },
   };
+}
+
+function serializeMarketsResolvedValues(field: FieldNode, variables: Record<string, unknown>): unknown {
+  const args = getFieldArguments(field, variables);
+  const countryCode = buyerSignalCountryCode(args['buyerSignal']);
+  const exactBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(countryCode));
+  const wildcardBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(null));
+  const legacyBasePayload = store.getBaseMarketsRootPayload('marketsResolvedValues');
+  const matchedMarket = countryCode ? resolveMarketForBuyerCountry(countryCode) : null;
+
+  if (!store.hasStagedMarkets() && !store.hasStagedPriceLists() && exactBasePayload !== null) {
+    return exactBasePayload;
+  }
+
+  if (matchedMarket) {
+    return buildMarketsResolvedValuesPayload(matchedMarket, countryCode);
+  }
+
+  const fallbackBasePayload = exactBasePayload ?? wildcardBasePayload ?? legacyBasePayload;
+  if (fallbackBasePayload !== null) {
+    return overlayMarketsResolvedValuesWebPresences(fallbackBasePayload);
+  }
+
+  return buildMarketsResolvedValuesPayload(null, countryCode);
 }
 
 function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -3481,7 +4002,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'webPresences':
       return serializeWebPresencesConnection(field, variables, fragments);
     case 'marketsResolvedValues':
-      return overlayMarketsResolvedValuesWebPresences(store.getBaseMarketsRootPayload(field.name.value));
+      return serializeMarketsResolvedValues(field, variables);
     default:
       return null;
   }
@@ -3489,9 +4010,17 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 
 export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
   const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
+    if (field.name.value === 'marketsResolvedValues') {
+      errors.push(...validateMarketsResolvedValuesBuyerSignal(field, variables));
+      if (errors.length > 0) {
+        continue;
+      }
+    }
+
     const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables, fragments);
     data[key] =
@@ -3507,6 +4036,10 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
         : field.selectionSet
           ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
+  }
+
+  if (errors.length > 0) {
+    return { errors };
   }
 
   return { data };

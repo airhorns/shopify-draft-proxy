@@ -2194,6 +2194,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
 
