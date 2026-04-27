@@ -7076,6 +7076,14 @@ function serializeProduct(
   return serializeSelectionSet(product, selections, variables);
 }
 
+export function serializeProductBulkSelection(
+  product: ProductRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeSelectionSet(product, selections, variables);
+}
+
 function serializeProductsCount(rawQuery: unknown, selections: readonly SelectionNode[]): Record<string, unknown> {
   const filteredProducts = applyProductsQuery(store.listEffectiveProducts(), rawQuery);
   const result: Record<string, unknown> = {};
@@ -7569,6 +7577,14 @@ function listEffectiveProductVariants(): ProductVariantRecord[] {
   return store.listEffectiveProducts().flatMap((product) => store.getEffectiveVariantsByProductId(product.id));
 }
 
+export function serializeProductVariantBulkSelection(
+  variant: ProductVariantRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeVariantSelectionSet(variant, selections, variables);
+}
+
 function compareVariantIds(leftId: string, rightId: string): number {
   const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
   const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
@@ -7690,6 +7706,31 @@ function sortProductVariants(
   return rawReverse === true ? sortedVariants.reverse() : sortedVariants;
 }
 
+export function listProductVariantsForBulkExport(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): ProductVariantRecord[] {
+  const args = getFieldArguments(field, variables);
+  return sortProductVariants(
+    applyProductVariantsQuery(listEffectiveProductVariants(), args['query']),
+    args['sortKey'],
+    args['reverse'],
+  );
+}
+
+export function listProductVariantsForProductBulkExport(
+  productId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): ProductVariantRecord[] {
+  const args = getFieldArguments(field, variables);
+  return sortProductVariants(
+    applyProductVariantsQuery(store.getEffectiveVariantsByProductId(productId), args['query']),
+    args['sortKey'],
+    args['reverse'],
+  );
+}
+
 function parseProductsCursor(rawCursor: unknown): string | null {
   if (typeof rawCursor !== 'string' || !rawCursor.startsWith('cursor:')) {
     return null;
@@ -7779,6 +7820,17 @@ function serializeProductsConnection(
       fallbackEndCursor: preserveBaselinePageInfo ? (searchConnection?.pageInfo.endCursor ?? null) : null,
     },
   });
+}
+
+export function listProductsForBulkExport(field: FieldNode, variables: Record<string, unknown>): ProductRecord[] {
+  const args = getFieldArguments(field, variables);
+  const searchConnectionKey = buildProductSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
+  const searchConnection = searchConnectionKey ? store.getBaseProductSearchConnection(searchConnectionKey) : null;
+  const candidateProducts = searchConnection
+    ? listProductsForConnection(searchConnection)
+    : store.listEffectiveProducts();
+  const filteredProducts = applyProductsQuery(candidateProducts, args['query']);
+  return searchConnection ? filteredProducts : sortProducts(filteredProducts, args['sortKey'], args['reverse']);
 }
 
 function serializeProductVariantsConnection(

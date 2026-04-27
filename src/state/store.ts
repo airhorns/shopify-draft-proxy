@@ -145,6 +145,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   savedSearchOrder: [],
   bulkOperations: {},
   bulkOperationOrder: [],
+  bulkOperationResults: {},
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
@@ -1441,6 +1442,12 @@ export class InMemoryStore {
     return structuredClone(operation);
   }
 
+  stageBulkOperationResult(operation: BulkOperationRecord, jsonl: string): BulkOperationRecord {
+    const stagedOperation = this.stageBulkOperation(operation);
+    this.stagedState.bulkOperationResults[operation.id] = jsonl;
+    return stagedOperation;
+  }
+
   getEffectiveBulkOperationById(operationId: string): BulkOperationRecord | null {
     const operation =
       this.stagedState.bulkOperations[operationId] ?? this.baseState.bulkOperations[operationId] ?? null;
@@ -1468,6 +1475,12 @@ export class InMemoryStore {
       .map((operation) => structuredClone(operation));
 
     return [...orderedOperations, ...unorderedOperations];
+  }
+
+  getEffectiveBulkOperationResultJsonl(operationId: string): string | null {
+    return (
+      this.stagedState.bulkOperationResults[operationId] ?? this.baseState.bulkOperationResults[operationId] ?? null
+    );
   }
 
   cancelStagedBulkOperation(operationId: string): BulkOperationRecord | null {

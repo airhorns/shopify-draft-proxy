@@ -6785,6 +6785,32 @@ function readBulkOperationPayloadFromInteraction(
   );
 }
 
+function seedProductsFromBulkOperationResult(result: Record<string, unknown> | null | undefined): number {
+  const products = readArrayField(result, 'records')
+    .filter(isPlainObject)
+    .flatMap((record, index) => {
+      const productId = readStringField(record, 'id');
+      if (!productId?.startsWith('gid://shopify/Product/')) {
+        return [];
+      }
+
+      const orderedTimestamp = new Date(Date.UTC(2026, 3, 27, 0, 0, 0, 0) - index).toISOString();
+      return [
+        makeSeedProduct(productId, {
+          ...record,
+          createdAt: orderedTimestamp,
+          updatedAt: orderedTimestamp,
+        }),
+      ];
+    });
+
+  if (products.length > 0) {
+    store.upsertBaseProducts(products);
+  }
+
+  return products.length;
+}
+
 function seedBulkOperationPreconditions(capture: unknown): boolean {
   const captureRecord = isPlainObject(capture) ? capture : {};
   const reads = readRecordField(captureRecord, 'reads');
@@ -6845,6 +6871,7 @@ function seedBulkOperationPreconditions(capture: unknown): boolean {
     readRecordField(readRecordField(lifecycle, 'queryExportImmediateCancel'), 'run'),
     'bulkOperationRunQuery',
   );
+  const seededBulkResultProducts = seedProductsFromBulkOperationResult(readRecordField(terminalLifecycle, 'result'));
 
   if (baseOperations.size > 0) {
     store.upsertBaseBulkOperations([...baseOperations.values()]);
@@ -6853,7 +6880,7 @@ function seedBulkOperationPreconditions(capture: unknown): boolean {
     store.stageBulkOperation(stagedImmediateCancelOperation);
   }
 
-  return baseOperations.size > 0 || stagedImmediateCancelOperation !== null;
+  return baseOperations.size > 0 || stagedImmediateCancelOperation !== null || seededBulkResultProducts > 0;
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
