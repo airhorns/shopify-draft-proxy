@@ -628,13 +628,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers'],
+    purpose: 'CustomerInput create/update/delete/merge validation branches and downstream invariance.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
+    cleanupBehavior: 'Creates disposable customers for validation cases and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -721,19 +721,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-tax-exemption-*.json`],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
-    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer input validation and downstream read parity for create/update/merge/delete behavior.',
-    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-    ],
-    cleanupBehavior: 'Creates disposable customers, exercises validation branches, and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
