@@ -4936,6 +4936,106 @@
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
   },
   {
+    "name": "availableLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["availableLocales", "AvailableLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves the captured locale catalog slice locally, with snapshot state allowed to override the default seed."
+  },
+  {
+    "name": "shopLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopLocales", "ShopLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves shop locale reads from local state, including staged enable, update, disable, and published filtering."
+  },
+  {
+    "name": "translatableResource",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResource", "TranslatableResource"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph; missing or unsupported resources return null."
+  },
+  {
+    "name": "translatableResources",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResources", "TranslatableResources"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports resourceType PRODUCT and METAFIELD over locally known products/product metafields; other resource types return an explicit empty connection."
+  },
+  {
+    "name": "translatableResourcesByIds",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResourcesByIds", "TranslatableResourcesByIds"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Resolves locally known product and product-metafield IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "shopLocaleEnable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleEnable", "ShopLocaleEnable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages session-local locale enablement without mutating Shopify; locale names come from the captured availableLocales slice."
+  },
+  {
+    "name": "shopLocaleUpdate",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleUpdate", "ShopLocaleUpdate"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages published-state and market-web-presence association updates for locally known shop locales."
+  },
+  {
+    "name": "shopLocaleDisable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+  },
+  {
+    "name": "translationsRegister",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRegister", "TranslationsRegister"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, locale, and value validation; market-specific translation inputs are explicit unsupported branches."
+  },
+  {
+    "name": "translationsRemove",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRemove", "TranslationsRemove"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Removes staged/base translations for supported local product and product-metafield resources without runtime Shopify writes."
+  },
+  {
     "name": "files",
     "type": "query",
     "domain": "media",

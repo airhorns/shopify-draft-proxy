@@ -23,6 +23,11 @@ import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './del
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
+import {
+  handleLocalizationMutation,
+  handleLocalizationQuery,
+  hydrateLocalizationFromUpstreamResponse,
+} from './localization.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import {
   handleOnlineStoreMutation,
@@ -779,6 +784,28 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
+      const responseBody = handleLocalizationMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory localization draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
       const responseBody = handleMarketMutation(body.query, variables);
 
@@ -1287,6 +1314,30 @@ export function createProxyRouter(config: AppConfig): Router {
           ctx.body = handleStorePropertiesQuery(body.query, variables);
           return;
         }
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleLocalizationQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateLocalizationFromUpstreamResponse(upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body = store.hasStagedLocalizationState() ? handleLocalizationQuery(body.query, variables) : upstreamBody;
+        return;
       }
     }
 

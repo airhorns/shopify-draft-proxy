@@ -45,6 +45,11 @@ import {
   hydrateMarketsFromUpstreamResponse,
   seedMarketsFromCapture,
 } from '../src/proxy/markets.js';
+import {
+  handleLocalizationMutation,
+  handleLocalizationQuery,
+  hydrateLocalizationFromUpstreamResponse,
+} from '../src/proxy/localization.js';
 import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
@@ -87,6 +92,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
+  LocaleRecord,
   LocationRecord,
   MutationLogInterpretedMetadata,
   OrderCustomerRecord,
@@ -107,6 +113,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
+  ShopLocaleRecord,
   DiscountRecord,
 } from '../src/state/types.js';
 
@@ -899,6 +906,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleLocalizationMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1247,6 +1273,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
+    if (upstreamPayload !== undefined) {
+      hydrateLocalizationFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleLocalizationQuery(document, variables),
     };
   }
 
@@ -5468,6 +5505,82 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
   return mediaByProductId.size > 0;
 }
 
+function seedLocalizationPreconditions(capture: unknown): boolean {
+  const readCaptureData = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'readCapture'), 'response'),
+    'data',
+  );
+  if (!readCaptureData) {
+    return false;
+  }
+
+  const locales = readArrayField(readCaptureData, 'availableLocalesExcerpt')
+    .filter(isPlainObject)
+    .flatMap((locale): LocaleRecord[] => {
+      const isoCode = readStringField(locale, 'isoCode');
+      const name = readStringField(locale, 'name');
+      return isoCode && name ? [{ isoCode, name }] : [];
+    });
+  if (locales.length > 0) {
+    store.replaceBaseAvailableLocales(locales);
+  }
+
+  const shopLocales = readArrayField(readCaptureData, 'allShopLocales')
+    .filter(isPlainObject)
+    .flatMap((locale): ShopLocaleRecord[] => {
+      const localeCode = readStringField(locale, 'locale');
+      const name = readStringField(locale, 'name');
+      const primary = readBooleanField(locale, 'primary');
+      const published = readBooleanField(locale, 'published');
+      if (!localeCode || !name || primary === null || published === null) {
+        return [];
+      }
+
+      return [
+        {
+          locale: localeCode,
+          name,
+          primary,
+          published,
+          marketWebPresenceIds: readArrayField(locale, 'marketWebPresences')
+            .filter(isPlainObject)
+            .flatMap((presence) => {
+              const id = readStringField(presence, 'id');
+              return id ? [id] : [];
+            }),
+        },
+      ];
+    });
+  if (shopLocales.length > 0) {
+    store.upsertBaseShopLocales(shopLocales);
+  }
+
+  const resources = readArrayField(readRecordField(readCaptureData, 'resources'), 'nodes').filter(isPlainObject);
+  for (const resource of resources) {
+    const productId = readStringField(resource, 'resourceId');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+
+    const contentByKey = new Map(
+      readArrayField(resource, 'translatableContent')
+        .filter(isPlainObject)
+        .map((content) => [readStringField(content, 'key'), readStringField(content, 'value')] as const)
+        .filter((entry): entry is [string, string] => entry[0] !== null && entry[1] !== null),
+    );
+    store.upsertBaseProducts([
+      makeSeedProduct(productId, {
+        id: productId,
+        title: contentByKey.get('title'),
+        handle: contentByKey.get('handle'),
+        productType: contentByKey.get('product_type'),
+      }),
+    ]);
+  }
+
+  return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;
@@ -5486,6 +5599,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     }
   }
   seedExplicitProductMediaPreconditions(capture);
+  seedLocalizationPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);

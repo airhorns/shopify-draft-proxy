@@ -25,6 +25,7 @@ import type {
   FileRecord,
   FulfillmentServiceRecord,
   LocationRecord,
+  LocaleRecord,
   MarketLocalizationRecord,
   MarketRecord,
   MarketingEngagementRecord,
@@ -50,7 +51,9 @@ import type {
   PublicationRecord,
   SegmentRecord,
   ShopRecord,
+  ShopLocaleRecord,
   StateSnapshot,
+  TranslationRecord,
   WebhookSubscriptionRecord,
   WebPresenceRecord,
 } from './types.js';
@@ -125,6 +128,9 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   webPresences: {},
   webPresenceOrder: [],
   marketLocalizations: {},
+  availableLocales: [],
+  shopLocales: {},
+  translations: {},
   catalogs: {},
   catalogOrder: [],
   priceLists: {},
@@ -163,6 +169,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedCatalogIds: {},
   deletedPriceListIds: {},
   deletedWebPresenceIds: {},
+  deletedShopLocales: {},
+  deletedTranslations: {},
   deletedDeliveryProfileIds: {},
   deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
@@ -221,6 +229,12 @@ function marketLocalizationStorageKey(
   localization: Pick<MarketLocalizationRecord, 'resourceId' | 'marketId' | 'key'>,
 ): string {
   return `${localization.resourceId}::${localization.marketId}::${localization.key}`;
+}
+
+function translationStorageKey(
+  translation: Pick<TranslationRecord, 'resourceId' | 'locale' | 'key' | 'marketId'>,
+): string {
+  return `${translation.resourceId}::${translation.locale}::${translation.marketId ?? ''}::${translation.key}`;
 }
 
 function readCollectionPosition(collection: ProductCollectionRecord): number | null {
@@ -2166,6 +2180,135 @@ export class InMemoryStore {
     }
     return Array.from(merged.values()).sort(
       (left, right) => left.key.localeCompare(right.key) || left.updatedAt.localeCompare(right.updatedAt),
+    );
+  }
+
+  replaceBaseAvailableLocales(locales: LocaleRecord[]): void {
+    this.baseState.availableLocales = structuredClone(locales);
+  }
+
+  listEffectiveAvailableLocales(): LocaleRecord[] {
+    return structuredClone(this.baseState.availableLocales);
+  }
+
+  upsertBaseShopLocales(locales: ShopLocaleRecord[]): void {
+    for (const locale of locales) {
+      delete this.baseState.deletedShopLocales[locale.locale];
+      delete this.stagedState.deletedShopLocales[locale.locale];
+      this.baseState.shopLocales[locale.locale] = structuredClone(locale);
+    }
+  }
+
+  stageShopLocale(locale: ShopLocaleRecord): ShopLocaleRecord {
+    delete this.stagedState.deletedShopLocales[locale.locale];
+    this.stagedState.shopLocales[locale.locale] = structuredClone(locale);
+    return structuredClone(locale);
+  }
+
+  disableShopLocale(locale: string): ShopLocaleRecord | null {
+    const existing = this.stagedState.shopLocales[locale] ?? this.baseState.shopLocales[locale] ?? null;
+    delete this.stagedState.shopLocales[locale];
+    if (existing) {
+      this.stagedState.deletedShopLocales[locale] = true;
+    }
+    return existing ? structuredClone(existing) : null;
+  }
+
+  getEffectiveShopLocale(locale: string): ShopLocaleRecord | null {
+    if (this.stagedState.deletedShopLocales[locale]) {
+      return null;
+    }
+
+    const record = this.stagedState.shopLocales[locale] ?? this.baseState.shopLocales[locale] ?? null;
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveShopLocales(published?: boolean | null): ShopLocaleRecord[] {
+    const locales = new Map<string, ShopLocaleRecord>();
+    for (const locale of Object.values(this.baseState.shopLocales)) {
+      if (!this.stagedState.deletedShopLocales[locale.locale]) {
+        locales.set(locale.locale, structuredClone(locale));
+      }
+    }
+    for (const locale of Object.values(this.stagedState.shopLocales)) {
+      if (!this.stagedState.deletedShopLocales[locale.locale]) {
+        locales.set(locale.locale, structuredClone(locale));
+      }
+    }
+
+    return Array.from(locales.values())
+      .filter((locale) => (typeof published === 'boolean' ? locale.published === published : true))
+      .sort((left, right) => Number(right.primary) - Number(left.primary) || left.locale.localeCompare(right.locale));
+  }
+
+  stageTranslation(translation: TranslationRecord): TranslationRecord {
+    const storageKey = translationStorageKey(translation);
+    delete this.stagedState.deletedTranslations[storageKey];
+    this.stagedState.translations[storageKey] = structuredClone(translation);
+    return structuredClone(translation);
+  }
+
+  removeTranslation(
+    resourceId: string,
+    locale: string,
+    key: string,
+    marketId: string | null = null,
+  ): TranslationRecord | null {
+    const storageKey = translationStorageKey({ resourceId, locale, key, marketId });
+    const existing = this.stagedState.translations[storageKey] ?? this.baseState.translations[storageKey] ?? null;
+    delete this.stagedState.translations[storageKey];
+    if (existing) {
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+    return existing ? structuredClone(existing) : null;
+  }
+
+  listEffectiveTranslations(resourceId: string, locale: string, marketId: string | null = null): TranslationRecord[] {
+    const translations = new Map<string, TranslationRecord>();
+    for (const translation of Object.values(this.baseState.translations)) {
+      const storageKey = translationStorageKey(translation);
+      if (
+        translation.resourceId === resourceId &&
+        translation.locale === locale &&
+        (translation.marketId ?? null) === marketId &&
+        !this.stagedState.deletedTranslations[storageKey]
+      ) {
+        translations.set(storageKey, structuredClone(translation));
+      }
+    }
+    for (const translation of Object.values(this.stagedState.translations)) {
+      if (
+        translation.resourceId === resourceId &&
+        translation.locale === locale &&
+        (translation.marketId ?? null) === marketId
+      ) {
+        translations.set(translationStorageKey(translation), structuredClone(translation));
+      }
+    }
+
+    return Array.from(translations.values()).sort(
+      (left, right) => left.key.localeCompare(right.key) || left.updatedAt.localeCompare(right.updatedAt),
+    );
+  }
+
+  hasLocalizationState(): boolean {
+    return (
+      this.baseState.availableLocales.length > 0 ||
+      Object.keys(this.baseState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.deletedShopLocales).length > 0 ||
+      Object.keys(this.baseState.translations).length > 0 ||
+      Object.keys(this.stagedState.translations).length > 0 ||
+      Object.keys(this.stagedState.deletedTranslations).length > 0
+    );
+  }
+
+  hasStagedLocalizationState(): boolean {
+    return (
+      Object.keys(this.stagedState.shopLocales).length > 0 ||
+      Object.keys(this.stagedState.deletedShopLocales).length > 0 ||
+      Object.keys(this.stagedState.translations).length > 0 ||
+      Object.keys(this.stagedState.deletedTranslations).length > 0
     );
   }
 
