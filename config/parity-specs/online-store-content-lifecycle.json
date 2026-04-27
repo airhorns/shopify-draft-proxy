@@ -39,10 +39,189 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
-  "notes": "HAR-303 captured online-store content catalog/detail/empty reads, blog/page/article create-update-delete success paths with downstream reads, and unknown-id comment moderation/delete userErrors against harry-test-heelo.myshopify.com on 2026-04-26. The runtime test enforces local snapshot empty reads, local lifecycle staging without upstream writes, downstream read-after-write effects, raw mutation log visibility, and comment moderation/delete behavior for snapshot comments.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store-content-create.graphql",
+    "variables": {
+      "blog": {
+        "title": "HAR 303 Blog 20260426015107",
+        "commentPolicy": "MODERATED"
+      },
+      "page": {
+        "title": "HAR 303 Page 20260426015107",
+        "body": "<p>HAR 303 page body</p>",
+        "isPublished": true
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-352 promotes the HAR-303 online-store content fixture from captured-fixture evidence to generic captured-vs-proxy-request parity. The runner seeds the baseline catalog/detail/empty read from the checked-in Shopify capture, then executes local blog/page create, article create, blog/page/article update, downstream read-after-write, delete, and unknown-comment moderation/delete guardrail requests with strict selected-path comparison. No live recapture was needed; volatile IDs, timestamps, and opaque cursors are excluded or matcher-scoped while stable payload, count, null/empty, pagination boolean, userErrors, and downstream read behavior are compared.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate payload matches captured stable fields",
+        "capturePath": "$.interactions[1].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": [
+          "$.blog.title",
+          "$.blog.handle",
+          "$.blog.commentPolicy",
+          "$.blog.templateSuffix",
+          "$.blog.tags",
+          "$.blog.articlesCount",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "pageCreate payload matches captured stable fields",
+        "capturePath": "$.interactions[3].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": [
+          "$.page.title",
+          "$.page.handle",
+          "$.page.body",
+          "$.page.bodySummary",
+          "$.page.isPublished",
+          "$.page.templateSuffix",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "articleCreate payload matches captured stable fields",
+        "capturePath": "$.interactions[5].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "selectedPaths": [
+          "$.article.title",
+          "$.article.handle",
+          "$.article.body",
+          "$.article.summary",
+          "$.article.tags",
+          "$.article.isPublished",
+          "$.article.templateSuffix",
+          "$.article.author",
+          "$.article.commentsCount",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store-content-article-create.graphql",
+          "variables": {
+            "article": {
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "title": "HAR 303 Article 20260426015107",
+              "body": "<p>HAR 303 article body</p>",
+              "summary": "<p>Summary</p>",
+              "isPublished": true,
+              "tags": ["har-303", "online-store"],
+              "author": { "name": "HAR 303 Author" }
+            }
+          }
+        }
+      },
+      {
+        "name": "articleUpdate payload matches captured stable fields after local blog/page/article updates",
+        "capturePath": "$.interactions[6].response.data.articleUpdate",
+        "proxyPath": "$.data.articleUpdate",
+        "selectedPaths": [
+          "$.article.title",
+          "$.article.handle",
+          "$.article.body",
+          "$.article.summary",
+          "$.article.tags",
+          "$.article.isPublished",
+          "$.article.publishedAt",
+          "$.article.author",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store-content-update.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "blog": {
+              "title": "HAR 303 Blog Updated 20260426015107",
+              "commentPolicy": "CLOSED"
+            },
+            "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "page": {
+              "title": "HAR 303 Page Updated 20260426015107",
+              "body": "<p>Updated page body</p>",
+              "isPublished": false
+            },
+            "articleId": { "fromPreviousProxyPath": "$.data.articleCreate.article.id" },
+            "article": {
+              "title": "HAR 303 Article Updated 20260426015107",
+              "isPublished": false,
+              "author": { "name": "HAR 303 Updated Author" }
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream read-after-write matches captured stable fields",
+        "capturePath": "$.interactions[7].response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.blog.title",
+          "$.blog.articlesCount",
+          "$.blog.articles.nodes[0].title",
+          "$.blog.articles.nodes[0].handle",
+          "$.blog.articles.pageInfo.hasNextPage",
+          "$.blog.articles.pageInfo.hasPreviousPage",
+          "$.page.title",
+          "$.page.isPublished",
+          "$.article.title",
+          "$.article.isPublished",
+          "$.article.blog.title",
+          "$.articles.nodes",
+          "$.articles.pageInfo.hasNextPage",
+          "$.articles.pageInfo.hasPreviousPage",
+          "$.articleAuthors.nodes",
+          "$.articleAuthors.pageInfo.hasNextPage",
+          "$.articleAuthors.pageInfo.hasPreviousPage",
+          "$.articleTags",
+          "$.blogsCount",
+          "$.pagesCount"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store-content-read-after-update.graphql",
+          "variables": {
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "articleId": { "fromPreviousProxyPath": "$.data.articleUpdate.article.id" }
+          }
+        }
+      },
+      {
+        "name": "delete payloads match captured userErrors and ID shape",
+        "capturePath": "$.interactions[9].response.data.articleDelete",
+        "proxyPath": "$.data.articleDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedArticleId",
+            "matcher": "shopify-gid:Article",
+            "reason": "Local proxy uses a stable synthetic Article GID while the capture contains the live Shopify Article GID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store-content-delete.graphql",
+          "variables": {
+            "articleId": { "fromPreviousProxyPath": "$.data.article.id" },
+            "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" }
+          }
+        }
+      },
+      {
+        "name": "unknown comment moderation and delete guardrails match captured userErrors",
+        "capturePath": "$.interactions[8].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store-content-comment-unknown.graphql",
+          "variables": {
+            "id": "gid://shopify/Comment/999999999999"
+          }
+        }
+      }
+    ]
   }
 }
