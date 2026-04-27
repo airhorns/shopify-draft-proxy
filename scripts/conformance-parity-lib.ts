@@ -45,7 +45,7 @@ import {
   hydrateMarketsFromUpstreamResponse,
   seedMarketsFromCapture,
 } from '../src/proxy/markets.js';
-import { handleMediaMutation } from '../src/proxy/media.js';
+import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
 import {
@@ -1117,6 +1117,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMetafieldDefinitionQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'media') {
+    return {
+      status: 200,
+      body: handleMediaQuery(document, variables),
     };
   }
 
