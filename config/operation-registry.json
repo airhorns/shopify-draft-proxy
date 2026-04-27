@@ -147,6 +147,116 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "publicApiVersions",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publicApiVersions", "PublicApiVersions"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility read support backed by HAR-315 2026-04 capture. The local list is fixture-backed and should be refreshed when Shopify's supported Admin API version window changes."
+  },
+  {
+    "name": "node",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["node", "Node"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data support only: unknown ids return null. Resolving known resource ids through the generic Node interface remains a declared gap until each resource serializer can be safely dispatched by GID type."
+  },
+  {
+    "name": "nodes",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["nodes", "Nodes"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data support only: each unknown id returns null in input order. Resolving known resource ids through the generic Node interface remains a declared gap until each resource serializer can be safely dispatched by GID type."
+  },
+  {
+    "name": "job",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["job", "Job"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility guardrail backed by HAR-315 2026-04 capture: an arbitrary Job GID returns a completed Job payload with the requested id and a QueryRoot link. Local async job lifecycle storage remains out of scope."
+  },
+  {
+    "name": "taxonomy",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["taxonomy", "Taxonomy"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data category connection support only: HAR-315 captured an unmatched taxonomy search returning empty nodes/edges and false/null pageInfo. The global non-empty taxonomy catalog is not modeled."
+  },
+  {
+    "name": "domain",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["domain", "Domain"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode support resolves the effective shop primaryDomain by id when present and returns null for unknown ids, matching HAR-315 unknown-domain capture. Broader domain catalog/market web presence behavior is not modeled."
+  },
+  {
+    "name": "backupRegion",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["backupRegion", "BackupRegion"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode utility read support is fixture-backed by HAR-315 2026-04 capture for the current conformance shop's MarketRegionCountry. Broader shop-country region mapping remains a follow-up gap."
+  },
+  {
+    "name": "staffMember",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["staffMember", "StaffMember"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMember without read_users and eligible app/store access. Authorized staff identity modeling remains unsupported."
+  },
+  {
+    "name": "staffMembers",
+    "type": "query",
+    "domain": "admin-platform",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["staffMembers", "StaffMembers"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode captured blocker guardrail only: the current conformance credential returns ACCESS_DENIED for staffMembers. Authorized staff catalog modeling remains unsupported."
+  },
+  {
+    "name": "flowGenerateSignature",
+    "type": "mutation",
+    "domain": "admin-platform",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["flowGenerateSignature", "FlowGenerateSignature"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local signature generation semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+  },
+  {
+    "name": "flowTriggerReceive",
+    "type": "mutation",
+    "domain": "admin-platform",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["flowTriggerReceive", "FlowTriggerReceive"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local trigger receive semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+  },
+  {
     "name": "app",
     "type": "query",
     "domain": "apps",
@@ -4861,6 +4971,34 @@
     "matchNames": ["priceListFixedPricesByProductUpdate", "PriceListFixedPricesByProductUpdate"],
     "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
     "supportNotes": "Stages product-scoped fixed-price upserts/deletes only for variants visible in normalized product state."
+  },
+  {
+    "name": "quantityPricingByVariantUpdate",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityPricingByVariantUpdate", "QuantityPricingByVariantUpdate"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages PriceList fixed prices, variant quantity rules, and quantity price breaks for variants visible in normalized product state."
+  },
+  {
+    "name": "quantityRulesAdd",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesAdd", "QuantityRulesAdd"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
+  },
+  {
+    "name": "quantityRulesDelete",
+    "type": "mutation",
+    "domain": "markets",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["quantityRulesDelete", "QuantityRulesDelete"],
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "webPresences",
