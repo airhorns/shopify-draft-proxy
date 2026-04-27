@@ -20,10 +20,177 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json"
   ],
   "runtimeTestFiles": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definition-lifecycle-create.graphql",
+    "variablesCapturePath": "$.captures[1].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-payload",
+        "capturePath": "$.captures[1].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.createdDefinition.pinnedPosition",
+            "matcher": "any-number",
+            "reason": "The live shop already had pinned product definitions, while the local parity harness starts from the scenario fixture state only."
+          }
+        ]
+      },
+      {
+        "name": "metafields-set-payload",
+        "capturePath": "$.captures[2].response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-metafields-set.graphql",
+          "variablesCapturePath": "$.captures[2].request.variables"
+        },
+        "excludedPaths": ["$.metafields[0].owner"],
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-definition-detail",
+        "capturePath": "$.captures[3].response.data.definition",
+        "proxyPath": "$.data.definition",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-definition.graphql",
+          "variablesCapturePath": "$.captures[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns its staged synthetic definition ID for downstream reads."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-definition-catalog",
+        "capturePath": "$.captures[3].response.data.definitions",
+        "proxyPath": "$.data.definitions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-definition.graphql",
+          "variablesCapturePath": "$.captures[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns its staged synthetic definition ID in the downstream catalog."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-product-metafield",
+        "capturePath": "$.captures[3].response.data.product",
+        "proxyPath": "$.data.product",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-product-metafield.graphql",
+          "variablesCapturePath": "$.captures[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy returns its staged synthetic metafield ID for downstream product reads."
+          }
+        ]
+      },
+      {
+        "name": "update-definition-payload",
+        "capturePath": "$.captures[4].response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-update.graphql",
+          "variablesCapturePath": "$.captures[4].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.updatedDefinition.pinnedPosition",
+            "matcher": "any-number",
+            "reason": "The live shop already had pinned product definitions, while the local parity harness starts from the scenario fixture state only."
+          }
+        ]
+      },
+      {
+        "name": "delete-definition-payload",
+        "capturePath": "$.captures[5].response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": true
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedDefinitionId",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy deletes the staged synthetic definition ID while Shopify deleted the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-delete-definition-detail",
+        "capturePath": "$.captures[6].response.data.definition",
+        "proxyPath": "$.data.definition",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-definition.graphql",
+          "variablesCapturePath": "$.captures[6].request.variables"
+        }
+      },
+      {
+        "name": "read-after-delete-definition-catalog",
+        "capturePath": "$.captures[6].response.data.definitions",
+        "proxyPath": "$.data.definitions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-definition.graphql",
+          "variablesCapturePath": "$.captures[6].request.variables"
+        }
+      },
+      {
+        "name": "read-after-delete-product-metafield",
+        "capturePath": "$.captures[6].response.data.product",
+        "proxyPath": "$.data.product",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definition-lifecycle-read-product-metafield.graphql",
+          "variablesCapturePath": "$.captures[6].request.variables"
+        }
+      }
+    ]
   },
-  "notes": "Runtime-test-backed live fixture for product-owner metafield definition create/update/delete. The live capture records create, downstream definition/metafield reads, update, delete with deleteAllAssociatedMetafields, and immediate downstream no-data reads after delete. Generic parity replay is fixture-backed through the lifecycle integration test because the runner cannot yet chain this multi-step schema mutation flow while preserving the created definition/product IDs across steps."
+  "notes": "HAR-351 promotes the product-owner metafield definition lifecycle fixture to generic strict proxy-vs-recording parity. The fixture now seeds the recorded setup product, replays definition create, definition-backed metafieldsSet, downstream definition/product reads, update, delete with deleteAllAssociatedMetafields, and downstream no-data reads after delete. Expected differences are limited to deterministic local synthetic IDs and pinnedPosition drift from pre-existing live-shop pinned definitions. The integration test continues to cover meta API log/state visibility, validation branches, and no runtime Shopify writes."
 }

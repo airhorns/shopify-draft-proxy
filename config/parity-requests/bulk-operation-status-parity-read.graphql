@@ -1,0 +1,115 @@
+query BulkOperationStatusParityRead(
+  $unknownId: ID!
+  $first: Int
+  $runningQuery: String
+  $runningMutation: String
+  $sortKey: BulkOperationsSortKeys
+  $reverse: Boolean
+) {
+  unknown: bulkOperation(id: $unknownId) {
+    id
+    status
+    type
+    errorCode
+    createdAt
+    completedAt
+    objectCount
+    rootObjectCount
+    fileSize
+    url
+    partialDataUrl
+    query
+  }
+  runningQueries: bulkOperations(first: $first, query: $runningQuery, sortKey: $sortKey, reverse: $reverse) {
+    edges {
+      cursor
+      node {
+        id
+        status
+        type
+        errorCode
+        createdAt
+        completedAt
+        objectCount
+        rootObjectCount
+        fileSize
+        url
+        partialDataUrl
+        query
+      }
+    }
+    nodes {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  runningMutations: bulkOperations(first: $first, query: $runningMutation, sortKey: $sortKey, reverse: $reverse) {
+    edges {
+      cursor
+      node {
+        id
+        status
+        type
+        errorCode
+        createdAt
+        completedAt
+        objectCount
+        rootObjectCount
+        fileSize
+        url
+        partialDataUrl
+        query
+      }
+    }
+    nodes {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  currentMutation: currentBulkOperation(type: MUTATION) {
+    id
+    status
+    type
+    errorCode
+    createdAt
+    completedAt
+    objectCount
+    rootObjectCount
+    fileSize
+    url
+    partialDataUrl
+    query
+  }
+}

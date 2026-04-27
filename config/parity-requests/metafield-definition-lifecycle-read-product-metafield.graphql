@@ -1,0 +1,12 @@
+query MetafieldDefinitionLifecycleReadProductMetafield($productId: ID!, $namespace: String!, $key: String!) {
+  product(id: $productId) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+  }
+}

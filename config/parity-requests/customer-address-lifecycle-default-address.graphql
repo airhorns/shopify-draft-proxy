@@ -1,0 +1,51 @@
+#graphql
+mutation CustomerUpdateDefaultAddress($customerId: ID!, $addressId: ID!) {
+  customerUpdateDefaultAddress(customerId: $customerId, addressId: $addressId) {
+    customer {
+      id
+      email
+      firstName
+      lastName
+      displayName
+      defaultAddress {
+        id
+        address1
+        city
+        country
+        countryCodeV2
+        provinceCode
+        zip
+        formattedArea
+      }
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+          city
+          country
+          countryCodeV2
+          provinceCode
+          zip
+          formattedArea
+        }
+        edges {
+          cursor
+          node {
+            id
+            city
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

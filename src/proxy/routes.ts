@@ -21,9 +21,11 @@ import {
   MARKETING_MUTATION_ROOTS,
 } from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
+import { handleDeliverySettingsQuery } from './delivery-settings.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from './inventory-shipments.js';
 import {
   FUNCTION_MUTATION_ROOTS,
   FUNCTION_QUERY_ROOTS,
@@ -45,6 +47,12 @@ import {
   isOnlineStoreContentQueryRoot,
 } from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
+import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+  isSavedSearchQueryRoot,
+} from './saved-searches.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
   handleMetaobjectDefinitionMutation,
@@ -95,6 +103,7 @@ const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnClose',
   'returnReopen',
 ]);
+const DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS = new Set(['draftOrderAvailableDeliveryOptions', 'draftOrderTag']);
 const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCapture',
   'transactionVoid',
@@ -133,6 +142,17 @@ const DELIVERY_PROFILE_MUTATION_ROOTS = new Set([
   'deliveryProfileRemove',
 ]);
 
+const DELIVERY_FUNCTION_MUTATION_ROOTS = new Set([
+  'deliveryCustomizationActivation',
+  'deliveryCustomizationCreate',
+  'deliveryCustomizationDelete',
+  'deliveryCustomizationUpdate',
+]);
+
+const DELIVERY_PROMISE_MUTATION_ROOTS = new Set(['deliveryPromiseParticipantsUpdate', 'deliveryPromiseProviderUpsert']);
+
+const DELIVERY_SETTINGS_MUTATION_ROOTS = new Set(['deliverySettingUpdate']);
+
 const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceCreate',
   'carrierServiceUpdate',
@@ -160,6 +180,18 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
+
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -344,6 +376,42 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (DELIVERY_FUNCTION_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-customization-function-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery customization mutations are backed by Shopify Functions and external function IDs; local staging requires captured function ownership, validation, activation, metafield, and downstream read behavior before support.',
+      },
+    };
+  }
+
+  if (DELIVERY_PROMISE_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-promise-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery promise mutations require delivery-promise access scopes, location/owner eligibility, provider state, and participant read-after-write semantics before they can be staged locally.',
+      },
+    };
+  }
+
+  if (DELIVERY_SETTINGS_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-delivery-settings-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'Delivery setting mutations alter shop delivery configuration and legacy-mode behavior; local staging needs conformance-backed setting transitions and downstream delivery read effects before support.',
+      },
+    };
+  }
+
   if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
     return {
       registeredOperation,
@@ -367,6 +435,18 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
 
   if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
+  }
+
+  if (primaryRootField && DELIVERY_FUNCTION_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery customization mutation would be proxied to Shopify. Delivery customizations are Shopify Function-backed and require conformance-backed local staging for function ownership, activation, metafields, and downstream reads before support.';
+  }
+
+  if (primaryRootField && DELIVERY_PROMISE_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery promise mutation would be proxied to Shopify. Delivery promise provider and participant roots require delivery-promise scope evidence, owner/location eligibility, and local read-after-write modeling before support.';
+  }
+
+  if (primaryRootField && DELIVERY_SETTINGS_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported delivery settings mutation would be proxied to Shopify. Delivery setting changes alter shop delivery configuration and require conformance-backed transition and downstream read modeling before support.';
   }
 
   if (primaryRootField && FLOW_UTILITY_MUTATION_ROOTS.has(primaryRootField)) {
@@ -713,6 +793,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       isProductLocalMutationCapability(request.capability) ||
       (request.capability.execution === 'overlay-read' && request.capability.domain === 'products'),
     async handleQuery(request) {
+      if (request.primaryRootField === 'inventoryShipment') {
+        if (request.config.readMode === 'snapshot') {
+          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          return true;
+        }
+
+        if (request.config.readMode === 'live-hybrid' && store.hasInventoryShipments()) {
+          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          return true;
+        }
+      }
+
       if (request.config.readMode === 'snapshot') {
         setGraphQLResponse(
           request,
@@ -740,6 +832,23 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       return true;
     },
     handleMutation(request) {
+      if (request.primaryRootField && INVENTORY_SHIPMENT_MUTATION_ROOTS.has(request.primaryRootField)) {
+        const inventoryShipmentMutation = handleInventoryShipmentMutation(request.body.query, request.variables);
+        if (!inventoryShipmentMutation) {
+          return false;
+        }
+
+        if (inventoryShipmentMutation.staged) {
+          appendStagedMutationLog(request, {
+            stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
+            notes: inventoryShipmentMutation.notes,
+          });
+        }
+
+        setGraphQLResponse(request, 200, inventoryShipmentMutation.response);
+        return true;
+      }
+
       request.proxyLogger.debug(
         {
           execution: request.capability.execution,
@@ -868,6 +977,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     },
     async handleQuery(request) {
       if (request.config.readMode === 'snapshot') {
+        if (request.primaryRootField === 'deliverySettings' || request.primaryRootField === 'deliveryPromiseSettings') {
+          setGraphQLResponse(request, 200, handleDeliverySettingsQuery(request.body.query));
+          return true;
+        }
+
         if (request.primaryRootField === 'deliveryProfile' || request.primaryRootField === 'deliveryProfiles') {
           setGraphQLResponse(request, 200, handleDeliveryProfileQuery(request.body.query, request.variables));
           return true;
@@ -1111,7 +1225,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       request.capability.domain === 'orders' ||
       (request.capability.domain === 'payments' && ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')) ||
       (request.capability.domain === 'shipping-fulfillments' &&
-        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)),
+        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)) ||
+      (request.parsed.type === 'query' &&
+        request.parsed.rootFields.some((rootField) => DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS.has(rootField))),
     async handleQuery(request) {
       if (request.capability.execution !== 'overlay-read') {
         return false;
@@ -1484,6 +1600,58 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         notes: 'Staged locally in the in-memory segment draft store.',
       });
       setGraphQLResponse(request, 200, responseBody);
+      return true;
+    },
+  },
+  {
+    name: 'saved-searches',
+    canHandle: (request) => request.capability.domain === 'saved-searches',
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (!request.parsed.rootFields.every((rootField) => isSavedSearchQueryRoot(rootField))) {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(request, 200, handleSavedSearchQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        hydrateSavedSearchesFromUpstreamResponse(request.body.query, upstreamResponse.body);
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          store.hasStagedSavedSearches() ||
+            (isSavedSearchQueryRoot(request.primaryRootField) && store.hasSavedSearches())
+            ? handleSavedSearchQuery(request.body.query, request.variables)
+            : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const savedSearchMutation = handleSavedSearchMutation(request.body.query, request.variables);
+      if (!savedSearchMutation) {
+        return false;
+      }
+
+      appendStagedMutationLog(request, {
+        stagedResourceIds: savedSearchMutation.stagedResourceIds,
+        notes:
+          'Staged locally in the in-memory saved-search draft store; URL redirect saved-search branches remain blocked until online-store navigation conformance is captured.',
+      });
+      setGraphQLResponse(request, 200, savedSearchMutation.response);
       return true;
     },
   },
