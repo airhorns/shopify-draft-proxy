@@ -69,6 +69,11 @@ import {
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
 import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+} from '../src/proxy/saved-searches.js';
+import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
 } from '../src/proxy/metafield-definitions.js';
@@ -747,12 +752,12 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
 
 function materializeValue(
   rawValue: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
   previousProxyResponse: unknown,
   capture?: unknown,
 ): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse, previousProxyResponse, capture));
+    return rawValue.map((item) => materializeValue(item, proxyResponses, previousProxyResponse, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -760,7 +765,11 @@ function materializeValue(
   }
 
   if (typeof rawValue['fromPrimaryProxyPath'] === 'string') {
-    return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
+    return readJsonPath(proxyResponses['primary'], rawValue['fromPrimaryProxyPath']);
+  }
+
+  if (typeof rawValue['fromProxyResponse'] === 'string' && typeof rawValue['path'] === 'string') {
+    return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
   }
 
   if (typeof rawValue['fromPreviousProxyPath'] === 'string') {
@@ -774,18 +783,18 @@ function materializeValue(
   return Object.fromEntries(
     Object.entries(rawValue).map(([key, value]) => [
       key,
-      materializeValue(value, primaryProxyResponse, previousProxyResponse, capture),
+      materializeValue(value, proxyResponses, previousProxyResponse, capture),
     ]),
   );
 }
 
 function materializeVariables(
   rawVariables: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
   previousProxyResponse: unknown,
   capture?: unknown,
 ): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse, previousProxyResponse, capture);
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, previousProxyResponse, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -1036,6 +1045,35 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
+    const savedSearchMutation = handleSavedSearchMutation(document, variables);
+    if (!savedSearchMutation) {
+      throw new Error(
+        `Registered saved-search parity request was not handled locally: ${
+          capability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      stagedResourceIds: savedSearchMutation.stagedResourceIds,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: savedSearchMutation.response,
     };
   }
 
@@ -1470,6 +1508,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleSegmentsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
+    if (upstreamPayload !== undefined) {
+      hydrateSavedSearchesFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSavedSearchQuery(document, variables),
     };
   }
 
@@ -2354,6 +2403,47 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
       balance,
     },
   ]);
+
+  return true;
+}
+
+function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
+  const seedOrder = readArrayField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'seedOrder'), 'response'),
+        'data',
+      ),
+      'orders',
+    ),
+    'nodes',
+  )
+    .filter(isPlainObject)
+    .at(0);
+  const seedOrderId = readStringField(seedOrder, 'id');
+  if (!seedOrder || !seedOrderId) {
+    return false;
+  }
+
+  store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+
+  const beforeSetCount = readNumberField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'beforeSet'), 'response'),
+        'data',
+      ),
+      'customersCount',
+    ),
+    'count',
+  );
+  if (beforeSetCount !== null) {
+    const placeholders = [];
+    for (let index = 0; index < Math.max(0, beforeSetCount - 1); index += 1) {
+      placeholders.push(makePlaceholderCustomer(index));
+    }
+    store.upsertBaseCustomers(placeholders);
+  }
 
   return true;
 }
@@ -6576,6 +6666,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedCustomerOrderSummaryPreconditions(capture)) {
+    return;
+  }
+
   if (seedStoreCreditAccountPreconditions(capture)) {
     return;
   }
@@ -7204,13 +7298,13 @@ function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
   capture: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
   previousProxyResponse: unknown,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
     return materializeVariables(
       readJsonPath(capture, request.variablesCapturePath),
-      primaryProxyResponse,
+      proxyResponses,
       previousProxyResponse,
       capture,
     );
@@ -7219,7 +7313,7 @@ function readRequestVariables(
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse, previousProxyResponse, capture);
+  return materializeVariables(rawVariables, proxyResponses, previousProxyResponse, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -7284,13 +7378,15 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {}, {});
+  const proxyResponses: Record<string, unknown> = {};
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
   );
+  proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
   let previousProxyResponseBody: unknown = primaryProxyResponse.body;
@@ -7307,7 +7403,7 @@ export async function executeParityScenario({
         repoRoot,
         target.proxyRequest,
         capture,
-        primaryProxyResponse.body,
+        proxyResponses,
         previousProxyResponseBody,
       );
       const upstreamPayload =
@@ -7319,6 +7415,7 @@ export async function executeParityScenario({
       const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;
+      proxyResponses[target.name] = proxyResponse.body;
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
