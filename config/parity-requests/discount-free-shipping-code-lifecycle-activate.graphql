@@ -1,0 +1,20 @@
+mutation DiscountCodeFreeShippingLifecycleActivate($id: ID!) {
+  discountCodeActivate(id: $id) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
