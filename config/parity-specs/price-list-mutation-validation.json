@@ -14,6 +14,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/price-list-mutation-validation.json"
   ],
+  "runtimeTestFiles": ["tests/integration/markets-lifecycle-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/price-list-create-invalid-currency-validation.graphql",
     "variablesCapturePath": "$.cases[0].variables"

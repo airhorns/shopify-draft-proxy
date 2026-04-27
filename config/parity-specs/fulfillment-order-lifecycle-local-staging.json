@@ -4,8 +4,10 @@
     "fulfillmentOrderHold",
     "fulfillmentOrderReleaseHold",
     "fulfillmentOrderMove",
+    "fulfillmentOrderReschedule",
     "fulfillmentOrderReportProgress",
     "fulfillmentOrderOpen",
+    "fulfillmentOrderClose",
     "fulfillmentOrderCancel"
   ],
   "scenarioStatus": "captured",

@@ -1,6 +1,7 @@
 {
   "scenarioId": "customer-address-lifecycle-parity",
   "operationNames": [
+    "customerCreate",
     "customerAddressCreate",
     "customerAddressUpdate",
     "customerAddressDelete",

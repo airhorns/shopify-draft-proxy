@@ -63,7 +63,7 @@ import {
   handleOnlineStoreQuery,
   hydrateOnlineStoreFromUpstreamResponse,
 } from '../src/proxy/online-store.js';
-import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
+import { findOperationRegistryEntry, listOperationRegistryEntries } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -209,6 +209,21 @@ interface Difference {
   actual: unknown;
 }
 
+export interface ExecutedOperation {
+  type: ParsedOperation['type'];
+  name: string | null;
+  rootFields: string[];
+}
+
+export interface OperationNameValidationResult {
+  declaredMutationOperationNames: string[];
+  actualMutationOperationNames: string[];
+  runtimeTestBackedMutationOperationNames: string[];
+  missingMutationOperationNames: string[];
+  unexpectedMutationOperationNames: string[];
+  errors: string[];
+}
+
 interface CompiledRule extends ExpectedDifference {
   index: number;
   segments: PathSegment[];
@@ -222,6 +237,12 @@ const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
 ]);
+const operationRegistryEntries = listOperationRegistryEntries();
+const registeredMutationOperationNames = new Set(
+  operationRegistryEntries
+    .filter((entry) => entry.type === 'mutation')
+    .flatMap((entry) => [entry.name, ...entry.matchNames]),
+);
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -811,6 +832,85 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function hasRuntimeTestEvidence(operationName: string, paritySpec: Pick<ParitySpec, 'runtimeTestFiles'>): boolean {
+  const declaredRuntimeTestFiles = new Set(paritySpec.runtimeTestFiles ?? []);
+  if (declaredRuntimeTestFiles.size === 0) {
+    return false;
+  }
+
+  const registryEntry = operationRegistryEntries.find(
+    (entry) => entry.type === 'mutation' && entry.matchNames.includes(operationName),
+  );
+  return registryEntry?.runtimeTests.some((runtimeTestFile) => declaredRuntimeTestFiles.has(runtimeTestFile)) ?? false;
+}
+
+export function validateParityScenarioOperationNames({
+  scenario,
+  paritySpec,
+  executedOperations,
+}: {
+  scenario: Scenario;
+  paritySpec: Pick<ParitySpec, 'operationNames' | 'runtimeTestFiles'>;
+  executedOperations: ExecutedOperation[];
+}): OperationNameValidationResult {
+  const actualMutationOperationNames = uniqueSorted(
+    executedOperations.flatMap((operation) => (operation.type === 'mutation' ? operation.rootFields : [])),
+  );
+  const actualMutationOperationNameSet = new Set(actualMutationOperationNames);
+  const declaredMutationOperationNames = uniqueSorted(
+    (scenario.operationNames ?? paritySpec.operationNames ?? []).filter(
+      (operationName) =>
+        registeredMutationOperationNames.has(operationName) || actualMutationOperationNameSet.has(operationName),
+    ),
+  );
+  const declaredMutationOperationNameSet = new Set(declaredMutationOperationNames);
+  const runtimeTestBackedMutationOperationNames = declaredMutationOperationNames.filter((operationName) =>
+    hasRuntimeTestEvidence(operationName, paritySpec),
+  );
+  const runtimeTestBackedMutationOperationNameSet = new Set(runtimeTestBackedMutationOperationNames);
+  const missingMutationOperationNames = declaredMutationOperationNames.filter(
+    (operationName) =>
+      !actualMutationOperationNameSet.has(operationName) &&
+      !runtimeTestBackedMutationOperationNameSet.has(operationName),
+  );
+  const unexpectedMutationOperationNames = actualMutationOperationNames.filter(
+    (operationName) => !declaredMutationOperationNameSet.has(operationName),
+  );
+  const errors = [
+    ...(missingMutationOperationNames.length > 0
+      ? [
+          `Scenario ${scenario.id} declares mutation operation(s) ${missingMutationOperationNames.join(
+            ', ',
+          )} in operationNames but did not execute them. Actual executed mutation operation(s): ${
+            actualMutationOperationNames.join(', ') || '(none)'
+          }.`,
+        ]
+      : []),
+    ...(unexpectedMutationOperationNames.length > 0
+      ? [
+          `Scenario ${scenario.id} executed mutation operation(s) ${unexpectedMutationOperationNames.join(
+            ', ',
+          )} but does not declare them in operationNames. Declared mutation operation(s): ${
+            declaredMutationOperationNames.join(', ') || '(none)'
+          }.`,
+        ]
+      : []),
+  ];
+
+  return {
+    declaredMutationOperationNames,
+    actualMutationOperationNames,
+    runtimeTestBackedMutationOperationNames,
+    missingMutationOperationNames,
+    unexpectedMutationOperationNames,
+    errors,
+  };
+}
+
 const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
   'inventoryShipmentCreate',
   'inventoryShipmentCreateInTransit',
@@ -827,8 +927,14 @@ async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
+  onExecutedOperation?: (operation: ExecutedOperation) => void,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
+  onExecutedOperation?.({
+    type: parsed.type,
+    name: parsed.name,
+    rootFields: [...parsed.rootFields],
+  });
   const capability = getOperationCapability(parsed);
   const registeredCapability = readRegisteredParityCapability(parsed, capability);
 
@@ -7530,6 +7636,7 @@ export async function executeParityScenario({
   ok: boolean;
   primaryProxyStatus: number;
   comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
+  operationNameValidation: OperationNameValidationResult;
 }> {
   if (!paritySpec.proxyRequest?.documentPath) {
     throw new Error(`Scenario ${scenario.id} does not define a proxy request.`);
@@ -7555,11 +7662,13 @@ export async function executeParityScenario({
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
   const proxyResponses: Record<string, unknown> = {};
   const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
+  const executedOperations: ExecutedOperation[] = [];
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
+    (operation) => executedOperations.push(operation),
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -7587,7 +7696,9 @@ export async function executeParityScenario({
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
+        executedOperations.push(operation),
+      );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;
       proxyResponses[target.name] = proxyResponse.body;
@@ -7610,9 +7721,16 @@ export async function executeParityScenario({
     });
   }
 
+  const operationNameValidation = validateParityScenarioOperationNames({
+    scenario,
+    paritySpec,
+    executedOperations,
+  });
+
   return {
-    ok: comparisons.every((comparison) => comparison.ok),
+    ok: comparisons.every((comparison) => comparison.ok) && operationNameValidation.errors.length === 0,
     primaryProxyStatus: primaryProxyResponse.status,
     comparisons,
+    operationNameValidation,
   };
 }

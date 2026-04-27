@@ -1,6 +1,13 @@
 {
   "scenarioId": "customer-order-summary-read-effects",
-  "operationNames": ["customer", "customers", "customersCount", "orderCustomerSet", "orderCustomerRemove"],
+  "operationNames": [
+    "customer",
+    "customers",
+    "customersCount",
+    "customerCreate",
+    "orderCustomerSet",
+    "orderCustomerRemove"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [

@@ -1,6 +1,6 @@
 {
   "scenarioId": "order-payment-transaction-local-staging",
-  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
+  "operationNames": ["orderCreate", "orderCapture", "transactionVoid", "orderCreateMandatePayment"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/order-payment-transaction-local-staging.json"],

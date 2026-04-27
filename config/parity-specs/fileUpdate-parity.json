@@ -1,6 +1,6 @@
 {
   "scenarioId": "file-update-live-parity",
-  "operationNames": ["fileUpdate"],
+  "operationNames": ["fileCreate", "fileUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-update-parity.json"],
