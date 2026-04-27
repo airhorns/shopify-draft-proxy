@@ -3988,10 +3988,10 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["availableCarrierServices", "AvailableCarrierServices"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL carrier-service availability root. Registry-only declared gap until active carrier service/location pairing and empty-list behavior are captured."
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Admin GraphQL carrier-service availability root. Snapshot/local reads pair active local DeliveryCarrierService records with active merchant-managed locations and return an empty list when no local carrier services are available; local staging never invokes rate or service-discovery callbacks."
   },
   {
     "name": "carrierService",
@@ -4238,13 +4238,103 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": [
       "locationsAvailableForDeliveryProfilesConnection",
       "LocationsAvailableForDeliveryProfilesConnection"
     ],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Delivery-profile origin-location helper root. Snapshot/local reads serialize active local locations through the shared connection helpers, including cursor pagination, reverse ordering, empty/no-data behavior, and local-pickup settings staged by locationLocalPickupEnable/Disable."
+  },
+  {
+    "name": "locationLocalPickupDisable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupDisable", "LocationLocalPickupDisable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally disables local pickup for active local Location records, returns captured ACTIVE_LOCATION_NOT_FOUND userErrors for unknown/inactive locations, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "locationLocalPickupEnable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupEnable", "LocationLocalPickupEnable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally enables local pickup for active local Location records using captured DeliveryLocalPickupSettings payload shape, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "shippingPackageDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageDelete", "ShippingPackageDelete"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages deletion of normalized shipping packages and returns deletedId plus empty userErrors for known local package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "shippingPackageMakeDefault",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageMakeDefault", "ShippingPackageMakeDefault"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages default package selection across normalized shipping packages and preserves raw mutation order for commit replay. Admin GraphQL exposes no package read root in this schema, so local visibility is through meta state and downstream package bookkeeping."
+  },
+  {
+    "name": "shippingPackageUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageUpdate", "ShippingPackageUpdate"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "fulfillmentConstraintRules",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRules", "FulfillmentConstraintRules"],
     "runtimeTests": [],
-    "supportNotes": "Delivery-profile origin-location helper root. Registry-only declared gap until active origin location eligibility, pickup/local-delivery/shipping-rate configuration, and cursor behavior are captured."
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring read_fulfillment_constraint_rules. Keep registry-only until rule visibility, Shopify Function shape, and scope requirements can be captured and modeled."
+  },
+  {
+    "name": "fulfillmentConstraintRuleCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleCreate", "FulfillmentConstraintRuleCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Do not mark supported until Shopify Function ownership, metafield side effects, and downstream rule reads are captured."
+  },
+  {
+    "name": "fulfillmentConstraintRuleDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleDelete", "FulfillmentConstraintRuleDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Delete semantics remain registry-only until a scoped test app can capture success and downstream absence behavior."
+  },
+  {
+    "name": "fulfillmentConstraintRuleUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleUpdate", "FulfillmentConstraintRuleUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Update semantics remain registry-only until delivery-method and downstream read behavior are captured."
   },
   {
     "name": "deliveryProfileCreate",
