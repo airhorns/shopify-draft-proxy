@@ -2262,11 +2262,7 @@ export class InMemoryStore {
     this.stagedState.deletedMetafieldDefinitionIds[definitionId] = true;
   }
 
-  deleteProductMetafieldsForDefinition(definition: {
-    ownerType: string;
-    namespace: string;
-    key: string;
-  }): void {
+  deleteProductMetafieldsForDefinition(definition: { ownerType: string; namespace: string; key: string }): void {
     if (definition.ownerType !== 'PRODUCT') {
       return;
     }

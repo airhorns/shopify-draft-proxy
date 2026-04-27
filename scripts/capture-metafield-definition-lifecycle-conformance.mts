@@ -152,13 +152,10 @@ try {
     product: { title: `HAR-145 definition lifecycle ${suffix}` },
   });
   captures.push(productCreate);
-  productId =
-    readObject(readObject(readObject(productCreate.response)?.['data'])?.['productCreate'])?.['product'] &&
-    readObject(readObject(readObject(productCreate.response)?.['data'])?.['productCreate'])?.['product'] !== null
-      ? (readObject(readObject(readObject(productCreate.response)?.['data'])?.['productCreate'])?.['product'] as {
-          id?: string;
-        }).id ?? null
-      : null;
+  const createdProduct = readObject(readObject(readObject(productCreate.response)?.['data'])?.['productCreate'])?.[
+    'product'
+  ] as { id?: string } | null;
+  productId = createdProduct?.id ?? null;
   if (!productId) {
     throw new Error('productCreate setup did not return a product id');
   }
@@ -176,10 +173,10 @@ try {
     },
   });
   captures.push(createDefinition);
-  definitionId =
-    (readObject(
-      readObject(readObject(createDefinition.response)?.['data'])?.['metafieldDefinitionCreate'],
-    )?.['createdDefinition'] as { id?: string } | null)?.id ?? null;
+  const createdDefinition = readObject(
+    readObject(readObject(createDefinition.response)?.['data'])?.['metafieldDefinitionCreate'],
+  )?.['createdDefinition'] as { id?: string } | null;
+  definitionId = createdDefinition?.id ?? null;
   if (!definitionId) {
     throw new Error('metafieldDefinitionCreate did not return a definition id');
   }

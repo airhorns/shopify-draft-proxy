@@ -13,8 +13,10 @@ const config: AppConfig = {
 };
 
 async function createProduct(app: ReturnType<typeof createApp>['callback'] extends () => infer T ? T : never) {
-  const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
-    query: `#graphql
+  const response = await request(app)
+    .post('/admin/api/2025-01/graphql.json')
+    .send({
+      query: `#graphql
       mutation {
         productCreate(product: { title: "Definition host" }) {
           product { id }
@@ -22,7 +24,7 @@ async function createProduct(app: ReturnType<typeof createApp>['callback'] exten
         }
       }
     `,
-  });
+    });
 
   expect(response.status).toBe(200);
   expect(response.body.data.productCreate.userErrors).toEqual([]);

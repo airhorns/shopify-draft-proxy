@@ -835,11 +835,7 @@ function readDefinitionInput(args: Record<string, unknown>): Record<string, unkn
   return readObject(args['definition']) ?? {};
 }
 
-function makeDefinitionUserError(
-  field: string[],
-  message: string,
-  code: string,
-): MetafieldDefinitionUserError {
+function makeDefinitionUserError(field: string[], message: string, code: string): MetafieldDefinitionUserError {
   return { field, message, code };
 }
 
