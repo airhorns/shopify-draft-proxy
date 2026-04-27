@@ -1,0 +1,16 @@
+mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+  carrierServiceCreate(input: $input) {
+    carrierService {
+      id
+      name
+      formattedName
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,17 @@
+mutation CreateBlank($name: String!, $callbackUrl: URL) {
+  fulfillmentServiceCreate(
+    name: $name
+    callbackUrl: $callbackUrl
+    trackingSupport: true
+    inventoryManagement: true
+    requiresShippingMethod: true
+  ) {
+    fulfillmentService {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

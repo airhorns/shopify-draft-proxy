@@ -1,0 +1,26 @@
+query CarrierServiceAfterUpdate($id: ID!, $first: Int!, $activeQuery: String) {
+  carrierService(id: $id) {
+    id
+    name
+    formattedName
+    callbackUrl
+    active
+    supportsServiceDiscovery
+  }
+  active: carrierServices(first: $first, query: $activeQuery, sortKey: ID) {
+    nodes {
+      id
+      name
+      formattedName
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
