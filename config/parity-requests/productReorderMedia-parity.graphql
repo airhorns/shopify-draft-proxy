@@ -1,0 +1,12 @@
+mutation ProductReorderMediaParity($id: ID!, $moves: [MoveInput!]!) {
+  productReorderMedia(id: $id, moves: $moves) {
+    job {
+      id
+      done
+    }
+    mediaUserErrors {
+      field
+      message
+    }
+  }
+}

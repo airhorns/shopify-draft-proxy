@@ -269,6 +269,106 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('merchant billing');
   });
 
+  it('marks delivery customization, promise, and settings mutations as unsafe unsupported passthrough in logs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            deliveryCustomizationCreate: {
+              deliveryCustomization: null,
+              userErrors: [],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    });
+
+    const app = createApp(config);
+    const probes = [
+      {
+        root: 'deliveryCustomizationCreate',
+        classification: 'unsupported-delivery-customization-function-mutation',
+        query: `#graphql
+          mutation CreateDeliveryCustomization {
+            deliveryCustomizationCreate(
+              deliveryCustomization: { functionId: "00000000-0000-4000-8000-000000000000", title: "Test" }
+            ) {
+              deliveryCustomization {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'deliveryPromiseProviderUpsert',
+        classification: 'unsupported-delivery-promise-mutation',
+        query: `#graphql
+          mutation UpsertDeliveryPromiseProvider {
+            deliveryPromiseProviderUpsert(locationId: "gid://shopify/Location/1", active: true) {
+              deliveryPromiseProvider {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+      {
+        root: 'deliverySettingUpdate',
+        classification: 'unsupported-delivery-settings-mutation',
+        query: `#graphql
+          mutation UpdateDeliverySetting {
+            deliverySettingUpdate(setting: { legacyModeProfiles: false }) {
+              setting {
+                legacyModeProfiles
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      },
+    ];
+
+    for (const probe of probes) {
+      const response = await request(app.callback())
+        .post('/admin/api/2025-01/graphql.json')
+        .set('x-shopify-access-token', 'shpat_test')
+        .send({ query: probe.query });
+
+      expect(response.status).toBe(200);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(probes.length);
+    expect(store.getLog()).toHaveLength(probes.length);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(probes.map(() => 'proxied'));
+    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.name)).toEqual(
+      probes.map((probe) => probe.root),
+    );
+    expect(store.getLog().map((entry) => entry.interpreted.safety?.classification)).toEqual(
+      probes.map((probe) => probe.classification),
+    );
+    expect(store.getLog().map((entry) => entry.notes)).toEqual([
+      'Unsupported delivery customization mutation would be proxied to Shopify. Delivery customizations are Shopify Function-backed and require conformance-backed local staging for function ownership, activation, metafields, and downstream reads before support.',
+      'Unsupported delivery promise mutation would be proxied to Shopify. Delivery promise provider and participant roots require delivery-promise scope evidence, owner/location eligibility, and local read-after-write modeling before support.',
+      'Unsupported delivery settings mutation would be proxied to Shopify. Delivery setting changes alter shop delivery configuration and require conformance-backed transition and downstream read modeling before support.',
+    ]);
+  });
+
   it('logs product merchandising mutation roots as registered unsupported gaps', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(JSON.stringify({ data: {} }), {

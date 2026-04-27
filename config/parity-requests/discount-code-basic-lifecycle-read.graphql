@@ -1,0 +1,24 @@
+query DiscountCodeBasicLifecycleRead($id: ID!, $code: String!) {
+  discountNode(id: $id) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    id
+  }
+  discountNodes(first: 5, query: "status:active") {
+    nodes {
+      id
+    }
+  }
+  discountNodesCount(query: "status:active") {
+    count
+    precision
+  }
+}

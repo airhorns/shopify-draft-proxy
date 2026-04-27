@@ -1,0 +1,35 @@
+mutation DiscountAutomaticFreeShippingLifecycleUpdate($id: ID!, $input: DiscountAutomaticFreeShippingInput!) {
+  discountAutomaticFreeShippingUpdate(id: $id, freeShippingAutomaticDiscount: $input) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          summary
+          destinationSelection {
+            __typename
+            ... on DiscountCountries {
+              countries
+              includeRestOfWorld
+            }
+          }
+          maximumShippingPrice {
+            amount
+            currencyCode
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+          recurringCycleLimit
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -1,0 +1,8 @@
+query Loc($id: ID!) {
+  location(id: $id) {
+    id
+    name
+    isFulfillmentService
+    isActive
+  }
+}

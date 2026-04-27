@@ -1,0 +1,9 @@
+mutation CarrierServiceDeleteProbe($id: ID!) {
+  carrierServiceDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+    }
+  }
+}

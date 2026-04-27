@@ -1,0 +1,33 @@
+#graphql
+mutation CustomerOrderSummaryCreateCustomer($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      displayName
+      email
+      numberOfOrders
+      amountSpent {
+        amount
+        currencyCode
+      }
+      lastOrder {
+        id
+      }
+      orders(first: 1) {
+        nodes {
+          id
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -15,13 +15,71 @@
   ],
   "runtimeTestFiles": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/bulk-operation-catalog-empty-running-mutation.graphql",
-    "variablesPath": "config/parity-requests/bulk-operation-catalog-empty-running-mutation.variables.json"
+    "documentPath": "config/parity-requests/bulk-operation-status-parity-read.graphql",
+    "variablesPath": "config/parity-requests/bulk-operation-status-parity-read.variables.json"
   },
-  "comparisonMode": "captured-fixture",
-  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. HAR-263 implements the local BulkOperation state/read/list/current/cancel foundation using that fixture evidence. HAR-265 adds runtime-test-backed local bulkOperationRunMutation import staging for already-supported product inner mutation roots, including staged upload handoff, result JSONL, unsupported-root failure, mutation-log ordering, and downstream product read-after-write behavior; exact Shopify import result-file schema and partial-failure status semantics still need live capture before this support broadens beyond product-local roots. bulkOperationRunQuery execution remains unsupported.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. HAR-263 implements the local BulkOperation state/read/list/current/cancel foundation using that fixture evidence; HAR-346 promotes the read/cancel foundation to generic strict parity by seeding captured BulkOperation jobs into the local proxy harness, comparing empty read/list/current behavior, unknown and terminal cancel userErrors, local staged cancel, and read-after-local-cancel. HAR-265 adds runtime-test-backed local bulkOperationRunMutation import staging for already-supported product inner mutation roots, including staged upload handoff, result JSONL, unsupported-root failure, mutation-log ordering, and downstream product read-after-write behavior; exact Shopify import result-file schema and partial-failure status semantics still need live capture before this support broadens beyond product-local roots. bulkOperationRunQuery execution remains unsupported.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-id-read-null",
+        "capturePath": "$.reads.unknownId.response.data.bulkOperation",
+        "proxyPath": "$.data.unknown"
+      },
+      {
+        "name": "empty-running-query-catalog",
+        "capturePath": "$.reads.catalogEmptyRunningQuery.response.data.bulkOperations",
+        "proxyPath": "$.data.runningQueries"
+      },
+      {
+        "name": "empty-running-mutation-catalog",
+        "capturePath": "$.reads.catalogEmptyRunningMutation.response.data.bulkOperations",
+        "proxyPath": "$.data.runningMutations"
+      },
+      {
+        "name": "current-mutation-empty",
+        "capturePath": "$.reads.currentMutation.response.data.currentBulkOperation",
+        "proxyPath": "$.data.currentMutation"
+      },
+      {
+        "name": "unknown-id-cancel-user-error",
+        "capturePath": "$.validations.bulkOperationCancelUnknownId.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.validations.bulkOperationCancelUnknownId.variables"
+        }
+      },
+      {
+        "name": "terminal-cancel-user-error",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportToTerminal.terminalCancelAttempt.variables"
+        }
+      },
+      {
+        "name": "staged-running-cancel",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
+        }
+      },
+      {
+        "name": "read-after-staged-cancel",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.statusPolls[0].response.data.bulkOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operation-by-id-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.statusPolls[0].variables"
+        }
+      }
+    ]
   }
 }
