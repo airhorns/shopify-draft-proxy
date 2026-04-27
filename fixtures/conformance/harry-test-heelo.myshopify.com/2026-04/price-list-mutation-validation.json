@@ -1,0 +1,30 @@
+{
+  "cases": [
+    {
+      "name": "priceListCreate invalid currency",
+      "variables": {
+        "input": {
+          "name": "Codex Invalid Currency",
+          "currency": "ZZZ"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "currency"],
+                  "message": "Currency isn't included in the list",
+                  "code": "INCLUSION"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

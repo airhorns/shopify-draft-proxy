@@ -1,0 +1,11 @@
+mutation OrderCreateValidationMatrix($noLineItems: OrderCreateOrderInput!) {
+  noLineItems: orderCreate(order: $noLineItems) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
