@@ -1,0 +1,63 @@
+#graphql
+query CustomerOrderSummaryRead($id: ID!, $emailQuery: String!) {
+  customer(id: $id) {
+    id
+    displayName
+    email
+    numberOfOrders
+    amountSpent {
+      amount
+      currencyCode
+    }
+    lastOrder {
+      id
+      name
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    orders(first: 3) {
+      nodes {
+        id
+        name
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        customer {
+          id
+          email
+          displayName
+        }
+      }
+      edges {
+        cursor
+        node {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  customers(first: 3, query: $emailQuery) {
+    nodes {
+      id
+      email
+      numberOfOrders
+    }
+  }
+  customersCount {
+    count
+    precision
+  }
+}

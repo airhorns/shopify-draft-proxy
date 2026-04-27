@@ -4,11 +4,43 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "media-user-errors-parity", "downstream-read-parity", "sort-order-semantics"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-reorder-media-parity.json"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productReorderMedia-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["tests/integration/product-draft-flow.test.ts"],
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [
+      {
+        "path": "$.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "The proxy allocates a stable synthetic async Job GID while Shopify returns the live job from the captured reorder."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-payload",
+        "capturePath": "$.mutation.response.data.productReorderMedia",
+        "proxyPath": "$.data.productReorderMedia"
+      },
+      {
+        "name": "downstream-product",
+        "capturePath": "$.downstreamRead.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/productReorderMedia-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.mutation.variables.id"
+            }
+          }
+        },
+        "upstreamCapturePath": null,
+        "proxyPath": "$.data.product",
+        "excludedPaths": ["$.media.nodes[1].status"]
+      }
+    ]
   },
-  "notes": "Runtime-test-backed live fixture for `productReorderMedia`. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false` and downstream `product.media` reflected zero-based `MoveInput.newPosition` ordering while the image connection stayed empty for processing media."
+  "notes": "Executable parity for `productReorderMedia`: the generic parity runner now seeds product media from the captured setup `productCreateMedia` response, replays the captured reorder against the local proxy, and compares the mutation payload plus downstream product media/image reads. Live Admin GraphQL 2025-01 returned an async `Job` with `done: false`; the proxy also stages an async-style job with a synthetic ID. The downstream media target excludes the second node status because Shopify's async image processing changed the setup `UPLOADED` media to `PROCESSING` independently of reorder semantics; IDs, alt text, media type, zero-based `MoveInput.newPosition` ordering, and empty `images` nodes remain strict comparison evidence."
 }

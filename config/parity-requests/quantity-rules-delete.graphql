@@ -1,0 +1,10 @@
+mutation QuantityRulesDelete($priceListId: ID!, $variantIds: [ID!]!) {
+  quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+    deletedQuantityRulesVariantIds
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

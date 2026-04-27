@@ -116,6 +116,11 @@ This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscript
 
 The capture used `WebhookSubscriptionInput.uri` with an `https://example.com/...` HTTP endpoint, `format: JSON`, selected `includeFields`, and selected `metafieldNamespaces`. The created subscription was deleted during the same script run.
 
+HAR-356 promotes the captured evidence into two executable strict parity contracts:
+
+- `webhook-subscription-catalog-read` compares the captured empty `webhookSubscriptions` connection, count precision, filtered count, and unknown-detail null behavior against the local proxy in snapshot mode.
+- `webhook-subscription-conformance` replays the captured create/update/delete lifecycle through local staging, then compares mutation payloads, detail read-after-write responses, read-after-delete absence, and captured validation branches. Live Shopify IDs and timestamps are accepted only through path-scoped matchers because the proxy uses synthetic IDs and a deterministic synthetic clock.
+
 ## Access And Scope Notes
 
 The capture fixture includes the active app access scopes returned by `currentAppInstallation.accessScopes`. The captured grant did not expose dedicated `read_webhooks` or `write_webhooks` handles; it could still read and manage API-created subscriptions for the app. Topic-specific requirements can still vary by topic, so future runtime work should keep scope/topic failures as conformance-backed validation rather than hardcoded assumptions.

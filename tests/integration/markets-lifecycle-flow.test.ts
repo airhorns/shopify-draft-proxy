@@ -1970,11 +1970,11 @@ describe('Markets lifecycle staging', () => {
             {
               variantId,
               price: {
-                amount: '42.00',
+                amount: '42.0',
                 currencyCode: 'EUR',
               },
               compareAtPrice: {
-                amount: '50.00',
+                amount: '50.0',
                 currencyCode: 'EUR',
               },
             },
@@ -1991,11 +1991,11 @@ describe('Markets lifecycle staging', () => {
         cursor: variantId,
         node: {
           price: {
-            amount: '42.00',
+            amount: '42.0',
             currencyCode: 'EUR',
           },
           compareAtPrice: {
-            amount: '50.00',
+            amount: '50.0',
             currencyCode: 'EUR',
           },
           originType: 'FIXED',
@@ -2043,7 +2043,7 @@ describe('Markets lifecycle staging', () => {
             {
               variantId,
               price: {
-                amount: '43.00',
+                amount: '43.0',
                 currencyCode: 'EUR',
               },
             },
@@ -2091,7 +2091,7 @@ describe('Markets lifecycle staging', () => {
             {
               variantId,
               price: {
-                amount: '40.00',
+                amount: '40.0',
                 currencyCode: 'EUR',
               },
             },
@@ -2106,7 +2106,7 @@ describe('Markets lifecycle staging', () => {
     expect(
       byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.priceList.prices.edges[0].node.price,
     ).toEqual({
-      amount: '40.00',
+      amount: '40.0',
       currencyCode: 'EUR',
     });
 
@@ -2189,7 +2189,7 @@ describe('Markets lifecycle staging', () => {
               {
                 variantId,
                 price: {
-                  amount: '38.00',
+                  amount: '38.0',
                   currencyCode: 'EUR',
                 },
               },
@@ -2209,7 +2209,7 @@ describe('Markets lifecycle staging', () => {
                 variantId,
                 minimumQuantity: 8,
                 price: {
-                  amount: '35.00',
+                  amount: '35.0',
                   currencyCode: 'EUR',
                 },
               },
@@ -2262,7 +2262,7 @@ describe('Markets lifecycle staging', () => {
     ]);
     expect(readQuantityPricingResponse.body.data.priceList.prices.edges).toHaveLength(1);
     expect(readQuantityPricingResponse.body.data.priceList.prices.edges[0].node.price).toEqual({
-      amount: '38.00',
+      amount: '38.0',
       currencyCode: 'EUR',
     });
     expect(readQuantityPricingResponse.body.data.priceList.prices.edges[0].node.quantityPriceBreaks.edges).toEqual([
@@ -2272,7 +2272,7 @@ describe('Markets lifecycle staging', () => {
           id: expect.stringMatching(/^gid:\/\/shopify\/QuantityPriceBreak\//),
           minimumQuantity: 8,
           price: {
-            amount: '35.00',
+            amount: '35.0',
             currencyCode: 'EUR',
           },
           variant: {
@@ -2366,7 +2366,7 @@ describe('Markets lifecycle staging', () => {
             {
               variantId,
               price: {
-                amount: '39.00',
+                amount: '39.0',
                 currencyCode: 'EUR',
               },
             },

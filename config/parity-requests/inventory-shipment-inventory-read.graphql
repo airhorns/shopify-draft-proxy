@@ -1,0 +1,16 @@
+query InventoryShipmentInventoryReadParity($id: ID!) {
+  inventoryItem(id: $id) {
+    variant {
+      id
+      inventoryQuantity
+    }
+    inventoryLevels(first: 5) {
+      nodes {
+        quantities(names: ["available", "on_hand", "incoming"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+}
