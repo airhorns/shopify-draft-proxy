@@ -1,4 +1,4 @@
-query Har299CollectionMembershipRead($collectionId: ID!, $productId: ID!) {
+query ProductRelationshipCollectionMembershipRead($collectionId: ID!, $productId: ID!) {
   collection(id: $collectionId) {
     id
     title

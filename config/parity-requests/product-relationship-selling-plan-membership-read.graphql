@@ -1,4 +1,4 @@
-query Har299SellingPlanMembershipRead($productId: ID!, $variantId: ID!) {
+query ProductRelationshipSellingPlanMembershipRead($productId: ID!, $variantId: ID!) {
   product(id: $productId) {
     id
     sellingPlanGroups(first: 5) {

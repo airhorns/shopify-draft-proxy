@@ -1,21 +1,21 @@
 {
-  "capturedAt": "2026-04-27T20:28:43.197Z",
+  "capturedAt": "2026-04-27T21:21:52.977Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": [
-    "HAR-299 captures product/variant relationship roots that are replayed by the parity runner.",
+    "Product relationship root captures replayed by the parity runner.",
     "The script creates disposable products, a collection, media, and a selling-plan group, then deletes them during cleanup."
   ],
   "seedProducts": [
     {
-      "id": "gid://shopify/Product/10171996373298",
-      "title": "HAR-299 collection one mohngdtf",
-      "handle": "har-299-collection-one-mohngdtf",
+      "id": "gid://shopify/Product/10172011872562",
+      "title": "Product relationship collection one mohpcrbe",
+      "handle": "product-relationship-collection-one-mohpcrbe",
       "status": "DRAFT",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51104884130098",
+            "id": "gid://shopify/ProductVariant/51104997802290",
             "title": "Default Title",
             "selectedOptions": [
               {
@@ -28,14 +28,14 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10171996406066",
-      "title": "HAR-299 collection two mohngdtf",
-      "handle": "har-299-collection-two-mohngdtf",
+      "id": "gid://shopify/Product/10172011905330",
+      "title": "Product relationship collection two mohpcrbe",
+      "handle": "product-relationship-collection-two-mohpcrbe",
       "status": "DRAFT",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51104884162866",
+            "id": "gid://shopify/ProductVariant/51104997867826",
             "title": "Default Title",
             "selectedOptions": [
               {
@@ -48,37 +48,37 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10171996471602",
-      "title": "HAR-299 option reorder mohngdtf",
-      "handle": "har-299-option-reorder-mohngdtf",
+      "id": "gid://shopify/Product/10172011938098",
+      "title": "Product relationship option reorder mohpcrbe",
+      "handle": "product-relationship-option-reorder-mohpcrbe",
       "status": "DRAFT",
       "options": [
         {
-          "id": "gid://shopify/ProductOption/12718126104882",
+          "id": "gid://shopify/ProductOption/12718177845554",
           "name": "Color",
           "position": 1,
           "values": ["Red"],
           "optionValues": [
             {
-              "id": "gid://shopify/ProductOptionValue/7978909958450",
+              "id": "gid://shopify/ProductOptionValue/7979025891634",
               "name": "Red",
               "hasVariants": true
             },
             {
-              "id": "gid://shopify/ProductOptionValue/7978909991218",
+              "id": "gid://shopify/ProductOptionValue/7979025924402",
               "name": "Blue",
               "hasVariants": false
             }
           ]
         },
         {
-          "id": "gid://shopify/ProductOption/12718126137650",
+          "id": "gid://shopify/ProductOption/12718177878322",
           "name": "Size",
           "position": 2,
           "values": ["Small"],
           "optionValues": [
             {
-              "id": "gid://shopify/ProductOptionValue/7978910023986",
+              "id": "gid://shopify/ProductOptionValue/7979025957170",
               "name": "Small",
               "hasVariants": true
             }
@@ -88,7 +88,7 @@
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51104885145906",
+            "id": "gid://shopify/ProductVariant/51104997900594",
             "title": "Red / Small",
             "selectedOptions": [
               {
@@ -105,14 +105,14 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10171996504370",
-      "title": "HAR-299 variant media mohngdtf",
-      "handle": "har-299-variant-media-mohngdtf",
+      "id": "gid://shopify/Product/10172011970866",
+      "title": "Product relationship variant media mohpcrbe",
+      "handle": "product-relationship-variant-media-mohpcrbe",
       "status": "DRAFT",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51104885178674",
+            "id": "gid://shopify/ProductVariant/51104997933362",
             "title": "Default Title",
             "selectedOptions": [
               {
@@ -125,14 +125,14 @@
       }
     },
     {
-      "id": "gid://shopify/Product/10171996537138",
-      "title": "HAR-299 selling plan membership mohngdtf",
-      "handle": "har-299-selling-plan-membership-mohngdtf",
+      "id": "gid://shopify/Product/10172012003634",
+      "title": "Product relationship selling plan membership mohpcrbe",
+      "handle": "product-relationship-selling-plan-membership-mohpcrbe",
       "status": "DRAFT",
       "variants": {
         "nodes": [
           {
-            "id": "gid://shopify/ProductVariant/51104885211442",
+            "id": "gid://shopify/ProductVariant/51104997966130",
             "title": "Default Title",
             "selectedOptions": [
               {
@@ -147,9 +147,9 @@
   ],
   "seedCollections": [
     {
-      "id": "gid://shopify/Collection/512191922482",
-      "title": "HAR-299 relationship collection mohngdtf",
-      "handle": "har-299-relationship-collection-mohngdtf",
+      "id": "gid://shopify/Collection/512193167666",
+      "title": "Product relationship collection mohpcrbe",
+      "handle": "product-relationship-collection-mohpcrbe",
       "products": {
         "nodes": []
       },
@@ -162,37 +162,37 @@
   ],
   "seedProductMedia": [
     {
-      "productId": "gid://shopify/Product/10171996504370",
-      "id": "gid://shopify/MediaImage/43623636336946",
+      "productId": "gid://shopify/Product/10172011970866",
+      "id": "gid://shopify/MediaImage/43623803650354",
       "position": 1,
-      "alt": "HAR-299 front",
+      "alt": "Product relationship front",
       "mediaContentType": "IMAGE",
       "status": "READY",
-      "productImageId": "gid://shopify/ImageSource/43705707987250",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777321717"
+      "productImageId": "gid://shopify/ImageSource/43705876611378",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
     },
     {
-      "productId": "gid://shopify/Product/10171996504370",
-      "id": "gid://shopify/MediaImage/43623636369714",
+      "productId": "gid://shopify/Product/10172011970866",
+      "id": "gid://shopify/MediaImage/43623803683122",
       "position": 2,
-      "alt": "HAR-299 side",
+      "alt": "Product relationship side",
       "mediaContentType": "IMAGE",
       "status": "READY",
-      "productImageId": "gid://shopify/ImageSource/43705708020018",
-      "imageUrl": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_cd4bce6b-51b1-4199-9f75-4ca0c0b13fc1.png?v=1777321717"
+      "productImageId": "gid://shopify/ImageSource/43705876644146",
+      "imageUrl": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
     }
   ],
   "seedSellingPlanGroups": [
     {
-      "id": "gid://shopify/SellingPlanGroup/2877161778",
+      "id": "gid://shopify/SellingPlanGroup/2877227314",
       "appId": null,
-      "name": "HAR-299 membership mohngdtf",
-      "merchantCode": "har-299-mohngdtf",
-      "description": "Temporary selling plan group for HAR-299 conformance capture",
+      "name": "Product relationship membership mohpcrbe",
+      "merchantCode": "product-relationship-mohpcrbe",
+      "description": "Temporary selling plan group for product relationship conformance capture",
       "options": ["Delivery frequency"],
       "position": 1,
       "summary": "1 delivery frequency, 10% discount",
-      "createdAt": "2026-04-27T20:28:42Z",
+      "createdAt": "2026-04-27T21:21:52Z",
       "products": {
         "nodes": []
       },
@@ -202,13 +202,13 @@
       "sellingPlans": {
         "nodes": [
           {
-            "id": "gid://shopify/SellingPlan/7026934066",
+            "id": "gid://shopify/SellingPlan/7026999602",
             "name": "Monthly delivery",
             "description": "Ships every month",
             "options": ["Monthly"],
             "position": 1,
             "category": "SUBSCRIPTION",
-            "createdAt": "2026-04-27T20:28:42Z"
+            "createdAt": "2026-04-27T21:21:52Z"
           }
         ]
       }
@@ -216,14 +216,14 @@
   ],
   "mutation": {
     "variables": {
-      "id": "gid://shopify/Collection/512191922482",
-      "productIds": ["gid://shopify/Product/10171996373298", "gid://shopify/Product/10171996406066"]
+      "id": "gid://shopify/Collection/512193167666",
+      "productIds": ["gid://shopify/Product/10172011872562", "gid://shopify/Product/10172011905330"]
     },
     "response": {
       "data": {
         "collectionAddProductsV2": {
           "job": {
-            "id": "gid://shopify/Job/ded2bbc1-1427-4dd9-b2c9-1c1804a9960b",
+            "id": "gid://shopify/Job/ae3efca4-885e-4324-b6db-4b3e46f57767",
             "done": false
           },
           "userErrors": []
@@ -235,7 +235,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1985,
             "restoreRate": 100
           }
         }
@@ -244,15 +244,15 @@
   },
   "initialCollectionRead": {
     "variables": {
-      "collectionId": "gid://shopify/Collection/512191922482",
-      "productId": "gid://shopify/Product/10171996373298"
+      "collectionId": "gid://shopify/Collection/512193167666",
+      "productId": "gid://shopify/Product/10172011872562"
     },
     "response": {
       "data": {
         "collection": {
-          "id": "gid://shopify/Collection/512191922482",
-          "title": "HAR-299 relationship collection mohngdtf",
-          "handle": "har-299-relationship-collection-mohngdtf",
+          "id": "gid://shopify/Collection/512193167666",
+          "title": "Product relationship collection mohpcrbe",
+          "handle": "product-relationship-collection-mohpcrbe",
           "products": {
             "nodes": []
           },
@@ -263,9 +263,9 @@
           }
         },
         "product": {
-          "id": "gid://shopify/Product/10171996373298",
-          "title": "HAR-299 collection one mohngdtf",
-          "handle": "har-299-collection-one-mohngdtf",
+          "id": "gid://shopify/Product/10172011872562",
+          "title": "Product relationship collection one mohpcrbe",
+          "handle": "product-relationship-collection-one-mohpcrbe",
           "collections": {
             "nodes": []
           }
@@ -286,14 +286,14 @@
   },
   "collectionAddProductsV2": {
     "variables": {
-      "id": "gid://shopify/Collection/512191922482",
-      "productIds": ["gid://shopify/Product/10171996373298", "gid://shopify/Product/10171996406066"]
+      "id": "gid://shopify/Collection/512193167666",
+      "productIds": ["gid://shopify/Product/10172011872562", "gid://shopify/Product/10172011905330"]
     },
     "response": {
       "data": {
         "collectionAddProductsV2": {
           "job": {
-            "id": "gid://shopify/Job/ded2bbc1-1427-4dd9-b2c9-1c1804a9960b",
+            "id": "gid://shopify/Job/ae3efca4-885e-4324-b6db-4b3e46f57767",
             "done": false
           },
           "userErrors": []
@@ -305,7 +305,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1986,
+            "currentlyAvailable": 1985,
             "restoreRate": 100
           }
         }
@@ -314,26 +314,26 @@
   },
   "collectionDownstreamRead": {
     "variables": {
-      "collectionId": "gid://shopify/Collection/512191922482",
-      "productId": "gid://shopify/Product/10171996373298"
+      "collectionId": "gid://shopify/Collection/512193167666",
+      "productId": "gid://shopify/Product/10172011872562"
     },
     "response": {
       "data": {
         "collection": {
-          "id": "gid://shopify/Collection/512191922482",
-          "title": "HAR-299 relationship collection mohngdtf",
-          "handle": "har-299-relationship-collection-mohngdtf",
+          "id": "gid://shopify/Collection/512193167666",
+          "title": "Product relationship collection mohpcrbe",
+          "handle": "product-relationship-collection-mohpcrbe",
           "products": {
             "nodes": [
               {
-                "id": "gid://shopify/Product/10171996406066",
-                "title": "HAR-299 collection two mohngdtf",
-                "handle": "har-299-collection-two-mohngdtf"
+                "id": "gid://shopify/Product/10172011905330",
+                "title": "Product relationship collection two mohpcrbe",
+                "handle": "product-relationship-collection-two-mohpcrbe"
               },
               {
-                "id": "gid://shopify/Product/10171996373298",
-                "title": "HAR-299 collection one mohngdtf",
-                "handle": "har-299-collection-one-mohngdtf"
+                "id": "gid://shopify/Product/10172011872562",
+                "title": "Product relationship collection one mohpcrbe",
+                "handle": "product-relationship-collection-one-mohpcrbe"
               }
             ]
           },
@@ -344,15 +344,15 @@
           }
         },
         "product": {
-          "id": "gid://shopify/Product/10171996373298",
-          "title": "HAR-299 collection one mohngdtf",
-          "handle": "har-299-collection-one-mohngdtf",
+          "id": "gid://shopify/Product/10172011872562",
+          "title": "Product relationship collection one mohpcrbe",
+          "handle": "product-relationship-collection-one-mohpcrbe",
           "collections": {
             "nodes": [
               {
-                "id": "gid://shopify/Collection/512191922482",
-                "title": "HAR-299 relationship collection mohngdtf",
-                "handle": "har-299-relationship-collection-mohngdtf"
+                "id": "gid://shopify/Collection/512193167666",
+                "title": "Product relationship collection mohpcrbe",
+                "handle": "product-relationship-collection-mohpcrbe"
               }
             ]
           }
@@ -373,42 +373,42 @@
   },
   "preMutationRead": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996471602"
+      "productId": "gid://shopify/Product/10172011938098"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10171996471602",
-          "title": "HAR-299 option reorder mohngdtf",
-          "handle": "har-299-option-reorder-mohngdtf",
+          "id": "gid://shopify/Product/10172011938098",
+          "title": "Product relationship option reorder mohpcrbe",
+          "handle": "product-relationship-option-reorder-mohpcrbe",
           "status": "DRAFT",
           "options": [
             {
-              "id": "gid://shopify/ProductOption/12718126104882",
+              "id": "gid://shopify/ProductOption/12718177845554",
               "name": "Color",
               "position": 1,
               "values": ["Red"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978909958450",
+                  "id": "gid://shopify/ProductOptionValue/7979025891634",
                   "name": "Red",
                   "hasVariants": true
                 },
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978909991218",
+                  "id": "gid://shopify/ProductOptionValue/7979025924402",
                   "name": "Blue",
                   "hasVariants": false
                 }
               ]
             },
             {
-              "id": "gid://shopify/ProductOption/12718126137650",
+              "id": "gid://shopify/ProductOption/12718177878322",
               "name": "Size",
               "position": 2,
               "values": ["Small"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978910023986",
+                  "id": "gid://shopify/ProductOptionValue/7979025957170",
                   "name": "Small",
                   "hasVariants": true
                 }
@@ -418,7 +418,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51104885145906",
+                "id": "gid://shopify/ProductVariant/51104997900594",
                 "title": "Red / Small",
                 "selectedOptions": [
                   {
@@ -450,24 +450,24 @@
   },
   "productOptionsReorder": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996471602",
+      "productId": "gid://shopify/Product/10172011938098",
       "options": [
         {
-          "id": "gid://shopify/ProductOption/12718126137650",
+          "id": "gid://shopify/ProductOption/12718177878322",
           "values": [
             {
-              "id": "gid://shopify/ProductOptionValue/7978910023986"
+              "id": "gid://shopify/ProductOptionValue/7979025957170"
             }
           ]
         },
         {
-          "id": "gid://shopify/ProductOption/12718126104882",
+          "id": "gid://shopify/ProductOption/12718177845554",
           "values": [
             {
-              "id": "gid://shopify/ProductOptionValue/7978909991218"
+              "id": "gid://shopify/ProductOptionValue/7979025924402"
             },
             {
-              "id": "gid://shopify/ProductOptionValue/7978909958450"
+              "id": "gid://shopify/ProductOptionValue/7979025891634"
             }
           ]
         }
@@ -477,34 +477,34 @@
       "data": {
         "productOptionsReorder": {
           "product": {
-            "id": "gid://shopify/Product/10171996471602",
+            "id": "gid://shopify/Product/10172011938098",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12718126137650",
+                "id": "gid://shopify/ProductOption/12718177878322",
                 "name": "Size",
                 "position": 1,
                 "values": ["Small"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/7978910023986",
+                    "id": "gid://shopify/ProductOptionValue/7979025957170",
                     "name": "Small",
                     "hasVariants": true
                   }
                 ]
               },
               {
-                "id": "gid://shopify/ProductOption/12718126104882",
+                "id": "gid://shopify/ProductOption/12718177845554",
                 "name": "Color",
                 "position": 2,
                 "values": ["Red"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/7978909958450",
+                    "id": "gid://shopify/ProductOptionValue/7979025891634",
                     "name": "Red",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/7978909991218",
+                    "id": "gid://shopify/ProductOptionValue/7979025924402",
                     "name": "Blue",
                     "hasVariants": false
                   }
@@ -514,7 +514,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51104885145906",
+                  "id": "gid://shopify/ProductVariant/51104997900594",
                   "title": "Small / Red",
                   "selectedOptions": [
                     {
@@ -548,42 +548,42 @@
   },
   "optionDownstreamRead": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996471602"
+      "productId": "gid://shopify/Product/10172011938098"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10171996471602",
-          "title": "HAR-299 option reorder mohngdtf",
-          "handle": "har-299-option-reorder-mohngdtf",
+          "id": "gid://shopify/Product/10172011938098",
+          "title": "Product relationship option reorder mohpcrbe",
+          "handle": "product-relationship-option-reorder-mohpcrbe",
           "status": "DRAFT",
           "options": [
             {
-              "id": "gid://shopify/ProductOption/12718126137650",
+              "id": "gid://shopify/ProductOption/12718177878322",
               "name": "Size",
               "position": 1,
               "values": ["Small"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978910023986",
+                  "id": "gid://shopify/ProductOptionValue/7979025957170",
                   "name": "Small",
                   "hasVariants": true
                 }
               ]
             },
             {
-              "id": "gid://shopify/ProductOption/12718126104882",
+              "id": "gid://shopify/ProductOption/12718177845554",
               "name": "Color",
               "position": 2,
               "values": ["Red"],
               "optionValues": [
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978909958450",
+                  "id": "gid://shopify/ProductOptionValue/7979025891634",
                   "name": "Red",
                   "hasVariants": true
                 },
                 {
-                  "id": "gid://shopify/ProductOptionValue/7978909991218",
+                  "id": "gid://shopify/ProductOptionValue/7979025924402",
                   "name": "Blue",
                   "hasVariants": false
                 }
@@ -593,7 +593,7 @@
           "variants": {
             "nodes": [
               {
-                "id": "gid://shopify/ProductVariant/51104885145906",
+                "id": "gid://shopify/ProductVariant/51104997900594",
                 "title": "Small / Red",
                 "selectedOptions": [
                   {
@@ -625,17 +625,17 @@
   },
   "productCreateMedia": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996504370",
+      "productId": "gid://shopify/Product/10172011970866",
       "media": [
         {
           "mediaContentType": "IMAGE",
-          "originalSource": "https://placehold.co/640x480/png?text=HAR-299-front",
-          "alt": "HAR-299 front"
+          "originalSource": "https://placehold.co/640x480/png?text=product-relationship-front",
+          "alt": "Product relationship front"
         },
         {
           "mediaContentType": "IMAGE",
-          "originalSource": "https://placehold.co/640x480/png?text=HAR-299-side",
-          "alt": "HAR-299 side"
+          "originalSource": "https://placehold.co/640x480/png?text=product-relationship-side",
+          "alt": "Product relationship side"
         }
       ]
     },
@@ -644,15 +644,15 @@
         "productCreateMedia": {
           "media": [
             {
-              "id": "gid://shopify/MediaImage/43623636336946",
-              "alt": "HAR-299 front",
+              "id": "gid://shopify/MediaImage/43623803650354",
+              "alt": "Product relationship front",
               "mediaContentType": "IMAGE",
               "status": "UPLOADED",
               "image": null
             },
             {
-              "id": "gid://shopify/MediaImage/43623636369714",
-              "alt": "HAR-299 side",
+              "id": "gid://shopify/MediaImage/43623803683122",
+              "alt": "Product relationship side",
               "mediaContentType": "IMAGE",
               "status": "UPLOADED",
               "image": null
@@ -660,18 +660,18 @@
           ],
           "mediaUserErrors": [],
           "product": {
-            "id": "gid://shopify/Product/10171996504370",
+            "id": "gid://shopify/Product/10172011970866",
             "media": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MediaImage/43623636336946",
-                  "alt": "HAR-299 front",
+                  "id": "gid://shopify/MediaImage/43623803650354",
+                  "alt": "Product relationship front",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED"
                 },
                 {
-                  "id": "gid://shopify/MediaImage/43623636369714",
-                  "alt": "HAR-299 side",
+                  "id": "gid://shopify/MediaImage/43623803683122",
+                  "alt": "Product relationship side",
                   "mediaContentType": "IMAGE",
                   "status": "UPLOADED"
                 }
@@ -695,32 +695,32 @@
   },
   "mediaReadyRead": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996504370"
+      "productId": "gid://shopify/Product/10172011970866"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10171996504370",
+          "id": "gid://shopify/Product/10172011970866",
           "media": {
             "nodes": [
               {
-                "id": "gid://shopify/MediaImage/43623636336946",
-                "alt": "HAR-299 front",
+                "id": "gid://shopify/MediaImage/43623803650354",
+                "alt": "Product relationship front",
                 "mediaContentType": "IMAGE",
                 "status": "READY",
                 "image": {
-                  "id": "gid://shopify/ImageSource/43705707987250",
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777321717"
+                  "id": "gid://shopify/ImageSource/43705876611378",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
                 }
               },
               {
-                "id": "gid://shopify/MediaImage/43623636369714",
-                "alt": "HAR-299 side",
+                "id": "gid://shopify/MediaImage/43623803683122",
+                "alt": "Product relationship side",
                 "mediaContentType": "IMAGE",
                 "status": "READY",
                 "image": {
-                  "id": "gid://shopify/ImageSource/43705708020018",
-                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_cd4bce6b-51b1-4199-9f75-4ca0c0b13fc1.png?v=1777321717"
+                  "id": "gid://shopify/ImageSource/43705876644146",
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
                 }
               }
             ]
@@ -742,11 +742,11 @@
   },
   "productVariantAppendMedia": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996504370",
+      "productId": "gid://shopify/Product/10172011970866",
       "variantMedia": [
         {
-          "variantId": "gid://shopify/ProductVariant/51104885178674",
-          "mediaIds": ["gid://shopify/MediaImage/43623636369714"]
+          "variantId": "gid://shopify/ProductVariant/51104997933362",
+          "mediaIds": ["gid://shopify/MediaImage/43623803683122"]
         }
       ]
     },
@@ -754,16 +754,16 @@
       "data": {
         "productVariantAppendMedia": {
           "product": {
-            "id": "gid://shopify/Product/10171996504370"
+            "id": "gid://shopify/Product/10172011970866"
           },
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51104885178674",
+              "id": "gid://shopify/ProductVariant/51104997933362",
               "media": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/MediaImage/43623636369714",
-                    "alt": "HAR-299 side",
+                    "id": "gid://shopify/MediaImage/43623803683122",
+                    "alt": "Product relationship side",
                     "mediaContentType": "IMAGE"
                   }
                 ]
@@ -788,11 +788,11 @@
   },
   "productVariantDetachMedia": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996504370",
+      "productId": "gid://shopify/Product/10172011970866",
       "variantMedia": [
         {
-          "variantId": "gid://shopify/ProductVariant/51104885178674",
-          "mediaIds": ["gid://shopify/MediaImage/43623636369714"]
+          "variantId": "gid://shopify/ProductVariant/51104997933362",
+          "mediaIds": ["gid://shopify/MediaImage/43623803683122"]
         }
       ]
     },
@@ -801,7 +801,7 @@
         "productVariantDetachMedia": {
           "productVariants": [
             {
-              "id": "gid://shopify/ProductVariant/51104885178674",
+              "id": "gid://shopify/ProductVariant/51104997933362",
               "media": {
                 "nodes": []
               }
@@ -825,12 +825,12 @@
   },
   "variantMediaDownstreamRead": {
     "variables": {
-      "variantId": "gid://shopify/ProductVariant/51104885178674"
+      "variantId": "gid://shopify/ProductVariant/51104997933362"
     },
     "response": {
       "data": {
         "productVariant": {
-          "id": "gid://shopify/ProductVariant/51104885178674",
+          "id": "gid://shopify/ProductVariant/51104997933362",
           "media": {
             "nodes": []
           }
@@ -852,9 +852,9 @@
   "sellingPlanGroupCreate": {
     "variables": {
       "input": {
-        "name": "HAR-299 membership mohngdtf",
-        "merchantCode": "har-299-mohngdtf",
-        "description": "Temporary selling plan group for HAR-299 conformance capture",
+        "name": "Product relationship membership mohpcrbe",
+        "merchantCode": "product-relationship-mohpcrbe",
+        "description": "Temporary selling plan group for product relationship conformance capture",
         "options": ["Delivery frequency"],
         "position": 1,
         "sellingPlansToCreate": [
@@ -897,15 +897,15 @@
       "data": {
         "sellingPlanGroupCreate": {
           "sellingPlanGroup": {
-            "id": "gid://shopify/SellingPlanGroup/2877161778",
+            "id": "gid://shopify/SellingPlanGroup/2877227314",
             "appId": null,
-            "name": "HAR-299 membership mohngdtf",
-            "merchantCode": "har-299-mohngdtf",
-            "description": "Temporary selling plan group for HAR-299 conformance capture",
+            "name": "Product relationship membership mohpcrbe",
+            "merchantCode": "product-relationship-mohpcrbe",
+            "description": "Temporary selling plan group for product relationship conformance capture",
             "options": ["Delivery frequency"],
             "position": 1,
             "summary": "1 delivery frequency, 10% discount",
-            "createdAt": "2026-04-27T20:28:42Z",
+            "createdAt": "2026-04-27T21:21:52Z",
             "products": {
               "nodes": []
             },
@@ -915,13 +915,13 @@
             "sellingPlans": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlan/7026934066",
+                  "id": "gid://shopify/SellingPlan/7026999602",
                   "name": "Monthly delivery",
                   "description": "Ships every month",
                   "options": ["Monthly"],
                   "position": 1,
                   "category": "SUBSCRIPTION",
-                  "createdAt": "2026-04-27T20:28:42Z"
+                  "createdAt": "2026-04-27T21:21:52Z"
                 }
               ]
             }
@@ -944,20 +944,20 @@
   },
   "productJoinSellingPlanGroups": {
     "variables": {
-      "id": "gid://shopify/Product/10171996537138",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877161778"]
+      "id": "gid://shopify/Product/10172012003634",
+      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
     },
     "response": {
       "data": {
         "productJoinSellingPlanGroups": {
           "product": {
-            "id": "gid://shopify/Product/10171996537138",
+            "id": "gid://shopify/Product/10172012003634",
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/2877161778",
-                  "name": "HAR-299 membership mohngdtf",
-                  "merchantCode": "har-299-mohngdtf"
+                  "id": "gid://shopify/SellingPlanGroup/2877227314",
+                  "name": "Product relationship membership mohpcrbe",
+                  "merchantCode": "product-relationship-mohpcrbe"
                 }
               ]
             },
@@ -975,7 +975,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1984,
             "restoreRate": 100
           }
         }
@@ -984,20 +984,20 @@
   },
   "productVariantJoinSellingPlanGroups": {
     "variables": {
-      "id": "gid://shopify/ProductVariant/51104885211442",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877161778"]
+      "id": "gid://shopify/ProductVariant/51104997966130",
+      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
     },
     "response": {
       "data": {
         "productVariantJoinSellingPlanGroups": {
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51104885211442",
+            "id": "gid://shopify/ProductVariant/51104997966130",
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/2877161778",
-                  "name": "HAR-299 membership mohngdtf",
-                  "merchantCode": "har-299-mohngdtf"
+                  "id": "gid://shopify/SellingPlanGroup/2877227314",
+                  "name": "Product relationship membership mohpcrbe",
+                  "merchantCode": "product-relationship-mohpcrbe"
                 }
               ]
             },
@@ -1024,20 +1024,20 @@
   },
   "productLeaveSellingPlanGroups": {
     "variables": {
-      "id": "gid://shopify/Product/10171996537138",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877161778"]
+      "id": "gid://shopify/Product/10172012003634",
+      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
     },
     "response": {
       "data": {
         "productLeaveSellingPlanGroups": {
           "product": {
-            "id": "gid://shopify/Product/10171996537138",
+            "id": "gid://shopify/Product/10172012003634",
             "sellingPlanGroups": {
               "nodes": [
                 {
-                  "id": "gid://shopify/SellingPlanGroup/2877161778",
-                  "name": "HAR-299 membership mohngdtf",
-                  "merchantCode": "har-299-mohngdtf"
+                  "id": "gid://shopify/SellingPlanGroup/2877227314",
+                  "name": "Product relationship membership mohpcrbe",
+                  "merchantCode": "product-relationship-mohpcrbe"
                 }
               ]
             },
@@ -1064,14 +1064,14 @@
   },
   "productVariantLeaveSellingPlanGroups": {
     "variables": {
-      "id": "gid://shopify/ProductVariant/51104885211442",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877161778"]
+      "id": "gid://shopify/ProductVariant/51104997966130",
+      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
     },
     "response": {
       "data": {
         "productVariantLeaveSellingPlanGroups": {
           "productVariant": {
-            "id": "gid://shopify/ProductVariant/51104885211442",
+            "id": "gid://shopify/ProductVariant/51104997966130",
             "sellingPlanGroups": {
               "nodes": []
             },
@@ -1089,7 +1089,7 @@
           "actualQueryCost": 16,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -1098,13 +1098,13 @@
   },
   "sellingPlanDownstreamRead": {
     "variables": {
-      "productId": "gid://shopify/Product/10171996537138",
-      "variantId": "gid://shopify/ProductVariant/51104885211442"
+      "productId": "gid://shopify/Product/10172012003634",
+      "variantId": "gid://shopify/ProductVariant/51104997966130"
     },
     "response": {
       "data": {
         "product": {
-          "id": "gid://shopify/Product/10171996537138",
+          "id": "gid://shopify/Product/10172012003634",
           "sellingPlanGroups": {
             "nodes": []
           },
@@ -1114,7 +1114,7 @@
           }
         },
         "productVariant": {
-          "id": "gid://shopify/ProductVariant/51104885211442",
+          "id": "gid://shopify/ProductVariant/51104997966130",
           "sellingPlanGroups": {
             "nodes": []
           },
@@ -1130,7 +1130,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1985,
+            "currentlyAvailable": 1980,
             "restoreRate": 100
           }
         }
@@ -1144,7 +1144,7 @@
       "response": {
         "data": {
           "sellingPlanGroupDelete": {
-            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2877161778",
+            "deletedSellingPlanGroupId": "gid://shopify/SellingPlanGroup/2877227314",
             "userErrors": []
           }
         },
@@ -1154,7 +1154,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -1167,7 +1167,30 @@
       "response": {
         "data": {
           "collectionDelete": {
-            "deletedCollectionId": "gid://shopify/Collection/512191922482",
+            "deletedCollectionId": "gid://shopify/Collection/512193167666",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1986,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup productDelete",
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10172012003634",
             "userErrors": []
           }
         },
@@ -1190,7 +1213,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10171996537138",
+            "deletedProductId": "gid://shopify/Product/10172011970866",
             "userErrors": []
           }
         },
@@ -1213,7 +1236,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10171996504370",
+            "deletedProductId": "gid://shopify/Product/10172011938098",
             "userErrors": []
           }
         },
@@ -1236,7 +1259,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10171996471602",
+            "deletedProductId": "gid://shopify/Product/10172011905330",
             "userErrors": []
           }
         },
@@ -1259,30 +1282,7 @@
       "response": {
         "data": {
           "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10171996406066",
-            "userErrors": []
-          }
-        },
-        "extensions": {
-          "cost": {
-            "requestedQueryCost": 10,
-            "actualQueryCost": 10,
-            "throttleStatus": {
-              "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
-              "restoreRate": 100
-            }
-          }
-        }
-      }
-    },
-    {
-      "label": "cleanup productDelete",
-      "status": 200,
-      "response": {
-        "data": {
-          "productDelete": {
-            "deletedProductId": "gid://shopify/Product/10171996373298",
+            "deletedProductId": "gid://shopify/Product/10172011872562",
             "userErrors": []
           }
         },

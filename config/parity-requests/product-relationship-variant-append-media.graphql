@@ -1,4 +1,7 @@
-mutation Har299ProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+mutation ProductRelationshipProductVariantAppendMedia(
+  $productId: ID!
+  $variantMedia: [ProductVariantAppendMediaInput!]!
+) {
   productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
     product {
       id

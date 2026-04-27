@@ -1,4 +1,4 @@
-mutation Har299ProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
+mutation ProductRelationshipProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
   productOptionsReorder(productId: $productId, options: $options) {
     product {
       id

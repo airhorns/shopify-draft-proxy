@@ -25,7 +25,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
-const outputPath = path.join(outputDir, 'har-299-product-relationship-roots.json');
+const outputPath = path.join(outputDir, 'product-relationship-roots.json');
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,
@@ -33,7 +33,7 @@ const { runGraphqlRaw } = createAdminGraphqlClient({
 });
 
 const productCreateMutation = `#graphql
-  mutation Har299CreateProduct($product: ProductCreateInput!) {
+  mutation ProductRelationshipCreateProduct($product: ProductCreateInput!) {
     productCreate(product: $product) {
       product {
         id
@@ -54,7 +54,7 @@ const productCreateMutation = `#graphql
 `;
 
 const productDeleteMutation = `#graphql
-  mutation Har299DeleteProduct($input: ProductDeleteInput!) {
+  mutation ProductRelationshipDeleteProduct($input: ProductDeleteInput!) {
     productDelete(input: $input) {
       deletedProductId
       userErrors { field message }
@@ -63,7 +63,7 @@ const productDeleteMutation = `#graphql
 `;
 
 const collectionCreateMutation = `#graphql
-  mutation Har299CreateCollection($input: CollectionInput!) {
+  mutation ProductRelationshipCreateCollection($input: CollectionInput!) {
     collectionCreate(input: $input) {
       collection {
         id
@@ -77,7 +77,7 @@ const collectionCreateMutation = `#graphql
 `;
 
 const collectionDeleteMutation = `#graphql
-  mutation Har299DeleteCollection($input: CollectionDeleteInput!) {
+  mutation ProductRelationshipDeleteCollection($input: CollectionDeleteInput!) {
     collectionDelete(input: $input) {
       deletedCollectionId
       userErrors { field message }
@@ -86,7 +86,7 @@ const collectionDeleteMutation = `#graphql
 `;
 
 const collectionReadQuery = `#graphql
-  query Har299CollectionRead($collectionId: ID!, $productId: ID!) {
+  query ProductRelationshipCollectionRead($collectionId: ID!, $productId: ID!) {
     collection(id: $collectionId) {
       id
       title
@@ -105,7 +105,7 @@ const collectionReadQuery = `#graphql
 `;
 
 const collectionAddProductsV2Mutation = `#graphql
-  mutation Har299CollectionAddProductsV2($id: ID!, $productIds: [ID!]!) {
+  mutation ProductRelationshipCollectionAddProductsV2($id: ID!, $productIds: [ID!]!) {
     collectionAddProductsV2(id: $id, productIds: $productIds) {
       job { id done }
       userErrors { field message }
@@ -114,7 +114,7 @@ const collectionAddProductsV2Mutation = `#graphql
 `;
 
 const optionsCreateMutation = `#graphql
-  mutation Har299ProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+  mutation ProductRelationshipProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
     productOptionsCreate(productId: $productId, options: $options) {
       product {
         id
@@ -135,7 +135,7 @@ const optionsCreateMutation = `#graphql
 `;
 
 const optionProductReadQuery = `#graphql
-  query Har299OptionProductRead($productId: ID!) {
+  query ProductRelationshipOptionProductRead($productId: ID!) {
     product(id: $productId) {
       id
       title
@@ -156,7 +156,7 @@ const optionProductReadQuery = `#graphql
 `;
 
 const productOptionsReorderMutation = `#graphql
-  mutation Har299ProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
+  mutation ProductRelationshipProductOptionsReorder($productId: ID!, $options: [OptionReorderInput!]!) {
     productOptionsReorder(productId: $productId, options: $options) {
       product {
         id
@@ -177,7 +177,7 @@ const productOptionsReorderMutation = `#graphql
 `;
 
 const productCreateMediaMutation = `#graphql
-  mutation Har299ProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+  mutation ProductRelationshipProductCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
     productCreateMedia(productId: $productId, media: $media) {
       media {
         id
@@ -198,7 +198,7 @@ const productCreateMediaMutation = `#graphql
 `;
 
 const productMediaReadQuery = `#graphql
-  query Har299ProductMediaRead($productId: ID!) {
+  query ProductRelationshipProductMediaRead($productId: ID!) {
     product(id: $productId) {
       id
       media(first: 10) {
@@ -215,7 +215,7 @@ const productMediaReadQuery = `#graphql
 `;
 
 const productVariantAppendMediaMutation = `#graphql
-  mutation Har299ProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+  mutation ProductRelationshipProductVariantAppendMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
     productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
       product { id }
       productVariants {
@@ -228,7 +228,7 @@ const productVariantAppendMediaMutation = `#graphql
 `;
 
 const productVariantDetachMediaMutation = `#graphql
-  mutation Har299ProductVariantDetachMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+  mutation ProductRelationshipProductVariantDetachMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
     productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
       productVariants {
         id
@@ -240,7 +240,7 @@ const productVariantDetachMediaMutation = `#graphql
 `;
 
 const variantMediaReadQuery = `#graphql
-  query Har299VariantMediaRead($variantId: ID!) {
+  query ProductRelationshipVariantMediaRead($variantId: ID!) {
     productVariant(id: $variantId) {
       id
       media(first: 10) { nodes { id alt } }
@@ -274,7 +274,7 @@ const sellingPlanGroupFields = `#graphql
 `;
 
 const sellingPlanGroupCreateMutation = `#graphql
-  mutation Har299SellingPlanGroupCreate($input: SellingPlanGroupInput!) {
+  mutation ProductRelationshipSellingPlanGroupCreate($input: SellingPlanGroupInput!) {
     sellingPlanGroupCreate(input: $input) {
       sellingPlanGroup { ${sellingPlanGroupFields} }
       userErrors { field message code }
@@ -283,7 +283,7 @@ const sellingPlanGroupCreateMutation = `#graphql
 `;
 
 const sellingPlanGroupDeleteMutation = `#graphql
-  mutation Har299SellingPlanGroupDelete($id: ID!) {
+  mutation ProductRelationshipSellingPlanGroupDelete($id: ID!) {
     sellingPlanGroupDelete(id: $id) {
       deletedSellingPlanGroupId
       userErrors { field message code }
@@ -292,7 +292,7 @@ const sellingPlanGroupDeleteMutation = `#graphql
 `;
 
 const productJoinSellingPlanGroupsMutation = `#graphql
-  mutation Har299ProductJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  mutation ProductRelationshipProductJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
     productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
       product {
         id
@@ -305,7 +305,7 @@ const productJoinSellingPlanGroupsMutation = `#graphql
 `;
 
 const productLeaveSellingPlanGroupsMutation = `#graphql
-  mutation Har299ProductLeaveSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  mutation ProductRelationshipProductLeaveSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
     productLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
       product {
         id
@@ -318,7 +318,7 @@ const productLeaveSellingPlanGroupsMutation = `#graphql
 `;
 
 const productVariantJoinSellingPlanGroupsMutation = `#graphql
-  mutation Har299ProductVariantJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  mutation ProductRelationshipProductVariantJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
     productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
       productVariant {
         id
@@ -331,7 +331,7 @@ const productVariantJoinSellingPlanGroupsMutation = `#graphql
 `;
 
 const productVariantLeaveSellingPlanGroupsMutation = `#graphql
-  mutation Har299ProductVariantLeaveSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  mutation ProductRelationshipProductVariantLeaveSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
     productVariantLeaveSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
       productVariant {
         id
@@ -344,7 +344,7 @@ const productVariantLeaveSellingPlanGroupsMutation = `#graphql
 `;
 
 const sellingPlanMembershipReadQuery = `#graphql
-  query Har299SellingPlanMembershipRead($productId: ID!, $variantId: ID!) {
+  query ProductRelationshipSellingPlanMembershipRead($productId: ID!, $variantId: ID!) {
     product(id: $productId) {
       id
       sellingPlanGroups(first: 5) { nodes { id name merchantCode } }
@@ -530,10 +530,10 @@ let fixturePayload: Record<string, unknown> | null = null;
 
 try {
   const collectionProductOne = await runStep('collection product one setup', productCreateMutation, {
-    product: { title: `HAR-299 collection one ${suffix}`, status: 'DRAFT' },
+    product: { title: `Product relationship collection one ${suffix}`, status: 'DRAFT' },
   });
   const collectionProductTwo = await runStep('collection product two setup', productCreateMutation, {
-    product: { title: `HAR-299 collection two ${suffix}`, status: 'DRAFT' },
+    product: { title: `Product relationship collection two ${suffix}`, status: 'DRAFT' },
   });
   const collectionProductOnePayload = readCreatedProduct(collectionProductOne);
   const collectionProductTwoPayload = readCreatedProduct(collectionProductTwo);
@@ -543,7 +543,7 @@ try {
   productIds.push(collectionProductTwoId);
 
   const collectionCreate = await runStep('collection setup', collectionCreateMutation, {
-    input: { title: `HAR-299 relationship collection ${suffix}` },
+    input: { title: `Product relationship collection ${suffix}` },
   });
   const collectionPayload = readObject(
     readMutationPayload(collectionCreate, 'collectionCreate')['collection'],
@@ -562,7 +562,7 @@ try {
   const collectionDownstreamRead = await waitForCollectionMembership(collectionId, collectionProductOneId, 2);
 
   const optionProductCreate = await runStep('option product setup', productCreateMutation, {
-    product: { title: `HAR-299 option reorder ${suffix}`, status: 'DRAFT' },
+    product: { title: `Product relationship option reorder ${suffix}`, status: 'DRAFT' },
   });
   const optionProduct = readCreatedProduct(optionProductCreate);
   const optionProductId = readId(optionProduct, 'option product');
@@ -603,7 +603,7 @@ try {
   });
 
   const mediaProductCreate = await runStep('media product setup', productCreateMutation, {
-    product: { title: `HAR-299 variant media ${suffix}`, status: 'DRAFT' },
+    product: { title: `Product relationship variant media ${suffix}`, status: 'DRAFT' },
   });
   const mediaProduct = readCreatedProduct(mediaProductCreate);
   const mediaProductId = readId(mediaProduct, 'media product');
@@ -614,13 +614,13 @@ try {
     media: [
       {
         mediaContentType: 'IMAGE',
-        originalSource: 'https://placehold.co/640x480/png?text=HAR-299-front',
-        alt: 'HAR-299 front',
+        originalSource: 'https://placehold.co/640x480/png?text=product-relationship-front',
+        alt: 'Product relationship front',
       },
       {
         mediaContentType: 'IMAGE',
-        originalSource: 'https://placehold.co/640x480/png?text=HAR-299-side',
-        alt: 'HAR-299 side',
+        originalSource: 'https://placehold.co/640x480/png?text=product-relationship-side',
+        alt: 'Product relationship side',
       },
     ],
   });
@@ -648,7 +648,7 @@ try {
   });
 
   const sellingProductCreate = await runStep('selling plan product setup', productCreateMutation, {
-    product: { title: `HAR-299 selling plan membership ${suffix}`, status: 'DRAFT' },
+    product: { title: `Product relationship selling plan membership ${suffix}`, status: 'DRAFT' },
   });
   const sellingProduct = readCreatedProduct(sellingProductCreate);
   const sellingProductId = readId(sellingProduct, 'selling plan product');
@@ -656,9 +656,9 @@ try {
   productIds.push(sellingProductId);
   const sellingPlanGroupCreate = await runStep('selling plan group setup', sellingPlanGroupCreateMutation, {
     input: {
-      name: `HAR-299 membership ${suffix}`,
-      merchantCode: `har-299-${suffix}`,
-      description: 'Temporary selling plan group for HAR-299 conformance capture',
+      name: `Product relationship membership ${suffix}`,
+      merchantCode: `product-relationship-${suffix}`,
+      description: 'Temporary selling plan group for product relationship conformance capture',
       options: ['Delivery frequency'],
       position: 1,
       sellingPlansToCreate: [
@@ -712,7 +712,7 @@ try {
     storeDomain,
     apiVersion,
     notes: [
-      'HAR-299 captures product/variant relationship roots that are replayed by the parity runner.',
+      'Product relationship root captures replayed by the parity runner.',
       'The script creates disposable products, a collection, media, and a selling-plan group, then deletes them during cleanup.',
     ],
     seedProducts: [
@@ -766,9 +766,9 @@ try {
 }
 
 if (!fixturePayload) {
-  throw new Error('HAR-299 capture did not produce a fixture payload.');
+  throw new Error('Product relationship capture did not produce a fixture payload.');
 }
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(outputPath, `${JSON.stringify(fixturePayload, null, 2)}\n`, 'utf8');
-console.log(`Wrote HAR-299 product relationship conformance fixture to ${outputPath}`);
+console.log(`Wrote product relationship conformance fixture to ${outputPath}`);

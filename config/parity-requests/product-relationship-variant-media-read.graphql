@@ -1,4 +1,4 @@
-query Har299ProductVariantMediaRead($variantId: ID!) {
+query ProductRelationshipProductVariantMediaRead($variantId: ID!) {
   productVariant(id: $variantId) {
     id
     media(first: 10) {

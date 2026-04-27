@@ -1,5 +1,5 @@
 {
-  "scenarioId": "har-299-product-relationship-roots-live-parity",
+  "scenarioId": "product-relationship-roots-live-parity",
   "operationNames": [
     "collectionAddProductsV2",
     "productOptionsReorder",
@@ -12,16 +12,14 @@
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/har-299-product-relationship-roots.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/product-relationship-roots.json"],
   "runtimeTestFiles": [
     "tests/integration/collection-draft-flow.test.ts",
     "tests/integration/product-draft-flow.test.ts",
     "tests/integration/selling-plan-group-flow.test.ts"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/har-299-collection-add-products-v2.graphql",
+    "documentPath": "config/parity-requests/product-relationship-collection-add-products-v2.graphql",
     "variablesCapturePath": "$.collectionAddProductsV2.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -45,7 +43,7 @@
         "capturePath": "$.collectionDownstreamRead.response.data",
         "proxyPath": "$.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-collection-membership-read.graphql",
+          "documentPath": "config/parity-requests/product-relationship-collection-membership-read.graphql",
           "variables": {
             "collectionId": {
               "fromCapturePath": "$.collectionDownstreamRead.variables.collectionId"
@@ -61,7 +59,7 @@
         "capturePath": "$.productOptionsReorder.response.data.productOptionsReorder",
         "proxyPath": "$.data.productOptionsReorder",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-options-reorder.graphql",
+          "documentPath": "config/parity-requests/product-relationship-product-options-reorder.graphql",
           "variablesCapturePath": "$.productOptionsReorder.variables"
         }
       },
@@ -70,7 +68,7 @@
         "capturePath": "$.optionDownstreamRead.response.data.product",
         "proxyPath": "$.data.product",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-options-read.graphql",
+          "documentPath": "config/parity-requests/product-relationship-product-options-read.graphql",
           "variablesCapturePath": "$.optionDownstreamRead.variables"
         }
       },
@@ -79,7 +77,7 @@
         "capturePath": "$.productVariantAppendMedia.response.data.productVariantAppendMedia",
         "proxyPath": "$.data.productVariantAppendMedia",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-variant-append-media.graphql",
+          "documentPath": "config/parity-requests/product-relationship-variant-append-media.graphql",
           "variablesCapturePath": "$.productVariantAppendMedia.variables"
         }
       },
@@ -88,7 +86,7 @@
         "capturePath": "$.productVariantDetachMedia.response.data.productVariantDetachMedia",
         "proxyPath": "$.data.productVariantDetachMedia",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-variant-detach-media.graphql",
+          "documentPath": "config/parity-requests/product-relationship-variant-detach-media.graphql",
           "variablesCapturePath": "$.productVariantDetachMedia.variables"
         }
       },
@@ -97,7 +95,7 @@
         "capturePath": "$.variantMediaDownstreamRead.response.data.productVariant",
         "proxyPath": "$.data.productVariant",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-variant-media-read.graphql",
+          "documentPath": "config/parity-requests/product-relationship-variant-media-read.graphql",
           "variablesCapturePath": "$.variantMediaDownstreamRead.variables"
         }
       },
@@ -106,7 +104,7 @@
         "capturePath": "$.productJoinSellingPlanGroups.response.data.productJoinSellingPlanGroups",
         "proxyPath": "$.data.productJoinSellingPlanGroups",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-join-selling-plan-groups.graphql",
+          "documentPath": "config/parity-requests/product-relationship-product-join-selling-plan-groups.graphql",
           "variablesCapturePath": "$.productJoinSellingPlanGroups.variables"
         }
       },
@@ -115,7 +113,7 @@
         "capturePath": "$.productVariantJoinSellingPlanGroups.response.data.productVariantJoinSellingPlanGroups",
         "proxyPath": "$.data.productVariantJoinSellingPlanGroups",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-variant-join-selling-plan-groups.graphql",
+          "documentPath": "config/parity-requests/product-relationship-variant-join-selling-plan-groups.graphql",
           "variablesCapturePath": "$.productVariantJoinSellingPlanGroups.variables"
         }
       },
@@ -124,7 +122,7 @@
         "capturePath": "$.productLeaveSellingPlanGroups.response.data.productLeaveSellingPlanGroups",
         "proxyPath": "$.data.productLeaveSellingPlanGroups",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-leave-selling-plan-groups.graphql",
+          "documentPath": "config/parity-requests/product-relationship-product-leave-selling-plan-groups.graphql",
           "variablesCapturePath": "$.productLeaveSellingPlanGroups.variables"
         }
       },
@@ -133,7 +131,7 @@
         "capturePath": "$.productVariantLeaveSellingPlanGroups.response.data.productVariantLeaveSellingPlanGroups",
         "proxyPath": "$.data.productVariantLeaveSellingPlanGroups",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-product-variant-leave-selling-plan-groups.graphql",
+          "documentPath": "config/parity-requests/product-relationship-variant-leave-selling-plan-groups.graphql",
           "variablesCapturePath": "$.productVariantLeaveSellingPlanGroups.variables"
         }
       },
@@ -142,11 +140,11 @@
         "capturePath": "$.sellingPlanDownstreamRead.response.data",
         "proxyPath": "$.data",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/har-299-selling-plan-membership-read.graphql",
+          "documentPath": "config/parity-requests/product-relationship-selling-plan-membership-read.graphql",
           "variablesCapturePath": "$.sellingPlanDownstreamRead.variables"
         }
       }
     ]
   },
-  "notes": "HAR-299 replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner seeds the captured products, collection, product media, and selling-plan group, then executes each HAR-299 root through the local proxy and compares mutation payloads plus downstream read-after-write effects with strict JSON targets."
+  "notes": "Product relationship roots replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner seeds the captured products, collection, product media, and selling-plan group, then executes each relationship root through the local proxy and compares mutation payloads plus downstream read-after-write effects with strict JSON targets."
 }
