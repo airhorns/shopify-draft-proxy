@@ -1,0 +1,33 @@
+{
+  "scenarioId": "cash-management-location-summary-access-denied",
+  "operationNames": ["cashManagementLocationSummary"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "access-denied", "cash-management-summary-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/cash-management-location-summary-access-denied.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/cash-management-location-summary-access-denied.graphql",
+    "variablesCapturePath": "$.probes[1].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The configured 2026-04 harry-test-heelo credential can introspect CashManagementSummary but still receives ACCESS_DENIED for known and unknown locations. Strict comparison mirrors that top-level access-denied branch in snapshot mode and prevents invented cash balances or session counts.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cash-management-access-denied-data",
+        "capturePath": "$.probes[1].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "cash-management-access-denied-errors",
+        "capturePath": "$.probes[1].response.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

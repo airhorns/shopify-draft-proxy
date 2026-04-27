@@ -12,7 +12,7 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 
-const storePropertiesQueryRoots = ['cashManagementLocationSummary'] as const;
+const storePropertiesQueryRoots = [] as const;
 
 const implementedStorePropertiesQueryRoots = [
   'shop',
@@ -20,6 +20,7 @@ const implementedStorePropertiesQueryRoots = [
   'locationByIdentifier',
   'businessEntities',
   'businessEntity',
+  'cashManagementLocationSummary',
 ] as const;
 
 const storePropertiesMutationRoots = [
@@ -221,6 +222,19 @@ describe('Store properties registry scaffold', () => {
       domain: 'store-properties',
       execution: 'overlay-read',
       operationName: 'BusinessEntity',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'CashManagementLocationSummary',
+        rootFields: ['cashManagementLocationSummary'],
+      }),
+    ).toEqual({
+      domain: 'store-properties',
+      execution: 'overlay-read',
+      operationName: 'CashManagementLocationSummary',
       type: 'query',
     });
   });

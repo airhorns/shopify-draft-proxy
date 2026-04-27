@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode, type ValueNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode, type ValueNode } from 'graphql';
 
 import { logger } from '../logger.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -49,12 +49,15 @@ interface GraphQLResponseError {
     code: string;
     reason?: string;
     inputObjectType?: string;
+    documentation?: string;
+    requiredAccess?: string;
   };
 }
 
 interface SerializationContext {
   errors: GraphQLResponseError[];
   fatalErrors: GraphQLResponseError[];
+  nullDataOnFatalError?: boolean;
 }
 
 interface ShopPolicyUserErrorRecord {
@@ -110,8 +113,17 @@ const SHOP_POLICY_TITLES_BY_TYPE: Record<string, string> = {
   TERMS_OF_SERVICE: 'Terms of service',
 };
 
+const CASH_MANAGEMENT_LOCATION_SUMMARY_REQUIRED_ACCESS =
+  '`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission.';
+
+const CASH_MANAGEMENT_LOCATION_SUMMARY_ACCESS_DENIED_MESSAGE = `Access denied for cashManagementLocationSummary field. Required access: ${CASH_MANAGEMENT_LOCATION_SUMMARY_REQUIRED_ACCESS}`;
+
 function responseKey(selection: FieldNode): string {
   return selection.alias?.value ?? selection.name.value;
+}
+
+function fieldLocation(field: FieldNode): { line: number; column: number } | undefined {
+  return field.loc ? getLocation(field.loc.source, field.loc.start) : undefined;
 }
 
 interface LocationInventoryLevelRecord {
@@ -3453,6 +3465,21 @@ function resolveLocationIdentifier(
   return null;
 }
 
+function cashManagementLocationSummaryAccessDeniedError(field: FieldNode, path: string[]): GraphQLResponseError {
+  const location = fieldLocation(field);
+
+  return {
+    message: CASH_MANAGEMENT_LOCATION_SUMMARY_ACCESS_DENIED_MESSAGE,
+    ...(location ? { locations: [location] } : {}),
+    extensions: {
+      code: 'ACCESS_DENIED',
+      documentation: 'https://shopify.dev/api/usage/access-scopes',
+      requiredAccess: CASH_MANAGEMENT_LOCATION_SUMMARY_REQUIRED_ACCESS,
+    },
+    path,
+  };
+}
+
 export function handleStorePropertiesQuery(
   document: string,
   variables: Record<string, unknown>,
@@ -3464,6 +3491,11 @@ export function handleStorePropertiesQuery(
   for (const field of fields) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case 'cashManagementLocationSummary':
+        data[key] = null;
+        context.nullDataOnFatalError = true;
+        context.fatalErrors.push(cashManagementLocationSummaryAccessDeniedError(field, [key]));
+        break;
       case 'location': {
         const args = getFieldArguments(field, variables);
         const rawId = args['id'];
@@ -3539,6 +3571,10 @@ export function handleStorePropertiesQuery(
   }
 
   if (context.fatalErrors.length > 0) {
+    if (context.nullDataOnFatalError) {
+      return { data: null, errors: context.fatalErrors };
+    }
+
     return { errors: context.fatalErrors };
   }
 

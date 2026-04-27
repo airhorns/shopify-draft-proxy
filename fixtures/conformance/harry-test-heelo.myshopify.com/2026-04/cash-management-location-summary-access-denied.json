@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T18:23:12.919Z",
+  "capturedAt": "2026-04-27T00:36:41.183Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "operation": "cashManagementLocationSummary",
@@ -7,7 +7,7 @@
     "id": "gid://shopify/Location/106318463282",
     "name": "My Custom Location"
   },
-  "conclusion": "Current conformance credential can introspect CashManagementSummary but cannot read cashManagementLocationSummary data. Keep runtime support unimplemented and do not synthesize balances or session counts until read_cash_tracking plus required POS/retail role evidence is available.",
+  "conclusion": "Current conformance credential can introspect CashManagementSummary but cannot read cashManagementLocationSummary data. Local snapshot support should mirror this access-denied branch and must not synthesize balances or session counts until read_cash_tracking plus required POS/retail role evidence is available.",
   "schemaInventory": {
     "queryRoot": {
       "name": "cashManagementLocationSummary",
@@ -213,7 +213,9 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": ["cashManagementLocationSummary"]
+            "path": [
+              "cashManagementLocationSummary"
+            ]
           }
         ],
         "data": null,
@@ -253,7 +255,9 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`read_cash_tracking` access scope. Also: User must have `view_payment_tracking_sessions_pos_channel` or `payments_cash_session_history` retail role permission."
             },
-            "path": ["cashManagementLocationSummary"]
+            "path": [
+              "cashManagementLocationSummary"
+            ]
           }
         ],
         "data": null,
@@ -377,7 +381,11 @@
                 "column": 5
               }
             ],
-            "path": ["query CashManagementLocationSummaryInvalidDate", "cashManagementLocationSummary", "startDate"],
+            "path": [
+              "query CashManagementLocationSummaryInvalidDate",
+              "cashManagementLocationSummary",
+              "startDate"
+            ],
             "extensions": {
               "code": "argumentLiteralsIncompatible",
               "typeName": "CoercionError"

@@ -12,6 +12,7 @@ Overlay reads:
 - `businessEntities`
 - `businessEntity`
 - `shopifyPaymentsAccount`
+- `cashManagementLocationSummary` access-denied branch
 
 Local staged mutations:
 
@@ -28,7 +29,7 @@ Local staged mutations:
 
 ## Unsupported roots still tracked by the registry
 
-- `cashManagementLocationSummary`
+- None in the narrow Store properties registry slice currently tracked here.
 
 ## Behavior notes
 
@@ -46,7 +47,7 @@ Local staged mutations:
 - Snapshot `shopifyPaymentsAccount` reads are backed by the same normalized safe account fixture used by `BusinessEntity.shopifyPaymentsAccount`. When no account fixture is present, the direct root returns `null`, matching the current access-denied capture's data shape. When a safe account fixture is present, scalar identity/setup fields are exposed and `payouts`, `disputes`, and `balanceTransactions` return empty no-data connections with selected `edges`, `nodes`, and `pageInfo`.
 - Shopify Payments fields that can reveal balances, bank accounts, statement descriptors, payout schedules, or other account-specific financial data remain unavailable unless captured and modeled explicitly; snapshot reads return `null` for those selections with `UNSUPPORTED_FIELD` diagnostics.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
-- `cashManagementLocationSummary` remains unsupported at runtime. Fresh Admin 2026-04 evidence for `harry-test-heelo.myshopify.com` is access-denied before known-location, unknown-location, or no-data summary behavior can be observed; do not synthesize `CashManagementSummary` balances or session counts until a fixture-backed readable branch exists.
+- `cashManagementLocationSummary` snapshot support mirrors the captured Admin 2026-04 access-denied branch for `harry-test-heelo.myshopify.com`: top-level `data: null`, `ACCESS_DENIED`, and the required `read_cash_tracking` plus POS/retail role permission message. The credential is denied before known-location, unknown-location, or no-data summary behavior can be observed; do not synthesize `CashManagementSummary` balances or session counts until a fixture-backed readable branch exists.
 
 ## Validation anchors
 
@@ -55,6 +56,7 @@ Local staged mutations:
 - Location reads: `tests/integration/location-query-shapes.test.ts`
 - Fulfillment-service location linkage: `tests/integration/fulfillment-service-flow.test.ts`
 - Business entity and Shopify Payments account reads: `tests/integration/business-entity-query-shapes.test.ts`
+- Cash-management access-denied reads: `tests/integration/cash-management-location-summary-query-shapes.test.ts`
 - Generic publishable slices: `tests/integration/product-draft-flow.test.ts`, `tests/integration/collection-draft-flow.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/shop*.json`, `config/parity-specs/location*.json`, `config/parity-specs/locations*.json`, `config/parity-specs/business*.json`, `config/parity-specs/publishable*.json`, and matching files under `config/parity-requests/`
-- Cash-management blocker evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/cash-management-location-summary-access-denied.json`
+- Conformance fixtures and requests: `config/parity-specs/shop*.json`, `config/parity-specs/location*.json`, `config/parity-specs/locations*.json`, `config/parity-specs/business*.json`, `config/parity-specs/cash-management*.json`, `config/parity-specs/publishable*.json`, and matching files under `config/parity-requests/`
+- Cash-management access-denied evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/cash-management-location-summary-access-denied.json`

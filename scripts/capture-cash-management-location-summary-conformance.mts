@@ -162,7 +162,7 @@ const behavior = {
     name: selectedLocationName,
   },
   conclusion:
-    'Current conformance credential can introspect CashManagementSummary but cannot read cashManagementLocationSummary data. Keep runtime support unimplemented and do not synthesize balances or session counts until read_cash_tracking plus required POS/retail role evidence is available.',
+    'Current conformance credential can introspect CashManagementSummary but cannot read cashManagementLocationSummary data. Local snapshot support should mirror this access-denied branch and must not synthesize balances or session counts until read_cash_tracking plus required POS/retail role evidence is available.',
   schemaInventory: {
     queryRoot:
       schemaInventory.response.data?.queryRoot?.fields?.find(
