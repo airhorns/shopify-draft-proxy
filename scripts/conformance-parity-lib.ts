@@ -141,6 +141,7 @@ import type {
   ProductMediaRecord,
   ProductOptionRecord,
   ProductRecord,
+  SellingPlanGroupRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
@@ -5396,6 +5397,41 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
   ]);
 }
 
+function readSeedSellingPlanGroup(source: Record<string, unknown>): SellingPlanGroupRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/SellingPlanGroup/')) {
+    return null;
+  }
+
+  const productIds = readConnectionNodes(readRecordField(source, 'products'))
+    .map((product) => readStringField(product, 'id'))
+    .filter((productId): productId is string => productId !== null);
+  const productVariantIds = readConnectionNodes(readRecordField(source, 'productVariants'))
+    .map((variant) => readStringField(variant, 'id'))
+    .filter((variantId): variantId is string => variantId !== null);
+  const sellingPlans = readConnectionNodes(readRecordField(source, 'sellingPlans'))
+    .map((plan) => {
+      const planId = readStringField(plan, 'id');
+      return planId ? { id: planId, data: structuredClone(plan) } : null;
+    })
+    .filter((plan): plan is SellingPlanGroupRecord['sellingPlans'][number] => plan !== null);
+
+  return {
+    id,
+    appId: readNullableStringField(source, 'appId'),
+    name: readStringField(source, 'name') ?? 'Selling plan group',
+    merchantCode: readStringField(source, 'merchantCode') ?? 'selling-plan-group',
+    description: readNullableStringField(source, 'description'),
+    options: readArrayField(source, 'options').filter((option): option is string => typeof option === 'string'),
+    position: readNumberField(source, 'position'),
+    summary: readNullableStringField(source, 'summary'),
+    createdAt: readStringField(source, 'createdAt') ?? '2026-01-01T00:00:00Z',
+    productIds,
+    productVariantIds,
+    sellingPlans,
+  };
+}
+
 function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): boolean {
   const seed = readRecordField(capture as Record<string, unknown>, 'seed');
   const seedProductId = readStringField(seed, 'productId');
@@ -6842,6 +6878,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (variants.length > 0) {
       store.replaceBaseVariantsForProduct(productId, variants);
     }
+    const options = readCapturedProductOptions(productId, seedProduct);
+    if (options.length > 0) {
+      store.replaceBaseOptionsForProduct(productId, options);
+    }
   }
   const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
   for (const seedCollection of seedCollections) {
@@ -6856,6 +6896,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     .filter((publication): publication is PublicationRecord => publication !== null);
   if (seedPublications.length > 0) {
     store.upsertBasePublications(seedPublications);
+  }
+  const seedSellingPlanGroups = readArrayField(capture as Record<string, unknown>, 'seedSellingPlanGroups')
+    .filter(isPlainObject)
+    .map(readSeedSellingPlanGroup)
+    .filter((group): group is SellingPlanGroupRecord => group !== null);
+  if (seedSellingPlanGroups.length > 0) {
+    store.upsertBaseSellingPlanGroups(seedSellingPlanGroups);
   }
   const seedChannels = readArrayField(capture as Record<string, unknown>, 'seedChannels')
     .filter(isPlainObject)
@@ -7451,7 +7498,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       ? readRecordField(payload, 'publishable')
       : null);
   const initialCollectionPayload = readRecordField(
-    readRecordField(readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'), 'data'),
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'), 'response'),
+      'data',
+    ) ?? readRecordField(readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'), 'data'),
     'collection',
   );
   const rawCollectionId =
