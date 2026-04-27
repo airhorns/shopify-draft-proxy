@@ -2,7 +2,14 @@ import { Kind, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQueryTerms,
+  matchesSearchQueryString,
+  parseSearchQueryTermList,
+  searchQueryTermValue,
+  stripSearchQueryValueQuotes,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   buildSyntheticCursor,
   getFieldResponseKey,
@@ -2663,7 +2670,7 @@ function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
     return true;
   }
 
-  const terms = parseSearchQueryTerms(rawQuery.trim(), { quoteCharacters: ['"'] });
+  const terms = parseSearchQueryTermList(rawQuery, { quoteCharacters: ['"'] });
   if (terms.length === 0) {
     return true;
   }
@@ -2687,8 +2694,7 @@ function isDraftOrderSearchQuerySupported(rawQuery: unknown): boolean {
 }
 
 function matchesStringValue(candidate: string, rawValue: string): boolean {
-  const value = rawValue.trim().toLowerCase();
-  return value.length === 0 || candidate.toLowerCase() === value;
+  return matchesSearchQueryString(candidate, rawValue);
 }
 
 function readDraftOrderNumericId(draftOrder: DraftOrderRecord): number | null {
@@ -2758,26 +2764,11 @@ function matchesTimestampTerm(timestamp: string, rawValue: string): boolean {
 }
 
 function normalizeSearchValue(rawValue: string): string {
-  const trimmed = rawValue.trim();
-  const firstCharacter = trimmed[0];
-  const lastCharacter = trimmed[trimmed.length - 1];
-  if ((firstCharacter === '"' || firstCharacter === "'") && firstCharacter === lastCharacter) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-}
-
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
+  return stripSearchQueryValueQuotes(rawValue);
 }
 
 function matchesStringValueIncludingContains(candidate: string | null | undefined, rawValue: string): boolean {
-  if (!candidate) {
-    return false;
-  }
-
-  const value = normalizeSearchValue(rawValue).toLowerCase();
-  return value.length === 0 || candidate.toLowerCase().includes(value);
+  return matchesSearchQueryString(candidate, rawValue, 'includes');
 }
 
 function matchesDraftOrderSource(draftOrder: DraftOrderRecord, rawValue: string): boolean {
@@ -2795,7 +2786,7 @@ function matchesDraftOrderSearchTerm(draftOrder: DraftOrderRecord, term: SearchQ
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'status':
@@ -2830,8 +2821,7 @@ function applyDraftOrdersQuery(draftOrders: DraftOrderRecord[], rawQuery: unknow
     return [];
   }
 
-  const terms = parseSearchQueryTerms(rawQuery.trim(), { quoteCharacters: ['"'] });
-  return draftOrders.filter((draftOrder) => terms.every((term) => matchesDraftOrderSearchTerm(draftOrder, term)));
+  return applySearchQueryTerms(draftOrders, rawQuery, { quoteCharacters: ['"'] }, matchesDraftOrderSearchTerm);
 }
 
 function compareDraftOrderIds(leftId: string, rightId: string): number {
@@ -3669,7 +3659,7 @@ function matchesFulfillmentOrderSearchTerm(
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'id':
@@ -3691,21 +3681,15 @@ function applyFulfillmentOrdersQuery(
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
   rawQuery: unknown,
 ): OrderFulfillmentOrderRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return fulfillmentOrders;
-  }
-
-  const terms = parseSearchQueryTerms(rawQuery.trim(), {
-    quoteCharacters: ['"'],
-    preserveQuotesInTerms: true,
-    ignoredKeywords: ['AND'],
-  });
-  if (terms.length === 0) {
-    return fulfillmentOrders;
-  }
-
-  return fulfillmentOrders.filter((fulfillmentOrder) =>
-    terms.every((term) => matchesFulfillmentOrderSearchTerm(fulfillmentOrder, term)),
+  return applySearchQueryTerms(
+    fulfillmentOrders,
+    rawQuery,
+    {
+      quoteCharacters: ['"'],
+      preserveQuotesInTerms: true,
+      ignoredKeywords: ['AND'],
+    },
+    matchesFulfillmentOrderSearchTerm,
   );
 }
 
@@ -4346,7 +4330,7 @@ function matchesOrderSearchTerm(order: OrderRecord, term: SearchQueryTerm): bool
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
 
   switch (field) {
     case 'name':
@@ -4398,20 +4382,16 @@ function readCustomerNumericId(order: OrderRecord): number | null {
 }
 
 function applyOrdersQuery(orders: OrderRecord[], rawQuery: unknown): OrderRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return orders;
-  }
-
-  const terms = parseSearchQueryTerms(rawQuery.trim(), {
-    quoteCharacters: ['"'],
-    preserveQuotesInTerms: true,
-    ignoredKeywords: ['AND'],
-  });
-  if (terms.length === 0) {
-    return orders;
-  }
-
-  return orders.filter((order) => terms.every((term) => matchesOrderSearchTerm(order, term)));
+  return applySearchQueryTerms(
+    orders,
+    rawQuery,
+    {
+      quoteCharacters: ['"'],
+      preserveQuotesInTerms: true,
+      ignoredKeywords: ['AND'],
+    },
+    matchesOrderSearchTerm,
+  );
 }
 
 function compareOrderIds(leftId: string, rightId: string): number {
