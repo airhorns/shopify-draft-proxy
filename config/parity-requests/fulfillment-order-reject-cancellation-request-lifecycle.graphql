@@ -1,0 +1,21 @@
+mutation FulfillmentOrderRejectCancellationRequestLifecycle($id: ID!, $message: String) {
+  fulfillmentOrderRejectCancellationRequest(id: $id, message: $message) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+          responseData
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
