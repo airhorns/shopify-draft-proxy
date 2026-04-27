@@ -1,0 +1,14 @@
+{
+  "scenarioId": "store-credit-account-local-staging",
+  "operationNames": ["storeCreditAccount", "storeCreditAccountCredit", "storeCreditAccountDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-credit-account-access.json"],
+  "runtimeTestFiles": ["tests/integration/store-credit-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-317 captures store-credit schema, empty first-customer account connection behavior, unknown account read nullability, and unknown credit/debit userErrors from the live conformance shop. No non-empty store credit account was available in-session, so success-path credit/debit balance staging and downstream read-after-write behavior are enforced by the checked-in runtime test rather than a generic parity request."
+}

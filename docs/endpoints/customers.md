@@ -13,6 +13,7 @@ Overlay reads:
 - `customerMergePreview`
 - `customerMergeJobStatus`
 - `customerPaymentMethod` from seeded/snapshot or locally hydrated state only; formal live conformance support remains blocked on `read_customer_payment_methods`
+- `storeCreditAccount` from seeded/snapshot or locally staged state only
 
 Local staged mutations:
 
@@ -33,6 +34,8 @@ Local staged mutations:
 - `customerAddTaxExemptions`
 - `customerRemoveTaxExemptions`
 - `customerReplaceTaxExemptions`
+- `storeCreditAccountCredit`
+- `storeCreditAccountDebit`
 
 ## Unsupported roots still tracked by the registry
 
@@ -57,6 +60,9 @@ Local staged mutations:
 - Customer payment method reads are modeled from normalized `customerPaymentMethods` state only. The local serializer supports `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)`; revoked rows are hidden unless `showRevoked: true` is selected.
 - `CustomerPaymentMethod.instrument` is stored as a selected union payload keyed by `__typename`, so seeded fixtures can serialize credit-card and PayPal billing-agreement fragments without local vaulting. `subscriptionContracts` on the payment method is serialized as a normal connection from seeded link rows; the customer-level `subscriptionContracts` field remains empty/no-data until separately modeled.
 - Customer payment method writes remain unsupported scaffolds except for `customerPaymentMethodSendUpdateEmail`, which is buffered locally and retained for commit replay rather than delivered at runtime. Credit-card, PayPal billing-agreement, remote-create, duplication-data, update-url, and revoke roots require `write_customers` plus `write_customer_payment_methods` and are sensitive because they can involve vaulted instruments, expiring payment links, destructive revocation, asynchronous gateway polling, or customer-visible flows.
+- Store credit accounts are modeled as sensitive balance records. Snapshot mode never creates a store credit account merely because a customer exists: `Customer.storeCreditAccounts` remains an empty connection until normalized account state is seeded or a local mutation updates an existing account, and `storeCreditAccount(id:)` returns `null` for unknown IDs.
+- `storeCreditAccountCredit` and `storeCreditAccountDebit` stage locally only for existing normalized store credit accounts. They update the account balance and append local `StoreCreditAccountTransaction` rows so direct account reads and nested customer account reads observe the changed balance without runtime Shopify writes. Debit staging rejects insufficient local funds; both roots reject currency mismatches and unknown account IDs locally.
+- HAR-317 live evidence on 2026-04-27 used the canonical conformance auth helper against `harry-test-heelo.myshopify.com`: schema introspection captured the account fields (`id`, `balance`, `owner`, `transactions`), transaction fields (`account`, `amount`, `balanceAfterTransaction`, `createdAt`, `event`, `origin`), credit/debit input shapes, and payload fields. The same credential returned an empty first-customer `storeCreditAccounts` connection and unknown account roots returned `storeCreditAccount: null`; unknown credit/debit mutations returned payload `userErrors` with `field: ["id"]` and `Store credit account does not exist`. No non-empty live account was available in-session, so transaction success payloads are modeled from the captured schema plus local read-after-write tests rather than a non-empty Shopify fixture.
 - Customer order-summary reads have a deliberately narrow order-domain bridge. Captured Admin GraphQL 2026-04 evidence for `orderCustomerSet` / `orderCustomerRemove` shows immediate customer reads expose the linked order through `Customer.orders`, then return to an empty order connection after removal, but `numberOfOrders`, `amountSpent`, and `lastOrder` remain at the customer record's existing summary values in the immediate read. The proxy therefore derives `Customer.orders` from normalized effective `OrderRecord.customer` relationships and leaves customer-owned summary scalars on `CustomerRecord` unless they were hydrated from Shopify customer data.
 - Captured Admin GraphQL 2026-04 evidence for `customerSet` supports a local slice: create without `identifier`, update by `identifier.id`, and upsert/update by `identifier.email` or `identifier.phone`. The staged input slice is `email`, `firstName`, `lastName`, `locale`, `note`, `phone`, `tags`, `taxExempt`, `taxExemptions`, and address-list replacement when the identifier resolves an existing customer.
 - No-identifier `customerSet` creates reject duplicate native contact identifiers locally: existing email returns `field: ["input", "email"]` / `Email has already been taken`, and existing phone returns `field: ["input", "phone"]` / `Phone has already been taken`.
@@ -86,6 +92,7 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 
 - Customer reads: `tests/integration/customer-query-shapes.test.ts`
 - Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
+- Store credit account read and local balance staging: `tests/integration/store-credit-flow.test.ts`
 - Customer address lifecycle capture: `corepack pnpm conformance:capture-customer-addresses`, writing `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customer-set-parity.json`
 - Customer consent capture: `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-customer-consent`, writing `customer-email-marketing-consent-update-parity.json` and `customer-sms-marketing-consent-update-parity.json` with strict parity branches plus the HAR-287 validation matrix.
