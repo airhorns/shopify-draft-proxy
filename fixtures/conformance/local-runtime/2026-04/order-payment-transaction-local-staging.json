@@ -1,12 +1,808 @@
 {
-  "capturedAt": "2026-04-25T18:42:00.000Z",
-  "source": "local-runtime-vitest",
-  "runtimeTest": "tests/integration/order-payment-transaction-flow.test.ts",
-  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
-  "summary": {
-    "orderCapture": "Stages partial and final captures for a synthetic successful authorization transaction, updates downstream order financial/capturable fields, and keeps original raw capture mutations in the meta log.",
-    "transactionVoid": "Stages a VOID child transaction for an uncaptured synthetic authorization and returns local userErrors for missing or already-voided transactions.",
-    "orderCreateMandatePayment": "Stages a completed synthetic Job, stable paymentReferenceId, and idempotent mandate-payment transaction without contacting a payment gateway."
+  "capturedAt": "2026-04-27T20:00:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "liveGatewaySideEffects": false,
+  "notes": "Gateway-affecting order payment operations are represented by deterministic local-runtime recordings instead of live payment captures. The fixture records the explicit proxy replay contract for supported local orderCapture, transactionVoid, and orderCreateMandatePayment behavior.",
+  "paymentCaptureFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "HAR-353 payment item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "create": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "displayFinancialStatus": "AUTHORIZED",
+              "capturable": true,
+              "totalCapturable": "25.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "parentTransaction": null,
+                  "paymentId": null,
+                  "paymentReferenceId": null
+                }
+              ],
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["manual"],
+              "totalCapturableSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "overCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": null,
+            "order": {
+              "displayFinancialStatus": "AUTHORIZED",
+              "capturable": true,
+              "totalCapturable": "25.0",
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["manual"],
+              "totalCapturableSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": null,
+                  "paymentReferenceId": null,
+                  "parentTransaction": null,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": [
+              {
+                "field": ["input", "amount"],
+                "message": "Amount exceeds capturable amount"
+              }
+            ]
+          }
+        }
+      },
+      "firstCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": {
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS",
+                "id": "gid://shopify/OrderTransaction/3"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "id": "gid://shopify/OrderTransaction/7",
+              "paymentId": "gid://shopify/Payment/8",
+              "paymentReferenceId": "gid://shopify/PaymentReference/6"
+            },
+            "order": {
+              "displayFinancialStatus": "PARTIALLY_PAID",
+              "capturable": true,
+              "totalCapturable": "15.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["manual"],
+              "totalCapturableSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": null,
+                  "paymentReferenceId": null,
+                  "parentTransaction": null,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/OrderTransaction/7",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": "gid://shopify/Payment/8",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/6",
+                  "parentTransaction": {
+                    "id": "gid://shopify/OrderTransaction/3",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS"
+                  },
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "finalCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": {
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS",
+                "id": "gid://shopify/OrderTransaction/3"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "id": "gid://shopify/OrderTransaction/11",
+              "paymentId": "gid://shopify/Payment/12",
+              "paymentReferenceId": "gid://shopify/PaymentReference/10"
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["manual"],
+              "totalCapturableSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": null,
+                  "paymentReferenceId": null,
+                  "parentTransaction": null,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/OrderTransaction/7",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": "gid://shopify/Payment/8",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/6",
+                  "parentTransaction": {
+                    "id": "gid://shopify/OrderTransaction/3",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS"
+                  },
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/OrderTransaction/11",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentId": "gid://shopify/Payment/12",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/10",
+                  "parentTransaction": {
+                    "id": "gid://shopify/OrderTransaction/3",
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS"
+                  },
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "15.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterFinal": {
+        "data": {
+          "order": {
+            "displayFinancialStatus": "PAID",
+            "capturable": false,
+            "totalCapturable": "0.0",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": [
+              {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "gateway": "manual",
+                "id": "gid://shopify/OrderTransaction/3",
+                "parentTransaction": null,
+                "paymentId": null,
+                "paymentReferenceId": null
+              },
+              {
+                "kind": "CAPTURE",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "gateway": "manual",
+                "id": "gid://shopify/OrderTransaction/7",
+                "parentTransaction": {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS"
+                },
+                "paymentId": "gid://shopify/Payment/8",
+                "paymentReferenceId": "gid://shopify/PaymentReference/6"
+              },
+              {
+                "kind": "CAPTURE",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "15.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "gateway": "manual",
+                "id": "gid://shopify/OrderTransaction/11",
+                "parentTransaction": {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS"
+                },
+                "paymentId": "gid://shopify/Payment/12",
+                "paymentReferenceId": "gid://shopify/PaymentReference/10"
+              }
+            ],
+            "id": "gid://shopify/Order/1",
+            "netPaymentSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "paymentGatewayNames": ["manual"],
+            "totalCapturableSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        }
+      },
+      "voidAfterCapture": {
+        "data": {
+          "transactionVoid": {
+            "transaction": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Transaction has already been captured"
+              }
+            ]
+          }
+        }
+      },
+      "missingMandateIdempotency": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": null,
+            "paymentReferenceId": null,
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0",
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentReferenceId": null,
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/OrderTransaction/7",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/6",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/OrderTransaction/11",
+                  "kind": "CAPTURE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/10",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "15.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": [
+              {
+                "field": ["idempotencyKey"],
+                "message": "Idempotency key is required"
+              }
+            ]
+          }
+        }
+      }
+    }
   },
-  "liveGatewaySideEffects": false
+  "voidFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "HAR-353 payment item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "void": {
+        "data": {
+          "transactionVoid": {
+            "transaction": {
+              "kind": "VOID",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS",
+                "id": "gid://shopify/OrderTransaction/3"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "id": "gid://shopify/OrderTransaction/5",
+              "paymentId": "gid://shopify/Payment/6",
+              "paymentReferenceId": null
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterVoid": {
+        "data": {
+          "order": {
+            "displayFinancialStatus": "VOIDED",
+            "capturable": false,
+            "totalCapturable": "0.0",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": [
+              {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "gateway": "manual",
+                "id": "gid://shopify/OrderTransaction/3",
+                "parentTransaction": null,
+                "paymentId": null,
+                "paymentReferenceId": null
+              },
+              {
+                "kind": "VOID",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "gateway": "manual",
+                "id": "gid://shopify/OrderTransaction/5",
+                "parentTransaction": {
+                  "id": "gid://shopify/OrderTransaction/3",
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS"
+                },
+                "paymentId": "gid://shopify/Payment/6",
+                "paymentReferenceId": null
+              }
+            ],
+            "id": "gid://shopify/Order/1",
+            "netPaymentSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "paymentGatewayNames": ["manual"],
+            "totalCapturableSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "mandateFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [],
+          "lineItems": [
+            {
+              "title": "HAR-353 mandate item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "mandate": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": {
+              "done": true,
+              "id": "gid://shopify/Job/7"
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["mandate"],
+              "transactions": [
+                {
+                  "kind": "MANDATE_PAYMENT",
+                  "status": "SUCCESS",
+                  "gateway": "mandate",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "id": "gid://shopify/OrderTransaction/5",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/4"
+                }
+              ],
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": [],
+            "paymentReferenceId": "gid://shopify/PaymentReference/4"
+          }
+        }
+      },
+      "repeatMandate": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": {
+              "done": true,
+              "id": "gid://shopify/Job/7"
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "transactions": [
+                {
+                  "kind": "MANDATE_PAYMENT",
+                  "status": "SUCCESS",
+                  "gateway": "mandate",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "id": "gid://shopify/OrderTransaction/5",
+                  "paymentReferenceId": "gid://shopify/PaymentReference/4"
+                }
+              ],
+              "capturable": false,
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["mandate"],
+              "totalCapturable": "0.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": [],
+            "paymentReferenceId": "gid://shopify/PaymentReference/4"
+          }
+        }
+      }
+    }
+  }
 }

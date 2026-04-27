@@ -32,6 +32,11 @@ Local staged mutations:
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
   local `userErrors` and do not append staged commit-log entries.
+- HAR-353 promotes `return-lifecycle-local-staging` from fixture-only evidence to generic strict parity. The parity replay
+  seeds a fulfilled order graph, then compares `returnCreate`, `returnClose`, `returnReopen`, `returnCancel`,
+  downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and a missing fulfillment-line-item validation
+  branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
+  evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
 
 ## Blocked roots
 
@@ -52,6 +57,7 @@ Local staged mutations:
 ## Validation anchors
 
 - Runtime behavior: `tests/integration/order-return-flow.test.ts`
+- Executable parity: `config/parity-specs/return-lifecycle-local-staging.json`
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.
