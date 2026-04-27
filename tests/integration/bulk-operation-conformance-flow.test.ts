@@ -52,6 +52,14 @@ function readJson<T>(relativePath: string): T {
 
 const fixture = readJson<BulkOperationFixture>(fixturePath);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
 function readInteraction(section: 'reads' | 'validations', key: string): CapturedInteraction {
   const interaction = fixture[section][key];
   if (!interaction) {
@@ -117,6 +125,38 @@ function makeBaseVariant(productId: string, id: string, title: string, sku: stri
     selectedOptions: [{ name: 'Title', value: title }],
     inventoryItem: null,
   };
+}
+
+function readFixtureBulkQueryResultRecords(): Array<Record<string, unknown>> {
+  const terminalLifecycle = asRecord(fixture.lifecycle['queryExportToTerminal']);
+  const result = asRecord(terminalLifecycle?.['result']);
+  const records = Array.isArray(result?.['records']) ? result['records'].filter(isRecord) : [];
+  if (records.length === 0) {
+    throw new Error('BulkOperation fixture is missing captured query export result records.');
+  }
+
+  return records;
+}
+
+function readFixtureTerminalOperation(): Record<string, unknown> {
+  const terminalLifecycle = asRecord(fixture.lifecycle['queryExportToTerminal']);
+  const terminalOperation = asRecord(terminalLifecycle?.['terminalOperation']);
+  if (!terminalOperation) {
+    throw new Error('BulkOperation fixture is missing the terminal query export operation.');
+  }
+
+  return terminalOperation;
+}
+
+function readFixtureRunQueryVariables(): Record<string, unknown> {
+  const terminalLifecycle = asRecord(fixture.lifecycle['queryExportToTerminal']);
+  const run = asRecord(terminalLifecycle?.['run']);
+  const variables = asRecord(run?.['variables']);
+  if (typeof variables?.['query'] !== 'string') {
+    throw new Error('BulkOperation fixture is missing run-query variables.');
+  }
+
+  return variables;
 }
 
 function writeSnapshotFile(tempDir: string, operation: BulkOperationRecord): string {
@@ -383,6 +423,58 @@ describe('BulkOperation conformance fixture and local model', () => {
       url: payload.bulkOperation.url,
     });
     expect(stateResponse.body.stagedState.bulkOperationResults[payload.bulkOperation.id]).toBe(resultResponse.text);
+  });
+
+  it('replays captured Shopify product query export result records through the local bulk runner', async () => {
+    const app = createApp(config).callback();
+    const capturedRecords = readFixtureBulkQueryResultRecords();
+    for (const [index, record] of capturedRecords.entries()) {
+      const id = typeof record['id'] === 'string' ? record['id'] : null;
+      if (!id?.startsWith('gid://shopify/Product/')) {
+        continue;
+      }
+
+      const product = makeBaseProduct(
+        id,
+        typeof record['title'] === 'string' ? record['title'] : 'Captured product',
+        '',
+      );
+      const orderedTimestamp = new Date(Date.UTC(2026, 3, 27, 0, 0, 0, 0) - index).toISOString();
+      product.createdAt = orderedTimestamp;
+      product.updatedAt = orderedTimestamp;
+      store.upsertBaseProducts([product]);
+    }
+
+    const terminalOperation = readFixtureTerminalOperation();
+    const runResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: readInteraction('validations', 'bulkOperationRunQueryWithoutConnection').query,
+        variables: readFixtureRunQueryVariables(),
+      });
+
+    expect(runResponse.status).toBe(200);
+    const payload = runResponse.body.data.bulkOperationRunQuery;
+    expect(payload.userErrors).toEqual([]);
+    expect(payload.bulkOperation).toMatchObject({
+      status: terminalOperation['status'],
+      type: terminalOperation['type'],
+      errorCode: terminalOperation['errorCode'],
+      objectCount: terminalOperation['objectCount'],
+      rootObjectCount: terminalOperation['rootObjectCount'],
+      partialDataUrl: terminalOperation['partialDataUrl'],
+      query: terminalOperation['query'],
+    });
+
+    const resultResponse = await request(app).get(new URL(payload.bulkOperation.url).pathname);
+    expect(resultResponse.status).toBe(200);
+    const localRecords = resultResponse.text
+      .trim()
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(localRecords).toEqual(capturedRecords);
+    expect(payload.bulkOperation.fileSize).toBe(String(Buffer.byteLength(resultResponse.text, 'utf8')));
   });
 
   it('returns local userErrors for malformed, unsupported, and unsupported-shape bulk query exports', async () => {

@@ -76,6 +76,7 @@ Local `bulkOperationRunQuery` supports:
 - effective local/snapshot state as the export source, including staged products and variants
 - completed staged `BulkOperation` rows with `status: COMPLETED`, `type: QUERY`, `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, `partialDataUrl: null`, and original `query`
 - local result URLs at `https://shopify-draft-proxy.local/__bulk_operations/<id>/result.jsonl`; the Koa app serves the matching path as `application/jsonl` from memory until reset
+- `fileSize` is the byte length of the generated local JSONL payload. Captured Shopify `fileSize` values can differ from the downloaded JSONL byte length because Shopify reports its stored artifact size.
 - original raw mutation bodies in the meta mutation log for commit/replay observability
 
 Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` and no upstream runtime request:
@@ -103,7 +104,7 @@ Local `bulkOperationCancel` supports:
 
 ## Captured 2026-04 evidence
 
-HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json`. HAR-346 promotes the local read/cancel slice from fixture-only evidence to `captured-vs-proxy-request` parity: the generic `pnpm conformance:parity` runner seeds captured `BulkOperation` jobs into the local harness and strictly compares unknown-id reads, empty running-query/running-mutation lists, empty `currentBulkOperation(type: MUTATION)`, unknown/terminal cancel userErrors, staged local cancel, and read-after-local-cancel. HAR-263's integration coverage still verifies local state, meta logging, reset behavior, and that export/import execution remains unsupported.
+HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json`. HAR-346 promotes the local read/cancel slice from fixture-only evidence to `captured-vs-proxy-request` parity: the generic `pnpm conformance:parity` runner seeds captured `BulkOperation` jobs into the local harness and strictly compares unknown-id reads, empty running-query/running-mutation lists, empty `currentBulkOperation(type: MUTATION)`, unknown/terminal cancel userErrors, staged local cancel, and read-after-local-cancel. HAR-264 extends that same fixture with downloaded product-export JSONL records, seeds those records into the local parity harness, replays `bulkOperationRunQuery`, and compares the completed local job plus downstream `bulkOperation(id:)` read to the captured Shopify terminal job with only synthetic IDs/timestamps/result URLs/file-size infrastructure differences allowed.
 
 The fixture captures these read and validation branches:
 
@@ -118,6 +119,7 @@ The fixture captures these read and validation branches:
 The fixture also captures two safe no-write product export lifecycles:
 
 - A query export transitioned from `CREATED` to `COMPLETED` and populated `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, and `partialDataUrl: null`; canceling that terminal operation returned a userError with `field: null`.
+- The completed query export fixture includes the downloaded JSONL records for `products { edges { node { id title } } }`; integration coverage replays those exact records through the local result URL.
 - A second query export was canceled immediately, returning `CANCELING` from `bulkOperationCancel` and later `CANCELED` from `bulkOperation(id:)`; its counters and result URL behavior are fixture-backed and should not be guessed from the completed branch.
 
 ## Validation anchors
