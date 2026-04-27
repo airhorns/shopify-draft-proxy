@@ -134,6 +134,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       customerAddresses: {},
       customerPaymentMethods: {},
       segments: {},
+      customerSegmentMembersQueries: {},
       webhookSubscriptions: {},
       webhookSubscriptionOrder: [],
       marketingActivities: {},

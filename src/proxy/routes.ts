@@ -1309,6 +1309,18 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
+        if (
+          primaryRootField !== null &&
+          ['customerSegmentMembers', 'customerSegmentMembersQuery', 'customerSegmentMembership'].includes(
+            primaryRootField,
+          ) &&
+          (store.hasCustomerSegmentMembersQueries() || store.hasStagedSegments() || store.hasStagedCustomers())
+        ) {
+          ctx.status = 200;
+          ctx.body = handleSegmentsQuery(body.query, variables);
+          return;
+        }
+
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,

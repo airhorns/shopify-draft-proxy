@@ -10,6 +10,7 @@ import type {
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  CustomerSegmentMembersQueryRecord,
   DeliveryProfileRecord,
   DiscountRecord,
   DiscountBulkOperationRecord,
@@ -76,6 +77,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customerAddresses: {},
   customerPaymentMethods: {},
   segments: {},
+  customerSegmentMembersQueries: {},
   webhookSubscriptions: {},
   webhookSubscriptionOrder: [],
   marketingActivities: {},
@@ -1110,6 +1112,26 @@ export class InMemoryStore {
   stageDeleteSegment(segmentId: string): void {
     delete this.stagedState.segments[segmentId];
     this.stagedState.deletedSegmentIds[segmentId] = true;
+  }
+
+  stageCustomerSegmentMembersQuery(query: CustomerSegmentMembersQueryRecord): CustomerSegmentMembersQueryRecord {
+    this.stagedState.customerSegmentMembersQueries[query.id] = structuredClone(query);
+    return structuredClone(query);
+  }
+
+  getEffectiveCustomerSegmentMembersQueryById(queryId: string): CustomerSegmentMembersQueryRecord | null {
+    const query =
+      this.stagedState.customerSegmentMembersQueries[queryId] ??
+      this.baseState.customerSegmentMembersQueries[queryId] ??
+      null;
+    return query ? structuredClone(query) : null;
+  }
+
+  hasCustomerSegmentMembersQueries(): boolean {
+    return (
+      Object.keys(this.baseState.customerSegmentMembersQueries).length > 0 ||
+      Object.keys(this.stagedState.customerSegmentMembersQueries).length > 0
+    );
   }
 
   getEffectiveSegmentById(segmentId: string): SegmentRecord | null {
