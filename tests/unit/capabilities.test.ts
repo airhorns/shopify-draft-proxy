@@ -718,6 +718,11 @@ describe('getOperationCapability', () => {
       'metaobjectDefinitionUpdate',
       'metaobjectDefinitionDelete',
       'standardMetaobjectDefinitionEnable',
+      'metaobjectCreate',
+      'metaobjectUpdate',
+      'metaobjectUpsert',
+      'metaobjectDelete',
+      'metaobjectBulkDelete',
     ]) {
       expect(
         getOperationCapability({

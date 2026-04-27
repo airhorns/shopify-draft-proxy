@@ -1075,8 +1075,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const responseBody = handleMetaobjectDefinitionMutation(request.body.query, request.variables);
       appendStagedMutationLog(request, {
         responseBody,
-        notes:
-          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
+        notes: 'Staged locally in the in-memory metaobject definition/entry draft store.',
       });
       setGraphQLResponse(request, 200, responseBody);
       return true;

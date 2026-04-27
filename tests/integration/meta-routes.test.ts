@@ -131,6 +131,7 @@ const emptySnapshot = {
   deletedDeliveryProfileIds: {},
   deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
+  deletedMetaobjectIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
   orderMandatePayments: {},
