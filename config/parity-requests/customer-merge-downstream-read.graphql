@@ -7,11 +7,71 @@ query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $e
     email
     note
     tags
+    numberOfOrders
     defaultEmailAddress {
       emailAddress
     }
     defaultPhoneNumber {
       phoneNumber
+    }
+    defaultAddress {
+      id
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        email
+        createdAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lastOrder {
+      id
+      name
+      email
+      createdAt
     }
     createdAt
     updatedAt
@@ -24,11 +84,71 @@ query CustomerMergeDownstreamParity($one: ID!, $two: ID!, $emailOne: String!, $e
     email
     note
     tags
+    numberOfOrders
     defaultEmailAddress {
       emailAddress
     }
     defaultPhoneNumber {
       phoneNumber
+    }
+    defaultAddress {
+      id
+      address1
+      city
+      provinceCode
+      countryCodeV2
+      zip
+    }
+    addressesV2(first: 10) {
+      nodes {
+        id
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        email
+        createdAt
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    lastOrder {
+      id
+      name
+      email
+      createdAt
     }
     createdAt
     updatedAt

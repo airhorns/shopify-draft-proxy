@@ -60,6 +60,71 @@ describe('payment customization query shapes', () => {
     vi.restoreAllMocks();
   });
 
+  it('serves finance risk no-data read roots locally without inventing sensitive records', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('finance risk no-data snapshot reads should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query FinanceRiskNoData($cashId: ID!, $posId: ID!, $disputeId: ID!, $evidenceId: ID!, $token: String!) {
+          cashTrackingSession(id: $cashId) { __typename }
+          cashTrackingSessions(first: 1) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          pointOfSaleDevice(id: $posId) { __typename }
+          dispute(id: $disputeId) { __typename }
+          disputeEvidence(id: $evidenceId) { __typename }
+          disputes(first: 1) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          shopPayPaymentRequestReceipt(token: $token) { __typename }
+          shopPayPaymentRequestReceipts(first: 1) {
+            nodes { __typename }
+            edges { node { __typename } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }`,
+        variables: {
+          cashId: 'gid://shopify/CashTrackingSession/0',
+          posId: 'gid://shopify/PointOfSaleDevice/0',
+          disputeId: 'gid://shopify/ShopifyPaymentsDispute/0',
+          evidenceId: 'gid://shopify/ShopifyPaymentsDisputeEvidence/0',
+          token: 'codex-missing-shop-pay-payment-request-receipt-token',
+        },
+      });
+
+    const emptyConnection = {
+      nodes: [],
+      edges: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+    };
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        cashTrackingSession: null,
+        cashTrackingSessions: emptyConnection,
+        pointOfSaleDevice: null,
+        dispute: null,
+        disputeEvidence: null,
+        disputes: emptyConnection,
+        shopPayPaymentRequestReceipt: null,
+        shopPayPaymentRequestReceipts: emptyConnection,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns Shopify-like empty catalog and null detail in snapshot mode without upstream access', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('payment customization snapshot read should not hit upstream fetch');

@@ -1,0 +1,520 @@
+{
+  "capturedAt": "2026-04-27T15:25:47.793Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "introspection": {
+    "status": 200,
+    "rootTypes": {
+      "queryRoot": [
+        {
+          "name": "backupRegion",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "INTERFACE",
+              "name": "MarketRegion",
+              "ofType": null
+            }
+          },
+          "args": []
+        },
+        {
+          "name": "domain",
+          "type": {
+            "kind": "OBJECT",
+            "name": "Domain",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "job",
+          "type": {
+            "kind": "OBJECT",
+            "name": "Job",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "node",
+          "type": {
+            "kind": "INTERFACE",
+            "name": "Node",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "nodes",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "LIST",
+              "name": null,
+              "ofType": {
+                "kind": "INTERFACE",
+                "name": "Node"
+              }
+            }
+          },
+          "args": [
+            {
+              "name": "ids",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "publicApiVersions",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "LIST",
+              "name": null,
+              "ofType": {
+                "kind": "NON_NULL",
+                "name": null
+              }
+            }
+          },
+          "args": []
+        },
+        {
+          "name": "staffMember",
+          "type": {
+            "kind": "OBJECT",
+            "name": "StaffMember",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "staffMembers",
+          "type": {
+            "kind": "OBJECT",
+            "name": "StaffMemberConnection",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "StaffMembersSortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ]
+        },
+        {
+          "name": "taxonomy",
+          "type": {
+            "kind": "OBJECT",
+            "name": "Taxonomy",
+            "ofType": null
+          },
+          "args": []
+        }
+      ],
+      "mutationRoot": [
+        {
+          "name": "flowGenerateSignature",
+          "type": {
+            "kind": "OBJECT",
+            "name": "FlowGenerateSignaturePayload",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID"
+                }
+              }
+            },
+            {
+              "name": "payload",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "flowTriggerReceive",
+          "type": {
+            "kind": "OBJECT",
+            "name": "FlowTriggerReceivePayload",
+            "ofType": null
+          },
+          "args": [
+            {
+              "name": "handle",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "payload",
+              "type": {
+                "kind": "SCALAR",
+                "name": "JSON",
+                "ofType": null
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "captures": {
+    "publicApiVersions": {
+      "query": "#graphql\n  query PublicApiVersionsRead {\n    publicApiVersions {\n      handle\n      displayName\n      supported\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicApiVersions": [
+              {
+                "handle": "2025-07",
+                "displayName": "2025-07",
+                "supported": true
+              },
+              {
+                "handle": "2025-10",
+                "displayName": "2025-10",
+                "supported": true
+              },
+              {
+                "handle": "2026-01",
+                "displayName": "2026-01",
+                "supported": true
+              },
+              {
+                "handle": "2026-04",
+                "displayName": "2026-04 (Latest)",
+                "supported": true
+              },
+              {
+                "handle": "2026-07",
+                "displayName": "2026-07 (Release candidate)",
+                "supported": false
+              },
+              {
+                "handle": "unstable",
+                "displayName": "unstable",
+                "supported": false
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "nodeNoData": {
+      "query": "#graphql\n  query NodeNoDataRead($ids: [ID!]!) {\n    node(id: \"gid://shopify/Product/0\") {\n      __typename\n      id\n    }\n    nodes(ids: $ids) {\n      __typename\n      id\n    }\n  }\n",
+      "variables": {
+        "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": null,
+            "nodes": [null, null, null]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "jobDomainNoData": {
+      "query": "#graphql\n  query JobDomainNoDataRead($domainId: ID!, $jobId: ID!) {\n    domain(id: $domainId) {\n      id\n      host\n      url\n      sslEnabled\n    }\n    job(id: $jobId) {\n      id\n      done\n      query {\n        __typename\n      }\n    }\n  }\n",
+      "variables": {
+        "domainId": "gid://shopify/Domain/0",
+        "jobId": "gid://shopify/Job/0"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "domain": null,
+            "job": {
+              "id": "gid://shopify/Job/0",
+              "done": true,
+              "query": {
+                "__typename": "QueryRoot"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegion": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110417202",
+              "name": "Canada",
+              "code": "CA"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "taxonomyEmptySearch": {
+      "query": "#graphql\n  query TaxonomyEmptySearchRead {\n    taxonomy {\n      categories(first: 2, search: \"zzzzzz-no-match-har-315\") {\n        nodes {\n          id\n          name\n          fullName\n          isRoot\n          isLeaf\n          level\n          parentId\n          ancestorIds\n          childrenIds\n          isArchived\n        }\n        edges {\n          cursor\n          node {\n            id\n            name\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "taxonomy": {
+              "categories": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "staffAccessBlocker": {
+      "query": "#graphql\n  query StaffUtilityRead {\n    staffMember {\n      id\n      exists\n      active\n      isShopOwner\n      accountType\n    }\n    staffMembers(first: 1) {\n      nodes {\n        id\n        exists\n        active\n        isShopOwner\n        accountType\n      }\n      edges {\n        cursor\n        node {\n          id\n          exists\n          active\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for staffMember field. Required access: `read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app."
+              },
+              "path": ["staffMember"]
+            },
+            {
+              "message": "Access denied for staffMembers field.",
+              "locations": [
+                {
+                  "line": 10,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes"
+              },
+              "path": ["staffMembers"]
+            }
+          ],
+          "data": {
+            "staffMember": null,
+            "staffMembers": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

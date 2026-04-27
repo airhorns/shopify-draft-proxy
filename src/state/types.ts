@@ -460,6 +460,51 @@ export const metaobjectDefinitionRecordSchema = z.strictObject({
 });
 export type MetaobjectDefinitionRecord = z.infer<typeof metaobjectDefinitionRecordSchema>;
 
+export const metaobjectFieldDefinitionReferenceRecordSchema = z.strictObject({
+  key: z.string(),
+  name: nullableStringSchema,
+  required: nullableBooleanSchema,
+  type: metaobjectDefinitionTypeRecordSchema,
+});
+export type MetaobjectFieldDefinitionReferenceRecord = z.infer<typeof metaobjectFieldDefinitionReferenceRecordSchema>;
+
+export const metaobjectFieldRecordSchema = z.strictObject({
+  key: z.string(),
+  type: nullableStringSchema,
+  value: nullableStringSchema,
+  jsonValue: jsonValueSchema.nullable(),
+  definition: metaobjectFieldDefinitionReferenceRecordSchema.nullable(),
+});
+export type MetaobjectFieldRecord = z.infer<typeof metaobjectFieldRecordSchema>;
+
+export const metaobjectPublishableCapabilityRecordSchema = z.strictObject({
+  status: nullableStringSchema,
+});
+export type MetaobjectPublishableCapabilityRecord = z.infer<typeof metaobjectPublishableCapabilityRecordSchema>;
+
+export const metaobjectOnlineStoreCapabilityRecordSchema = z.strictObject({
+  templateSuffix: nullableStringSchema,
+});
+export type MetaobjectOnlineStoreCapabilityRecord = z.infer<typeof metaobjectOnlineStoreCapabilityRecordSchema>;
+
+export const metaobjectCapabilitiesRecordSchema = z.strictObject({
+  publishable: metaobjectPublishableCapabilityRecordSchema.optional(),
+  onlineStore: metaobjectOnlineStoreCapabilityRecordSchema.nullable().optional(),
+});
+export type MetaobjectCapabilitiesRecord = z.infer<typeof metaobjectCapabilitiesRecordSchema>;
+
+export const metaobjectRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  type: z.string(),
+  displayName: nullableStringSchema,
+  fields: z.array(metaobjectFieldRecordSchema),
+  capabilities: metaobjectCapabilitiesRecordSchema,
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+});
+export type MetaobjectRecord = z.infer<typeof metaobjectRecordSchema>;
+
 export const customerMetafieldRecordSchema = z.strictObject({
   id: z.string(),
   customerId: z.string(),
@@ -1556,6 +1601,33 @@ export const marketLocalizationRecordSchema = z.strictObject({
 });
 export type MarketLocalizationRecord = z.infer<typeof marketLocalizationRecordSchema>;
 
+export const localeRecordSchema = z.strictObject({
+  isoCode: z.string(),
+  name: z.string(),
+});
+export type LocaleRecord = z.infer<typeof localeRecordSchema>;
+
+export const shopLocaleRecordSchema = z.strictObject({
+  locale: z.string(),
+  name: z.string(),
+  primary: z.boolean(),
+  published: z.boolean(),
+  marketWebPresenceIds: z.array(z.string()).default([]),
+});
+export type ShopLocaleRecord = z.infer<typeof shopLocaleRecordSchema>;
+
+export const translationRecordSchema = z.strictObject({
+  resourceId: z.string(),
+  key: z.string(),
+  locale: z.string(),
+  value: z.string(),
+  translatableContentDigest: z.string(),
+  marketId: nullableStringSchema,
+  updatedAt: z.string(),
+  outdated: z.boolean(),
+});
+export type TranslationRecord = z.infer<typeof translationRecordSchema>;
+
 export const catalogRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema.optional(),
@@ -1783,6 +1855,9 @@ export const stateSnapshotSchema = z.strictObject({
   webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
   webPresenceOrder: z.array(z.string()).default([]),
   marketLocalizations: z.record(z.string(), marketLocalizationRecordSchema).default({}),
+  availableLocales: z.array(localeRecordSchema).default([]),
+  shopLocales: z.record(z.string(), shopLocaleRecordSchema).default({}),
+  translations: z.record(z.string(), translationRecordSchema).default({}),
   catalogs: z.record(z.string(), catalogRecordSchema).default({}),
   catalogOrder: z.array(z.string()).default([]),
   priceLists: z.record(z.string(), priceListRecordSchema).default({}),
@@ -1801,6 +1876,7 @@ export const stateSnapshotSchema = z.strictObject({
   productMetafields: z.record(z.string(), productMetafieldRecordSchema),
   metafieldDefinitions: z.record(z.string(), metafieldDefinitionRecordSchema).default({}),
   metaobjectDefinitions: z.record(z.string(), metaobjectDefinitionRecordSchema).default({}),
+  metaobjects: z.record(z.string(), metaobjectRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
@@ -1823,6 +1899,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedShopLocales: z.record(z.string(), z.literal(true)).default({}),
+  deletedTranslations: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSellingPlanGroupIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),

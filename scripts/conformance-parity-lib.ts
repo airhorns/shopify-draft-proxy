@@ -29,6 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
@@ -45,6 +46,11 @@ import {
   hydrateMarketsFromUpstreamResponse,
   seedMarketsFromCapture,
 } from '../src/proxy/markets.js';
+import {
+  handleLocalizationMutation,
+  handleLocalizationQuery,
+  hydrateLocalizationFromUpstreamResponse,
+} from '../src/proxy/localization.js';
 import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
 import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
@@ -60,6 +66,7 @@ import {
 import {
   handleMetaobjectDefinitionMutation,
   handleMetaobjectDefinitionQuery,
+  hydrateMetaobjectsFromUpstreamResponse,
 } from '../src/proxy/metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
@@ -77,6 +84,8 @@ import type {
   B2BCompanyRecord,
   BusinessEntityRecord,
   CollectionRecord,
+  CustomerAddressRecord,
+  CustomerMetafieldRecord,
   CustomerRecord,
   DeliveryProfileCountryRecord,
   DeliveryProfileLocationGroupRecord,
@@ -87,6 +96,7 @@ import type {
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
   InventoryLevelRecord,
+  LocaleRecord,
   LocationRecord,
   MutationLogInterpretedMetadata,
   OrderCustomerRecord,
@@ -107,6 +117,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopRecord,
+  ShopLocaleRecord,
   DiscountRecord,
 } from '../src/state/types.js';
 
@@ -899,6 +910,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleLocalizationMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1113,6 +1143,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'admin-platform') {
+    return {
+      status: 200,
+      body: handleAdminPlatformQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
     return {
       status: 200,
@@ -1247,6 +1284,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketsQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
+    if (upstreamPayload !== undefined) {
+      hydrateLocalizationFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleLocalizationQuery(document, variables),
     };
   }
 
@@ -1686,13 +1734,92 @@ function readCustomerDefaultAddress(
   }
 
   return {
+    id: readStringField(address, 'id'),
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
     address1: readStringField(address, 'address1'),
     city: readStringField(address, 'city'),
     province: readStringField(address, 'province'),
+    provinceCode: readStringField(address, 'provinceCode'),
     country: readStringField(address, 'country'),
+    countryCodeV2: readStringField(address, 'countryCodeV2'),
     zip: readStringField(address, 'zip'),
     formattedArea: readStringField(address, 'formattedArea'),
   };
+}
+
+function makeSeedCustomerAddress(
+  customerId: string,
+  address: Record<string, unknown>,
+  position: number,
+): CustomerAddressRecord | null {
+  const id = readStringField(address, 'id');
+  if (!id) {
+    return null;
+  }
+
+  const provinceCode = readStringField(address, 'provinceCode');
+  const countryCode = readStringField(address, 'countryCodeV2');
+  const city = readStringField(address, 'city');
+  const country = readStringField(address, 'country');
+  const formattedArea = [city, provinceCode, country ?? countryCode].filter(Boolean).join(', ') || null;
+
+  return {
+    id,
+    customerId,
+    cursor: null,
+    position,
+    firstName: readStringField(address, 'firstName'),
+    lastName: readStringField(address, 'lastName'),
+    address1: readStringField(address, 'address1'),
+    address2: readStringField(address, 'address2'),
+    city,
+    company: readStringField(address, 'company'),
+    province: readStringField(address, 'province'),
+    provinceCode,
+    country,
+    countryCodeV2: countryCode,
+    zip: readStringField(address, 'zip'),
+    phone: readStringField(address, 'phone'),
+    name: readStringField(address, 'name'),
+    formattedArea,
+  };
+}
+
+function readCustomerAddressRecords(
+  customerId: string,
+  customer: Record<string, unknown> | null,
+): CustomerAddressRecord[] {
+  return readArrayField(readRecordField(customer, 'addressesV2'), 'nodes')
+    .filter(isPlainObject)
+    .map((address, index) => makeSeedCustomerAddress(customerId, address, index))
+    .filter((address): address is CustomerAddressRecord => address !== null);
+}
+
+function readCustomerMetafieldRecords(
+  customerId: string,
+  customer: Record<string, unknown> | null,
+): CustomerMetafieldRecord[] {
+  return readArrayField(readRecordField(customer, 'metafields'), 'nodes')
+    .filter(isPlainObject)
+    .map((metafield): CustomerMetafieldRecord | null => {
+      const id = readStringField(metafield, 'id');
+      const namespace = readStringField(metafield, 'namespace');
+      const key = readStringField(metafield, 'key');
+      if (!id || !namespace || !key) {
+        return null;
+      }
+
+      return {
+        id,
+        customerId,
+        namespace,
+        key,
+        type: readStringField(metafield, 'type'),
+        value: readStringField(metafield, 'value'),
+      };
+    })
+    .filter((metafield): metafield is CustomerMetafieldRecord => metafield !== null);
 }
 
 function readCustomerDefaultEmailAddress(
@@ -1897,6 +2024,8 @@ function seedCustomerMergePreconditions(
   }
 
   const seedCustomers: CustomerRecord[] = [];
+  const seedAddresses: CustomerAddressRecord[] = [];
+  const seedMetafieldsByCustomerId = new Map<string, CustomerMetafieldRecord[]>();
   for (const key of ['createOne', 'createTwo']) {
     const customerPayload = readRecordField(readCustomerCreatePayloadFromCapture(capture, key), 'customer');
     const customerId = readStringField(customerPayload, 'id');
@@ -1904,6 +2033,38 @@ function seedCustomerMergePreconditions(
       seedCustomers.push(makeSeedCustomer(customerId, customerPayload));
     }
   }
+
+  const attachedBeforeData = readRecordField(
+    readRecordField(readRecordField(readRecordField(capture, 'precondition'), 'attachedBeforeMerge'), 'response'),
+    'data',
+  );
+  for (const key of ['source', 'result']) {
+    const customerPayload = readRecordField(attachedBeforeData, key);
+    const customerId = readStringField(customerPayload, 'id');
+    if (!customerId) {
+      continue;
+    }
+
+    const attachedCustomer = makeSeedCustomer(customerId, customerPayload);
+    const existingIndex = seedCustomers.findIndex((customer) => customer.id === customerId);
+    if (existingIndex === -1) {
+      seedCustomers.push(attachedCustomer);
+    } else {
+      seedCustomers[existingIndex] = attachedCustomer;
+    }
+    seedAddresses.push(...readCustomerAddressRecords(customerId, customerPayload));
+    seedMetafieldsByCustomerId.set(customerId, readCustomerMetafieldRecords(customerId, customerPayload));
+  }
+
+  const order = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'precondition'), 'orderCreate'), 'response'),
+      'data',
+    ),
+    'orderCreate',
+  );
+  const orderPayload = readRecordField(order, 'order');
+  const orderId = readStringField(orderPayload, 'id');
 
   const downstreamData = readRecordField(
     readRecordField(readRecordField(capture, 'downstreamRead'), 'response'),
@@ -1922,6 +2083,15 @@ function seedCustomerMergePreconditions(
   }
 
   store.upsertBaseCustomers(seedCustomers);
+  if (seedAddresses.length > 0) {
+    store.upsertBaseCustomerAddresses(seedAddresses);
+  }
+  for (const [customerId, metafields] of seedMetafieldsByCustomerId) {
+    store.replaceBaseMetafieldsForCustomer(customerId, metafields);
+  }
+  if (orderId) {
+    store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+  }
   return true;
 }
 
@@ -1941,6 +2111,84 @@ function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
       seedCustomers.set(customerId, makeSeedCustomer(customerId, customer));
     }
   }
+
+  if (seedCustomers.size === 0) {
+    return false;
+  }
+
+  store.upsertBaseCustomers([...seedCustomers.values()]);
+  return true;
+}
+
+function readCustomerFromCapturedCreate(source: Record<string, unknown> | null): Record<string, unknown> | null {
+  return readRecordField(
+    readRecordField(readRecordField(readRecordField(source, 'response'), 'data'), 'customerCreate'),
+    'customer',
+  );
+}
+
+function seedCustomerInputValidationPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  const createScenarios = readRecordField(capture, 'createScenarios');
+  const updateScenarios = readRecordField(capture, 'updateScenarios');
+  if (!createScenarios || !updateScenarios) {
+    return false;
+  }
+
+  const seedCustomers = new Map<string, CustomerRecord>();
+  const addCustomerPayload = (payload: Record<string, unknown> | null): void => {
+    const customerId = readStringField(payload, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    seedCustomers.set(customerId, makeSeedCustomer(customerId, payload));
+  };
+  const addCapturedCreate = (source: Record<string, unknown> | null): void => {
+    addCustomerPayload(readCustomerFromCapturedCreate(source));
+  };
+  const addBaseCustomer = (baseCustomer: Record<string, unknown> | null): void => {
+    const customerId = readStringField(baseCustomer, 'id');
+    if (!customerId || seedCustomers.has(customerId)) {
+      return;
+    }
+    const email = readStringField(baseCustomer, 'email');
+    const phone = readStringField(baseCustomer, 'phone');
+    seedCustomers.set(
+      customerId,
+      makeSeedCustomer(customerId, {
+        id: customerId,
+        email,
+        displayName: email,
+        locale: 'en',
+        verifiedEmail: email ? true : null,
+        taxExempt: false,
+        tags: ['input-validation'],
+        defaultEmailAddress: email ? { emailAddress: email } : null,
+        defaultPhoneNumber: phone ? { phoneNumber: phone } : null,
+      }),
+    );
+  };
+
+  const preconditions = readRecordField(capture, 'preconditions');
+  for (const key of ['primary', 'duplicateTarget']) {
+    addCapturedCreate(readRecordField(preconditions, key));
+  }
+
+  for (const scenario of Object.values(updateScenarios)) {
+    if (isPlainObject(scenario)) {
+      addBaseCustomer(readRecordField(scenario, 'baseCustomer'));
+    }
+  }
+
+  const deletedCustomerUpdate = readRecordField(capture, 'deletedCustomerUpdate');
+  addCapturedCreate(readRecordField(deletedCustomerUpdate, 'precondition'));
+
+  const mergedCustomerUpdate = readRecordField(capture, 'mergedCustomerUpdate');
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeSource'));
+  addCapturedCreate(readRecordField(mergedCustomerUpdate, 'mergeTarget'));
 
   if (seedCustomers.size === 0) {
     return false;
@@ -5074,6 +5322,27 @@ function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function seedMetaobjectReadPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  let hydrated = false;
+  for (const read of readArrayField(capture, 'seededReads').filter(isPlainObject)) {
+    const request = readRecordField(read, 'request');
+    const query = readStringField(request, 'query');
+    const response = readRecordField(read, 'response');
+    if (!query || !response) {
+      continue;
+    }
+
+    hydrateMetaobjectsFromUpstreamResponse(query, readRecordField(request, 'variables') ?? {}, response);
+    hydrated = true;
+  }
+
+  return hydrated && (store.hasEffectiveMetaobjectDefinitions() || store.hasEffectiveMetaobjects());
+}
+
 function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
@@ -5468,6 +5737,82 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
   return mediaByProductId.size > 0;
 }
 
+function seedLocalizationPreconditions(capture: unknown): boolean {
+  const readCaptureData = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'readCapture'), 'response'),
+    'data',
+  );
+  if (!readCaptureData) {
+    return false;
+  }
+
+  const locales = readArrayField(readCaptureData, 'availableLocalesExcerpt')
+    .filter(isPlainObject)
+    .flatMap((locale): LocaleRecord[] => {
+      const isoCode = readStringField(locale, 'isoCode');
+      const name = readStringField(locale, 'name');
+      return isoCode && name ? [{ isoCode, name }] : [];
+    });
+  if (locales.length > 0) {
+    store.replaceBaseAvailableLocales(locales);
+  }
+
+  const shopLocales = readArrayField(readCaptureData, 'allShopLocales')
+    .filter(isPlainObject)
+    .flatMap((locale): ShopLocaleRecord[] => {
+      const localeCode = readStringField(locale, 'locale');
+      const name = readStringField(locale, 'name');
+      const primary = readBooleanField(locale, 'primary');
+      const published = readBooleanField(locale, 'published');
+      if (!localeCode || !name || primary === null || published === null) {
+        return [];
+      }
+
+      return [
+        {
+          locale: localeCode,
+          name,
+          primary,
+          published,
+          marketWebPresenceIds: readArrayField(locale, 'marketWebPresences')
+            .filter(isPlainObject)
+            .flatMap((presence) => {
+              const id = readStringField(presence, 'id');
+              return id ? [id] : [];
+            }),
+        },
+      ];
+    });
+  if (shopLocales.length > 0) {
+    store.upsertBaseShopLocales(shopLocales);
+  }
+
+  const resources = readArrayField(readRecordField(readCaptureData, 'resources'), 'nodes').filter(isPlainObject);
+  for (const resource of resources) {
+    const productId = readStringField(resource, 'resourceId');
+    if (!productId?.startsWith('gid://shopify/Product/')) {
+      continue;
+    }
+
+    const contentByKey = new Map(
+      readArrayField(resource, 'translatableContent')
+        .filter(isPlainObject)
+        .map((content) => [readStringField(content, 'key'), readStringField(content, 'value')] as const)
+        .filter((entry): entry is [string, string] => entry[0] !== null && entry[1] !== null),
+    );
+    store.upsertBaseProducts([
+      makeSeedProduct(productId, {
+        id: productId,
+        title: contentByKey.get('title'),
+        handle: contentByKey.get('handle'),
+        productType: contentByKey.get('product_type'),
+      }),
+    ]);
+  }
+
+  return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;
@@ -5497,9 +5842,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
   seedExplicitProductMediaPreconditions(capture);
+  seedLocalizationPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
+  if (seedMetaobjectReadPreconditions(capture)) {
+    return;
+  }
   if (seedInventoryLinkagePreconditions(capture)) {
     return;
   }
@@ -5539,6 +5888,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+    return;
+  }
+
+  if (seedCustomerInputValidationPreconditions(capture)) {
     return;
   }
 
