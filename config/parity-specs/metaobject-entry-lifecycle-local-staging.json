@@ -8,8 +8,7 @@
     "metaobjectBulkDelete",
     "metaobject",
     "metaobjectByHandle",
-    "metaobjects",
-    "metaobjectDefinitionByType"
+    "metaobjects"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "mutation-log-replay", "no-upstream-passthrough"],

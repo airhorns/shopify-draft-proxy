@@ -297,6 +297,7 @@ export const productVariantRecordSchema = z.strictObject({
   inventoryQuantity: nullableNumberSchema,
   selectedOptions: z.array(productVariantSelectedOptionRecordSchema),
   inventoryItem: inventoryItemRecordSchema.nullable(),
+  mediaIds: z.array(z.string()).optional(),
 });
 export type ProductVariantRecord = z.infer<typeof productVariantRecordSchema>;
 
@@ -2184,6 +2185,7 @@ export const stateSnapshotSchema = z.strictObject({
   savedSearchOrder: z.array(z.string()).default([]),
   bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
   bulkOperationOrder: z.array(z.string()).default([]),
+  bulkOperationResults: z.record(z.string(), z.string()).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),

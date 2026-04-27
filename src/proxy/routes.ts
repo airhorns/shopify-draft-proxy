@@ -793,7 +793,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     handleMutation(request) {
       if (
         request.capability.execution !== 'stage-locally' ||
-        (request.primaryRootField !== 'bulkOperationCancel' && request.primaryRootField !== 'bulkOperationRunMutation')
+        (request.primaryRootField !== 'bulkOperationCancel' &&
+          request.primaryRootField !== 'bulkOperationRunQuery' &&
+          request.primaryRootField !== 'bulkOperationRunMutation')
       ) {
         return false;
       }

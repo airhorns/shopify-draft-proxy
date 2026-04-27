@@ -110,6 +110,10 @@ describe('conformance scenario discovery', () => {
     expect(status.implementedOperations.length).toBeGreaterThan(0);
     expect(status.capturedScenarioIds).toContain('product-create-live-parity');
     expect(status.capturedScenarioIds).toContain('product-duplicate-live-parity');
+    expect(status.strictComparisonScenarioIds).toContain('product-create-live-parity');
+    expect(status.strictComparisonScenarioIds).toContain('customer-address-lifecycle-parity');
+    expect(status.captureOnlyScenarioIds).toHaveLength(0);
+    expect(status.captureOnlyScenarioIds).not.toContain('product-create-live-parity');
     expect(status.implementedOperations.every((entry) => entry.scenarioIds.length > 0)).toBe(true);
   });
 });
