@@ -1,0 +1,41 @@
+{
+  "scenarioId": "admin-platform-staff-access-blocker",
+  "operationNames": ["staffMember", "staffMembers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "access-control", "null-empty-behavior"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform-staff-access-blocker.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-315 captured the current conformance credential blocker for staff utility roots: staffMember and staffMembers both return null plus ACCESS_DENIED errors. Authorized staff identity/catalog modeling remains unsupported until a credential with read_users and the required app/store eligibility is available.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staff-data",
+        "capturePath": "$.captures.staffAccessBlocker.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "staff-errors",
+        "capturePath": "$.captures.staffAccessBlocker.result.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$[0].message",
+          "$[0].path",
+          "$[0].extensions.code",
+          "$[0].extensions.documentation",
+          "$[0].extensions.requiredAccess",
+          "$[1].message",
+          "$[1].path",
+          "$[1].extensions.code",
+          "$[1].extensions.documentation"
+        ]
+      }
+    ]
+  }
+}
