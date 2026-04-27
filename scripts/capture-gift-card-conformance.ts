@@ -53,6 +53,10 @@ function readCreatedGiftCardId(createCapture: CapturedRequest): string | null {
   return typeof id === 'string' ? id : null;
 }
 
+function giftCardTail(id: string): string {
+  return id.split('/').at(-1)?.split('?')[0] ?? id;
+}
+
 async function capture(
   label: string,
   query: string,
@@ -238,6 +242,13 @@ const configurationRead = await capture(
   `,
 );
 
+const createInput = {
+  initialValue: '5.00',
+  code: `HAR310${Date.now()}`,
+  note: 'HAR-310 conformance gift card',
+  expiresOn: '2027-04-26',
+};
+
 const create = await capture(
   'create',
   `#graphql
@@ -255,12 +266,7 @@ const create = await capture(
     }
   `,
   {
-    input: {
-      initialValue: '5.00',
-      code: `HAR310${Date.now()}`,
-      note: 'HAR-310 conformance gift card',
-      expiresOn: '2027-04-26',
-    },
+    input: createInput,
   },
 );
 
@@ -268,6 +274,26 @@ const createdId = readCreatedGiftCardId(create);
 const lifecycle: CapturedRequest[] = [];
 
 if (createdId !== null) {
+  const updateInput = {
+    note: 'HAR-310 conformance gift card updated',
+    templateSuffix: 'birthday',
+    expiresOn: '2028-04-26',
+  };
+  const creditInput = {
+    creditAmount: {
+      amount: '2.00',
+      currencyCode: 'CAD',
+    },
+    note: 'HAR-310 credit',
+  };
+  const debitInput = {
+    debitAmount: {
+      amount: '1.00',
+      currencyCode: 'CAD',
+    },
+    note: 'HAR-310 debit',
+  };
+
   lifecycle.push(
     await capture(
       'detailAfterCreate',
@@ -316,11 +342,7 @@ if (createdId !== null) {
       `,
       {
         id: createdId,
-        input: {
-          note: 'HAR-310 conformance gift card updated',
-          templateSuffix: 'birthday',
-          expiresOn: '2028-04-26',
-        },
+        input: updateInput,
       },
     ),
   );
@@ -355,13 +377,7 @@ if (createdId !== null) {
       `,
       {
         id: createdId,
-        input: {
-          creditAmount: {
-            amount: '2.00',
-            currencyCode: 'CAD',
-          },
-          note: 'HAR-310 credit',
-        },
+        input: creditInput,
       },
     ),
   );
@@ -396,13 +412,7 @@ if (createdId !== null) {
       `,
       {
         id: createdId,
-        input: {
-          debitAmount: {
-            amount: '1.00',
-            currencyCode: 'CAD',
-          },
-          note: 'HAR-310 debit',
-        },
+        input: debitInput,
       },
     ),
   );
@@ -438,12 +448,140 @@ if (createdId !== null) {
         query GiftCardDetailAfterDeactivate($id: ID!) {
           giftCard(id: $id) {
             ${giftCardSelection}
+            transactions(first: 5) {
+              nodes {
+                note
+                amount {
+                  amount
+                  currencyCode
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+              }
+            }
           }
         }
       `,
       { id: createdId },
     ),
   );
+  lifecycle.push(
+    await capture(
+      'readAfterLifecycle',
+      `#graphql
+        query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {
+          giftCard(id: $id) {
+            note
+            templateSuffix
+            expiresOn
+            enabled
+            balance {
+              amount
+              currencyCode
+            }
+            transactions(first: 5) {
+              nodes {
+                note
+                amount {
+                  amount
+                  currencyCode
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+              }
+            }
+          }
+          giftCards(first: 2, query: $query, sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+              enabled
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          giftCardsCount(query: $query) {
+            count
+            precision
+          }
+        }
+      `,
+      { id: createdId, query: `id:${giftCardTail(createdId)}` },
+    ),
+  );
+
+  const operations = Object.fromEntries(lifecycle.map((step) => [step.label, step]));
+
+  await mkdir(outputDir, { recursive: true });
+  await writeFile(
+    outputPath,
+    `${JSON.stringify(
+      {
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
+        notes: [
+          'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
+          'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
+          'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
+          'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
+        ],
+        notificationRoots: {
+          giftCardSendNotificationToCustomer: {
+            executed: false,
+            reason: 'customer-visible notification side effect',
+          },
+          giftCardSendNotificationToRecipient: {
+            executed: false,
+            reason: 'customer-visible notification side effect',
+          },
+        },
+        proxyVariables: {
+          lifecycle: {
+            id: createdId,
+            updateInput,
+            creditInput,
+            debitInput,
+          },
+          readEvidence: {
+            unknownId,
+            query: 'id:999999999999',
+          },
+          readAfterLifecycle: {
+            id: createdId,
+            query: `id:${giftCardTail(createdId)}`,
+          },
+        },
+        operations: {
+          schemaAndAccess,
+          emptyRead,
+          filteredEmptyRead,
+          configurationRead,
+          create,
+          ...operations,
+        },
+        schemaAndAccess,
+        emptyRead,
+        filteredEmptyRead,
+        configurationRead,
+        create,
+        lifecycle,
+        lifecycleBlocked: null,
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+
+  console.log(JSON.stringify({ outputPath, createdId, lifecycleSteps: lifecycle.map((step) => step.label) }, null, 2));
+  process.exit(0);
 }
 
 await mkdir(outputDir, { recursive: true });

@@ -19,14 +19,124 @@
     "payload-shape",
     "empty-read-parity",
     "downstream-read-parity",
-    "access-blocker"
+    "transaction-read-parity"
   ],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-card-lifecycle.json"],
   "runtimeTestFiles": ["tests/integration/gift-card-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
-  "notes": "HAR-310 captures Admin GraphQL gift-card schema shape; readable configuration; unknown-id and filtered empty read behavior; non-empty giftCards/giftCardsCount behavior; and successful giftCardCreate, giftCardUpdate, and giftCardDeactivate payloads with a conformance credential that has read_gift_cards/write_gift_cards. giftCard.transactions reads and giftCardCredit/giftCardDebit remain captured as access blockers until the conformance grant includes read_gift_card_transactions/write_gift_card_transactions. Runtime parity is enforced by integration tests for the locally modeled gift-card read/lifecycle slice. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-card-lifecycle.graphql",
+    "variablesCapturePath": "$.proxyVariables.lifecycle"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-310 captures and replays the gift-card read/lifecycle slice with a conformance credential that has read_gift_cards, write_gift_cards, read_gift_card_transactions, and write_gift_card_transactions. Strict proxy parity covers filtered empty reads, configuration, update, credit, debit, deactivate, transaction read-after-write, and filtered non-empty downstream reads. Notification roots are intentionally not executed in live capture because they are customer-visible side effects; local runtime handling short-circuits them without sending notifications.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "filtered empty giftCard read returns null",
+        "capturePath": "$.operations.emptyRead.response.payload.data.giftCard",
+        "proxyPath": "$.data.missingGiftCard",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-evidence.graphql",
+          "variablesCapturePath": "$.proxyVariables.readEvidence"
+        }
+      },
+      {
+        "name": "filtered empty giftCards connection matches",
+        "capturePath": "$.operations.filteredEmptyRead.response.payload.data.giftCards",
+        "proxyPath": "$.data.filteredEmptyGiftCards",
+        "selectedPaths": ["$.nodes", "$.pageInfo.hasNextPage", "$.pageInfo.hasPreviousPage"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-evidence.graphql",
+          "variablesCapturePath": "$.proxyVariables.readEvidence"
+        }
+      },
+      {
+        "name": "filtered empty giftCardsCount matches",
+        "capturePath": "$.operations.filteredEmptyRead.response.payload.data.giftCardsCount",
+        "proxyPath": "$.data.filteredEmptyGiftCardsCount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-evidence.graphql",
+          "variablesCapturePath": "$.proxyVariables.readEvidence"
+        }
+      },
+      {
+        "name": "giftCardConfiguration matches",
+        "capturePath": "$.operations.configurationRead.response.payload.data.giftCardConfiguration",
+        "proxyPath": "$.data.giftCardConfiguration",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-evidence.graphql",
+          "variablesCapturePath": "$.proxyVariables.readEvidence"
+        }
+      },
+      {
+        "name": "giftCardUpdate lifecycle payload matches",
+        "capturePath": "$.operations.update.response.payload.data.giftCardUpdate",
+        "proxyPath": "$.data.update",
+        "selectedPaths": [
+          "$.giftCard.note",
+          "$.giftCard.templateSuffix",
+          "$.giftCard.expiresOn",
+          "$.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "giftCardCredit transaction payload matches",
+        "capturePath": "$.operations.credit.response.payload.data.giftCardCredit",
+        "proxyPath": "$.data.credit",
+        "selectedPaths": [
+          "$.giftCardCreditTransaction.note",
+          "$.giftCardCreditTransaction.amount",
+          "$.giftCardCreditTransaction.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "giftCardDebit transaction payload matches",
+        "capturePath": "$.operations.debit.response.payload.data.giftCardDebit",
+        "proxyPath": "$.data.debit",
+        "selectedPaths": [
+          "$.giftCardDebitTransaction.note",
+          "$.giftCardDebitTransaction.amount",
+          "$.giftCardDebitTransaction.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "giftCardDeactivate payload matches",
+        "capturePath": "$.operations.deactivate.response.payload.data.giftCardDeactivate",
+        "proxyPath": "$.data.deactivate",
+        "selectedPaths": ["$.giftCard.enabled", "$.giftCard.balance", "$.userErrors"]
+      },
+      {
+        "name": "downstream giftCard lifecycle read matches",
+        "capturePath": "$.operations.readAfterLifecycle.response.payload.data.giftCard",
+        "proxyPath": "$.data.giftCard",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-after-lifecycle.graphql",
+          "variablesCapturePath": "$.proxyVariables.readAfterLifecycle"
+        }
+      },
+      {
+        "name": "downstream filtered non-empty giftCards read matches",
+        "capturePath": "$.operations.readAfterLifecycle.response.payload.data.giftCards",
+        "proxyPath": "$.data.giftCards",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-after-lifecycle.graphql",
+          "variablesCapturePath": "$.proxyVariables.readAfterLifecycle"
+        }
+      },
+      {
+        "name": "downstream filtered non-empty giftCardsCount matches",
+        "capturePath": "$.operations.readAfterLifecycle.response.payload.data.giftCardsCount",
+        "proxyPath": "$.data.giftCardsCount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-card-read-after-lifecycle.graphql",
+          "variablesCapturePath": "$.proxyVariables.readAfterLifecycle"
+        }
+      }
+    ]
   }
 }

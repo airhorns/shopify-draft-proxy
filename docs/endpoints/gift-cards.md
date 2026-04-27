@@ -45,13 +45,14 @@ Local staged mutations:
 - active conformance access scopes
 - readable gift-card configuration limits
 - unknown-id and filtered empty read behavior, including empty `giftCards` and `{ count: 0, precision: "EXACT" }` for an `id:` search miss
-- non-empty `giftCards` / `giftCardsCount` behavior from the disposable conformance-shop gift cards
-- successful `giftCardCreate`, `giftCardUpdate`, and `giftCardDeactivate` payloads
-- `giftCard.transactions` blocker payloads requiring `read_gift_card_transactions`
-- `giftCardCredit` / `giftCardDebit` blocker payloads requiring `write_gift_card_transactions`
+- non-empty filtered `giftCards` / `giftCardsCount` behavior for a live-created gift card
+- successful `giftCardCreate`, `giftCardUpdate`, `giftCardCredit`, `giftCardDebit`, and `giftCardDeactivate` payloads
+- downstream `giftCard.transactions` read-after-write behavior after staged credit/debit lifecycle steps
 - explicit non-execution of notification roots because those roots send customer-visible side effects
 
-The fixture shows the current conformance credential can read gift cards and perform the core gift-card create/update/deactivate lifecycle with `read_gift_cards` and `write_gift_cards`. Transaction reads and credit/debit mutations remain live-capture blockers until the conformance grant includes `read_gift_card_transactions` and `write_gift_card_transactions`. The local runtime test remains the executable evidence for staged credit/debit read-after-write behavior.
+The fixture shows the current conformance credential can read gift cards, perform the core gift-card lifecycle with `read_gift_cards` and `write_gift_cards`, and exercise transaction reads/writes with `read_gift_card_transactions` and `write_gift_card_transactions`.
+
+`config/parity-specs/gift-card-lifecycle.json` now runs as captured-vs-proxy parity. The parity request seeds the live-created gift card and configuration from the capture, replays update/credit/debit/deactivate against the local proxy, and strictly compares stable payload, filtered empty read, transaction read-after-write, and filtered non-empty downstream read fields. Runtime integration coverage still verifies synthetic ID/timestamp behavior, meta logging, raw mutation retention, and notification short-circuiting.
 
 ## Validation
 
