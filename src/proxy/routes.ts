@@ -53,6 +53,19 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountAutomaticAppUpdate',
 ]);
 
+const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
+  'appPurchaseOneTimeCreate',
+  'appSubscriptionCreate',
+  'appSubscriptionCancel',
+  'appSubscriptionLineItemUpdate',
+  'appSubscriptionTrialExtend',
+  'appUsageRecordCreate',
+  'appRevokeAccessScopes',
+  'appUninstall',
+  'delegateAccessTokenCreate',
+  'delegateAccessTokenDestroy',
+]);
+
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCapture',
@@ -266,6 +279,18 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-app-billing-access-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'App billing, access-scope, delegated-token, and uninstall mutations can alter merchant billing, installation state, or app access; local staging and commit replay semantics are required before support.',
+      },
+    };
+  }
+
   return { registeredOperation };
 }
 
@@ -273,6 +298,10 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   const primaryRootField = parsed.rootFields[0] ?? null;
   if (primaryRootField && APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
+  }
+
+  if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
   }
 
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
