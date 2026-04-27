@@ -24,6 +24,8 @@ import type {
   DraftOrderRecord,
   FileRecord,
   FulfillmentServiceRecord,
+  GiftCardConfigurationRecord,
+  GiftCardRecord,
   LocationRecord,
   LocaleRecord,
   MarketLocalizationRecord,
@@ -85,6 +87,9 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   fulfillmentServiceOrder: [],
   carrierServices: {},
   carrierServiceOrder: [],
+  giftCards: {},
+  giftCardOrder: [],
+  giftCardConfiguration: null,
   collections: {},
   publications: {},
   customers: {},
@@ -159,6 +164,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedLocationIds: {},
   deletedFulfillmentServiceIds: {},
   deletedCarrierServiceIds: {},
+  deletedGiftCardIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
   deletedCustomerPaymentMethodIds: {},
@@ -350,6 +356,14 @@ function mergeFulfillmentServiceRecords(
   base: FulfillmentServiceRecord | null,
   staged: FulfillmentServiceRecord | null,
 ): FulfillmentServiceRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  return structuredClone(staged ?? base);
+}
+
+function mergeGiftCardRecords(base: GiftCardRecord | null, staged: GiftCardRecord | null): GiftCardRecord | null {
   if (!base && !staged) {
     return null;
   }
@@ -1374,6 +1388,21 @@ export class InMemoryStore {
     }
   }
 
+  upsertBaseGiftCards(giftCards: GiftCardRecord[]): void {
+    for (const giftCard of giftCards) {
+      delete this.baseState.deletedGiftCardIds[giftCard.id];
+      delete this.stagedState.deletedGiftCardIds[giftCard.id];
+      this.baseState.giftCards[giftCard.id] = structuredClone(giftCard);
+      if (!this.baseState.giftCardOrder.includes(giftCard.id)) {
+        this.baseState.giftCardOrder.push(giftCard.id);
+      }
+    }
+  }
+
+  upsertBaseGiftCardConfiguration(configuration: GiftCardConfigurationRecord): void {
+    this.baseState.giftCardConfiguration = structuredClone(configuration);
+  }
+
   listBaseLocations(): LocationRecord[] {
     const orderedIds = new Set(this.baseState.locationOrder);
     const orderedLocations = this.baseState.locationOrder
@@ -1574,6 +1603,75 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.carrierServices).length > 0 ||
       Object.keys(this.stagedState.deletedCarrierServiceIds).length > 0
+    );
+  }
+
+  stageCreateGiftCard(giftCard: GiftCardRecord): GiftCardRecord {
+    delete this.stagedState.deletedGiftCardIds[giftCard.id];
+    this.stagedState.giftCards[giftCard.id] = structuredClone(giftCard);
+    if (!this.stagedState.giftCardOrder.includes(giftCard.id)) {
+      this.stagedState.giftCardOrder.push(giftCard.id);
+    }
+    return structuredClone(giftCard);
+  }
+
+  stageUpdateGiftCard(giftCard: GiftCardRecord): GiftCardRecord {
+    delete this.stagedState.deletedGiftCardIds[giftCard.id];
+    this.stagedState.giftCards[giftCard.id] = structuredClone(giftCard);
+    if (!this.baseState.giftCardOrder.includes(giftCard.id) && !this.stagedState.giftCardOrder.includes(giftCard.id)) {
+      this.stagedState.giftCardOrder.push(giftCard.id);
+    }
+    return structuredClone(giftCard);
+  }
+
+  getEffectiveGiftCardById(giftCardId: string): GiftCardRecord | null {
+    if (this.stagedState.deletedGiftCardIds[giftCardId] || this.baseState.deletedGiftCardIds[giftCardId]) {
+      return null;
+    }
+
+    return mergeGiftCardRecords(
+      this.baseState.giftCards[giftCardId] ?? null,
+      this.stagedState.giftCards[giftCardId] ?? null,
+    );
+  }
+
+  listEffectiveGiftCards(): GiftCardRecord[] {
+    const orderedIds = new Set([...this.baseState.giftCardOrder, ...this.stagedState.giftCardOrder]);
+    const orderedGiftCards = [...orderedIds]
+      .map((id) => this.getEffectiveGiftCardById(id))
+      .filter((giftCard): giftCard is GiftCardRecord => giftCard !== null);
+    const unorderedGiftCards = Object.values({ ...this.baseState.giftCards, ...this.stagedState.giftCards })
+      .filter((giftCard) => !orderedIds.has(giftCard.id))
+      .map((giftCard) => this.getEffectiveGiftCardById(giftCard.id))
+      .filter((giftCard): giftCard is GiftCardRecord => giftCard !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedGiftCards, ...unorderedGiftCards]);
+  }
+
+  getEffectiveGiftCardConfiguration(): GiftCardConfigurationRecord {
+    return structuredClone(
+      this.stagedState.giftCardConfiguration ??
+        this.baseState.giftCardConfiguration ?? {
+          issueLimit: {
+            amount: '0.0',
+            currencyCode: (this.stagedState.shop ?? this.baseState.shop)?.currencyCode ?? 'CAD',
+          },
+          purchaseLimit: {
+            amount: '0.0',
+            currencyCode: (this.stagedState.shop ?? this.baseState.shop)?.currencyCode ?? 'CAD',
+          },
+        },
+    );
+  }
+
+  hasGiftCards(): boolean {
+    return Object.keys(this.baseState.giftCards).length > 0;
+  }
+
+  hasStagedGiftCards(): boolean {
+    return (
+      Object.keys(this.stagedState.giftCards).length > 0 || Object.keys(this.stagedState.deletedGiftCardIds).length > 0
     );
   }
 

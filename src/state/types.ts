@@ -518,6 +518,41 @@ export type CustomerMetafieldRecord = z.infer<typeof customerMetafieldRecordSche
 export const moneyV2RecordSchema = moneyV2Schema;
 export type MoneyV2Record = z.infer<typeof moneyV2RecordSchema>;
 
+export const giftCardTransactionRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: z.enum(['CREDIT', 'DEBIT']),
+  amount: moneyV2RecordSchema,
+  processedAt: z.string(),
+  note: nullableStringSchema,
+});
+export type GiftCardTransactionRecord = z.infer<typeof giftCardTransactionRecordSchema>;
+
+export const giftCardRecordSchema = z.strictObject({
+  id: z.string(),
+  legacyResourceId: nullableStringSchema,
+  lastCharacters: z.string(),
+  maskedCode: z.string(),
+  enabled: z.boolean(),
+  deactivatedAt: nullableStringSchema,
+  expiresOn: nullableStringSchema,
+  note: nullableStringSchema,
+  templateSuffix: nullableStringSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  initialValue: moneyV2RecordSchema,
+  balance: moneyV2RecordSchema,
+  customerId: nullableStringSchema,
+  recipientId: nullableStringSchema,
+  transactions: z.array(giftCardTransactionRecordSchema),
+});
+export type GiftCardRecord = z.infer<typeof giftCardRecordSchema>;
+
+export const giftCardConfigurationRecordSchema = z.strictObject({
+  issueLimit: moneyV2RecordSchema,
+  purchaseLimit: moneyV2RecordSchema,
+});
+export type GiftCardConfigurationRecord = z.infer<typeof giftCardConfigurationRecordSchema>;
+
 export const customerDefaultEmailAddressRecordSchema = z.strictObject({
   emailAddress: nullableStringSchema,
   marketingState: nullableStringSchema.optional(),
@@ -1810,6 +1845,9 @@ export const stateSnapshotSchema = z.strictObject({
   fulfillmentServiceOrder: z.array(z.string()).default([]),
   carrierServices: z.record(z.string(), carrierServiceRecordSchema).default({}),
   carrierServiceOrder: z.array(z.string()).default([]),
+  giftCards: z.record(z.string(), giftCardRecordSchema).default({}),
+  giftCardOrder: z.array(z.string()).default([]),
+  giftCardConfiguration: giftCardConfigurationRecordSchema.nullable().default(null),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
@@ -1884,6 +1922,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedLocationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCarrierServiceIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedGiftCardIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerIds: z.record(z.string(), z.literal(true)),
   deletedCustomerAddressIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCustomerPaymentMethodIds: z.record(z.string(), z.literal(true)).default({}),
