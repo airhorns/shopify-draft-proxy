@@ -1880,6 +1880,10 @@ export class InMemoryStore {
     return order ? structuredClone(order) : null;
   }
 
+  hasStagedOrder(orderId: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.stagedOrders, orderId);
+  }
+
   getOrders(): OrderRecord[] {
     const mergedOrders = new Map<string, OrderRecord>();
     for (const order of Object.values(this.baseOrders)) {

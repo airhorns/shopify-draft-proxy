@@ -27,6 +27,26 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productFeed",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeed", "ProductFeed"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns null for an absent productFeed id. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "productFeeds",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeeds", "ProductFeeds"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
     "name": "productVariant",
     "type": "query",
     "domain": "products",
@@ -579,6 +599,66 @@
     "implemented": true,
     "matchNames": ["productChangeStatus", "ProductChangeStatus"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productFeedCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedCreate", "ProductFeedCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo probe for country US/language EN returned a top-level NOT_FOUND error: Unable to find channel for product feed. Full local support needs channel-backed success evidence and downstream productFeed/productFeeds read-after-write behavior."
+  },
+  {
+    "name": "productFeedDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedDelete", "ProductFeedDelete"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned deletedId null plus userErrors field [id], message ProductFeed does not exist. Full support needs delete success evidence and downstream productFeeds removal behavior."
+  },
+  {
+    "name": "productFullSync",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFullSync", "ProductFullSync"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned id null plus userErrors field [id], message ProductFeed does not exist. Full support needs product-feed job/status success evidence before staging locally."
+  },
+  {
+    "name": "productBundleCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleCreate", "ProductBundleCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo empty-components probe returned productBundleOperation null plus userErrors message At least one component is required. Full support needs component-backed success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "productBundleUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleUpdate", "ProductBundleUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-product probe returned productBundleOperation null plus userErrors message Product does not exist. Full support needs bundle update success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "combinedListingUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
   },
   {
     "name": "productPublish",

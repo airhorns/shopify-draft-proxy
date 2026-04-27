@@ -6225,6 +6225,13 @@ export function handleOrderMutation(
         continue;
       }
 
+      if (id && store.hasStagedOrder(id) && order.closed) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['id'], message: 'Order is already closed' },
+        ]);
+        continue;
+      }
+
       const closedAt = makeSyntheticTimestamp();
       const updatedOrder = store.updateOrder({
         ...order,
@@ -6250,6 +6257,20 @@ export function handleOrderMutation(
         continue;
       }
 
+      if (id && store.hasStagedOrder(id) && order.cancelledAt) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['id'], message: 'Canceled orders cannot be opened' },
+        ]);
+        continue;
+      }
+
+      if (id && store.hasStagedOrder(id) && !order.closed) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['id'], message: 'Order is already open' },
+        ]);
+        continue;
+      }
+
       const updatedOrder = store.updateOrder({
         ...order,
         updatedAt: makeSyntheticTimestamp(),
@@ -6271,6 +6292,18 @@ export function handleOrderMutation(
 
       if (!order) {
         data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      if (
+        id &&
+        store.hasStagedOrder(id) &&
+        (order.displayFinancialStatus === 'PAID' ||
+          parseDecimalAmount(order.totalOutstandingSet?.shopMoney.amount) <= 0)
+      ) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['id'], message: 'Order is already paid' },
+        ]);
         continue;
       }
 
@@ -6305,6 +6338,21 @@ export function handleOrderMutation(
       }
 
       const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const stagedOrder = orderId ? store.hasStagedOrder(orderId) : false;
+      if (!customer && stagedOrder) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['customerId'], message: 'Customer does not exist' },
+        ]);
+        continue;
+      }
+
+      if (customer && stagedOrder && order.customer?.id === customer.id) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['customerId'], message: 'Order already has this customer' },
+        ]);
+        continue;
+      }
+
       const orderCustomer =
         customer !== null
           ? orderCustomerFromCustomer(customer)
@@ -6328,6 +6376,13 @@ export function handleOrderMutation(
       if (!order) {
         data[key] = serializeOrderManagementPayload(field, null, [
           { field: ['orderId'], message: 'Order does not exist' },
+        ]);
+        continue;
+      }
+
+      if (orderId && store.hasStagedOrder(orderId) && order.customer === null) {
+        data[key] = serializeOrderManagementPayload(field, order, [
+          { field: ['orderId'], message: 'Order does not have a customer' },
         ]);
         continue;
       }
@@ -6372,6 +6427,11 @@ export function handleOrderMutation(
 
       if (!order) {
         data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order does not exist' }]);
+        continue;
+      }
+
+      if (orderId && store.hasStagedOrder(orderId) && order.cancelledAt) {
+        data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order is already canceled' }]);
         continue;
       }
 
