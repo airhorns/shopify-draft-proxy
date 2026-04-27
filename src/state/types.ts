@@ -817,6 +817,24 @@ export const onlineStoreContentRecordSchema = z.strictObject({
 });
 export type OnlineStoreContentRecord = z.infer<typeof onlineStoreContentRecordSchema>;
 
+export const savedSearchFilterRecordSchema = z.strictObject({
+  key: z.string(),
+  value: z.string(),
+});
+export type SavedSearchFilterRecord = z.infer<typeof savedSearchFilterRecordSchema>;
+
+export const savedSearchRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  legacyResourceId: z.string(),
+  name: z.string(),
+  query: z.string(),
+  resourceType: z.string(),
+  searchTerms: z.string(),
+  filters: z.array(savedSearchFilterRecordSchema),
+});
+export type SavedSearchRecord = z.infer<typeof savedSearchRecordSchema>;
+
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
   address2: nullableStringSchema,
@@ -2131,6 +2149,8 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStorePageOrder: z.array(z.string()).default([]),
   onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreCommentOrder: z.array(z.string()).default([]),
+  savedSearches: z.record(z.string(), savedSearchRecordSchema).default({}),
+  savedSearchOrder: z.array(z.string()).default([]),
   bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
   bulkOperationOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
@@ -2204,6 +2224,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedOnlineStoreBlogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedOnlineStorePageIds: z.record(z.string(), z.literal(true)).default({}),
   deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedSavedSearchIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedValidationIds: z.record(z.string(), z.literal(true)).default({}),

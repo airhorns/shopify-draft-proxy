@@ -82,7 +82,7 @@ Local `bulkOperationCancel` supports:
 
 ## Captured 2026-04 evidence
 
-HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json` and enforced by `tests/integration/bulk-operation-conformance-flow.test.ts`; HAR-263 reuses that evidence for local null/empty/userError/list/current behavior while leaving export/import execution unsupported.
+HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json`. HAR-346 promotes the local read/cancel slice from fixture-only evidence to `captured-vs-proxy-request` parity: the generic `pnpm conformance:parity` runner seeds captured `BulkOperation` jobs into the local harness and strictly compares unknown-id reads, empty running-query/running-mutation lists, empty `currentBulkOperation(type: MUTATION)`, unknown/terminal cancel userErrors, staged local cancel, and read-after-local-cancel. HAR-263's integration coverage still verifies local state, meta logging, reset behavior, and that export/import execution remains unsupported.
 
 The fixture captures these read and validation branches:
 

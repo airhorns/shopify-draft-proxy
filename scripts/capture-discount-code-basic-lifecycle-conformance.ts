@@ -240,7 +240,7 @@ const updateVariables = {
     code: updatedCode,
     customerGets: {
       value: {
-        fixedAmount: {
+        discountAmount: {
           amount: '5.00',
           appliesOnEachItem: false,
         },
@@ -250,8 +250,8 @@ const updateVariables = {
       },
     },
     minimumRequirement: {
-      quantity: {
-        greaterThanOrEqualToQuantity: '2',
+      subtotal: {
+        greaterThanOrEqualToSubtotal: '2.00',
       },
     },
   },

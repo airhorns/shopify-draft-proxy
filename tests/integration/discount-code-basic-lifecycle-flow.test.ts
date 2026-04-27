@@ -263,7 +263,7 @@ describe('discount code-basic lifecycle staging', () => {
             title: 'HAR-193 five dollars',
             customerGets: {
               value: {
-                fixedAmount: {
+                discountAmount: {
                   amount: '5.00',
                   appliesOnEachItem: false,
                 },
@@ -273,8 +273,8 @@ describe('discount code-basic lifecycle staging', () => {
               },
             },
             minimumRequirement: {
-              quantity: {
-                greaterThanOrEqualToQuantity: '2',
+              subtotal: {
+                greaterThanOrEqualToSubtotal: '2.00',
               },
             },
           },
@@ -289,7 +289,7 @@ describe('discount code-basic lifecycle staging', () => {
         codeDiscount: {
           title: 'HAR-193 five dollars',
           status: 'ACTIVE',
-          summary: '5.00 USD off entire order - Minimum quantity of 2',
+          summary: '5.00 USD off entire order - Minimum purchase of $2.00',
           codes: {
             nodes: [
               {
@@ -308,8 +308,11 @@ describe('discount code-basic lifecycle staging', () => {
             },
           },
           minimumRequirement: {
-            __typename: 'DiscountMinimumQuantity',
-            greaterThanOrEqualToQuantity: '2',
+            __typename: 'DiscountMinimumSubtotal',
+            greaterThanOrEqualToSubtotal: {
+              amount: '2.00',
+              currencyCode: 'USD',
+            },
           },
         },
       },

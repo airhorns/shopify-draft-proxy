@@ -1,0 +1,131 @@
+{
+  "scenarioId": "saved-search-local-staging",
+  "operationNames": [
+    "productSavedSearches",
+    "collectionSavedSearches",
+    "customerSavedSearches",
+    "orderSavedSearches",
+    "draftOrderSavedSearches",
+    "fileSavedSearches",
+    "codeDiscountSavedSearches",
+    "automaticDiscountSavedSearches",
+    "discountRedeemCodeSavedSearches",
+    "savedSearchCreate",
+    "savedSearchUpdate",
+    "savedSearchDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "null-empty-behavior",
+    "pagination-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-search-url-redirects.json"],
+  "runtimeTestFiles": ["tests/integration/saved-search-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-search-local-staging-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateProduct.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-312 captured saved-search schema, PRODUCT saved-search create/read/update-validation/delete behavior, missing-id userErrors, and current URL redirect scope blockers. The generic parity runner now replays the saved-search create/read/update-validation/missing-id flow against the proxy with strict JSON targets; runtime tests continue to enforce delete success, mutation-log visibility, query filtering, empty roots, and the explicit URL_REDIRECT saved-search unsupported branch.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-saved-search-create-payload",
+        "capturePath": "$.savedSearchCreateProduct.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "product-saved-search-read-after-create",
+        "capturePath": "$.productSavedSearchesAfterCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-search-local-staging-read-after-create.graphql",
+          "variables": {
+            "query": {
+              "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.name"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productSavedSearches.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream read returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.productSavedSearches.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; the proxy emits deterministic local cursors while preserving cursor presence."
+          },
+          {
+            "path": "$.productSavedSearches.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; the proxy emits deterministic local cursors while preserving cursor presence."
+          }
+        ]
+      },
+      {
+        "name": "saved-search-update-too-long-name-validation",
+        "capturePath": "$.savedSearchUpdateTooLongName.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-search-local-staging-update-too-long-name.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.id"
+              },
+              "name": "Codex Product Search Name That Is Too Long For Shopify",
+              "query": "status:ACTIVE 1777309108817"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The validation payload returns the deterministic local SavedSearch id instead of Shopify's live id."
+          }
+        ]
+      },
+      {
+        "name": "missing-saved-search-validation",
+        "capturePath": "$.missingSavedSearch.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-search-local-staging-missing.graphql",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/SavedSearch/0",
+              "name": "Missing"
+            },
+            "deleteInput": {
+              "id": "gid://shopify/SavedSearch/0"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
