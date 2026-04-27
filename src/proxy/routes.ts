@@ -1074,11 +1074,15 @@ export function createProxyRouter(config: AppConfig): Router {
         const canServeLocalDraftOrderDetail =
           primaryRootField === 'draftOrder' &&
           liveHybridOrderId !== null &&
-          store.getDraftOrderById(liveHybridOrderId) !== null;
+          (store.getDraftOrderById(liveHybridOrderId) !== null || store.hasDeletedDraftOrder(liveHybridOrderId));
         const canServeLocalDraftOrderCatalog =
           (primaryRootField === 'draftOrders' || primaryRootField === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
           shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
+        const canServeLocalDraftOrderHelper =
+          primaryRootField === 'draftOrderAvailableDeliveryOptions' ||
+          primaryRootField === 'draftOrderSavedSearches' ||
+          primaryRootField === 'draftOrderTag';
         const canServeLocalAbandonedCheckoutCatalog =
           (primaryRootField === 'abandonedCheckouts' || primaryRootField === 'abandonedCheckoutsCount') &&
           hasLocalAbandonedCheckouts &&
@@ -1099,6 +1103,7 @@ export function createProxyRouter(config: AppConfig): Router {
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
           canServeLocalDraftOrderCatalog ||
+          canServeLocalDraftOrderHelper ||
           canServeLocalAbandonedCheckoutCatalog ||
           canServeLocalAbandonmentDetail ||
           canServeLocalAbandonmentByCheckout
@@ -1558,6 +1563,11 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderUpdate' ||
         primaryRootField === 'draftOrderDuplicate' ||
         primaryRootField === 'draftOrderDelete' ||
+        primaryRootField === 'draftOrderBulkAddTags' ||
+        primaryRootField === 'draftOrderBulkRemoveTags' ||
+        primaryRootField === 'draftOrderBulkDelete' ||
+        primaryRootField === 'draftOrderCalculate' ||
+        primaryRootField === 'draftOrderInvoicePreview' ||
         primaryRootField === 'draftOrderInvoiceSend' ||
         primaryRootField === 'draftOrderCreateFromOrder' ||
         primaryRootField === 'abandonmentUpdateActivitiesDeliveryStatuses' ||
@@ -1615,6 +1625,15 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged draftOrderDuplicate in live-hybrid mode for a synthetic/local staged draft order.',
           draftOrderDelete:
             'Locally staged draftOrderDelete in live-hybrid mode for a synthetic/local staged draft order.',
+          draftOrderBulkAddTags:
+            'Locally staged draftOrderBulkAddTags in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderBulkRemoveTags:
+            'Locally staged draftOrderBulkRemoveTags in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderBulkDelete:
+            'Locally staged draftOrderBulkDelete in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderCalculate: 'Locally calculated draftOrderCalculate in live-hybrid mode without writing to Shopify.',
+          draftOrderInvoicePreview:
+            'Locally handled draftOrderInvoicePreview in live-hybrid mode without sending invoice email.',
           draftOrderInvoiceSend:
             'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
           draftOrderCreateFromOrder:
