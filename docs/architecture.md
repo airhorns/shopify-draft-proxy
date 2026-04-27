@@ -74,7 +74,7 @@ App -> Koa server -> operation classifier
 ### `src/search-query-parser.ts`
 
 - parse Shopify-style Admin search query strings into shared typed terms and expression trees
-- provide reusable term metadata (`field`, comparator, value, negation) so endpoint groups do not maintain separate query parsers
+- provide reusable term metadata (`field`, comparator, value, negation) and common text/number/date match helpers so endpoint groups do not maintain separate query parsers or comparator implementations
 
 ### `src/state/`
 
@@ -160,6 +160,7 @@ Current customer-domain state deliberately stays narrower than the product model
 - customer-owned metafields live in a customer-scoped `customerMetafields` bucket instead of reusing product-domain metafield storage or broadening shared `metafieldsSet` owner support without separate customer-domain evidence
 - staged `customerUpdate(input.metafields)` computes against the effective customer metafield set and replaces the staged customer-owned set, so downstream `customer.metafield(...)` and `customer.metafields(...)` reads stay consistent
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
+- the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
 
 ## Mutation handling strategy
 
@@ -271,6 +272,6 @@ The conformance suite should include:
 4. **coverage registry**
    - map every query/mutation to implementation and parity status
 
-Current proxy parity execution is intentionally contract-gated. A captured scenario with a proxy request is not executed until its parity spec declares strict JSON comparison targets and expected differences. Within a declared comparison target, missing fields, extra fields, null/empty mismatches, array shape drift, changed `userErrors`, and selected-field changes fail by default. Declared expected differences are also checked in the other direction: if an expected difference no longer appears in the proxy-vs-Shopify comparison, the scenario fails until the stale expectation is removed. Expected differences are a last resort after modeling, hydration, or fixture-seeding options have been exhausted; they should not be used just to make parity tests pass. Opaque Shopify connection cursors are an accepted difference because clients cannot rely on their internal encoding. The first promoted comparison is `product-create-live-parity`, which compares mutation `data` and immediate downstream product read `data`; Shopify cost/throttle `extensions` remain outside that first explicit contract until the proxy models cost metadata.
+Current proxy parity execution is intentionally contract-gated. A captured scenario with a proxy request is not executable until its parity spec declares strict JSON comparison targets and expected differences; captured specs must declare a non-planned comparison mode at the schema boundary. If a capture cannot yet run as proxy-vs-capture evidence, keep the gap in Linear/workpad notes rather than committing a passive scenario file. Within a declared comparison target, missing fields, extra fields, null/empty mismatches, array shape drift, changed `userErrors`, and selected-field changes fail by default. Declared expected differences are also checked in the other direction: if an expected difference no longer appears in the proxy-vs-Shopify comparison, the scenario fails until the stale expectation is removed. Expected differences are a last resort after modeling, hydration, or fixture-seeding options have been exhausted; they should not be used just to make parity tests pass. Opaque Shopify connection cursors are an accepted difference because clients cannot rely on their internal encoding. Multi-step fixture modes are reserved for flows backed by committed runtime tests when the generic parity runner cannot yet chain the fixture directly; they are not a parking place for passive captures.
 
 Conformance registry JSON, parity specs, parity request variables, and conformance fixture JSON are validated with Zod when read by the registry/parity helpers. Types for operation registry entries, parity specs, proxy request specs, and blocker details are derived from those schemas instead of maintained as separate hand-written TypeScript interfaces.

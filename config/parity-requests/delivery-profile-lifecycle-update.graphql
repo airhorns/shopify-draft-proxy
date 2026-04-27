@@ -1,0 +1,27 @@
+mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+  deliveryProfileUpdate(id: $id, profile: $profile) {
+    profile {
+      id
+      name
+      version
+      originLocationCount
+      zoneCountryCount
+      activeMethodDefinitionsCount
+      productVariantsCount {
+        count
+        precision
+      }
+      profileItems(first: 5) {
+        nodes {
+          product {
+            id
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

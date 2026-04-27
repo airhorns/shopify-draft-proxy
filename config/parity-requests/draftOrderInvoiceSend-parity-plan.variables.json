@@ -1,8 +1,0 @@
-{
-  "id": "gid://shopify/DraftOrder/10079785100",
-  "email": {
-    "to": "draft-order-invoice-parity@example.com",
-    "subject": "Draft order invoice parity plan",
-    "customMessage": "This planned parity request must not be sent by the local proxy runtime."
-  }
-}

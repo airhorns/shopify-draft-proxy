@@ -1,0 +1,7 @@
+{
+  "unknownId": "gid://shopify/WebhookSubscription/999999999999",
+  "unknownUpdateInput": {
+    "format": "JSON",
+    "uri": "https://example.com/hermes-webhook-conformance-unknown"
+  }
+}

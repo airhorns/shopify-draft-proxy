@@ -35,11 +35,14 @@ const storePropertiesMutationRoots = [
   'shopPolicyUpdate',
 ] as const;
 
-const storePropertiesLocalStagingMutationRoots = ['locationActivate', 'locationDeactivate', 'locationDelete'] as const;
+const storePropertiesLocalStagingMutationRoots = [] as const;
 
 const implementedStorePropertiesLocalStagingMutationRoots = [
   'locationAdd',
   'locationEdit',
+  'locationActivate',
+  'locationDeactivate',
+  'locationDelete',
   'shopPolicyUpdate',
 ] as const;
 
@@ -148,21 +151,12 @@ describe('Store properties registry scaffold', () => {
     expect(registry.some((entry) => entry.execution === 'passthrough')).toBe(false);
   });
 
-  it('keeps planned local-staging scaffolds out of capability routing until they are implemented', () => {
+  it('keeps planned query scaffolds out of capability routing until they are implemented', () => {
     expect(getOperationCapability({ type: 'query', name: 'Shop', rootFields: ['shop'] })).toEqual({
       domain: 'store-properties',
       execution: 'overlay-read',
       operationName: 'Shop',
       type: 'query',
-    });
-
-    expect(
-      getOperationCapability({ type: 'mutation', name: 'LocationDelete', rootFields: ['locationDelete'] }),
-    ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'LocationDelete',
-      type: 'mutation',
     });
 
     expect(getOperationCapability({ type: 'mutation', name: 'LocationAdd', rootFields: ['locationAdd'] })).toEqual({
@@ -174,30 +168,14 @@ describe('Store properties registry scaffold', () => {
   });
 
   it('routes implemented location mutations as Store properties local staging', () => {
-    expect(getOperationCapability({ type: 'mutation', name: 'LocationAdd', rootFields: ['locationAdd'] })).toEqual({
-      domain: 'store-properties',
-      execution: 'stage-locally',
-      operationName: 'LocationAdd',
-      type: 'mutation',
-    });
-
-    expect(getOperationCapability({ type: 'mutation', name: 'LocationEdit', rootFields: ['locationEdit'] })).toEqual({
-      domain: 'store-properties',
-      execution: 'stage-locally',
-      operationName: 'LocationEdit',
-      type: 'mutation',
-    });
-  });
-
-  it('keeps not-yet-implemented location lifecycle mutations out of capability routing', () => {
-    expect(
-      getOperationCapability({ type: 'mutation', name: 'LocationDelete', rootFields: ['locationDelete'] }),
-    ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'LocationDelete',
-      type: 'mutation',
-    });
+    for (const root of ['locationAdd', 'locationEdit', 'locationActivate', 'locationDeactivate', 'locationDelete']) {
+      expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
+        domain: 'store-properties',
+        execution: 'stage-locally',
+        operationName: root,
+        type: 'mutation',
+      });
+    }
   });
 
   it('routes generic publishable roots as Store properties local staging', () => {

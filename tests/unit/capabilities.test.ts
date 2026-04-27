@@ -148,6 +148,13 @@ describe('getOperationCapability', () => {
       operationName: 'CustomerDelete',
       type: 'mutation',
     });
+
+    expect(getOperationCapability({ type: 'mutation', name: 'CustomerSet', rootFields: ['customerSet'] })).toEqual({
+      domain: 'customers',
+      execution: 'stage-locally',
+      operationName: 'CustomerSet',
+      type: 'mutation',
+    });
   });
 
   it('marks top-level product variant, inventory item, and inventory level queries as overlay-capable reads', () => {
@@ -317,6 +324,19 @@ describe('getOperationCapability', () => {
       operationName: 'ProductVariantsBulkDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkReorder',
+        rootFields: ['productVariantsBulkReorder'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductVariantsBulkReorder',
+      type: 'mutation',
+    });
   });
 
   it('marks singular product variant mutations as locally staged mutations', () => {
@@ -444,6 +464,15 @@ describe('getOperationCapability', () => {
       operationName: 'ProductDeleteMedia',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductReorderMedia', rootFields: ['productReorderMedia'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductReorderMedia',
+      type: 'mutation',
+    });
   });
 
   it('marks generic media file mutations as locally staged media mutations', () => {
@@ -543,15 +572,11 @@ describe('getOperationCapability', () => {
     });
 
     expect(
-      getOperationCapability({
-        type: 'mutation',
-        name: 'CreateDiscount',
-        rootFields: ['discountCodeBasicCreate'],
-      }),
+      getOperationCapability({ type: 'mutation', name: 'CreateDiscount', rootFields: ['discountCodeBasicCreate'] }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'CreateDiscount',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountCodeBasicCreate',
       type: 'mutation',
     });
 
@@ -618,5 +643,115 @@ describe('getOperationCapability', () => {
       operationName: null,
       type: 'query',
     });
+  });
+
+  it('routes implemented metafield definition read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinitions',
+        rootFields: ['metafieldDefinitions'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinitions',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'MetafieldDefinition',
+        rootFields: ['metafieldDefinition'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'overlay-read',
+      operationName: 'MetafieldDefinition',
+      type: 'query',
+    });
+  });
+
+  it('routes standard metafield definition enablement through local staging', () => {
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'EnableStandardDefinition',
+        rootFields: ['standardMetafieldDefinitionEnable'],
+      }),
+    ).toEqual({
+      domain: 'metafields',
+      execution: 'stage-locally',
+      operationName: 'standardMetafieldDefinitionEnable',
+      type: 'mutation',
+    });
+  });
+
+  it('routes implemented metaobject definition read roots through the local overlay', () => {
+    for (const rootField of ['metaobjectDefinition', 'metaobjectDefinitionByType', 'metaobjectDefinitions']) {
+      expect(
+        getOperationCapability({
+          type: 'query',
+          name: rootField,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'metaobjects',
+        execution: 'overlay-read',
+        operationName: rootField,
+        type: 'query',
+      });
+    }
+  });
+
+  it('routes implemented payment customization read roots through the local overlay', () => {
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'PaymentCustomizations',
+        rootFields: ['paymentCustomizations'],
+      }),
+    ).toEqual({
+      domain: 'payments',
+      execution: 'overlay-read',
+      operationName: 'PaymentCustomizations',
+      type: 'query',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'query',
+        name: 'PaymentCustomization',
+        rootFields: ['paymentCustomization'],
+      }),
+    ).toEqual({
+      domain: 'payments',
+      execution: 'overlay-read',
+      operationName: 'PaymentCustomization',
+      type: 'query',
+    });
+  });
+
+  it('routes implemented payment customization mutations through local staging', () => {
+    for (const rootField of [
+      'paymentCustomizationActivation',
+      'paymentCustomizationCreate',
+      'paymentCustomizationDelete',
+      'paymentCustomizationUpdate',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'payments',
+        execution: 'stage-locally',
+        operationName: `${rootField[0]?.toUpperCase() ?? ''}${rootField.slice(1)}`,
+        type: 'mutation',
+      });
+    }
   });
 });

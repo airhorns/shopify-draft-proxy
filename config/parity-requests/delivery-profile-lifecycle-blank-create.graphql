@@ -1,0 +1,11 @@
+mutation DeliveryProfileLifecycleBlankCreate($profile: DeliveryProfileInput!) {
+  deliveryProfileCreate(profile: $profile) {
+    profile {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

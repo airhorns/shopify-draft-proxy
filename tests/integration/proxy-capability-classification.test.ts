@@ -56,23 +56,10 @@ describe('proxy capability classification', () => {
     });
   });
 
-  it('logs registry-only discounts mutations through the generic unsupported passthrough path', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            discountCodeBasicCreate: {
-              codeDiscountNode: null,
-              userErrors: [],
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    );
+  it('logs supported discount code-basic happy paths as staged-local intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported discount code-basic create should not hit upstream fetch');
+    });
 
     const app = createApp(config);
 
@@ -103,23 +90,25 @@ describe('proxy capability classification', () => {
       .send({ query });
 
     expect(response.status).toBe(200);
+    expect(response.body.data.discountCodeBasicCreate.userErrors).toEqual([]);
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'CreateDiscount',
-      status: 'proxied',
+      operationName: 'discountCodeBasicCreate',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         operationName: 'CreateDiscount',
         rootFields: ['discountCodeBasicCreate'],
         primaryRootField: 'discountCodeBasicCreate',
         capability: {
-          operationName: 'CreateDiscount',
-          domain: 'unknown',
-          execution: 'passthrough',
+          operationName: 'discountCodeBasicCreate',
+          domain: 'discounts',
+          execution: 'stage-locally',
         },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes: 'Staged locally in the in-memory discount draft store.',
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('marks app-managed discount mutations as unsafe unsupported passthrough in logs', async () => {
@@ -199,6 +188,89 @@ describe('proxy capability classification', () => {
         'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.',
     });
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
+  });
+
+  it('logs dataSaleOptOut as staged local customer privacy intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported dataSaleOptOut should not proxy upstream');
+    });
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          mutation DataSaleOptOut($email: String!) {
+            dataSaleOptOut(email: $email) {
+              customerId
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { email: 'privacy@example.com' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.dataSaleOptOut.userErrors).toEqual([]);
+    expect(response.body.data.dataSaleOptOut.customerId).toMatch(/^gid:\/\/shopify\/Customer\//);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'DataSaleOptOut',
+      status: 'staged',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'DataSaleOptOut',
+        rootFields: ['dataSaleOptOut'],
+        primaryRootField: 'dataSaleOptOut',
+        capability: {
+          operationName: 'DataSaleOptOut',
+          domain: 'privacy',
+          execution: 'stage-locally',
+        },
+      },
+      notes: 'Staged locally in the in-memory customer privacy draft store.',
+    });
+  });
+
+  it('forwards inbound headers and wraps the user agent for upstream passthrough requests', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { shop: { name: 'Example Shop' } } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .set('authorization', 'Bearer incoming_authorization')
+      .set('user-agent', 'example-client/2.3')
+      .set('x-shopify-access-token', 'shpat_forwarded')
+      .set('x-request-id', 'request-123')
+      .send({
+        query: 'query ShopName { shop { name } }',
+        variables: {},
+      });
+
+    expect(response.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0]?.[1]).toMatchObject({
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer incoming_authorization',
+        'content-type': 'application/json',
+        'user-agent': 'shopify-draft-proxy (wrapping example-client/2.3)',
+        'x-request-id': 'request-123',
+        'x-shopify-access-token': 'shpat_forwarded',
+      },
+    });
   });
 
   it('logs generic publishable mutations as local Store properties staging', async () => {

@@ -475,4 +475,319 @@ describe('order query shapes', () => {
       },
     });
   });
+
+  it('serves empty top-level fulfillment roots in snapshot mode without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('top-level fulfillment empty reads must not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query EmptyTopLevelFulfillmentReads(
+          $fulfillmentId: ID!
+          $fulfillmentOrderId: ID!
+          $first: Int!
+        ) {
+          missingFulfillment: fulfillment(id: $fulfillmentId) {
+            id
+            status
+          }
+          missingFulfillmentOrder: fulfillmentOrder(id: $fulfillmentOrderId) {
+            id
+            status
+          }
+          fulfillmentOrders(first: $first, includeClosed: true) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          assignedFulfillmentOrders(first: $first, assignmentStatus: FULFILLMENT_REQUESTED) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          manualHoldsFulfillmentOrders(first: $first) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }`,
+        variables: {
+          fulfillmentId: 'gid://shopify/Fulfillment/999999999999',
+          fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/999999999999',
+          first: 2,
+        },
+      });
+
+    const emptyConnection = {
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    };
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        missingFulfillment: null,
+        missingFulfillmentOrder: null,
+        fulfillmentOrders: emptyConnection,
+        assignedFulfillmentOrders: emptyConnection,
+        manualHoldsFulfillmentOrders: emptyConnection,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps top-level fulfillment reads consistent with nested order fulfillment data', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('top-level fulfillment detail reads must not hit upstream in snapshot mode');
+    });
+
+    const openFulfillmentOrder = {
+      id: 'gid://shopify/FulfillmentOrder/100',
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      assignedLocation: { name: 'Shop location' },
+      deliveryMethod: {
+        id: 'gid://shopify/DeliveryMethod/100',
+        methodType: 'SHIPPING',
+        presentedName: 'Standard',
+        serviceCode: 'STANDARD',
+        minDeliveryDateTime: null,
+        maxDeliveryDateTime: null,
+        sourceReference: null,
+      },
+      lineItems: [
+        {
+          id: 'gid://shopify/FulfillmentOrderLineItem/101',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-top-level',
+          title: 'Fulfillment top-level item',
+          totalQuantity: 1,
+          remainingQuantity: 1,
+        },
+      ],
+    };
+    const closedFulfillmentOrder = {
+      id: 'gid://shopify/FulfillmentOrder/200',
+      status: 'CLOSED',
+      requestStatus: 'UNSUBMITTED',
+      assignedLocation: { name: 'Shop location' },
+      lineItems: [
+        {
+          id: 'gid://shopify/FulfillmentOrderLineItem/201',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-top-level',
+          title: 'Fulfillment top-level item',
+          totalQuantity: 1,
+          remainingQuantity: 0,
+        },
+      ],
+    };
+    const fulfillment = {
+      id: 'gid://shopify/Fulfillment/300',
+      status: 'SUCCESS',
+      displayStatus: 'FULFILLED',
+      createdAt: '2026-04-25T21:07:57Z',
+      updatedAt: '2026-04-25T21:07:57Z',
+      trackingInfo: [
+        {
+          number: 'HAR232-TRACK',
+          url: 'https://example.com/track/HAR232-TRACK',
+          company: 'Hermes',
+        },
+      ],
+      fulfillmentLineItems: [
+        {
+          id: 'gid://shopify/FulfillmentLineItem/301',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-top-level',
+          title: 'Fulfillment top-level item',
+          quantity: 1,
+        },
+      ],
+    };
+    const order = makeOrder('gid://shopify/Order/fulfillment-top-level', '#FULFILL-TOP', '2026-04-25T00:00:00.000Z', {
+      displayFinancialStatus: 'PAID',
+      displayFulfillmentStatus: 'FULFILLED',
+      lineItems: [
+        {
+          id: 'gid://shopify/LineItem/fulfillment-top-level',
+          title: 'Fulfillment top-level item',
+          quantity: 1,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+      ],
+      fulfillments: [fulfillment],
+      fulfillmentOrders: [openFulfillmentOrder, closedFulfillmentOrder],
+    });
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query TopLevelFulfillmentReads(
+          $orderId: ID!
+          $fulfillmentId: ID!
+          $fulfillmentOrderId: ID!
+          $afterOpen: String!
+        ) {
+          fulfillment(id: $fulfillmentId) {
+            id
+            status
+            displayStatus
+            createdAt
+            updatedAt
+            trackingInfo { number url company }
+            fulfillmentLineItems(first: 5) {
+              nodes { id quantity lineItem { id title } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          fulfillmentOrder(id: $fulfillmentOrderId) {
+            id
+            status
+            requestStatus
+            assignedLocation { name }
+            deliveryMethod {
+              id
+              methodType
+              presentedName
+              serviceCode
+              minDeliveryDateTime
+              maxDeliveryDateTime
+              sourceReference
+            }
+            lineItems(first: 5) {
+              nodes { id totalQuantity remainingQuantity lineItem { id title } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          order(id: $orderId) {
+            id
+            fulfillments(first: 5) {
+              id
+              status
+              displayStatus
+              createdAt
+              updatedAt
+              trackingInfo { number url company }
+              fulfillmentLineItems(first: 5) {
+                nodes { id quantity lineItem { id title } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            fulfillmentOrders(first: 5) {
+              nodes {
+                id
+                status
+                requestStatus
+                assignedLocation { name }
+                deliveryMethod {
+                  id
+                  methodType
+                  presentedName
+                  serviceCode
+                  minDeliveryDateTime
+                  maxDeliveryDateTime
+                  sourceReference
+                }
+                lineItems(first: 5) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id title } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          openOnly: fulfillmentOrders(first: 5, sortKey: ID) {
+            nodes { id status deliveryMethod { methodType presentedName } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          allFirst: fulfillmentOrders(first: 1, includeClosed: true, sortKey: ID) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          allNext: fulfillmentOrders(first: 1, after: $afterOpen, includeClosed: true, sortKey: ID) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          closedByQuery: fulfillmentOrders(first: 5, includeClosed: true, sortKey: ID, query: "status:closed") {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversed: fulfillmentOrders(first: 1, includeClosed: true, sortKey: ID, reverse: true) {
+            nodes { id status }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          manualHoldsFulfillmentOrders(first: 5) {
+            nodes { id }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }`,
+        variables: {
+          orderId: order.id,
+          fulfillmentId: fulfillment.id,
+          fulfillmentOrderId: closedFulfillmentOrder.id,
+          afterOpen: 'cursor:gid://shopify/FulfillmentOrder/100',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.fulfillment).toEqual(response.body.data.order.fulfillments[0]);
+    expect(response.body.data.fulfillmentOrder).toEqual(response.body.data.order.fulfillmentOrders.nodes[1]);
+    expect(response.body.data.order.fulfillmentOrders.nodes[0].deliveryMethod).toEqual({
+      id: 'gid://shopify/DeliveryMethod/100',
+      methodType: 'SHIPPING',
+      presentedName: 'Standard',
+      serviceCode: 'STANDARD',
+      minDeliveryDateTime: null,
+      maxDeliveryDateTime: null,
+      sourceReference: null,
+    });
+    expect(response.body.data.fulfillmentOrder.deliveryMethod).toBeNull();
+    expect(response.body.data.openOnly.nodes).toEqual([
+      {
+        id: openFulfillmentOrder.id,
+        status: 'OPEN',
+        deliveryMethod: {
+          methodType: 'SHIPPING',
+          presentedName: 'Standard',
+        },
+      },
+    ]);
+    expect(response.body.data.allFirst).toEqual({
+      nodes: [{ id: openFulfillmentOrder.id, status: 'OPEN' }],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/FulfillmentOrder/100',
+        endCursor: 'cursor:gid://shopify/FulfillmentOrder/100',
+      },
+    });
+    expect(response.body.data.allNext).toEqual({
+      nodes: [{ id: closedFulfillmentOrder.id, status: 'CLOSED' }],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: true,
+        startCursor: 'cursor:gid://shopify/FulfillmentOrder/200',
+        endCursor: 'cursor:gid://shopify/FulfillmentOrder/200',
+      },
+    });
+    expect(response.body.data.closedByQuery.nodes).toEqual([{ id: closedFulfillmentOrder.id, status: 'CLOSED' }]);
+    expect(response.body.data.reversed.nodes).toEqual([{ id: closedFulfillmentOrder.id, status: 'CLOSED' }]);
+    expect(response.body.data.manualHoldsFulfillmentOrders).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

@@ -1,29 +1,28 @@
-import {
-  Kind,
-  parse,
-  type FieldNode,
-  type FragmentDefinitionNode,
-  type OperationDefinitionNode,
-  type SelectionNode,
-} from 'graphql';
+import { Kind, parse, type FieldNode, type OperationDefinitionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { SegmentRecord } from '../state/types.js';
+import {
+  defaultGraphqlTypeConditionApplies,
+  getDocumentFragments,
+  getFieldResponseKey,
+  isPlainObject,
+  paginateConnectionItems,
+  projectGraphqlValue,
+  readGraphqlDataResponsePayload,
+  type FragmentMap,
+} from './graphql-helpers.js';
 
-function responseKey(selection: FieldNode): string {
-  return selection.alias?.value ?? selection.name.value;
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-type FragmentMap = Map<string, FragmentDefinitionNode>;
 type SegmentUserError = {
   field: string[];
   message: string;
+};
+
+const segmentProjectionOptions = {
+  shouldApplyTypeCondition: (source: Record<string, unknown>, typeCondition: string | undefined): boolean =>
+    defaultGraphqlTypeConditionApplies(source, typeCondition) || typeCondition === 'SegmentFilter',
 };
 
 function emptyConnection(): Record<string, unknown> {
@@ -48,16 +47,11 @@ function buildSegmentsConnection(
   variables: Record<string, unknown>,
   segments: SegmentRecord[],
 ): Record<string, unknown> {
-  const args = getFieldArguments(field, variables);
-  const first =
-    typeof args['first'] === 'number' && Number.isFinite(args['first']) ? Math.max(0, Math.floor(args['first'])) : null;
-  const last =
-    typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
-  const allSegments = segments;
-  const firstWindow = first === null ? allSegments : allSegments.slice(0, first);
-  const visibleSegments = last === null ? firstWindow : firstWindow.slice(Math.max(0, firstWindow.length - last));
-  const hasPreviousPage = last !== null && firstWindow.length > visibleSegments.length;
-  const hasNextPage = first !== null && allSegments.length > visibleSegments.length;
+  const {
+    items: visibleSegments,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(segments, field, variables, (segment) => segment.id);
   const startCursor = visibleSegments[0] ? segmentCursor(visibleSegments[0]) : null;
   const endCursor = visibleSegments.at(-1) ? segmentCursor(visibleSegments.at(-1) as SegmentRecord) : null;
 
@@ -74,88 +68,6 @@ function buildSegmentsConnection(
       endCursor,
     },
   };
-}
-
-function shouldApplyTypeCondition(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
-  if (!typeCondition) {
-    return true;
-  }
-
-  const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
-  return !sourceTypename || sourceTypename === typeCondition || typeCondition === 'SegmentFilter';
-}
-
-function projectValue(value: unknown, selections: readonly SelectionNode[], fragments: FragmentMap): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => projectValue(item, selections, fragments));
-  }
-
-  if (!isPlainObject(value)) {
-    return value ?? null;
-  }
-
-  return projectObject(value, selections, fragments);
-}
-
-function projectObject(
-  source: Record<string, unknown>,
-  selections: readonly SelectionNode[],
-  fragments: FragmentMap,
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      const typeCondition = selection.typeCondition?.name.value;
-      if (!shouldApplyTypeCondition(source, typeCondition)) {
-        continue;
-      }
-      Object.assign(result, projectObject(source, selection.selectionSet.selections, fragments));
-      continue;
-    }
-
-    if (selection.kind === Kind.FRAGMENT_SPREAD) {
-      const fragment = fragments.get(selection.name.value);
-      if (!fragment || !shouldApplyTypeCondition(source, fragment.typeCondition.name.value)) {
-        continue;
-      }
-      Object.assign(result, projectObject(source, fragment.selectionSet.selections, fragments));
-      continue;
-    }
-
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const fieldName = selection.name.value;
-    const key = responseKey(selection);
-    if (fieldName === '__typename') {
-      result[key] = source['__typename'] ?? null;
-      continue;
-    }
-
-    let value = source[fieldName];
-    if (fieldName === 'nodes' && value === undefined && Array.isArray(source['edges'])) {
-      value = source['edges']
-        .filter((edge): edge is Record<string, unknown> => isPlainObject(edge))
-        .map((edge) => edge['node'] ?? null);
-    }
-
-    result[key] = selection.selectionSet
-      ? projectValue(value, selection.selectionSet.selections, fragments)
-      : (value ?? null);
-  }
-
-  return result;
-}
-
-function getFragments(document: string): FragmentMap {
-  const ast = parse(document);
-  return new Map(
-    ast.definitions
-      .filter((definition): definition is FragmentDefinitionNode => definition.kind === Kind.FRAGMENT_DEFINITION)
-      .map((definition) => [definition.name.value, definition]),
-  );
 }
 
 function getOperation(document: string): OperationDefinitionNode | null {
@@ -210,14 +122,6 @@ function collectSegmentNodes(value: unknown, segments: SegmentRecord[] = []): Se
   return segments;
 }
 
-function readRootPayload(upstreamPayload: unknown, responseKeyValue: string): unknown {
-  if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
-    return null;
-  }
-
-  return upstreamPayload['data'][responseKeyValue] ?? null;
-}
-
 export function hydrateSegmentsFromUpstreamResponse(
   document: string,
   _variables: Record<string, unknown>,
@@ -229,7 +133,7 @@ export function hydrateSegmentsFromUpstreamResponse(
 
   for (const field of getRootFields(document)) {
     const rootField = field.name.value;
-    const payload = readRootPayload(upstreamPayload, responseKey(field));
+    const payload = readGraphqlDataResponsePayload(upstreamPayload, getFieldResponseKey(field));
 
     if (payload === null && rootField !== 'segment') {
       continue;
@@ -343,7 +247,9 @@ function validateSegmentQuery(query: string | null, field: string[] = ['query'])
 }
 
 function projectMutationPayload(payload: Record<string, unknown>, field: FieldNode, fragments: FragmentMap): unknown {
-  return field.selectionSet ? projectValue(payload, field.selectionSet.selections, fragments) : payload;
+  return field.selectionSet
+    ? projectGraphqlValue(payload, field.selectionSet.selections, fragments, segmentProjectionOptions)
+    : payload;
 }
 
 function handleSegmentCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
@@ -488,7 +394,7 @@ function buildSegmentNotFoundError(field: FieldNode): Record<string, unknown> {
   return {
     message: 'Segment does not exist',
     ...(location.length > 0 ? { locations: location } : {}),
-    path: [responseKey(field)],
+    path: [getFieldResponseKey(field)],
     extensions: {
       code: 'NOT_FOUND',
     },
@@ -504,12 +410,14 @@ export function handleSegmentsQuery(
 } {
   const data: Record<string, unknown> = {};
   const errors: Array<Record<string, unknown>> = [];
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     const rootPayload = rootPayloadForField(field, variables);
-    data[key] = field.selectionSet ? projectValue(rootPayload, field.selectionSet.selections, fragments) : rootPayload;
+    data[key] = field.selectionSet
+      ? projectGraphqlValue(rootPayload, field.selectionSet.selections, fragments, segmentProjectionOptions)
+      : rootPayload;
 
     if (field.name.value === 'segment') {
       const args = getFieldArguments(field, variables);
@@ -534,10 +442,10 @@ export function handleSegmentMutation(
 } {
   const data: Record<string, unknown> = {};
   const errors: Array<Record<string, unknown>> = [];
-  const fragments = getFragments(document);
+  const fragments = getDocumentFragments(document);
 
   for (const field of getRootFields(document)) {
-    const key = responseKey(field);
+    const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'segmentCreate': {
         const argumentNames = new Set((field.arguments ?? []).map((argument) => argument.name.value));

@@ -9,6 +9,7 @@ import {
   executeParityScenario,
   summarizeParityResults,
   validateComparisonContract,
+  validateParityScenarioInventoryEntry,
 } from '../../scripts/conformance-parity-lib.js';
 
 describe('classifyParityScenarioState', () => {
@@ -98,6 +99,23 @@ describe('classifyParityScenarioState', () => {
     ).toBe('invalid-missing-comparison-contract');
   });
 
+  it('classifies captured fixture scenarios as externally enforced evidence', () => {
+    const state = classifyParityScenarioState(
+      { status: 'captured' },
+      {
+        comparisonMode: 'captured-fixture',
+        liveCaptureFiles: ['fixtures/conformance/example.json'],
+        runtimeTestFiles: ['tests/integration/example.test.ts'],
+        comparison: {
+          mode: 'strict-json',
+          expectedDifferences: [],
+        },
+      },
+    );
+
+    expect(state).toBe('enforced-by-fixture');
+  });
+
   it('keeps planned scenarios as not-yet-implemented even when a proxy request scaffold exists', () => {
     const state = classifyParityScenarioState(
       { status: 'planned' },
@@ -117,6 +135,7 @@ describe('summarizeParityResults', () => {
   it('separates ready, invalid, and not-yet-implemented scenario states', () => {
     const summary = summarizeParityResults([
       { state: 'ready-for-comparison' },
+      { state: 'enforced-by-fixture' },
       { state: 'invalid-missing-comparison-contract' },
       { state: 'invalid-missing-comparison-contract' },
       { state: 'not-yet-implemented' },
@@ -126,10 +145,92 @@ describe('summarizeParityResults', () => {
     expect(summary.pending).toBe(3);
     expect(summary.statusCounts).toEqual({
       readyForComparison: 1,
+      enforcedByFixture: 1,
       invalidMissingComparisonContract: 2,
       notYetImplemented: 1,
     });
     expect(summary.statusNote).toContain('notYetImplemented');
+  });
+});
+
+describe('validateParityScenarioInventoryEntry', () => {
+  it('rejects captured scenarios that are checked in without executable comparison targets', () => {
+    expect(
+      validateParityScenarioInventoryEntry(
+        {
+          id: 'captured-without-targets',
+          status: 'captured',
+          captureFiles: ['fixtures/conformance/example.json'],
+        },
+        {
+          comparisonMode: 'captured-vs-proxy-request',
+          proxyRequest: {
+            documentPath: 'config/parity-requests/example.graphql',
+          },
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+          },
+        },
+      ),
+    ).toEqual(['Captured scenario captured-without-targets must declare at least one executable comparison target.']);
+  });
+
+  it('rejects captured scenarios that keep blockers in checked-in inventory', () => {
+    expect(
+      validateParityScenarioInventoryEntry(
+        {
+          id: 'captured-blocked',
+          status: 'captured',
+          captureFiles: ['fixtures/conformance/example.json'],
+        },
+        {
+          comparisonMode: 'captured-vs-proxy-request',
+          proxyRequest: {
+            documentPath: 'config/parity-requests/example.graphql',
+          },
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+            targets: [
+              {
+                name: 'data',
+                capturePath: '$.data',
+                proxyPath: '$.data',
+              },
+            ],
+          },
+          blocker: {
+            kind: 'not-promoted',
+            blockerPath: null,
+          },
+        },
+      ),
+    ).toEqual([
+      'Captured scenario captured-blocked must not declare a blocker; remove it from checked-in parity inventory until it is enforceable.',
+    ]);
+  });
+
+  it('requires captured fixture scenarios to name their runtime enforcement', () => {
+    expect(
+      validateParityScenarioInventoryEntry(
+        {
+          id: 'captured-fixture-without-runtime-test',
+          status: 'captured',
+          captureFiles: ['fixtures/conformance/example.json'],
+        },
+        {
+          comparisonMode: 'captured-fixture',
+          liveCaptureFiles: ['fixtures/conformance/example.json'],
+          comparison: {
+            mode: 'strict-json',
+            expectedDifferences: [],
+          },
+        },
+      ),
+    ).toEqual([
+      'Captured fixture scenario captured-fixture-without-runtime-test must reference at least one runtime test file.',
+    ]);
   });
 });
 
@@ -523,7 +624,7 @@ describe('executeParityScenario', () => {
     expect(state).toBe('blocked-with-proxy-request');
   });
 
-  it('keeps captured scenarios with blockers out of ready-for-comparison counts', () => {
+  it('marks captured scenarios with blockers as invalid captured inventory', () => {
     const state = classifyParityScenarioState(
       { status: 'captured' },
       {
@@ -541,6 +642,6 @@ describe('executeParityScenario', () => {
       },
     );
 
-    expect(state).toBe('blocked-with-proxy-request');
+    expect(state).toBe('invalid-missing-comparison-contract');
   });
 });

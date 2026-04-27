@@ -1,0 +1,85 @@
+query DiscountAutomaticNodesRead($first: Int!, $query: String) {
+  automaticDiscountNodes(first: $first, query: $query) {
+    nodes {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+        }
+        ... on DiscountAutomaticBxgy {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+        }
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        id
+        automaticDiscount {
+          __typename
+          ... on DiscountAutomaticBasic {
+            title
+            status
+          }
+          ... on DiscountAutomaticBxgy {
+            title
+            status
+          }
+          ... on DiscountAutomaticFreeShipping {
+            title
+            status
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
