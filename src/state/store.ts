@@ -10,6 +10,7 @@ import type {
   CalculatedOrderRecord,
   CarrierServiceRecord,
   CartTransformRecord,
+  ChannelRecord,
   CatalogRecord,
   CollectionRecord,
   CustomerAddressRecord,
@@ -97,6 +98,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   giftCardConfiguration: null,
   collections: {},
   publications: {},
+  channels: {},
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
@@ -173,6 +175,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedProductIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
+  deletedPublicationIds: {},
   deletedLocationIds: {},
   deletedFulfillmentServiceIds: {},
   deletedCarrierServiceIds: {},
@@ -404,8 +407,48 @@ function readProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string 
   return metafield.ownerId ?? metafield.productId ?? null;
 }
 
-function mergePublicationRecord(base: PublicationRecord | null): PublicationRecord | null {
-  return base ? structuredClone(base) : null;
+function mergePublicationRecord(
+  base: PublicationRecord | null,
+  staged: PublicationRecord | null,
+): PublicationRecord | null {
+  if (!base && !staged) {
+    return null;
+  }
+
+  if (!base) {
+    return staged ? structuredClone(staged) : null;
+  }
+
+  if (!staged) {
+    return structuredClone(base);
+  }
+
+  return structuredClone({
+    ...base,
+    ...staged,
+  });
+}
+
+function publicationChannelId(publication: PublicationRecord): string | null {
+  if (publication.channelId) {
+    return publication.channelId;
+  }
+
+  const legacyResourceId = publication.id.split('/').at(-1);
+  return legacyResourceId ? `gid://shopify/Channel/${legacyResourceId}` : null;
+}
+
+function channelFromPublication(publication: PublicationRecord): ChannelRecord | null {
+  const id = publicationChannelId(publication);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    name: publication.name,
+    publicationId: publication.id,
+  };
 }
 
 function mergeShopRecords(base: ShopRecord | null, staged: ShopRecord | null): ShopRecord | null {
@@ -2950,8 +2993,33 @@ export class InMemoryStore {
 
   upsertBasePublications(publications: PublicationRecord[]): void {
     for (const publication of publications) {
+      delete this.baseState.deletedPublicationIds[publication.id];
+      delete this.stagedState.deletedPublicationIds[publication.id];
       this.baseState.publications[publication.id] = structuredClone(publication);
     }
+  }
+
+  upsertBaseChannels(channels: ChannelRecord[]): void {
+    for (const channel of channels) {
+      this.baseState.channels[channel.id] = structuredClone(channel);
+    }
+  }
+
+  stageCreatePublication(publication: PublicationRecord): PublicationRecord {
+    delete this.stagedState.deletedPublicationIds[publication.id];
+    this.stagedState.publications[publication.id] = structuredClone(publication);
+    return structuredClone(publication);
+  }
+
+  stageUpdatePublication(publication: PublicationRecord): PublicationRecord {
+    delete this.stagedState.deletedPublicationIds[publication.id];
+    this.stagedState.publications[publication.id] = structuredClone(publication);
+    return structuredClone(publication);
+  }
+
+  stageDeletePublication(publicationId: string): void {
+    delete this.stagedState.publications[publicationId];
+    this.stagedState.deletedPublicationIds[publicationId] = true;
   }
 
   stageCreateCollection(collection: CollectionRecord): CollectionRecord {
@@ -3828,7 +3896,25 @@ export class InMemoryStore {
     const publicationsById = new Map<string, PublicationRecord>();
 
     for (const publicationId of Object.keys(this.baseState.publications)) {
-      const publication = mergePublicationRecord(this.baseState.publications[publicationId] ?? null);
+      if (this.stagedState.deletedPublicationIds[publicationId]) {
+        continue;
+      }
+
+      const publication = mergePublicationRecord(
+        this.baseState.publications[publicationId] ?? null,
+        this.stagedState.publications[publicationId] ?? null,
+      );
+      if (publication) {
+        publicationsById.set(publication.id, publication);
+      }
+    }
+
+    for (const publicationId of Object.keys(this.stagedState.publications)) {
+      if (this.stagedState.deletedPublicationIds[publicationId] || publicationsById.has(publicationId)) {
+        continue;
+      }
+
+      const publication = mergePublicationRecord(null, this.stagedState.publications[publicationId] ?? null);
       if (publication) {
         publicationsById.set(publication.id, publication);
       }
@@ -3836,7 +3922,7 @@ export class InMemoryStore {
 
     for (const product of this.listEffectiveProducts()) {
       for (const publicationId of product.publicationIds) {
-        if (!publicationsById.has(publicationId)) {
+        if (!this.stagedState.deletedPublicationIds[publicationId] && !publicationsById.has(publicationId)) {
           publicationsById.set(publicationId, {
             id: publicationId,
             name: null,
@@ -3847,7 +3933,7 @@ export class InMemoryStore {
 
     for (const collection of this.listEffectiveCollections()) {
       for (const publicationId of collection.publicationIds ?? []) {
-        if (!publicationsById.has(publicationId)) {
+        if (!this.stagedState.deletedPublicationIds[publicationId] && !publicationsById.has(publicationId)) {
           publicationsById.set(publicationId, {
             id: publicationId,
             name: null,
@@ -3857,6 +3943,49 @@ export class InMemoryStore {
     }
 
     return Array.from(publicationsById.values()).sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+  }
+
+  getEffectivePublicationById(publicationId: string): PublicationRecord | null {
+    if (this.stagedState.deletedPublicationIds[publicationId]) {
+      return null;
+    }
+
+    return mergePublicationRecord(
+      this.baseState.publications[publicationId] ?? null,
+      this.stagedState.publications[publicationId] ?? null,
+    );
+  }
+
+  listEffectiveChannels(): ChannelRecord[] {
+    const channelsById = new Map<string, ChannelRecord>();
+
+    for (const channel of Object.values(this.baseState.channels)) {
+      channelsById.set(channel.id, structuredClone(channel));
+    }
+
+    for (const publication of this.listEffectivePublications()) {
+      const channel = channelFromPublication(publication);
+      if (channel && !channelsById.has(channel.id)) {
+        channelsById.set(channel.id, channel);
+      }
+    }
+
+    return Array.from(channelsById.values()).sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+  }
+
+  getEffectiveChannelById(channelId: string): ChannelRecord | null {
+    const direct = this.baseState.channels[channelId] ?? null;
+    if (direct) {
+      return structuredClone(direct);
+    }
+
+    const publication = this.getEffectivePublicationById(channelId);
+    const derivedChannel = publication ? channelFromPublication(publication) : null;
+    if (derivedChannel) {
+      return derivedChannel;
+    }
+
+    return this.listEffectiveChannels().find((channel) => channel.id === channelId) ?? null;
   }
 
   getEffectiveCollectionsByProductId(productId: string): ProductCollectionRecord[] {
@@ -4120,6 +4249,8 @@ export class InMemoryStore {
       Object.keys(this.stagedState.productVariants).length > 0 ||
       Object.keys(this.stagedState.productOptions).length > 0 ||
       Object.keys(this.stagedState.productCollections).length > 0 ||
+      Object.keys(this.stagedState.publications).length > 0 ||
+      Object.keys(this.stagedState.channels).length > 0 ||
       this.stagedCollectionFamilies.size > 0 ||
       Object.keys(this.stagedState.productMedia).length > 0 ||
       this.stagedMediaFamilies.size > 0 ||
@@ -4127,7 +4258,8 @@ export class InMemoryStore {
       Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
       Object.keys(this.stagedState.deletedMetafieldDefinitionIds).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
-      Object.keys(this.stagedState.deletedCollectionIds).length > 0
+      Object.keys(this.stagedState.deletedCollectionIds).length > 0 ||
+      Object.keys(this.stagedState.deletedPublicationIds).length > 0
     );
   }
 }

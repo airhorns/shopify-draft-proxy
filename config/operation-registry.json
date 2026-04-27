@@ -1150,12 +1150,59 @@
     "supportNotes": "Tender transaction scaffold only. HAR-316 captured 2025-01 harry-test-heelo type-only connection shape without ids or payment details; future support must preserve payment-details nullability and avoid exposing sensitive tender data without scrubbed fixtures."
   },
   {
+    "name": "channel",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["channel", "Channel"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local overlay models the deprecated channel root from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence."
+  },
+  {
+    "name": "channels",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["channels", "Channels"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local overlay models the deprecated channels connection from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence."
+  },
+  {
+    "name": "publication",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publication", "Publication"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
     "name": "publications",
     "type": "query",
     "domain": "products",
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["publications", "Publications"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
+    "name": "publicationsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publicationsCount", "PublicationsCount"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
+    "name": "publishedProductsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publishedProductsCount", "PublishedProductsCount"],
     "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
   },
   {
@@ -1582,6 +1629,36 @@
     "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
     "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
     "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
+  },
+  {
+    "name": "publicationCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationCreate", "PublicationCreate"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support stages Publication catalog rows only. Product and Collection visibility changes still flow through the existing publishable/product publication roots; deleting a staged or hydrated publication removes that target from locally modeled product/collection publication memberships."
+  },
+  {
+    "name": "publicationUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationUpdate", "PublicationUpdate"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support updates the normalized Publication catalog row. It does not claim broader channel specification or app-publication setup behavior beyond selected downstream reads."
+  },
+  {
+    "name": "publicationDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationDelete", "PublicationDelete"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support removes the normalized Publication row and strips that publication target from locally modeled Product and Collection visibility."
   },
   {
     "name": "productPublish",
