@@ -1,0 +1,14 @@
+{
+  "scenarioId": "metaobjects-read",
+  "operationNames": ["metaobject", "metaobjectByHandle", "metaobjects"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "empty-state-parity", "pagination", "search"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json"],
+  "runtimeTestFiles": ["tests/integration/metaobject-query-shapes.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-243 promotes the entry-read slice from the captured 2026-04 metaobjects fixture. Runtime coverage verifies normalized snapshot reads, live-hybrid local overlay, missing entry null/empty behavior, aliases/fragments, ordered fields, field(key:) null behavior, stable local cursors, pagination, sorting, field-value query filtering, and safe empty referencedBy connections. Mutation setup/cleanup branches in the broader fixture remain out of scope until metaobject mutation staging is implemented."
+}

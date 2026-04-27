@@ -26,10 +26,7 @@ import {
 } from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
-import {
-  handleMetaobjectDefinitionQuery,
-  hydrateMetaobjectDefinitionsFromUpstreamResponse,
-} from './metaobject-definitions.js';
+import { handleMetaobjectQuery, hydrateMetaobjectsFromUpstreamResponse } from './metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from './store-properties.js';
@@ -1134,12 +1131,13 @@ export function createProxyRouter(config: AppConfig): Router {
     if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
-        ctx.body = handleMetaobjectDefinitionQuery(body.query, variables);
+        ctx.body = handleMetaobjectQuery(body.query, variables);
         return;
       }
 
       if (config.readMode === 'live-hybrid') {
         const hadLocalDefinitions = store.hasEffectiveMetaobjectDefinitions();
+        const hadLocalMetaobjects = store.hasEffectiveMetaobjects();
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1148,12 +1146,14 @@ export function createProxyRouter(config: AppConfig): Router {
         });
 
         const upstreamBody = await response.json();
-        hydrateMetaobjectDefinitionsFromUpstreamResponse(body.query, variables, upstreamBody);
+        hydrateMetaobjectsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
         ctx.body =
-          store.hasEffectiveMetaobjectDefinitions() && (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())
-            ? handleMetaobjectDefinitionQuery(body.query, variables)
+          (store.hasEffectiveMetaobjectDefinitions() &&
+            (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())) ||
+          (store.hasEffectiveMetaobjects() && (hadLocalMetaobjects || store.hasStagedMetaobjects()))
+            ? handleMetaobjectQuery(body.query, variables)
             : upstreamBody;
         return;
       }

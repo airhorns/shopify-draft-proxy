@@ -68,6 +68,7 @@ const emptySnapshot = {
   productMetafields: {},
   metafieldDefinitions: {},
   metaobjectDefinitions: {},
+  metaobjects: {},
   deletedProductIds: {},
   deletedFileIds: {},
   deletedFulfillmentServiceIds: {},

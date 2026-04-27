@@ -26,13 +26,30 @@ Live-hybrid mode still fetches upstream first. When local staged or snapshot def
 
 Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Shopify's captured live catalog cursors are opaque and should not be treated as client-visible semantics.
 
-## Unsupported roots tracked by the registry
+## Supported entry read roots
 
-Planned overlay reads:
+HAR-243 promotes normalized metaobject entry reads for:
 
 - `metaobject`
 - `metaobjectByHandle`
 - `metaobjects`
+
+The supported entry field slice is based on the HAR-240 Admin GraphQL 2026-04 capture:
+
+- entry identity and display metadata: `id`, `handle`, `type`, `displayName`, `createdAt`, and `updatedAt`
+- entry `capabilities.publishable.status` and nullable `capabilities.onlineStore.templateSuffix`
+- ordered `fields` with `key`, `type`, `value`, `jsonValue`, and the captured field-definition reference (`key`, `name`, `required`, `type.name`, `type.category`)
+- `field(key:)`, including `null` for unknown field keys while preserving aliases
+- `definition` when the matching normalized definition is present
+- `referencedBy` as a Shopify-like empty connection until relation evidence exists
+
+Snapshot mode reads entries from normalized `metaobjects` state and returns `null` for absent ID or `(type, handle)` lookups. Empty or absent type catalogs return non-null empty connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
+
+`metaobjects(type:, first:, after:, before:, last:, reverse:, sortKey:, query:)` is type-scoped and never invents entries outside normalized state. Local catalog cursors use stable `cursor:<metaobject gid>` values. Supported local sort keys are `id`, `type`, `updated_at`, and `display_name`; `reverse` flips the sorted list before cursor windowing. Query filtering supports general text search plus documented field-value filters such as `fields.title:Alpha` against normalized field `value` / `jsonValue` data.
+
+Live-hybrid mode fetches upstream first. When local snapshot or staged entry state exists, the proxy overlays normalized entries onto the selected roots; when no local entry exists, upstream no-data/null responses are returned unchanged.
+
+## Unsupported roots tracked by the registry
 
 Planned local-staging mutations:
 
@@ -48,8 +65,8 @@ Planned local-staging mutations:
 
 ## Coverage boundaries
 
-- Registry entries in this group are declared gaps. They make known Admin GraphQL roots discoverable but do not claim runtime support.
-- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance evidence, and documented field behavior. HAR-241 satisfies that bar only for the three definition read roots listed above; entry reads and definition mutations remain declared gaps.
+- Unimplemented registry entries in this group are declared gaps. They make known Admin GraphQL roots discoverable but do not claim runtime support.
+- `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads and HAR-243 satisfies it for entry reads; entry mutations and definition mutations remain declared gaps.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
 
