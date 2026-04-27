@@ -33,6 +33,7 @@ import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
+import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
@@ -1343,6 +1344,15 @@ async function executeGraphQLAgainstLocalProxy(
 
   if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    if (
+      parsed.rootFields.some((rootField) => rootField === 'deliverySettings' || rootField === 'deliveryPromiseSettings')
+    ) {
+      return {
+        status: 200,
+        body: handleDeliverySettingsQuery(document),
+      };
+    }
+
     if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
       return {
         status: 200,

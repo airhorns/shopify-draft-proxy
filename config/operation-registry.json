@@ -4154,6 +4154,66 @@
     "supportNotes": "Short-circuits recipient notification payloads locally for existing gift cards; no customer-visible email/notification side effect is sent during supported runtime handling."
   },
   {
+    "name": "deliveryCustomization",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomization", "DeliveryCustomization"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; do not synthesize function-backed customization detail reads until an authorized capture records shape, metafields, function ownership, and missing-id behavior."
+  },
+  {
+    "name": "deliveryCustomizations",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizations", "DeliveryCustomizations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_customizations`; catalog sorting, search, pagination, and empty/no-data behavior need an authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseParticipants",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipants", "DeliveryPromiseParticipants"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; participant owner eligibility, branded promise handles, connection pagination, and empty behavior need captured evidence before local support."
+  },
+  {
+    "name": "deliveryPromiseProvider",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProvider", "DeliveryPromiseProvider"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 declared gap. Live 2025-01 probe returned ACCESS_DENIED requiring `read_delivery_promises`; provider state by location and downstream mutation effects need authorized capture before local support."
+  },
+  {
+    "name": "deliveryPromiseSettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliveryPromiseSettings", "DeliveryPromiseSettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns the captured no-promise-settings shape `deliveryDatesEnabled: false` and `processingTime: null`; mutation-backed promise provider/participant effects remain unsupported."
+  },
+  {
+    "name": "deliverySettings",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["deliverySettings", "DeliverySettings"],
+    "runtimeTests": ["tests/integration/delivery-settings-query-shapes.test.ts"],
+    "supportNotes": "HAR-324 fixture-backed 2025-01 snapshot read. Local snapshot mode returns captured no-legacy-mode settings with `legacyModeProfiles: false` and unblocked `legacyModeBlocked`; deliverySettingUpdate remains unsupported until setting transitions are modeled."
+  },
+  {
     "name": "deliveryProfile",
     "type": "query",
     "domain": "shipping-fulfillments",
@@ -4305,6 +4365,76 @@
     "matchNames": ["deliveryProfileUpdate", "DeliveryProfileUpdate"],
     "runtimeTests": ["tests/integration/delivery-profile-lifecycle-flow.test.ts"],
     "supportNotes": "Admin GraphQL 2026-04 deliveryProfileUpdate stages locally for profile rename, nested location add/remove, location-group create/update/delete, zone create/update/delete, static rate method create/update/delete, condition update/delete, variant association/dissociation, and downstream profile reads. Legacy-mode transitions, carrier participant callbacks, and full selling-plan routing remain excluded until separately captured."
+  },
+  {
+    "name": "deliveryCustomizationActivation",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationActivation", "DeliveryCustomizationActivation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until activation/deactivation limits, Shopify Function ownership, custom-app eligibility, and downstream customization reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationCreate", "DeliveryCustomizationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Current credential lacks `read_delivery_customizations`; do not stage create until functionId validation, metafield behavior, activation defaults, and downstream customization reads have authorized fixtures."
+  },
+  {
+    "name": "deliveryCustomizationDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationDelete", "DeliveryCustomizationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Delete must remain unsupported until missing-id, ownership, metafield cleanup, and downstream detail/catalog absence are captured and modeled locally."
+  },
+  {
+    "name": "deliveryCustomizationUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryCustomizationUpdate", "DeliveryCustomizationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 function-backed mutation gap. Keep unsupported until title/enabled/metafield updates, immutable functionId behavior, validation errors, and downstream reads are captured and modeled locally."
+  },
+  {
+    "name": "deliveryPromiseParticipantsUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseParticipantsUpdate", "DeliveryPromiseParticipantsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise mutation gap. Live reads require `read_delivery_promises`; keep unsupported until branded promise handle validation, owner add/remove semantics, and participant read-after-write behavior are captured."
+  },
+  {
+    "name": "deliveryPromiseProviderUpsert",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliveryPromiseProviderUpsert", "DeliveryPromiseProviderUpsert"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-promise provider mutation gap. Keep unsupported until provider state by location, active/fulfillmentDelay/timeZone validation, access scopes, and downstream provider/settings reads are captured."
+  },
+  {
+    "name": "deliverySettingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["deliverySettingUpdate", "DeliverySettingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-324 delivery-settings mutation gap. The local proxy supports the captured read-only no-legacy-mode settings shape, but setting transitions can alter shop delivery configuration and must remain unsupported until success and rollback behavior are captured."
   },
   {
     "name": "orderEditAddShippingLine",

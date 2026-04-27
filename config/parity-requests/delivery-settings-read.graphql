@@ -1,0 +1,13 @@
+query DeliverySettingsRead {
+  deliverySettings {
+    legacyModeProfiles
+    legacyModeBlocked {
+      blocked
+      reasons
+    }
+  }
+  deliveryPromiseSettings {
+    deliveryDatesEnabled
+    processingTime
+  }
+}
