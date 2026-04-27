@@ -2342,6 +2342,171 @@ function updateVariantRecord(existing: ProductVariantRecord, input: Record<strin
   };
 }
 
+type BulkVariantUserError = {
+  field: string[] | null;
+  message: string;
+};
+
+function readBulkVariantInputs(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw.filter((value): value is Record<string, unknown> => isObject(value));
+}
+
+function hasVariantOptionInput(input: Record<string, unknown>): boolean {
+  return hasOwnField(input, 'selectedOptions') || hasOwnField(input, 'optionValues') || hasOwnField(input, 'options');
+}
+
+function bulkVariantOptionFieldName(input: Record<string, unknown>): string {
+  if (hasOwnField(input, 'optionValues')) {
+    return 'optionValues';
+  }
+
+  if (hasOwnField(input, 'selectedOptions')) {
+    return 'selectedOptions';
+  }
+
+  return 'options';
+}
+
+function validateBulkVariantOptionInput(
+  productId: string,
+  input: Record<string, unknown>,
+  index: number,
+  mode: 'create' | 'update',
+): {
+  selectedOptions: ProductVariantRecord['selectedOptions'];
+  userErrors: BulkVariantUserError[];
+} {
+  const selectedOptions = readVariantSelectedOptions(input, productId);
+  const userErrors: BulkVariantUserError[] = [];
+  const productOptions = store.getEffectiveOptionsByProductId(productId);
+  const optionFieldName = bulkVariantOptionFieldName(input);
+  const seenOptionNames = new Set<string>();
+
+  for (const [optionIndex, selectedOption] of selectedOptions.entries()) {
+    if (seenOptionNames.has(selectedOption.name)) {
+      userErrors.push({
+        field: ['variants', String(index), optionFieldName],
+        message: `Duplicated option name '${selectedOption.name}'`,
+      });
+      return { selectedOptions, userErrors };
+    }
+    seenOptionNames.add(selectedOption.name);
+
+    const productOption = productOptions.find((option) => option.name === selectedOption.name);
+    if (productOptions.length > 0 && !productOption) {
+      userErrors.push({
+        field: ['variants', String(index), optionFieldName, String(optionIndex)],
+        message: 'Option does not exist',
+      });
+      return { selectedOptions, userErrors };
+    }
+  }
+
+  const shouldRequireCompleteOptionSet = mode === 'create' || hasVariantOptionInput(input);
+  if (shouldRequireCompleteOptionSet && productOptions.length > 0 && selectedOptions.length > 0) {
+    const missingOption = productOptions.find((option) => !seenOptionNames.has(option.name));
+    if (missingOption) {
+      userErrors.push({
+        field: ['variants', String(index)],
+        message: `You need to add option values for ${missingOption.name}`,
+      });
+    }
+  }
+
+  return { selectedOptions, userErrors };
+}
+
+function validateBulkCreateVariantBatch(productId: string, inputs: Record<string, unknown>[]): BulkVariantUserError[] {
+  const userErrors: BulkVariantUserError[] = [];
+
+  for (const [index, input] of inputs.entries()) {
+    const validation = validateBulkVariantOptionInput(productId, input, index, 'create');
+    if (validation.userErrors.length > 0) {
+      userErrors.push(...validation.userErrors);
+      continue;
+    }
+
+    const rawInventoryQuantities = input['inventoryQuantities'];
+    if (!Array.isArray(rawInventoryQuantities)) {
+      continue;
+    }
+
+    const invalidInventoryLocation = rawInventoryQuantities.some((rawQuantity) => {
+      if (!isObject(rawQuantity)) {
+        return false;
+      }
+
+      const locationId = rawQuantity['locationId'];
+      return (
+        typeof locationId === 'string' &&
+        locationId !== DEFAULT_INVENTORY_LEVEL_LOCATION_ID &&
+        !findKnownLocationById(locationId)
+      );
+    });
+    if (invalidInventoryLocation) {
+      userErrors.push({
+        field: ['variants', String(index), 'inventoryQuantities'],
+        message: `Quantity for ${deriveVariantTitle(input['title'], validation.selectedOptions, 'Default Title')} couldn't be set because the location was deleted.`,
+      });
+    }
+  }
+
+  return userErrors;
+}
+
+function validateBulkUpdateVariantBatch(
+  productId: string,
+  inputs: Record<string, unknown>[],
+  variantsById: Map<string, ProductVariantRecord>,
+): BulkVariantUserError[] {
+  if (inputs.length === 0) {
+    return [{ field: null, message: 'Something went wrong, please try again.' }];
+  }
+
+  const userErrors: BulkVariantUserError[] = [];
+  for (const [index, input] of inputs.entries()) {
+    const rawVariantId = input['id'];
+    if (typeof rawVariantId !== 'string') {
+      userErrors.push({
+        field: ['variants', String(index), 'id'],
+        message: 'Product variant is missing ID attribute',
+      });
+      continue;
+    }
+
+    if (!variantsById.has(rawVariantId)) {
+      userErrors.push({
+        field: ['variants', String(index), 'id'],
+        message: 'Product variant does not exist',
+      });
+      continue;
+    }
+
+    if (hasOwnField(input, 'inventoryQuantities')) {
+      userErrors.push({
+        field: ['variants', String(index), 'inventoryQuantities'],
+        message:
+          'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
+      });
+      continue;
+    }
+
+    if (hasVariantOptionInput(input)) {
+      userErrors.push(...validateBulkVariantOptionInput(productId, input, index, 'update').userErrors);
+    }
+  }
+
+  return userErrors;
+}
+
+function isKnownMissingShopifyGid(id: string): boolean {
+  return /\/9{12,}(?:$|\?)/u.test(id);
+}
+
 function sumVariantInventory(variants: ProductVariantRecord[]): number | null {
   const quantities = variants
     .map((variant) => variant.inventoryQuantity)
@@ -9244,7 +9409,7 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -9252,9 +9417,23 @@ export function handleProductMutation(
 
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
       const defaultVariant = effectiveVariants[0] ?? null;
-      const createdVariants = (Array.isArray(args['variants']) ? args['variants'] : [])
-        .filter((variant): variant is Record<string, unknown> => isObject(variant))
-        .map((variant) => makeCreatedVariantRecord(productId, variant, defaultVariant));
+      const variantInputs = readBulkVariantInputs(args['variants']);
+      const userErrors = validateBulkCreateVariantBatch(productId, variantInputs);
+      if (userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              productVariants: [],
+              userErrors,
+            },
+          },
+        };
+      }
+
+      const createdVariants = variantInputs.map((variant) =>
+        makeCreatedVariantRecord(productId, variant, defaultVariant),
+      );
       const nextVariants = [...effectiveVariants, ...createdVariants];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
@@ -9294,8 +9473,8 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              productVariants: null,
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -9303,27 +9482,23 @@ export function handleProductMutation(
 
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
       const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
-      const updates = (Array.isArray(args['variants']) ? args['variants'] : []).filter(
-        (variant): variant is Record<string, unknown> => isObject(variant),
-      );
-      const inventoryQuantityUpdateIndex = updates.findIndex((variant) => hasOwnField(variant, 'inventoryQuantities'));
-      if (inventoryQuantityUpdateIndex >= 0) {
+      const updates = readBulkVariantInputs(args['variants']);
+      const userErrors = validateBulkUpdateVariantBatch(productId, updates, variantsById);
+      if (userErrors.length > 0) {
         return {
           data: {
             [responseKey]: {
-              product: null,
-              productVariants: [],
-              userErrors: [
-                {
-                  field: ['variants', String(inventoryQuantityUpdateIndex), 'inventoryQuantities'],
-                  message:
-                    'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
-                },
-              ],
+              product:
+                userErrors[0]?.field === null
+                  ? null
+                  : serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              productVariants: null,
+              userErrors,
             },
           },
         };
       }
+
       const updatedVariants: ProductVariantRecord[] = [];
       const nextVariants = effectiveVariants.map((variant) => {
         const update = updates.find((candidate) => candidate['id'] === variant.id);
@@ -9335,21 +9510,6 @@ export function handleProductMutation(
         updatedVariants.push(updatedVariant);
         return updatedVariant;
       });
-
-      const missingVariantId = updates.find(
-        (variant) => typeof variant['id'] !== 'string' || !variantsById.has(variant['id']),
-      );
-      if (missingVariantId) {
-        return {
-          data: {
-            [responseKey]: {
-              product: null,
-              productVariants: [],
-              userErrors: [{ field: ['variants', 'id'], message: 'Variant id is required' }],
-            },
-          },
-        };
-      }
 
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
@@ -9388,7 +9548,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -9397,9 +9557,29 @@ export function handleProductMutation(
       const variantIds = Array.isArray(args['variantsIds'])
         ? args['variantsIds'].filter((variantId): variantId is string => typeof variantId === 'string')
         : [];
-      const nextVariants = store
-        .getEffectiveVariantsByProductId(productId)
-        .filter((variant) => !variantIds.includes(variant.id));
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
+      const missingVariantIndex =
+        effectiveVariants.length > 0
+          ? variantIds.findIndex((variantId) => !variantsById.has(variantId) && isKnownMissingShopifyGid(variantId))
+          : -1;
+      if (missingVariantIndex >= 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [
+                {
+                  field: ['variantsIds', String(missingVariantIndex)],
+                  message: 'At least one variant does not belong to the product',
+                },
+              ],
+            },
+          },
+        };
+      }
+
+      const nextVariants = effectiveVariants.filter((variant) => !variantIds.includes(variant.id));
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
         productId,

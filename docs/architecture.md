@@ -162,6 +162,12 @@ Current customer-domain state deliberately stays narrower than the product model
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 - the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
 
+Marketing-domain state keeps activity/event records and engagement metrics together but separate:
+
+- external marketing activity lifecycle mutations stage normalized `MarketingActivity` and nested `MarketingEvent` records
+- `marketingEngagementCreate` stages metric records keyed by the observed target and `occurredOn`, preserving duplicate same-day replacement behavior without inventing an engagement read root
+- immediate activity/event aggregate reads stay faithful to captured Shopify behavior; for HAR-214 activity-level engagement writes did not materialize into `MarketingActivity.adSpend` on immediate downstream reads, so the local engagement records are visible through meta state/logs rather than fabricated aggregate attribution
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:
