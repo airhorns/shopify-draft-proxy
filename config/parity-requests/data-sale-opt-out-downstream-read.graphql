@@ -1,0 +1,32 @@
+query DataSaleOptOutDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+  customer(id: $id) {
+    id
+    email
+    dataSaleOptOut
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    dataSaleOptOut
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      email
+      dataSaleOptOut
+      defaultEmailAddress {
+        emailAddress
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

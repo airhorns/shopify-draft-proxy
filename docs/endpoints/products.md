@@ -9,6 +9,8 @@ Overlay reads:
 - `product`
 - `products`
 - `productsCount`
+- `productFeed`
+- `productFeeds`
 - `productVariant`
 - `inventoryItem`
 - `inventoryLevel`
@@ -60,8 +62,22 @@ Local staged mutations:
 - `collectionRemoveProducts`
 - `collectionReorderProducts`
 
+## Registered product merchandising gaps
+
+These product merchandising roots are registered in the operation registry as product-domain gaps, but are not local mutation support yet. They still proxy as unsupported mutations at runtime and must not be treated as supported until success-path staging and downstream read-after-write behavior are modeled:
+
+- `productFeedCreate`
+- `productFeedDelete`
+- `productFullSync`
+- `productBundleCreate`
+- `productBundleUpdate`
+- `combinedListingUpdate`
+
 ## Behavior notes
 
+- Product feed reads currently support Shopify-like no-data behavior in snapshot mode. Captured 2025-01 `harry-test-heelo` evidence returns `productFeed(id:)` as `null` for an absent feed id and `productFeeds(first:)` as an empty connection with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Live-hybrid `productFeed` / `productFeeds` requests continue to proxy upstream because staged product mutations do not currently model feed-channel membership.
+- Product feed mutations remain unsupported. The 2025-01 `harry-test-heelo` probe for `productFeedCreate(country: US, language: EN)` returned a top-level `NOT_FOUND` error, `Unable to find channel for product feed`; `productFeedDelete` and `productFullSync` unknown feed ids returned payload userErrors with `field: ["id"]` and `ProductFeed does not exist`. Local staging needs channel-backed success evidence and downstream feed read effects before these roots can become supported.
+- Product bundle and combined-listing mutations remain unsupported. Captured guardrails cover `productBundleCreate` with empty components (`productBundleOperation: null`, user error `At least one component is required.`), `productBundleUpdate` with an unknown product (`productBundleOperation: null`, user error `Product does not exist`), and `combinedListingUpdate` with an unknown parent product (`product: null`, code `PARENT_PRODUCT_NOT_FOUND`). Local staging needs component-backed bundle success evidence, `ProductBundleOperation` lifecycle/status behavior, combined-listing child relationship evidence, and downstream product reads before these roots can become supported.
 - Product-domain metafields are normalized as owner-scoped records for `Product`, `ProductVariant`, and `Collection` owners. Besides `id`, `namespace`, `key`, `type`, and `value`, hydrated and staged records carry `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType` for owner-scoped parity. Metafield `definition` serializes as `null` until fixture evidence justifies modeling definition linkage.
 - Local `metafieldsSet` support covers product, product variant, and collection owners only. It validates the full input batch before replacing each affected owner metafield set, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned. Customer, order, draft-order, shop, discount, and other owner families remain scoped to their own endpoint groups or future issues.
 - `metafieldsDelete` uses the same product-domain owner scope and returns ordered `deletedMetafields` entries, including `null` for missing namespace/key rows. Downstream `product(id:)`, `productVariant(id:)`, and `collection(id:)` reads expose staged owner-specific singular `metafield(namespace:, key:)` and `metafields` connection results without live writes.
@@ -83,6 +99,7 @@ Local staged mutations:
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
 - Missing product-adjacent by-id roots return `null` without inventing records. The `product-related-by-id-not-found-read` parity scenario captures this for `collection(id:)`, `productVariant(id:)`, `inventoryItem(id:)`, and `inventoryLevel(id:)`.
+- Product media validation follows the captured Shopify branches in `product-media-validation-branches`, which is replayed by `pnpm conformance:parity` against the local proxy. Unknown product IDs return `Product does not exist` media errors with null media/delete payload slots; invalid image `originalSource` values return indexed `media.<index>.originalSource` errors; invalid `CreateMediaInput.mediaContentType` enum values return top-level `INVALID_VARIABLE` errors. Empty media/update/delete lists are accepted as empty successes. Mixed create batches stage valid media and report invalid entries, while mixed update/delete batches with unknown media IDs are rejected atomically and leave staged media unchanged.
 
 ## Validation anchors
 
@@ -91,4 +108,6 @@ Local staged mutations:
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/product*.json`, `config/parity-specs/products*.json`, `config/parity-specs/collection*.json`, `config/parity-specs/metafieldsSet-owner-expansion.json`, and matching files under `config/parity-requests/`
+- Product merchandising read fixture: `config/parity-specs/product-feeds-empty-read.json`, `config/parity-requests/product-feeds-empty-read.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-feeds-empty-read.json`
+- Product merchandising mutation guardrail fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-merchandising-mutation-probes.json`
 - Product handle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-handle-validation-parity.json`

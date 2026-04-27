@@ -1,0 +1,83 @@
+mutation DraftOrderCreateValidationMatrix(
+  $noLineItems: DraftOrderInput!
+  $unknownVariant: DraftOrderInput!
+  $customMissingTitle: DraftOrderInput!
+  $zeroQuantity: DraftOrderInput!
+  $paymentTerms: DraftOrderInput!
+  $negativePrice: DraftOrderInput!
+  $pastReserve: DraftOrderInput!
+  $badEmail: DraftOrderInput!
+) {
+  noLineItems: draftOrderCreate(input: $noLineItems) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  unknownVariant: draftOrderCreate(input: $unknownVariant) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  customMissingTitle: draftOrderCreate(input: $customMissingTitle) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  zeroQuantity: draftOrderCreate(input: $zeroQuantity) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  paymentTerms: draftOrderCreate(input: $paymentTerms) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  negativePrice: draftOrderCreate(input: $negativePrice) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  pastReserve: draftOrderCreate(input: $pastReserve) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  badEmail: draftOrderCreate(input: $badEmail) {
+    draftOrder {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,668 @@
+{
+  "capturedAt": "2026-04-26T01:51:09.438Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "interactions": [
+    {
+      "name": "baseline-catalog-detail-empty",
+      "request": {
+        "query": "query OnlineStoreContentBaseline($missingArticle: ID!, $missingBlog: ID!, $missingPage: ID!) {\n    article(id: $missingArticle) { id title }\n    blog(id: $missingBlog) { id title }\n    page(id: $missingPage) { id title }\n    articles(first: 5) { edges { cursor node { id title handle body summary tags isPublished publishedAt createdAt updatedAt templateSuffix blog { id title handle } author { name } commentsCount { count precision } comments(first: 5) { nodes { id body status } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    articleAuthors(first: 5) { edges { cursor node { name } } nodes { name } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    articleTags(limit: 20)\n    blogs(first: 5) { edges { cursor node { id title handle commentPolicy tags templateSuffix createdAt updatedAt articlesCount { count precision } articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    blogsCount { count precision }\n    pages(first: 5) { edges { cursor node { id title handle body bodySummary isPublished publishedAt createdAt updatedAt templateSuffix } } nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n    pagesCount { count precision }\n    comments(first: 5) { edges { cursor node { id body bodyHtml status isPublished publishedAt createdAt updatedAt ip userAgent article { id title } author { name } } } nodes { id body status } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }\n  }",
+        "variables": {
+          "missingArticle": "gid://shopify/Article/999999999999",
+          "missingBlog": "gid://shopify/Blog/999999999999",
+          "missingPage": "gid://shopify/Page/999999999999"
+        }
+      },
+      "response": {
+        "data": {
+          "article": null,
+          "blog": null,
+          "page": null,
+          "articles": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "articleAuthors": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "articleTags": [],
+          "blogs": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxMTU2ODk0NTU5MjIsImxhc3RfdmFsdWUiOiIxMTU2ODk0NTU5MjIifQ==",
+                "node": {
+                  "id": "gid://shopify/Blog/115689455922",
+                  "title": "News",
+                  "handle": "news",
+                  "commentPolicy": "CLOSED",
+                  "tags": [],
+                  "templateSuffix": null,
+                  "createdAt": "2025-03-26T19:50:42Z",
+                  "updatedAt": "2025-03-26T19:50:42Z",
+                  "articlesCount": {
+                    "count": 0,
+                    "precision": "EXACT"
+                  },
+                  "articles": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Blog/115689455922",
+                "title": "News",
+                "handle": "news"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxMTU2ODk0NTU5MjIsImxhc3RfdmFsdWUiOiIxMTU2ODk0NTU5MjIifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxMTU2ODk0NTU5MjIsImxhc3RfdmFsdWUiOiIxMTU2ODk0NTU5MjIifQ=="
+            }
+          },
+          "blogsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "pages": {
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjoxNDgwOTgxODc1NzAsImxhc3RfdmFsdWUiOiIxNDgwOTgxODc1NzAifQ==",
+                "node": {
+                  "id": "gid://shopify/Page/148098187570",
+                  "title": "Contact",
+                  "handle": "contact",
+                  "body": "",
+                  "bodySummary": "",
+                  "isPublished": true,
+                  "publishedAt": "2025-03-26T19:50:42Z",
+                  "createdAt": "2025-03-26T19:50:42Z",
+                  "updatedAt": "2025-03-26T19:50:42Z",
+                  "templateSuffix": "contact"
+                }
+              }
+            ],
+            "nodes": [
+              {
+                "id": "gid://shopify/Page/148098187570",
+                "title": "Contact",
+                "handle": "contact"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoxNDgwOTgxODc1NzAsImxhc3RfdmFsdWUiOiIxNDgwOTgxODc1NzAifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoxNDgwOTgxODc1NzAsImxhc3RfdmFsdWUiOiIxNDgwOTgxODc1NzAifQ=="
+            }
+          },
+          "pagesCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "comments": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 165,
+            "actualQueryCost": 62,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1938,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogCreate-success",
+      "request": {
+        "query": "mutation BlogCreate($blog: BlogCreateInput!) { blogCreate(blog: $blog) { blog { id title handle createdAt updatedAt commentPolicy templateSuffix tags articlesCount { count precision } } userErrors { field message } } }",
+        "variables": {
+          "blog": {
+            "title": "HAR 303 Blog 20260426015107",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120846418226",
+              "title": "HAR 303 Blog 20260426015107",
+              "handle": "har-303-blog-20260426015107",
+              "createdAt": "2026-04-26T01:51:07Z",
+              "updatedAt": "2026-04-26T01:51:07Z",
+              "commentPolicy": "MODERATED",
+              "templateSuffix": null,
+              "tags": [],
+              "articlesCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1935,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogUpdate-success",
+      "request": {
+        "query": "mutation BlogUpdate($id: ID!, $blog: BlogUpdateInput!) { blogUpdate(id: $id, blog: $blog) { blog { id title handle createdAt updatedAt commentPolicy } userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Blog/120846418226",
+          "blog": {
+            "title": "HAR 303 Blog Updated 20260426015107",
+            "commentPolicy": "CLOSED"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "blogUpdate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120846418226",
+              "title": "HAR 303 Blog Updated 20260426015107",
+              "handle": "har-303-blog-20260426015107",
+              "createdAt": "2026-04-26T01:51:07Z",
+              "updatedAt": "2026-04-26T01:51:07Z",
+              "commentPolicy": "CLOSED"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1941,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-success",
+      "request": {
+        "query": "mutation PageCreate($page: PageCreateInput!) { pageCreate(page: $page) { page { id title handle createdAt updatedAt body bodySummary isPublished publishedAt templateSuffix } userErrors { field message } } }",
+        "variables": {
+          "page": {
+            "title": "HAR 303 Page 20260426015107",
+            "body": "<p>HAR 303 page body</p>",
+            "isPublished": true
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159358845234",
+              "title": "HAR 303 Page 20260426015107",
+              "handle": "har-303-page-20260426015107",
+              "createdAt": "2026-04-26T01:51:07Z",
+              "updatedAt": "2026-04-26T01:51:07Z",
+              "body": "<p>HAR 303 page body</p>",
+              "bodySummary": "HAR 303 page body",
+              "isPublished": true,
+              "publishedAt": "2026-04-26T01:51:07Z",
+              "templateSuffix": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1945,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageUpdate-success",
+      "request": {
+        "query": "mutation PageUpdate($id: ID!, $page: PageUpdateInput!) { pageUpdate(id: $id, page: $page) { page { id title handle createdAt updatedAt body bodySummary isPublished publishedAt } userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Page/159358845234",
+          "page": {
+            "title": "HAR 303 Page Updated 20260426015107",
+            "body": "<p>Updated page body</p>",
+            "isPublished": false
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "pageUpdate": {
+            "page": {
+              "id": "gid://shopify/Page/159358845234",
+              "title": "HAR 303 Page Updated 20260426015107",
+              "handle": "har-303-page-20260426015107",
+              "createdAt": "2026-04-26T01:51:07Z",
+              "updatedAt": "2026-04-26T01:51:07Z",
+              "body": "<p>Updated page body</p>",
+              "bodySummary": "Updated page body",
+              "isPublished": false,
+              "publishedAt": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1961,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-success",
+      "request": {
+        "query": "mutation ArticleCreate($article: ArticleCreateInput!) { articleCreate(article: $article) { article { id title handle createdAt updatedAt body summary tags isPublished publishedAt templateSuffix author { name } blog { id title handle } commentsCount { count precision } } userErrors { field message } } }",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/120846418226",
+            "title": "HAR 303 Article 20260426015107",
+            "body": "<p>HAR 303 article body</p>",
+            "summary": "<p>Summary</p>",
+            "isPublished": true,
+            "tags": ["har-303", "online-store"],
+            "author": {
+              "name": "HAR 303 Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683099521330",
+              "title": "HAR 303 Article 20260426015107",
+              "handle": "har-303-article-20260426015107",
+              "createdAt": "2026-04-26T01:51:08Z",
+              "updatedAt": "2026-04-26T01:51:08Z",
+              "body": "<p>HAR 303 article body</p>",
+              "summary": "<p>Summary</p>",
+              "tags": ["har-303", "online-store"],
+              "isPublished": true,
+              "publishedAt": "2026-04-26T01:51:08Z",
+              "templateSuffix": null,
+              "author": {
+                "name": "HAR 303 Author"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/120846418226",
+                "title": "HAR 303 Blog Updated 20260426015107",
+                "handle": "har-303-blog-20260426015107"
+              },
+              "commentsCount": {
+                "count": 0,
+                "precision": "EXACT"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-success",
+      "request": {
+        "query": "mutation ArticleUpdate($id: ID!, $article: ArticleUpdateInput!) { articleUpdate(id: $id, article: $article) { article { id title handle createdAt updatedAt body summary tags isPublished publishedAt author { name } } userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Article/683099521330",
+          "article": {
+            "title": "HAR 303 Article Updated 20260426015107",
+            "isPublished": false,
+            "author": {
+              "name": "HAR 303 Updated Author"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": {
+              "id": "gid://shopify/Article/683099521330",
+              "title": "HAR 303 Article Updated 20260426015107",
+              "handle": "har-303-article-20260426015107",
+              "createdAt": "2026-04-26T01:51:08Z",
+              "updatedAt": "2026-04-26T01:51:08Z",
+              "body": "<p>HAR 303 article body</p>",
+              "summary": "<p>Summary</p>",
+              "tags": ["har-303", "online-store"],
+              "isPublished": false,
+              "publishedAt": null,
+              "author": {
+                "name": "HAR 303 Updated Author"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1970,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "downstream-read-after-writes",
+      "request": {
+        "query": "query Downstream($blogId: ID!, $pageId: ID!, $articleId: ID!) { blog(id: $blogId) { id title articlesCount { count precision } articles(first: 5) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } page(id: $pageId) { id title isPublished } article(id: $articleId) { id title isPublished blog { id title } } articles(first: 5, query: \"har-303\") { nodes { id title tags } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } articleAuthors(first: 10) { nodes { name } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } articleTags(limit: 20) blogsCount { count precision } pagesCount { count precision } }",
+        "variables": {
+          "blogId": "gid://shopify/Blog/120846418226",
+          "pageId": "gid://shopify/Page/159358845234",
+          "articleId": "gid://shopify/Article/683099521330"
+        }
+      },
+      "response": {
+        "data": {
+          "blog": {
+            "id": "gid://shopify/Blog/120846418226",
+            "title": "HAR 303 Blog Updated 20260426015107",
+            "articlesCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "articles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Article/683099521330",
+                  "title": "HAR 303 Article Updated 20260426015107",
+                  "handle": "har-303-article-20260426015107"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo2ODMwOTk1MjEzMzAsImxhc3RfdmFsdWUiOiI2ODMwOTk1MjEzMzAifQ==",
+                "endCursor": "eyJsYXN0X2lkIjo2ODMwOTk1MjEzMzAsImxhc3RfdmFsdWUiOiI2ODMwOTk1MjEzMzAifQ=="
+              }
+            }
+          },
+          "page": {
+            "id": "gid://shopify/Page/159358845234",
+            "title": "HAR 303 Page Updated 20260426015107",
+            "isPublished": false
+          },
+          "article": {
+            "id": "gid://shopify/Article/683099521330",
+            "title": "HAR 303 Article Updated 20260426015107",
+            "isPublished": false,
+            "blog": {
+              "id": "gid://shopify/Blog/120846418226",
+              "title": "HAR 303 Blog Updated 20260426015107"
+            }
+          },
+          "articles": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "articleAuthors": {
+            "nodes": [
+              {
+                "name": "HAR 303 Updated Author"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoiSEFSIDMwMyBVcGRhdGVkIEF1dGhvciIsImxhc3RfdmFsdWUiOiJIQVIgMzAzIFVwZGF0ZWQgQXV0aG9yIn0=",
+              "endCursor": "eyJsYXN0X2lkIjoiSEFSIDMwMyBVcGRhdGVkIEF1dGhvciIsImxhc3RfdmFsdWUiOiJIQVIgMzAzIFVwZGF0ZWQgQXV0aG9yIn0="
+            }
+          },
+          "articleTags": ["har-303", "online-store"],
+          "blogsCount": {
+            "count": 2,
+            "precision": "EXACT"
+          },
+          "pagesCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 50,
+            "actualQueryCost": 46,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1942,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "comment-moderation-unknown-id",
+      "request": {
+        "query": "mutation CommentUnknown($id: ID!) { commentApprove(id: $id) { comment { id status } userErrors { field message } } commentSpam(id: $id) { comment { id status } userErrors { field message } } commentNotSpam(id: $id) { comment { id status } userErrors { field message } } commentDelete(id: $id) { deletedCommentId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Comment/999999999999"
+        }
+      },
+      "response": {
+        "data": {
+          "commentApprove": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist"
+              }
+            ]
+          },
+          "commentSpam": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist"
+              }
+            ]
+          },
+          "commentNotSpam": {
+            "comment": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist"
+              }
+            ]
+          },
+          "commentDelete": {
+            "deletedCommentId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Comment does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1925,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleDelete-success",
+      "request": {
+        "query": "mutation ArticleDelete($id: ID!) { articleDelete(id: $id) { deletedArticleId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Article/683099521330"
+        }
+      },
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683099521330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1924,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-success",
+      "request": {
+        "query": "mutation PageDelete($id: ID!) { pageDelete(id: $id) { deletedPageId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Page/159358845234"
+        }
+      },
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159358845234",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1930,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-success",
+      "request": {
+        "query": "mutation BlogDelete($id: ID!) { blogDelete(id: $id) { deletedBlogId userErrors { field message } } }",
+        "variables": {
+          "id": "gid://shopify/Blog/120846418226"
+        }
+      },
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120846418226",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1933,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

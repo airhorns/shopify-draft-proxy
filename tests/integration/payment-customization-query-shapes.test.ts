@@ -496,6 +496,98 @@ describe('payment customization query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('accepts function handles, de-duplicates activation ids, and keeps raw mutation log bodies', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('payment customization function-handle flow should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+    const createRequestBody = {
+      query: `mutation HandlePaymentCustomization($input: PaymentCustomizationInput!) {
+        paymentCustomizationCreate(paymentCustomization: $input) {
+          paymentCustomization {
+            id
+            title
+            enabled
+            functionId
+          }
+          userErrors { field message code }
+        }
+      }`,
+      operationName: 'HandlePaymentCustomization',
+      variables: {
+        input: {
+          title: 'Handle-backed payment rule',
+          enabled: true,
+          functionHandle: 'conformance-payment-customization',
+        },
+      },
+    };
+
+    const createResponse = await request(app).post('/admin/api/2026-04/graphql.json').send(createRequestBody);
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.paymentCustomizationCreate.userErrors).toEqual([]);
+    const created = createResponse.body.data.paymentCustomizationCreate.paymentCustomization;
+    expect(created).toEqual({
+      id: 'gid://shopify/PaymentCustomization/1',
+      title: 'Handle-backed payment rule',
+      enabled: true,
+      functionId: null,
+    });
+    expect(store.getState().stagedState.paymentCustomizations[created.id]?.functionHandle).toBe(
+      'conformance-payment-customization',
+    );
+
+    const activationRequestBody = {
+      query: `mutation ActivateDuplicatePaymentCustomizationIds($ids: [ID!]!, $enabled: Boolean!) {
+        paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+          ids
+          userErrors { field message code }
+        }
+      }`,
+      variables: {
+        ids: [created.id, created.id],
+        enabled: false,
+      },
+      extensions: {
+        persistedQuery: {
+          version: 1,
+          sha256Hash: 'payment-customization-activation-test',
+        },
+      },
+    };
+
+    const activationResponse = await request(app).post('/admin/api/2026-04/graphql.json').send(activationRequestBody);
+
+    expect(activationResponse.status).toBe(200);
+    expect(activationResponse.body.data.paymentCustomizationActivation).toEqual({
+      ids: [created.id],
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadHandlePaymentCustomization {
+          paymentCustomizations(first: 5, query: "enabled:false") {
+            nodes { id title enabled functionId }
+          }
+        }`,
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.paymentCustomizations.nodes).toEqual([
+      {
+        id: created.id,
+        title: 'Handle-backed payment rule',
+        enabled: false,
+        functionId: null,
+      },
+    ]);
+    expect(store.getLog().map((entry) => entry.requestBody)).toEqual([createRequestBody, activationRequestBody]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors captured payment customization validation branches locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('payment customization validation should not hit upstream fetch');
@@ -508,8 +600,11 @@ describe('payment customization query shapes', () => {
         query: `mutation PaymentCustomizationValidation(
           $badCreate: PaymentCustomizationInput!
           $missingFunction: PaymentCustomizationInput!
+          $missingHandle: PaymentCustomizationInput!
+          $multipleIdentifiers: PaymentCustomizationInput!
           $missingTitle: PaymentCustomizationInput!
           $missingEnabled: PaymentCustomizationInput!
+          $invalidMetafields: PaymentCustomizationInput!
           $unknownId: ID!
           $badUpdate: PaymentCustomizationInput!
           $activationIds: [ID!]!
@@ -524,11 +619,23 @@ describe('payment customization query shapes', () => {
             paymentCustomization { id }
             userErrors { field message code }
           }
+          missingHandle: paymentCustomizationCreate(paymentCustomization: $missingHandle) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
+          multipleIdentifiers: paymentCustomizationCreate(paymentCustomization: $multipleIdentifiers) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
           missingTitle: paymentCustomizationCreate(paymentCustomization: $missingTitle) {
             paymentCustomization { id }
             userErrors { field message code }
           }
           missingEnabled: paymentCustomizationCreate(paymentCustomization: $missingEnabled) {
+            paymentCustomization { id }
+            userErrors { field message code }
+          }
+          invalidMetafields: paymentCustomizationCreate(paymentCustomization: $invalidMetafields) {
             paymentCustomization { id }
             userErrors { field message code }
           }
@@ -559,6 +666,17 @@ describe('payment customization query shapes', () => {
             title: 'Hermes missing function',
             enabled: true,
           },
+          missingHandle: {
+            title: 'Hermes missing handle',
+            enabled: true,
+            functionHandle: 'missing-function',
+          },
+          multipleIdentifiers: {
+            title: 'Hermes multiple function identifiers',
+            enabled: true,
+            functionId: 'gid://shopify/ShopifyFunction/function-local',
+            functionHandle: 'conformance-payment-customization',
+          },
           missingTitle: {
             enabled: true,
             functionId: 'gid://shopify/ShopifyFunction/0',
@@ -566,6 +684,18 @@ describe('payment customization query shapes', () => {
           missingEnabled: {
             title: 'Hermes missing enabled',
             functionId: 'gid://shopify/ShopifyFunction/0',
+          },
+          invalidMetafields: {
+            title: 'Hermes invalid metafields',
+            enabled: true,
+            functionHandle: 'conformance-payment-customization',
+            metafields: [
+              {
+                namespace: 'settings',
+                type: 'json',
+                value: '{"label":"Missing key"}',
+              },
+            ],
           },
           unknownId: 'gid://shopify/PaymentCustomization/0',
           badUpdate: {
@@ -602,6 +732,27 @@ describe('payment customization query shapes', () => {
           },
         ],
       },
+      missingHandle: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'functionHandle'],
+            message:
+              'Function missing-function not found. Ensure that it is released in the current app (347082227713), and that the app is installed.',
+            code: 'FUNCTION_NOT_FOUND',
+          },
+        ],
+      },
+      multipleIdentifiers: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'functionHandle'],
+            message: 'Only one of function_id or function_handle can be provided, not both.',
+            code: 'MULTIPLE_FUNCTION_IDENTIFIERS',
+          },
+        ],
+      },
       missingTitle: {
         paymentCustomization: null,
         userErrors: [
@@ -619,6 +770,16 @@ describe('payment customization query shapes', () => {
             field: ['paymentCustomization', 'enabled'],
             message: 'Required input field must be present.',
             code: 'REQUIRED_INPUT_FIELD',
+          },
+        ],
+      },
+      invalidMetafields: {
+        paymentCustomization: null,
+        userErrors: [
+          {
+            field: ['paymentCustomization', 'metafields'],
+            message: 'Could not create or update metafields.',
+            code: 'INVALID_METAFIELDS',
           },
         ],
       },
