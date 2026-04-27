@@ -12,7 +12,12 @@ import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
-import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
+import {
+  handleMarketingMutation,
+  handleMarketingQuery,
+  hydrateMarketingFromUpstreamResponse,
+  MARKETING_MUTATION_ROOTS,
+} from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
@@ -28,6 +33,7 @@ import {
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
+  handleMetaobjectDefinitionMutation,
   handleMetaobjectDefinitionQuery,
   hydrateMetaobjectDefinitionsFromUpstreamResponse,
 } from './metaobject-definitions.js';
@@ -52,6 +58,19 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountCodeAppUpdate',
   'discountAutomaticAppCreate',
   'discountAutomaticAppUpdate',
+]);
+
+const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
+  'appPurchaseOneTimeCreate',
+  'appSubscriptionCreate',
+  'appSubscriptionCancel',
+  'appSubscriptionLineItemUpdate',
+  'appSubscriptionTrialExtend',
+  'appUsageRecordCreate',
+  'appRevokeAccessScopes',
+  'appUninstall',
+  'delegateAccessTokenCreate',
+  'delegateAccessTokenDestroy',
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
@@ -92,6 +111,18 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceCreate',
   'carrierServiceUpdate',
   'carrierServiceDelete',
+]);
+
+const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
+  'fulfillmentOrderHold',
+  'fulfillmentOrderReleaseHold',
+  'fulfillmentOrderMove',
+  'fulfillmentOrderOpen',
+  'fulfillmentOrderCancel',
+  'fulfillmentOrderReportProgress',
+  'fulfillmentOrderReschedule',
+  'fulfillmentOrderClose',
+  'fulfillmentOrdersReroute',
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
@@ -267,6 +298,18 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-app-billing-access-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'App billing, access-scope, delegated-token, and uninstall mutations can alter merchant billing, installation state, or app access; local staging and commit replay semantics are required before support.',
+      },
+    };
+  }
+
   return { registeredOperation };
 }
 
@@ -274,6 +317,10 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   const primaryRootField = parsed.rootFields[0] ?? null;
   if (primaryRootField && APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
+  }
+
+  if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
   }
 
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
@@ -446,6 +493,34 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (primaryRootField && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(primaryRootField)) {
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: primaryRootField,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes:
+            primaryRootField === 'fulfillmentOrderReschedule' ||
+            primaryRootField === 'fulfillmentOrderClose' ||
+            primaryRootField === 'fulfillmentOrdersReroute'
+              ? 'Returned a captured fulfillment-order lifecycle guardrail locally without proxying upstream; full local lifecycle support remains unimplemented for this root.'
+              : 'Staged locally in the in-memory fulfillment-order lifecycle draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
+        return;
+      }
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'shipping-fulfillments' &&
@@ -598,6 +673,29 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+      const responseBody = handleMetaobjectDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'payments' &&
@@ -697,6 +795,36 @@ export function createProxyRouter(config: AppConfig): Router {
       ctx.status = 200;
       ctx.body = responseBody;
       return;
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'marketing' &&
+      primaryRootField &&
+      MARKETING_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      const marketingMutation = handleMarketingMutation(body.query, variables);
+      if (marketingMutation) {
+        if (marketingMutation.shouldLog) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: marketingMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: marketingMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = marketingMutation.response;
+        return;
+      }
     }
 
     if (
@@ -1203,6 +1331,18 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
+        if (
+          primaryRootField !== null &&
+          ['customerSegmentMembers', 'customerSegmentMembersQuery', 'customerSegmentMembership'].includes(
+            primaryRootField,
+          ) &&
+          (store.hasCustomerSegmentMembersQueries() || store.hasStagedSegments() || store.hasStagedCustomers())
+        ) {
+          ctx.status = 200;
+          ctx.body = handleSegmentsQuery(body.query, variables);
+          return;
+        }
+
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1295,7 +1435,7 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateMarketingFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedMarketingRecords() ? handleMarketingQuery(body.query, variables) : upstreamBody;
         return;
       }
     }

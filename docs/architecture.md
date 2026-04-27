@@ -173,6 +173,12 @@ Current B2B company-domain state is read-only and fixture-backed:
   delete, assignment, revoke, address, tax, and side-effect behavior can be
   staged with downstream read-after-write effects
 
+Marketing-domain state keeps activity/event records and engagement metrics together but separate:
+
+- external marketing activity lifecycle mutations stage normalized `MarketingActivity` and nested `MarketingEvent` records
+- `marketingEngagementCreate` stages metric records keyed by the observed target and `occurredOn`, preserving duplicate same-day replacement behavior without inventing an engagement read root
+- immediate activity/event aggregate reads stay faithful to captured Shopify behavior; for HAR-214 activity-level engagement writes did not materialize into `MarketingActivity.adSpend` on immediate downstream reads, so the local engagement records are visible through meta state/logs rather than fabricated aggregate attribution
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:

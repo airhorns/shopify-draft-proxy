@@ -1,0 +1,12 @@
+mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {
+  metaobjectDefinitionDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

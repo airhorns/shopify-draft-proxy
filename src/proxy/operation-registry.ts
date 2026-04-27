@@ -4,6 +4,7 @@ import { operationRegistrySchema, type OperationRegistryEntry } from '../json-sc
 export type CapabilityDomain =
   | 'products'
   | 'b2b'
+  | 'apps'
   | 'media'
   | 'bulk-operations'
   | 'customers'
