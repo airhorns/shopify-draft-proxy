@@ -69,12 +69,14 @@ GitHub execution requirements:
 - If the issue already has an open PR, reuse that PR's branch for all follow-up work; do **not** open a replacement PR for rework or review feedback.
 - For updates to an existing open PR, push the updated branch back to the same remote branch, using `git push --force-with-lease` when history must be rewritten.
 - If a connector/MCP GitHub tool is offered, ignore it and continue with local `git`/`gh` commands so PRs are authored as the host's `harrymees` account.
+- If `gh pr edit` fails with a GitHub Projects classic / `projectCards` deprecation error, fall back to a narrower local `gh api` update for the exact field or label you need, then verify with `gh pr view`. Do not replace the PR or report GitHub access blocked just because that high-level command failed.
 
 Comment marker requirements:
 
 - On both Linear comments and GitHub PR/review comments, when you have seen a comment and are actively working from it, mark that comment with a `👀` reaction.
 - Once the requested action is complete or the comment has been fully handled, replace the `👀` reaction with a `🟢` reaction.
 - Do not leave both markers on the same comment at once; `👀` means in progress, `🟢` means done.
+- GitHub review-comment reactions do not always support the `🟢` marker. If the reactions API rejects it, remove `👀`, post a concise handled reply that starts with `🟢`, and resolve the review thread when no further reviewer input is needed.
 
 Primary mission:
 
@@ -111,7 +113,7 @@ Implementation guidance:
 
 Tooling guidance:
 
-- Use `pnpm ...` for package management and scripts.
+- Use `corepack pnpm ...` for package management and scripts in unattended workspaces; bare `pnpm` may not be on `PATH`.
 - `tsx watch` is used for dev runs; `tsc` builds to `dist`; Vitest covers tests.
 - If you need repo-local agent skills and `.agents` is missing in the workspace, inspect the repo root carefully before assuming the skill exists.
 
@@ -170,6 +172,8 @@ The agent should be able to talk to Linear, either via a configured Linear MCP s
   `Backlog`, be assigned to the same project as the current issue, link the
   current issue as `related`, and use `blockedBy` when the follow-up depends on
   the current issue.
+- Linear GraphQL can return opaque HTTP 400 responses for oversized or batched issue creation payloads. When generating issues, retry as individual concise `issueCreate` mutations, then verify state, assignee, project, and relations explicitly before marking the work complete.
+- Linear relation queries can be direction-sensitive. For generated follow-ups, verify the relation from the seed issue and from the generated issue when the first query does not show every expected link.
 - Move status only when the matching quality bar is met.
 - Operate autonomously end-to-end unless blocked by missing requirements, secrets, or permissions.
 - Use the blocked-access escape hatch only for true external blockers (missing required tools/auth) after exhausting documented fallbacks.

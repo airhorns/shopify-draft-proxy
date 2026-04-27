@@ -41,7 +41,7 @@ function rootFieldNames(relativePath: string): string[] {
 }
 
 describe('webhook subscription conformance fixture', () => {
-  it('discovers captured fixture evidence while keeping mutation runtime support disabled', () => {
+  it('discovers captured fixture evidence while routing supported create staging locally', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenario = scenarios.find((candidate) => candidate.id === 'webhook-subscription-conformance');
     const paritySpec = readJson<ParitySpec>(specPath);
@@ -72,13 +72,13 @@ describe('webhook subscription conformance fixture', () => {
       implemented: true,
     });
     expect(getOperationCapability(parsedCreate)).toMatchObject({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'WebhookSubscriptionCreateParity',
+      domain: 'webhooks',
+      execution: 'stage-locally',
+      operationName: 'webhookSubscriptionCreate',
     });
     expect(findOperationRegistryEntry('mutation', ['webhookSubscriptionCreate'])).toMatchObject({
       domain: 'webhooks',
-      implemented: false,
+      implemented: true,
     });
   });
 
