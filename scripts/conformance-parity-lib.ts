@@ -737,9 +737,9 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unknown {
+function materializeValue(rawValue: unknown, proxyResponses: Record<string, unknown>): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse));
+    return rawValue.map((item) => materializeValue(item, proxyResponses));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -747,16 +747,20 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unk
   }
 
   if (typeof rawValue['fromPrimaryProxyPath'] === 'string') {
-    return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
+    return readJsonPath(proxyResponses['primary'], rawValue['fromPrimaryProxyPath']);
+  }
+
+  if (typeof rawValue['fromProxyResponse'] === 'string' && typeof rawValue['path'] === 'string') {
+    return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
   }
 
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]),
+    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, proxyResponses)]),
   );
 }
 
-function materializeVariables(rawVariables: unknown, primaryProxyResponse: unknown): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse);
+function materializeVariables(rawVariables: unknown, proxyResponses: Record<string, unknown>): Record<string, unknown> {
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -2248,6 +2252,47 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
       balance,
     },
   ]);
+
+  return true;
+}
+
+function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
+  const seedOrder = readArrayField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'seedOrder'), 'response'),
+        'data',
+      ),
+      'orders',
+    ),
+    'nodes',
+  )
+    .filter(isPlainObject)
+    .at(0);
+  const seedOrderId = readStringField(seedOrder, 'id');
+  if (!seedOrder || !seedOrderId) {
+    return false;
+  }
+
+  store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+
+  const beforeSetCount = readNumberField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'beforeSet'), 'response'),
+        'data',
+      ),
+      'customersCount',
+    ),
+    'count',
+  );
+  if (beforeSetCount !== null) {
+    const placeholders = [];
+    for (let index = 0; index < Math.max(0, beforeSetCount - 1); index += 1) {
+      placeholders.push(makePlaceholderCustomer(index));
+    }
+    store.upsertBaseCustomers(placeholders);
+  }
 
   return true;
 }
@@ -6263,6 +6308,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedCustomerOrderSummaryPreconditions(capture)) {
+    return;
+  }
+
   if (seedStoreCreditAccountPreconditions(capture)) {
     return;
   }
@@ -6891,16 +6940,16 @@ function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
   capture: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
+    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), proxyResponses);
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse);
+  return materializeVariables(rawVariables, proxyResponses);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -6965,13 +7014,15 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {});
+  const proxyResponses: Record<string, unknown> = {};
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses);
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
   );
+  proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
   for (const target of readComparisonTargets(paritySpec.comparison)) {
@@ -6983,7 +7034,7 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
+      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, proxyResponses);
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
@@ -6992,6 +7043,7 @@ export async function executeParityScenario({
             : undefined;
       const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
       proxyResponseBody = proxyResponse.body;
+      proxyResponses[target.name] = proxyResponse.body;
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);
