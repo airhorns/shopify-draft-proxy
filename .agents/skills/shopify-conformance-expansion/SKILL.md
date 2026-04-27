@@ -35,14 +35,18 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
    parity or a documented runtime-test-backed replay path.
 7. Add or update exactly one captured, working parity spec for each scenario under `config/parity-specs/`.
 8. Add proxy replay files under `config/parity-requests/` only when a captured scenario can be replayed locally as working evidence.
-9. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
-   If the store lacks required objects, create/update/activate/delete realistic
-   setup data in the capture script or setup flow and clean it up afterward
-   instead of falling back to validation-only evidence.
-10. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
-11. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
-12. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
-13. If the task specifically requires recording or re-recording live conformance
+9. Prefer full-response strict parity targets over `selectedPaths` allowlists.
+   When stable fields differ, model the behavior or expand the fixture/request
+   first; use `expectedDifferences` as a narrow denylist only for unavoidable
+   opaque or intentionally divergent fields, and document each reason.
+10. Add live captures under `fixtures/conformance/<store-domain>/<api-version>/` only when credentials and store safety allow it.
+    If the store lacks required objects, create/update/activate/delete realistic
+    setup data in the capture script or setup flow and clean it up afterward
+    instead of falling back to validation-only evidence.
+11. Make sure every root operation in the parity spec's `operationNames` exists in `config/operation-registry.json`.
+12. Add new helper scripts as TypeScript and run them with `tsx` or an equivalent TypeScript runner.
+13. Do not add new planned-only or blocked-only parity specs, and do not add parity request files as TODO placeholders for future captures. Ticket-specific acceptance text asking for scaffold files does not override this rule. If a scenario cannot be captured and replayed as working evidence in the current task, document the gap in Linear/workpad notes instead of adding repository scenario files.
+14. If the task specifically requires recording or re-recording live conformance
     evidence and valid Shopify credentials cannot be restored with the
     documented auth/probe paths, stop before implementation handoff: update the
     Linear workpad with the blocker, move the issue to Human Review, and do
