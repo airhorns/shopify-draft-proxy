@@ -1018,6 +1018,23 @@ export const discountBulkOperationRecordSchema = z.strictObject({
 });
 export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 
+export const bulkOperationRecordSchema = z.strictObject({
+  id: z.string(),
+  status: z.enum(['CANCELED', 'CANCELING', 'COMPLETED', 'CREATED', 'EXPIRED', 'FAILED', 'RUNNING']),
+  type: z.enum(['MUTATION', 'QUERY']),
+  errorCode: z.enum(['ACCESS_DENIED', 'INTERNAL_SERVER_ERROR', 'TIMEOUT']).nullable(),
+  createdAt: z.string(),
+  completedAt: nullableStringSchema,
+  objectCount: z.string(),
+  rootObjectCount: z.string(),
+  fileSize: nullableStringSchema,
+  url: nullableStringSchema,
+  partialDataUrl: nullableStringSchema,
+  query: nullableStringSchema,
+  cursor: nullableStringSchema.optional(),
+});
+export type BulkOperationRecord = z.infer<typeof bulkOperationRecordSchema>;
+
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
@@ -1979,6 +1996,29 @@ export const deliveryProfileRecordSchema = z.strictObject({
 });
 export type DeliveryProfileRecord = z.infer<typeof deliveryProfileRecordSchema>;
 
+export const sellingPlanRecordSchema = z.strictObject({
+  id: z.string(),
+  data: jsonObjectSchema.default({}),
+});
+export type SellingPlanRecord = z.infer<typeof sellingPlanRecordSchema>;
+
+export const sellingPlanGroupRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  appId: nullableStringSchema,
+  name: z.string(),
+  merchantCode: z.string(),
+  description: nullableStringSchema,
+  options: z.array(z.string()),
+  position: nullableNumberSchema,
+  summary: nullableStringSchema,
+  createdAt: z.string(),
+  productIds: z.array(z.string()).default([]),
+  productVariantIds: z.array(z.string()).default([]),
+  sellingPlans: z.array(sellingPlanRecordSchema).default([]),
+});
+export type SellingPlanGroupRecord = z.infer<typeof sellingPlanGroupRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -2055,6 +2095,8 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStorePageOrder: z.array(z.string()).default([]),
   onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreCommentOrder: z.array(z.string()).default([]),
+  bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
+  bulkOperationOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
@@ -2094,6 +2136,8 @@ export const stateSnapshotSchema = z.strictObject({
   priceListOrder: z.array(z.string()).default([]),
   deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
   deliveryProfileOrder: z.array(z.string()).default([]),
+  sellingPlanGroups: z.record(z.string(), sellingPlanGroupRecordSchema).default({}),
+  sellingPlanGroupOrder: z.array(z.string()).default([]),
   abandonedCheckouts: z.record(z.string(), abandonedCheckoutRecordSchema).default({}),
   abandonedCheckoutOrder: z.array(z.string()).default([]),
   abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
@@ -2134,6 +2178,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedShopLocales: z.record(z.string(), z.literal(true)).default({}),
   deletedTranslations: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedSellingPlanGroupIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectIds: z.record(z.string(), z.literal(true)).default({}),
