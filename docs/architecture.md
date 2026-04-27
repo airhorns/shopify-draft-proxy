@@ -162,6 +162,8 @@ Current customer-domain state deliberately stays narrower than the product model
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 - the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
 
+Localization state is also normalized for the first product-focused slice: available locales, shop locales, and translations live in dedicated state buckets, while `TranslatableResource` rows are derived from the effective product and product-metafield graph. Locale and translation endpoint-specific boundaries are documented in `docs/endpoints/localization.md`.
+
 Current B2B company-domain state is read-only and fixture-backed:
 
 - `B2BCompanyRecord`, `B2BCompanyContactRecord`, `B2BCompanyContactRoleRecord`,

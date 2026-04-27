@@ -1,0 +1,51 @@
+mutation CreateDraftOrder($input: DraftOrderInput!) {
+  draftOrderCreate(input: $input) {
+    draftOrder {
+      id
+      name
+      status
+      ready
+      email
+      tags
+      lineItems(first: 5) {
+        nodes {
+          id
+          title
+          name
+          quantity
+          custom
+          requiresShipping
+          taxable
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          originalTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          discountedTotalSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalDiscountSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

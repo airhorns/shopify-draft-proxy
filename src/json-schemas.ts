@@ -55,6 +55,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'segments',
     'shipping-fulfillments',
     'webhooks',
+    'localization',
     'metafields',
     'metaobjects',
     'markets',

@@ -3765,6 +3765,36 @@
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
   },
   {
+    "name": "draftOrderAvailableDeliveryOptions",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderAvailableDeliveryOptions", "DraftOrderAvailableDeliveryOptions"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape."
+  },
+  {
+    "name": "draftOrderSavedSearches",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 default draft-order saved searches are modeled as a stable local connection and can drive local bulk helper search selection by savedSearchId."
+  },
+  {
+    "name": "draftOrderTag",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["draftOrderTag", "DraftOrderTag"],
+    "runtimeTests": [],
+    "supportNotes": "Blocked on valid-ID evidence. HAR-318 live probing showed raw tag strings fail ID validation and guessed gid://shopify/DraftOrderTag/<tag> IDs return null; no exposed catalog produced valid DraftOrderTag IDs. Runtime can synthesize local staged tag IDs for internal consistency, but registry support remains false until a real valid-id capture exists."
+  },
+  {
     "name": "draftOrderCreate",
     "type": "mutation",
     "domain": "orders",
@@ -3801,6 +3831,33 @@
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
   },
   {
+    "name": "draftOrderBulkAddTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkAddTags", "DraftOrderBulkAddTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkRemoveTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkRemoveTags", "DraftOrderBulkRemoveTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkDelete", "DraftOrderBulkDelete"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
     "name": "draftOrderDelete",
     "type": "mutation",
     "domain": "orders",
@@ -3808,6 +3865,26 @@
     "implemented": true,
     "matchNames": ["draftOrderDelete", "DraftOrderDelete"],
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderCalculate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderCalculate", "DraftOrderCalculate"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior."
+  },
+  {
+    "name": "draftOrderInvoicePreview",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderInvoicePreview", "DraftOrderInvoicePreview"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support returns deterministic preview subject/html for staged draft orders and never sends invoice email or writes upstream."
   },
   {
     "name": "draftOrderInvoiceSend",
@@ -4887,6 +4964,106 @@
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+  },
+  {
+    "name": "availableLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["availableLocales", "AvailableLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves the captured locale catalog slice locally, with snapshot state allowed to override the default seed."
+  },
+  {
+    "name": "shopLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopLocales", "ShopLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves shop locale reads from local state, including staged enable, update, disable, and published filtering."
+  },
+  {
+    "name": "translatableResource",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResource", "TranslatableResource"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph; missing or unsupported resources return null."
+  },
+  {
+    "name": "translatableResources",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResources", "TranslatableResources"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports resourceType PRODUCT and METAFIELD over locally known products/product metafields; other resource types return an explicit empty connection."
+  },
+  {
+    "name": "translatableResourcesByIds",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResourcesByIds", "TranslatableResourcesByIds"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Resolves locally known product and product-metafield IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "shopLocaleEnable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleEnable", "ShopLocaleEnable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages session-local locale enablement without mutating Shopify; locale names come from the captured availableLocales slice."
+  },
+  {
+    "name": "shopLocaleUpdate",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleUpdate", "ShopLocaleUpdate"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages published-state and market-web-presence association updates for locally known shop locales."
+  },
+  {
+    "name": "shopLocaleDisable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+  },
+  {
+    "name": "translationsRegister",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRegister", "TranslationsRegister"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, locale, and value validation; market-specific translation inputs are explicit unsupported branches."
+  },
+  {
+    "name": "translationsRemove",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRemove", "TranslationsRemove"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Removes staged/base translations for supported local product and product-metafield resources without runtime Shopify writes."
   },
   {
     "name": "files",
