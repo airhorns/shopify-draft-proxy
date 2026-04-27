@@ -25,33 +25,17 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "create-group-selected-fields",
-        "capturePath": "$.captures[2].response.data.sellingPlanGroupCreate.sellingPlanGroup",
-        "proxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup",
-        "selectedPaths": [
-          "$.appId",
-          "$.name",
-          "$.merchantCode",
-          "$.description",
-          "$.options",
-          "$.position",
-          "$.summary",
-          "$.productsCount",
-          "$.productVariantsCount",
-          "$.appliesToProduct",
-          "$.appliesToProductVariant",
-          "$.appliesToProductVariants",
-          "$.products.nodes",
-          "$.productVariants.nodes",
-          "$.sellingPlans.nodes[0].name",
-          "$.sellingPlans.nodes[0].description",
-          "$.sellingPlans.nodes[0].options",
-          "$.sellingPlans.nodes[0].position",
-          "$.sellingPlans.nodes[0].category",
-          "$.sellingPlans.nodes[0].billingPolicy",
-          "$.sellingPlans.nodes[0].deliveryPolicy",
-          "$.sellingPlans.nodes[0].inventoryPolicy",
-          "$.sellingPlans.nodes[0].pricingPolicies"
+        "name": "create-group",
+        "capturePath": "$.captures[2].response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -68,14 +52,14 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.name",
-          "$.merchantCode",
-          "$.productsCount",
-          "$.productVariantsCount",
-          "$.appliesToProduct",
-          "$.appliesToProductVariant",
-          "$.appliesToProductVariants"
+        "excludedPaths": [
+          "$.id",
+          "$.createdAt",
+          "$.products.pageInfo",
+          "$.productVariants.pageInfo",
+          "$.sellingPlans.pageInfo",
+          "$.sellingPlans.nodes[*].id",
+          "$.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -89,14 +73,7 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.product.sellingPlanGroupsCount",
-          "$.product.sellingPlanGroups.nodes[0].name",
-          "$.product.sellingPlanGroups.nodes[0].merchantCode",
-          "$.productVariant.sellingPlanGroupsCount",
-          "$.productVariant.sellingPlanGroups.nodes[0].name",
-          "$.productVariant.sellingPlanGroups.nodes[0].merchantCode"
-        ]
+        "excludedPaths": ["$.product.sellingPlanGroups.nodes[*].id", "$.productVariant.sellingPlanGroups.nodes[*].id"]
       },
       {
         "name": "remove-product-membership",
@@ -122,13 +99,7 @@
             "productId": "gid://shopify/Product/10171897807154",
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
-        },
-        "selectedPaths": [
-          "$.product.sellingPlanGroupsCount",
-          "$.product.sellingPlanGroups.nodes",
-          "$.productVariant.sellingPlanGroupsCount",
-          "$.productVariant.sellingPlanGroups.nodes"
-        ]
+        }
       },
       {
         "name": "add-product-membership",
@@ -145,15 +116,14 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.sellingPlanGroup.name",
-          "$.sellingPlanGroup.merchantCode",
-          "$.sellingPlanGroup.productsCount",
-          "$.sellingPlanGroup.productVariantsCount",
-          "$.sellingPlanGroup.appliesToProduct",
-          "$.sellingPlanGroup.appliesToProductVariant",
-          "$.sellingPlanGroup.appliesToProductVariants",
-          "$.userErrors"
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -185,15 +155,14 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.sellingPlanGroup.name",
-          "$.sellingPlanGroup.merchantCode",
-          "$.sellingPlanGroup.productsCount",
-          "$.sellingPlanGroup.productVariantsCount",
-          "$.sellingPlanGroup.appliesToProduct",
-          "$.sellingPlanGroup.appliesToProductVariant",
-          "$.sellingPlanGroup.appliesToProductVariants",
-          "$.userErrors"
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -207,17 +176,10 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.product.sellingPlanGroupsCount",
-          "$.product.sellingPlanGroups.nodes[0].name",
-          "$.product.sellingPlanGroups.nodes[0].merchantCode",
-          "$.productVariant.sellingPlanGroupsCount",
-          "$.productVariant.sellingPlanGroups.nodes[0].name",
-          "$.productVariant.sellingPlanGroups.nodes[0].merchantCode"
-        ]
+        "excludedPaths": ["$.product.sellingPlanGroups.nodes[*].id", "$.productVariant.sellingPlanGroups.nodes[*].id"]
       },
       {
-        "name": "update-group-selected-fields",
+        "name": "update-group",
         "capturePath": "$.captures[11].response.data.sellingPlanGroupUpdate",
         "proxyPath": "$.data.sellingPlanGroupUpdate",
         "proxyRequest": {
@@ -247,26 +209,14 @@
             }
           }
         },
-        "selectedPaths": [
-          "$.deletedSellingPlanIds",
-          "$.sellingPlanGroup.name",
-          "$.sellingPlanGroup.merchantCode",
-          "$.sellingPlanGroup.description",
-          "$.sellingPlanGroup.options",
-          "$.sellingPlanGroup.position",
-          "$.sellingPlanGroup.summary",
-          "$.sellingPlanGroup.productsCount",
-          "$.sellingPlanGroup.productVariantsCount",
-          "$.sellingPlanGroup.appliesToProduct",
-          "$.sellingPlanGroup.appliesToProductVariant",
-          "$.sellingPlanGroup.appliesToProductVariants",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].name",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].description",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].options",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].position",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].category",
-          "$.sellingPlanGroup.sellingPlans.nodes[0].pricingPolicies",
-          "$.userErrors"
+        "excludedPaths": [
+          "$.sellingPlanGroup.id",
+          "$.sellingPlanGroup.createdAt",
+          "$.sellingPlanGroup.products.pageInfo",
+          "$.sellingPlanGroup.productVariants.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.pageInfo",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].id",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -280,18 +230,14 @@
             "variantId": "gid://shopify/ProductVariant/51104286736690"
           }
         },
-        "selectedPaths": [
-          "$.name",
-          "$.merchantCode",
-          "$.options",
-          "$.position",
-          "$.productsCount",
-          "$.productVariantsCount",
-          "$.appliesToProduct",
-          "$.appliesToProductVariant",
-          "$.appliesToProductVariants",
-          "$.sellingPlans.nodes[0].name",
-          "$.sellingPlans.nodes[0].options"
+        "excludedPaths": [
+          "$.id",
+          "$.createdAt",
+          "$.products.pageInfo",
+          "$.productVariants.pageInfo",
+          "$.sellingPlans.pageInfo",
+          "$.sellingPlans.nodes[*].id",
+          "$.sellingPlans.nodes[*].createdAt"
         ]
       },
       {
@@ -371,5 +317,5 @@
       }
     ]
   },
-  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares deterministic payload fields while allowing only the synthetic local deleted group ID to differ from the live disposable Shopify ID."
+  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors."
 }

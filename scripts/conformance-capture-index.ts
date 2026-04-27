@@ -235,6 +235,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    packageScript: 'conformance:capture-selling-plan-groups',
+    scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
+    purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
+      'config/parity-specs/selling-plan-group-lifecycle.json',
+    ],
+    cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     packageScript: 'conformance:capture-metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
