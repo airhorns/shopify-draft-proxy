@@ -1,0 +1,27 @@
+mutation LocalizationUnknownResourceValidation(
+  $resourceId: ID!
+  $translations: [TranslationInput!]!
+  $keys: [String!]!
+  $locales: [String!]!
+) {
+  register: translationsRegister(resourceId: $resourceId, translations: $translations) {
+    translations {
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  remove: translationsRemove(resourceId: $resourceId, translationKeys: $keys, locales: $locales) {
+    translations {
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

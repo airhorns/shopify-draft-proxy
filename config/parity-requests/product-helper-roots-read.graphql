@@ -1,0 +1,128 @@
+query ProductHelperRoots(
+  $helperProductId: ID!
+  $productHandle: String!
+  $variantId: ID!
+  $missingProductId: ID!
+  $missingVariantId: ID!
+  $missingJobId: ID!
+  $missingOperationId: ID!
+) {
+  byId: productByIdentifier(identifier: { id: $helperProductId }) {
+    id
+    handle
+    title
+  }
+  byHandle: productByIdentifier(identifier: { handle: $productHandle }) {
+    id
+    handle
+    title
+  }
+  missingProduct: productByIdentifier(identifier: { id: $missingProductId }) {
+    id
+    handle
+    title
+  }
+  variantById: productVariantByIdentifier(identifier: { id: $variantId }) {
+    id
+    title
+    sku
+    product {
+      id
+    }
+  }
+  missingVariant: productVariantByIdentifier(identifier: { id: $missingVariantId }) {
+    id
+    title
+  }
+  productVariants(first: 2, sortKey: ID) {
+    nodes {
+      id
+      title
+      sku
+      product {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productVariantsCount {
+    count
+    precision
+  }
+  productTags(first: 3) {
+    nodes
+    edges {
+      cursor
+      node
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productTypes(first: 3) {
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productVendors(first: 3) {
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productSavedSearches(first: 3) {
+    nodes {
+      id
+      name
+      query
+      searchTerms
+      resourceType
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  productResourceFeedback(id: $helperProductId) {
+    productId
+    state
+    messages
+    feedbackGeneratedAt
+    productUpdatedAt
+  }
+  productOperation(id: $missingOperationId) {
+    __typename
+    status
+    product {
+      id
+    }
+    ... on ProductSetOperation {
+      id
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+  productDuplicateJob(id: $missingJobId) {
+    id
+    done
+  }
+}

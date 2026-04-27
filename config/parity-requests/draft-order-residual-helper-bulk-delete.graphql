@@ -1,0 +1,12 @@
+mutation DraftOrderBulkDelete($ids: [ID!]) {
+  draftOrderBulkDelete(ids: $ids) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

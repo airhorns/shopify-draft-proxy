@@ -9,6 +9,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts"]
   },
   {
+    "name": "productByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productByIdentifier", "ProductByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id and handle identifier branches against effective local product state. customId returns null until product unique-metafield evidence exists."
+  },
+  {
     "name": "products",
     "type": "query",
     "domain": "products",
@@ -25,6 +35,96 @@
     "implemented": true,
     "matchNames": ["productsCount", "ProductsCount"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariants",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariants", "ProductVariants"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Top-level variant helper connection resolves from effective local product variants, with local pagination, reverse, basic sort keys, and Shopify-style query filtering for id/product_id/title/sku/barcode/vendor/product_type/tag terms."
+  },
+  {
+    "name": "productVariantsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantsCount", "ProductVariantsCount"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Counts effective local product variants with the same supported query terms as productVariants; limit precision remains exact for the in-memory model."
+  },
+  {
+    "name": "productTags",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTags", "ProductTags"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local product tags; absent product data returns an empty connection."
+  },
+  {
+    "name": "productTypes",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTypes", "ProductTypes"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local productType values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productVendors",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVendors", "ProductVendors"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productSavedSearches",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local support currently returns Shopify-like empty SavedSearchConnection behavior; saved search CRUD/storage remains unsupported."
+  },
+  {
+    "name": "productOperation",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productOperation", "ProductOperation"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false); unknown operation IDs return null."
+  },
+  {
+    "name": "productDuplicateJob",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productDuplicateJob", "ProductDuplicateJob"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. productDuplicate itself remains locally synchronous and does not create a long-running job."
+  },
+  {
+    "name": "productResourceFeedback",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productResourceFeedback", "ProductResourceFeedback"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Returns null for absent local feedback. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so feedback mutation-created records are not claimed."
   },
   {
     "name": "productFeed",
@@ -214,6 +314,16 @@
     "implemented": true,
     "matchNames": ["productVariant", "ProductVariant"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariantByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantByIdentifier", "ProductVariantByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id identifier lookups against effective local variant state. customId returns null until product-variant unique-metafield evidence exists."
   },
   {
     "name": "inventoryItem",
@@ -1145,6 +1255,26 @@
     "implemented": true,
     "matchNames": ["tagsRemove"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "bulkProductResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkProductResourceFeedbackCreate", "BulkProductResourceFeedbackCreate"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Registered unsupported feedback mutation. Future support must stage ProductResourceFeedback records locally, preserve raw mutation order for commit, and expose downstream productResourceFeedback reads without runtime Shopify writes. Until then, runtime passthrough remains the unsupported escape hatch and is logged as proxied."
+  },
+  {
+    "name": "shopResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registered unsupported shop feedback mutation. Future support requires an app/shop feedback state model, access-scope-backed conformance, local staging, and downstream read effects before this root can be supported without runtime Shopify writes."
   },
   {
     "name": "productCreate",
@@ -2427,30 +2557,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobject", "Metaobject"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry ID lookup root. HAR-243 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including missing ID nullability, selected field shape, capabilities, ordered fields, field(key:) lookup, and safe empty referencedBy behavior."
   },
   {
     "name": "metaobjectByHandle",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. HAR-243 supports normalized type-plus-handle lookup in snapshot and live-hybrid overlay modes, including missing handle nullability."
   },
   {
     "name": "metaobjects",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjects", "Metaobjects"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. HAR-243 supports normalized type-scoped entry connections, empty connections, stable local cursors, pagination, reverse, documented sort keys, and field-value query filters."
   },
   {
     "name": "metaobjectDefinition",
@@ -3705,6 +3835,36 @@
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
   },
   {
+    "name": "draftOrderAvailableDeliveryOptions",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderAvailableDeliveryOptions", "DraftOrderAvailableDeliveryOptions"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape."
+  },
+  {
+    "name": "draftOrderSavedSearches",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 default draft-order saved searches are modeled as a stable local connection and can drive local bulk helper search selection by savedSearchId."
+  },
+  {
+    "name": "draftOrderTag",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["draftOrderTag", "DraftOrderTag"],
+    "runtimeTests": [],
+    "supportNotes": "Blocked on valid-ID evidence. HAR-318 live probing showed raw tag strings fail ID validation and guessed gid://shopify/DraftOrderTag/<tag> IDs return null; no exposed catalog produced valid DraftOrderTag IDs. Runtime can synthesize local staged tag IDs for internal consistency, but registry support remains false until a real valid-id capture exists."
+  },
+  {
     "name": "draftOrderCreate",
     "type": "mutation",
     "domain": "orders",
@@ -3741,6 +3901,33 @@
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
   },
   {
+    "name": "draftOrderBulkAddTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkAddTags", "DraftOrderBulkAddTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkRemoveTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkRemoveTags", "DraftOrderBulkRemoveTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkDelete", "DraftOrderBulkDelete"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
     "name": "draftOrderDelete",
     "type": "mutation",
     "domain": "orders",
@@ -3748,6 +3935,26 @@
     "implemented": true,
     "matchNames": ["draftOrderDelete", "DraftOrderDelete"],
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderCalculate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderCalculate", "DraftOrderCalculate"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior."
+  },
+  {
+    "name": "draftOrderInvoicePreview",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderInvoicePreview", "DraftOrderInvoicePreview"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support returns deterministic preview subject/html for staged draft orders and never sends invoice email or writes upstream."
   },
   {
     "name": "draftOrderInvoiceSend",
@@ -4827,6 +5034,106 @@
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+  },
+  {
+    "name": "availableLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["availableLocales", "AvailableLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves the captured locale catalog slice locally, with snapshot state allowed to override the default seed."
+  },
+  {
+    "name": "shopLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopLocales", "ShopLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves shop locale reads from local state, including staged enable, update, disable, and published filtering."
+  },
+  {
+    "name": "translatableResource",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResource", "TranslatableResource"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph; missing or unsupported resources return null."
+  },
+  {
+    "name": "translatableResources",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResources", "TranslatableResources"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports resourceType PRODUCT and METAFIELD over locally known products/product metafields; other resource types return an explicit empty connection."
+  },
+  {
+    "name": "translatableResourcesByIds",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResourcesByIds", "TranslatableResourcesByIds"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Resolves locally known product and product-metafield IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "shopLocaleEnable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleEnable", "ShopLocaleEnable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages session-local locale enablement without mutating Shopify; locale names come from the captured availableLocales slice."
+  },
+  {
+    "name": "shopLocaleUpdate",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleUpdate", "ShopLocaleUpdate"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages published-state and market-web-presence association updates for locally known shop locales."
+  },
+  {
+    "name": "shopLocaleDisable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+  },
+  {
+    "name": "translationsRegister",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRegister", "TranslationsRegister"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, locale, and value validation; market-specific translation inputs are explicit unsupported branches."
+  },
+  {
+    "name": "translationsRemove",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRemove", "TranslationsRemove"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Removes staged/base translations for supported local product and product-metafield resources without runtime Shopify writes."
   },
   {
     "name": "files",

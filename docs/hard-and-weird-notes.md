@@ -2290,16 +2290,21 @@ Captured safe happy path for two synthetic customers:
 
 - Shopify selected `customerTwoId` as the resulting customer id
 - the mutation returned a job with `done: false`
-- after polling, `customerMergeJobStatus` reached `COMPLETED`
+- HAR-291 polling observed `customerMergeJobStatus` return `IN_PROGRESS` immediately after the mutation and `COMPLETED` on the next poll
 - downstream `customer(id: customerOneId)` and `customerByIdentifier(emailAddress: customer one email)` returned `null`
 - downstream `customer(id: customerTwoId)` and `customerByIdentifier(emailAddress: customer two email)` returned the merged customer
 - override `note` and `tags` replaced the default combined note/tag values; selected name/email fields followed the requested customer id override fields
+- HAR-291 keeps the base two-customer merge fixture separate from the attached-resource fixture; run `corepack pnpm conformance:capture-customer-merge-attached-resources` to refresh the address/metafield/order scenario
+- when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
+- the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
+- the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
 
 Practical rule:
 
 - stage supported `customerMerge` locally for customers already present in the normalized graph, mark the source customer deleted, record the source-to-result id redirect for state inspection, and expose a local merge request for `customerMergeJobStatus`
 - do not fetch or mutate Shopify during normal runtime to discover missing merge customers; unknown ids should return captured `CustomerMergeUserError` payloads instead
-- do not model transfer of orders, draft orders, gift cards, discounts, addresses, or other attached resources until a fixture captures those non-empty merge fields
+- model only attached resources with captured non-empty behavior and normalized local state: HAR-291 covers customer addresses, customer metafields, and orders
+- draft-order setup was captured, but not a downstream draft-order transfer read; draft orders, gift cards, discounts, and other attached resources remain deferred until fixtures capture their non-empty post-merge behavior
 
 ## 56. discountNodes code filter does not mirror codeDiscountNodes for native code discounts
 
@@ -2655,7 +2660,25 @@ Practical rule:
 - keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
 - broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
 
-## 68. Unknown comment detail can error while comment moderation validates cleanly
+## 68. Generic translations use raw value digests, and locale writes are reversible
+
+HAR-314 captured generic localization roots on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- `TranslatableContent.digest` for product scalar content matched `sha256(value)` for the selected title, handle, and product type values.
+- `shopLocaleEnable(locale: "fr")` succeeded with `published: false`, `primary: false`, and no market web presences when the shop initially only had primary `en`.
+- `shopLocaleUpdate(locale: "fr", shopLocale: { published: false })` returned the same unpublished locale payload.
+- `shopLocaleDisable(locale: "fr")` returned `{ locale: "fr", userErrors: [] }` and restored the shop locale list to only `en`.
+- `translationsRegister` for an enabled `fr` locale returned the staged product title translation and immediate `translatableResource.translations(locale: "fr")` reads observed it.
+- `translationsRemove` returned the removed translation payload, and the immediate downstream translations read became an empty list.
+- Unknown product resources return `TranslationUserError` with `field: ["resourceId"]`, `code: "RESOURCE_NOT_FOUND"`, and message `Resource <gid> does not exist` for both register and remove.
+
+Practical rule:
+
+- it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.
+
+## 69. Unknown comment detail can error while comment moderation validates cleanly
 
 HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
 
@@ -2673,7 +2696,7 @@ Practical rule:
 - treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
 - continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
 
-## 69. Fulfillment-order lifecycle roots split work into replacement orders
+## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
 HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
 
@@ -2692,7 +2715,7 @@ Practical rule:
 - do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
 - keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
 
-## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+## 71. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
 
 HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
 
