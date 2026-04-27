@@ -165,32 +165,50 @@ function recordData(record: SavedSearchRecord): Record<string, unknown> {
   };
 }
 
+function mutationRecordData(record: SavedSearchRecord, input: Record<string, unknown> | null): Record<string, unknown> {
+  const data = recordData(record);
+  const query = input ? readOptionalString(input, 'query') : undefined;
+  if (query !== undefined) {
+    data['query'] = query;
+  }
+
+  return data;
+}
+
 function projectSavedSearch(
-  record: SavedSearchRecord,
+  data: Record<string, unknown>,
   field: FieldNode,
   fragments: FragmentMap,
 ): Record<string, unknown> {
   if (!field.selectionSet) {
-    return recordData(record);
+    return { ...data };
   }
 
-  return projectGraphqlValue(recordData(record), field.selectionSet.selections, fragments) as Record<string, unknown>;
+  return projectGraphqlValue(data, field.selectionSet.selections, fragments) as Record<string, unknown>;
 }
 
-function projectPayload(
-  payload: Record<string, unknown>,
-  field: FieldNode,
-  fragments: FragmentMap,
-  record: SavedSearchRecord | null,
-): unknown {
+function projectPayload(payload: Record<string, unknown>, field: FieldNode, fragments: FragmentMap): unknown {
+  const savedSearchPayload = isPlainObject(payload['savedSearch']) ? payload['savedSearch'] : null;
   return field.selectionSet
     ? projectGraphqlValue(payload, field.selectionSet.selections, fragments, {
         projectFieldValue: ({ field: selectedField, fieldName, fragments: selectedFragments }) =>
-          fieldName === 'savedSearch' && record
-            ? { handled: true, value: projectSavedSearch(record, selectedField, selectedFragments) }
+          fieldName === 'savedSearch' && savedSearchPayload
+            ? { handled: true, value: projectSavedSearch(savedSearchPayload, selectedField, selectedFragments) }
             : { handled: false },
       })
     : payload;
+}
+
+function sanitizedUpdateInput(input: Record<string, unknown>, errors: UserError[]): Record<string, unknown> {
+  const sanitized = { ...input };
+  for (const error of errors) {
+    const invalidField = error.field.at(-1);
+    if (invalidField === 'name' || invalidField === 'query') {
+      delete sanitized[invalidField];
+    }
+  }
+
+  return sanitized;
 }
 
 function handleCreate(
@@ -205,10 +223,9 @@ function handleCreate(
   return {
     key: getFieldResponseKey(field),
     payload: projectPayload(
-      { savedSearch: record ? recordData(record) : null, userErrors: errors },
+      { savedSearch: record ? mutationRecordData(record, input) : null, userErrors: errors },
       field,
       fragments,
-      record,
     ),
     stagedResourceIds: record ? [record.id] : [],
   };
@@ -225,17 +242,20 @@ function handleUpdate(
   const errors = existing
     ? validateSavedSearchInput(input, { requireResourceType: false })
     : [userError(['input', 'id'], 'Saved Search does not exist')];
+  const sanitizedInput = input && existing ? sanitizedUpdateInput(input, errors) : null;
   const record =
-    input && existing && errors.length === 0 ? store.upsertStagedSavedSearch(makeSavedSearch(input, existing)) : null;
+    sanitizedInput && existing ? store.upsertStagedSavedSearch(makeSavedSearch(sanitizedInput, existing)) : null;
   const payloadRecord = record ?? existing;
 
   return {
     key: getFieldResponseKey(field),
     payload: projectPayload(
-      { savedSearch: payloadRecord ? recordData(payloadRecord) : null, userErrors: errors },
+      {
+        savedSearch: payloadRecord ? mutationRecordData(payloadRecord, record ? sanitizedInput : null) : null,
+        userErrors: errors,
+      },
       field,
       fragments,
-      payloadRecord,
     ),
     stagedResourceIds: record ? [record.id] : [],
   };
@@ -261,7 +281,6 @@ function handleDelete(
       { deletedSavedSearchId: errors.length === 0 ? id : null, userErrors: errors },
       field,
       fragments,
-      null,
     ),
     stagedResourceIds: [],
   };

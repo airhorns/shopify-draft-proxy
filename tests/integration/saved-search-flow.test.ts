@@ -91,7 +91,7 @@ describe('saved search flow', () => {
     expect(createResponse.body.data.savedSearchCreate.savedSearch).toMatchObject({
       legacyResourceId: '1',
       name: 'Codex Products',
-      query: 'seasonal title:Codex status:ACTIVE',
+      query: 'title:Codex status:ACTIVE seasonal',
       resourceType: 'PRODUCT',
       searchTerms: 'seasonal',
       filters: [
@@ -157,13 +157,65 @@ describe('saved search flow', () => {
       savedSearch: {
         id: savedSearchId,
         name: 'Codex Active',
-        query: 'updated status:ACTIVE',
+        query: 'status:ACTIVE updated',
         resourceType: 'PRODUCT',
         searchTerms: 'updated',
         filters: [{ key: 'status', value: 'ACTIVE' }],
       },
       userErrors: [],
     });
+
+    const partialValidationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateSavedSearch($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: savedSearchId,
+            name: 'Codex Active With A Name That Is Far Too Long For Shopify',
+            query: 'status:DRAFT revalidated',
+          },
+        },
+      });
+
+    expect(partialValidationResponse.body.data.savedSearchUpdate).toMatchObject({
+      savedSearch: {
+        id: savedSearchId,
+        name: 'Codex Active',
+        query: 'status:DRAFT revalidated',
+        resourceType: 'PRODUCT',
+        searchTerms: 'revalidated',
+        filters: [{ key: 'status', value: 'DRAFT' }],
+      },
+      userErrors: [{ field: ['input', 'name'], message: 'Name is too long (maximum is 40 characters)' }],
+    });
+
+    const readAfterPartialValidation = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadAfterPartialValidation($query: String!) {
+          productSavedSearches(first: 1, query: $query) {
+            nodes { id name query resourceType searchTerms filters { key value } }
+          }
+        }`,
+        variables: { query: 'revalidated' },
+      });
+
+    expect(readAfterPartialValidation.body.data.productSavedSearches.nodes).toEqual([
+      {
+        id: savedSearchId,
+        name: 'Codex Active',
+        query: 'revalidated status:DRAFT',
+        resourceType: 'PRODUCT',
+        searchTerms: 'revalidated',
+        filters: [{ key: 'status', value: 'DRAFT' }],
+      },
+    ]);
 
     const missingResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -213,6 +265,7 @@ describe('saved search flow', () => {
 
     expect(store.getLog().map((entry) => entry.operationName)).toEqual([
       'savedSearchCreate',
+      'savedSearchUpdate',
       'savedSearchUpdate',
       'savedSearchUpdate',
       'savedSearchDelete',

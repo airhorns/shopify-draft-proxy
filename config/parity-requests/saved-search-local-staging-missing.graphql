@@ -1,0 +1,19 @@
+mutation SavedSearchLocalStagingMissing($input: SavedSearchUpdateInput!, $deleteInput: SavedSearchDeleteInput!) {
+  savedSearchUpdate(input: $input) {
+    savedSearch {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  savedSearchDelete(input: $deleteInput) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+}

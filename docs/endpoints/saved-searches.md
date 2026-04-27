@@ -18,6 +18,7 @@ HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin
   - `discountRedeemCodeSavedSearches`
 - Empty saved-search roots return a non-null connection with empty `nodes`/`edges` and false/null `pageInfo`, matching the captured no-data shape. `draftOrderSavedSearches` is the captured exception: Shopify returns five default draft-order saved searches even when no merchant-created saved searches are present, and the local saved-search domain preserves those records.
 - Saved-search query strings are parsed into simple `searchTerms` plus `filters { key value }` records by splitting field terms of the form `key:value` from free text. The local stored `query` is normalized as search terms followed by filters, which matches the captured connection-read ordering for the product saved-search slice.
+- Mutation payloads preserve the submitted `query` ordering, while downstream connection reads expose the normalized stored query. The captured `savedSearchUpdate` validation branch also keeps valid query changes visible in the payload when an overlong name is rejected.
 
 ## Captured evidence
 
@@ -28,6 +29,7 @@ The current conformance credential was valid for `harry-test-heelo.myshopify.com
 - A downstream `productSavedSearches(first:, reverse:)` read returned that saved search with cursor-bearing `pageInfo`.
 - Missing `savedSearchUpdate` and `savedSearchDelete` returned `userErrors[{ field: ["input", "id"], message: "Saved Search does not exist" }]`.
 - Updating a saved search with a name longer than 40 characters returned `userErrors[{ field: ["input", "name"], message: "Name is too long (maximum is 40 characters)" }]` while keeping the existing name in the payload.
+- `config/parity-specs/saved-search-local-staging.json` replays the create, downstream read, overlong-name update validation, and missing update/delete branches through the generic parity runner with strict JSON targets. Expected differences are limited to deterministic local IDs and opaque connection cursors.
 
 ## URL redirect blockers
 
