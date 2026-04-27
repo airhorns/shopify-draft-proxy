@@ -236,6 +236,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    packageScript: 'conformance:capture-selling-plan-groups',
+    scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
+    purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
+      'config/parity-specs/selling-plan-group-lifecycle.json',
+    ],
+    cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     packageScript: 'conformance:capture-metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
@@ -628,13 +641,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'CustomerInput create/update/delete/merge validation branches and downstream invariance.',
+    purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
+      'config/parity-requests/customerInputValidation-*.graphql',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation cases and deletes remaining records.',
+    cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -713,19 +727,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable customer graph; merge consumes source and cleanup removes remaining artifacts.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
-    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer input validation branches for create/update/delete/merge.',
-    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-    ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
