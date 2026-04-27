@@ -96,6 +96,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   strict comparison targets that runs in the `conformance:parity` script, or
   an explicitly runtime-test-backed fixture mode for multi-step flows the
   generic parity runner cannot yet replay.
+- Do not add live recordings, checked-in conformance fixtures, or capture
+  scripts without adding an explicit conformance spec and executable test path
+  that uses the recording. Recording-only changes are not acceptable evidence,
+  even when the fixture was captured from a real store.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
