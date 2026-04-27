@@ -542,6 +542,7 @@ export const customerRecordSchema = z.strictObject({
   note: nullableStringSchema,
   canDelete: nullableBooleanSchema,
   verifiedEmail: nullableBooleanSchema,
+  dataSaleOptOut: z.boolean().optional(),
   taxExempt: nullableBooleanSchema,
   taxExemptions: z.array(z.string()).optional(),
   state: nullableStringSchema,
@@ -621,6 +622,20 @@ export const marketingRecordSchema = z.strictObject({
   data: z.record(z.string(), jsonValueSchema),
 });
 export type MarketingRecord = z.infer<typeof marketingRecordSchema>;
+
+export const onlineStoreContentKindSchema = z.enum(['article', 'blog', 'page', 'comment']);
+export type OnlineStoreContentKind = z.infer<typeof onlineStoreContentKindSchema>;
+
+export const onlineStoreContentRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: onlineStoreContentKindSchema,
+  cursor: nullableStringSchema.optional(),
+  parentId: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type OnlineStoreContentRecord = z.infer<typeof onlineStoreContentRecordSchema>;
 
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
@@ -719,13 +734,29 @@ export const discountItemsRecordSchema = z.strictObject({
 });
 export type DiscountItemsRecord = z.infer<typeof discountItemsRecordSchema>;
 
-export const discountValueRecordSchema = z.strictObject({
+export const discountEffectRecordSchema = z.strictObject({
   typeName: z.string(),
   percentage: nullableNumberSchema.optional(),
   amount: discountMoneyRecordSchema.nullable().optional(),
   appliesOnEachItem: nullableBooleanSchema.optional(),
 });
+export type DiscountEffectRecord = z.infer<typeof discountEffectRecordSchema>;
+
+export const discountValueRecordSchema = z.strictObject({
+  typeName: z.string(),
+  percentage: nullableNumberSchema.optional(),
+  amount: discountMoneyRecordSchema.nullable().optional(),
+  appliesOnEachItem: nullableBooleanSchema.optional(),
+  quantity: nullableStringSchema.optional(),
+  effect: discountEffectRecordSchema.nullable().optional(),
+});
 export type DiscountValueRecord = z.infer<typeof discountValueRecordSchema>;
+
+export const discountCustomerBuysRecordSchema = z.strictObject({
+  value: discountValueRecordSchema,
+  items: discountItemsRecordSchema,
+});
+export type DiscountCustomerBuysRecord = z.infer<typeof discountCustomerBuysRecordSchema>;
 
 export const discountCustomerGetsRecordSchema = z.strictObject({
   value: discountValueRecordSchema,
@@ -803,11 +834,14 @@ export const discountRecordSchema = z.strictObject({
   createdAt: nullableStringSchema,
   updatedAt: nullableStringSchema,
   asyncUsageCount: nullableNumberSchema,
+  usageLimit: nullableNumberSchema.optional(),
+  usesPerOrderLimit: nullableNumberSchema.optional(),
   discountClasses: z.array(z.string()),
   combinesWith: discountCombinesWithRecordSchema,
   codes: z.array(z.string()).default([]),
   redeemCodes: z.array(discountRedeemCodeRecordSchema).optional(),
   context: discountContextRecordSchema.nullable().optional(),
+  customerBuys: discountCustomerBuysRecordSchema.nullable().optional(),
   customerGets: discountCustomerGetsRecordSchema.nullable().optional(),
   minimumRequirement: discountMinimumRequirementRecordSchema.nullable().optional(),
   destinationSelection: discountDestinationSelectionRecordSchema.nullable().optional(),
@@ -816,7 +850,6 @@ export const discountRecordSchema = z.strictObject({
   appliesOnOneTimePurchase: nullableBooleanSchema.optional(),
   appliesOnSubscription: nullableBooleanSchema.optional(),
   recurringCycleLimit: nullableNumberSchema.optional(),
-  usageLimit: nullableNumberSchema.optional(),
   metafields: z.array(discountMetafieldRecordSchema).optional(),
   events: z.array(discountEventRecordSchema).optional(),
   discountType: nullableStringSchema.optional(),
@@ -848,6 +881,7 @@ export const paymentCustomizationRecordSchema = z.strictObject({
   title: nullableStringSchema,
   enabled: nullableBooleanSchema,
   functionId: nullableStringSchema,
+  functionHandle: nullableStringSchema.optional(),
   shopifyFunction: jsonObjectSchema.optional(),
   errorHistory: jsonValueSchema.optional(),
   metafields: z.array(paymentCustomizationMetafieldRecordSchema).optional(),
@@ -1549,6 +1583,14 @@ export const stateSnapshotSchema = z.strictObject({
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
+  onlineStoreArticles: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreArticleOrder: z.array(z.string()).default([]),
+  onlineStoreBlogs: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreBlogOrder: z.array(z.string()).default([]),
+  onlineStorePages: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStorePageOrder: z.array(z.string()).default([]),
+  onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreCommentOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
@@ -1584,10 +1626,15 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerPaymentMethodIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebhookSubscriptionIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreArticleIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreBlogIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStorePageIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),

@@ -1,0 +1,468 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-04-25T23:08:00Z",
+  "operations": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia"],
+  "notes": [
+    "Captured against a disposable draft product and cleaned up after capture.",
+    "Empty create/update/delete inputs return successful empty payloads.",
+    "Mixed create partially creates valid media and reports invalid entries.",
+    "Mixed update/delete reject the batch and preserve the existing product media set."
+  ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10170577518898",
+      "title": "HAR-289 media validation product",
+      "handle": "har-289-media-validation-product",
+      "status": "DRAFT"
+    }
+  ],
+  "seedProductMedia": [
+    {
+      "productId": "gid://shopify/Product/10170577518898",
+      "id": "gid://shopify/MediaImage/43607852122418",
+      "position": 2,
+      "alt": "Seed media",
+      "mediaContentType": "IMAGE",
+      "status": "READY",
+      "productImageId": "gid://shopify/ProductImage/43607852122418"
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "create-missing-product-id-empty-string",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Valid"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $productId of type ID! was provided invalid value",
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": "",
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "create-unknown-product-id",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Valid"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreateMedia": {
+              "media": null,
+              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }],
+              "product": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create-empty-media",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreateMedia": {
+              "media": [],
+              "mediaUserErrors": [],
+              "product": {
+                "id": "gid://shopify/Product/10170577518898",
+                "media": { "nodes": [] }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create-invalid-original-source",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [{ "mediaContentType": "IMAGE", "originalSource": "not-a-url", "alt": "Invalid source" }]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreateMedia": {
+              "media": [],
+              "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+              "product": {
+                "id": "gid://shopify/Product/10170577518898",
+                "media": { "nodes": [] }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "create-invalid-media-content-type",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [
+          {
+            "mediaContentType": "FILE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Invalid type"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $media of type [CreateMediaInput!]! was provided invalid value for 0.mediaContentType (Expected \"FILE\" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE)",
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "mediaContentType": "FILE",
+                    "originalSource": "https://placehold.co/600x400/png",
+                    "alt": "Invalid type"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "mediaContentType"],
+                    "explanation": "Expected \"FILE\" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "create-mixed-valid-invalid",
+      "operationName": "productCreateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "https://placehold.co/600x400/png",
+            "alt": "Valid in mixed create"
+          },
+          {
+            "mediaContentType": "IMAGE",
+            "originalSource": "not-a-url",
+            "alt": "Invalid in mixed create"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreateMedia": {
+              "media": [
+                {
+                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "alt": "Valid in mixed create",
+                  "mediaContentType": "IMAGE",
+                  "status": "UPLOADED"
+                }
+              ],
+              "mediaUserErrors": [{ "field": ["media", "1", "originalSource"], "message": "Image URL is invalid" }],
+              "product": {
+                "id": "gid://shopify/Product/10170577518898",
+                "media": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/MediaImage/43607852089650",
+                      "alt": "Valid in mixed create",
+                      "mediaContentType": "IMAGE",
+                      "status": "UPLOADED"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "downstreamReadAfterScenario": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10170577518898",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "alt": "Valid in mixed create",
+                  "mediaContentType": "IMAGE",
+                  "status": "PROCESSING"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-unknown-product-id",
+      "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999",
+        "media": [{ "id": "gid://shopify/MediaImage/43607852122418", "alt": "Should not update" }]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdateMedia": {
+              "media": null,
+              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-empty-media",
+      "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": { "productUpdateMedia": { "media": [], "mediaUserErrors": [] } }
+        }
+      }
+    },
+    {
+      "name": "update-unknown-media-id",
+      "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [{ "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdateMedia": {
+              "media": null,
+              "mediaUserErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-mixed-valid-invalid",
+      "operationName": "productUpdateMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "media": [
+          { "id": "gid://shopify/MediaImage/43607852122418", "alt": "Rejected update" },
+          { "id": "gid://shopify/MediaImage/999999999999", "alt": "Unknown media" }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productUpdateMedia": {
+              "media": null,
+              "mediaUserErrors": [
+                {
+                  "field": ["media"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "downstreamReadAfterScenario": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10170577518898",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "alt": "Valid in mixed create",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43607852122418",
+                  "alt": "Seed media",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown-product-id",
+      "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999",
+        "mediaIds": ["gid://shopify/MediaImage/43607852122418"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDeleteMedia": {
+              "deletedMediaIds": null,
+              "deletedProductImageIds": null,
+              "mediaUserErrors": [{ "field": ["productId"], "message": "Product does not exist" }],
+              "product": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-empty-media-ids",
+      "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": []
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDeleteMedia": {
+              "deletedMediaIds": [],
+              "deletedProductImageIds": [],
+              "mediaUserErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown-media-id",
+      "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": ["gid://shopify/MediaImage/999999999999"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDeleteMedia": {
+              "deletedMediaIds": null,
+              "deletedProductImageIds": null,
+              "mediaUserErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-mixed-valid-invalid",
+      "operationName": "productDeleteMedia",
+      "variables": {
+        "productId": "gid://shopify/Product/10170577518898",
+        "mediaIds": ["gid://shopify/MediaImage/43607852122418", "gid://shopify/MediaImage/999999999999"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDeleteMedia": {
+              "deletedMediaIds": null,
+              "deletedProductImageIds": null,
+              "mediaUserErrors": [
+                {
+                  "field": ["mediaIds"],
+                  "message": "Media id gid://shopify/MediaImage/999999999999 does not exist"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "downstreamReadAfterScenario": {
+        "data": {
+          "product": {
+            "id": "gid://shopify/Product/10170577518898",
+            "media": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MediaImage/43607852089650",
+                  "alt": "Valid in mixed create",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                },
+                {
+                  "id": "gid://shopify/MediaImage/43607852122418",
+                  "alt": "Seed media",
+                  "mediaContentType": "IMAGE",
+                  "status": "READY"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

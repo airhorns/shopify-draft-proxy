@@ -31,6 +31,7 @@ import {
 } from '../src/proxy/customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
+import { handleEventsQuery } from '../src/proxy/events.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from '../src/proxy/marketing.js';
 import {
@@ -800,6 +801,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleCustomerMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1098,6 +1118,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketingQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'events') {
+    return {
+      status: 200,
+      body: handleEventsQuery(document),
     };
   }
 
@@ -1563,6 +1590,7 @@ function makeSeedCustomer(customerId: string, source: Record<string, unknown> | 
     note: readStringField(source, 'note'),
     canDelete: readBooleanField(source, 'canDelete') ?? true,
     verifiedEmail: readBooleanField(source, 'verifiedEmail') ?? (email ? true : null),
+    dataSaleOptOut: readBooleanField(source, 'dataSaleOptOut') ?? false,
     taxExempt: readBooleanField(source, 'taxExempt') ?? false,
     taxExemptions: readArrayField(source, 'taxExemptions').filter(
       (taxExemption): taxExemption is string => typeof taxExemption === 'string',
@@ -1607,6 +1635,7 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     note: null,
     canDelete: true,
     verifiedEmail: true,
+    dataSaleOptOut: false,
     taxExempt: false,
     taxExemptions: [],
     state: 'DISABLED',
@@ -1635,6 +1664,7 @@ function seedCustomerMutationPreconditions(
     mutationName !== 'customerDelete' &&
     mutationName !== 'customerEmailMarketingConsentUpdate' &&
     mutationName !== 'customerSmsMarketingConsentUpdate' &&
+    mutationName !== 'dataSaleOptOut' &&
     mutationName !== 'customerAddTaxExemptions' &&
     mutationName !== 'customerRemoveTaxExemptions' &&
     mutationName !== 'customerReplaceTaxExemptions'
@@ -4689,6 +4719,46 @@ function readCapturedProductMedia(
     .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
 }
 
+function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
+  const mediaByProductId = new Map<string, ProductMediaRecord[]>();
+
+  for (const [index, seedMedia] of readArrayField(capture as Record<string, unknown>, 'seedProductMedia')
+    .filter(isPlainObject)
+    .entries()) {
+    const productId = readStringField(seedMedia, 'productId');
+    const id = readStringField(seedMedia, 'id');
+    if (!productId?.startsWith('gid://shopify/Product/') || !id?.startsWith('gid://shopify/')) {
+      continue;
+    }
+
+    const position = readNumberField(seedMedia, 'position') ?? index;
+    const mediaRecords = mediaByProductId.get(productId) ?? [];
+    mediaRecords.push({
+      key: readStringField(seedMedia, 'key') ?? `${productId}:media:${position}:${id}`,
+      productId,
+      position,
+      id,
+      mediaContentType: readStringField(seedMedia, 'mediaContentType') ?? 'IMAGE',
+      alt: readNullableStringField(seedMedia, 'alt'),
+      status: readStringField(seedMedia, 'status') ?? 'READY',
+      productImageId: readNullableStringField(seedMedia, 'productImageId'),
+      imageUrl: readNullableStringField(seedMedia, 'imageUrl'),
+      previewImageUrl: readNullableStringField(seedMedia, 'previewImageUrl'),
+      sourceUrl: readNullableStringField(seedMedia, 'sourceUrl'),
+    });
+    mediaByProductId.set(productId, mediaRecords);
+  }
+
+  for (const [productId, mediaRecords] of mediaByProductId) {
+    if (!store.getEffectiveProductById(productId)) {
+      store.upsertBaseProducts([makeSeedProduct(productId)]);
+    }
+    store.replaceBaseMediaForProduct(productId, mediaRecords);
+  }
+
+  return mediaByProductId.size > 0;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
@@ -4702,6 +4772,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       store.replaceBaseVariantsForProduct(productId, variants);
     }
   }
+  seedExplicitProductMediaPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
