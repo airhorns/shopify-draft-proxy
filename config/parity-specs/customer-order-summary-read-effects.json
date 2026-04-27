@@ -1,0 +1,16 @@
+{
+  "scenarioId": "customer-order-summary-read-effects",
+  "operationNames": ["customer", "customers", "customersCount", "orderCustomerSet", "orderCustomerRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customer-order-summary-read-effects.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "Captured HAR-288 customer order-summary read effects against 2026-04: a disposable customer starts with empty `orders`, `lastOrder: null`, `numberOfOrders: \"0\"`, and zero `amountSpent`; after `orderCustomerSet`, `customer.orders` immediately exposes the linked order, while `numberOfOrders`, `amountSpent`, and `lastOrder` remain at their existing customer summary values in the immediate read; after `orderCustomerRemove`, the customer returns to the empty order connection. Local runtime parity is enforced by the order lifecycle/payment/customer integration flow because the generic parity runner does not chain setup, mutation, read, cleanup, and restore operations for this multi-step scenario.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

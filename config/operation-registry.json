@@ -27,6 +27,186 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productFeed",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeed", "ProductFeed"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns null for an absent productFeed id. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "productFeeds",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeeds", "ProductFeeds"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "app",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["app", "App"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app identity read gap. Captured 2025-01 evidence records current conformance app lookup shapes by id/handle/key and missing lookup nullability; local overlay support requires an app/installation model before implementation."
+  },
+  {
+    "name": "appByHandle",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByHandle", "AppByHandle"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app handle lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-handle nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appByKey",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByKey", "AppByKey"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app API-key lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-key nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallation", "AppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation read gap. Captured 2025-01 evidence records current installation object shape, active subscription empty list behavior, billing connection empty behavior, and unknown installation nullability."
+  },
+  {
+    "name": "appInstallations",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallations", "AppInstallations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation catalog gap. Current conformance app receives field-level ACCESS_DENIED for appInstallations, so local support must wait for an eligible credential or fixture that captures authorized empty/non-empty connection behavior."
+  },
+  {
+    "name": "currentAppInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["currentAppInstallation", "CurrentAppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install."
+  },
+  {
+    "name": "appPurchaseOneTimeCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until one-time purchase confirmation URL creation, merchant approval status, downstream installation billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCreate", "AppSubscriptionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy recurring billing mutation gap. Do not support until subscription confirmation URL creation, replacement behavior, trial/line item modeling, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCancel",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCancel", "AppSubscriptionCancel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until cancellation/proration behavior, downstream subscription status reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionLineItemUpdate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionLineItemUpdate", "AppSubscriptionLineItemUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until capped amount updates, line item lookup/error behavior, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionTrialExtend",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until trial extension limits, status transitions, downstream subscription reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUsageRecordCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUsageRecordCreate", "AppUsageRecordCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until idempotency behavior, usage record connection reads, billing limit errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appRevokeAccessScopes",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy access mutation gap. Do not support until scope revocation effects, app grant visibility, validation errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUninstall",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUninstall", "AppUninstall"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 destructive installation mutation gap. Do not support until uninstall effects, post-uninstall read behavior, app/session invalidation consequences, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token scope/resource modeling, returned token secrecy rules, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenDestroy",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token lookup/destruction behavior, idempotency/error semantics, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
     "name": "productVariant",
     "type": "query",
     "domain": "products",
@@ -273,6 +453,36 @@
     "implemented": true,
     "matchNames": ["customer", "Customer"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "event",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["event", "Event"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "events",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["events", "Events"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "eventsCount",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["eventsCount", "EventsCount"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
   },
   {
     "name": "customers",
@@ -551,6 +761,66 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productFeedCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedCreate", "ProductFeedCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo probe for country US/language EN returned a top-level NOT_FOUND error: Unable to find channel for product feed. Full local support needs channel-backed success evidence and downstream productFeed/productFeeds read-after-write behavior."
+  },
+  {
+    "name": "productFeedDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedDelete", "ProductFeedDelete"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned deletedId null plus userErrors field [id], message ProductFeed does not exist. Full support needs delete success evidence and downstream productFeeds removal behavior."
+  },
+  {
+    "name": "productFullSync",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFullSync", "ProductFullSync"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned id null plus userErrors field [id], message ProductFeed does not exist. Full support needs product-feed job/status success evidence before staging locally."
+  },
+  {
+    "name": "productBundleCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleCreate", "ProductBundleCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo empty-components probe returned productBundleOperation null plus userErrors message At least one component is required. Full support needs component-backed success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "productBundleUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleUpdate", "ProductBundleUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-product probe returned productBundleOperation null plus userErrors message Product does not exist. Full support needs bundle update success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "combinedListingUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
+  },
+  {
     "name": "productPublish",
     "type": "mutation",
     "domain": "products",
@@ -662,6 +932,256 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "article",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["article", "Article"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields are resolved from the local online-store content graph."
+  },
+  {
+    "name": "articleAuthors",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleAuthors", "ArticleAuthors"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives the author connection from locally staged or hydrated article authors with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "articles",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articles", "Articles"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, and staged read-after-write effects."
+  },
+  {
+    "name": "articleTags",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleTags", "ArticleTags"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives article tags from the effective local article graph and returns an empty list when no articles carry tags."
+  },
+  {
+    "name": "articleCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleCreate", "ArticleCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article creation locally, including handle/publication/tag/author fields and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
+  },
+  {
+    "name": "articleUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleUpdate", "ArticleUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article updates locally for the supported scalar lifecycle fields and keeps downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
+  },
+  {
+    "name": "articleDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleDelete", "ArticleDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article tombstones locally so detail reads return null and catalog/blog article reads omit the deleted article."
+  },
+  {
+    "name": "blog",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blog", "Blog"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Blog detail reads return staged or hydrated records with nested articles/counts and null for missing IDs."
+  },
+  {
+    "name": "blogs",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogs", "Blogs"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Blog catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "blogsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogsCount", "BlogsCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local blog graph, honoring the same simple query filter as blogs."
+  },
+  {
+    "name": "blogCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogCreate", "BlogCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog creation locally with title, handle, template suffix, and comment policy, then updates downstream blog/blogs/blogsCount reads without upstream writes."
+  },
+  {
+    "name": "blogUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogUpdate", "BlogUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog scalar updates locally and keeps nested article/catalog/count reads coherent."
+  },
+  {
+    "name": "blogDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogDelete", "BlogDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog."
+  },
+  {
+    "name": "page",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["page", "Page"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Page detail reads return staged or hydrated records and null for missing IDs."
+  },
+  {
+    "name": "pages",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pages", "Pages"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Page catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "pagesCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pagesCount", "PagesCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local page graph."
+  },
+  {
+    "name": "pageCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageCreate", "PageCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page creation locally with handle/body/publication/template fields and downstream page/pages/pagesCount visibility."
+  },
+  {
+    "name": "pageUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageUpdate", "PageUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page scalar updates locally and keeps downstream reads coherent."
+  },
+  {
+    "name": "pageDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageDelete", "PageDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page tombstones locally so detail reads return null and page catalog/count reads omit deleted pages."
+  },
+  {
+    "name": "comment",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comment", "Comment"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Comment detail reads return staged or hydrated records and null for missing local IDs; live Shopify returned an internal error for an unknown comment ID during capture and that quirk is documented rather than emulated."
+  },
+  {
+    "name": "comments",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comments", "Comments"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Comment catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged moderation/delete visibility."
+  },
+  {
+    "name": "commentApprove",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentApprove", "CommentApprove"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment approval locally for hydrated/snapshot comments, setting the local status to PUBLISHED and updating downstream comment reads without upstream writes."
+  },
+  {
+    "name": "commentSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentSpam", "CommentSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment spam classification locally for hydrated/snapshot comments, setting the local status to SPAM."
+  },
+  {
+    "name": "commentNotSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentNotSpam", "CommentNotSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages not-spam moderation locally for hydrated/snapshot comments, returning the comment to a pending local status."
+  },
+  {
+    "name": "commentDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentDelete", "CommentDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment."
   },
   {
     "name": "menu",
@@ -1554,40 +2074,40 @@
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until definition schema validation, capabilities, access, and entry catalog side effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally."
   },
   {
     "name": "metaobjectDefinitionUpdate",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field definition migrations, validation jobs, access changes, and downstream entry effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model."
   },
   {
     "name": "metaobjectDefinitionDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until associated entry deletion, unknown-type behavior, and downstream definition absence are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled."
   },
   {
     "name": "standardMetaobjectDefinitionEnable",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["standardMetaobjectDefinitionEnable", "StandardMetaobjectDefinitionEnable"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until standard template catalog capture, enable validation, and created-definition semantics are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes."
   },
   {
     "name": "collectionCreate",
@@ -2068,30 +2588,30 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptCancellationRequest", "FulfillmentOrderAcceptCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service cancellation request lifecycle, status/requestStatus transitions, merchant request history, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service cancellation request acceptance for order-backed fulfillment orders, closes the accepted fulfillment order, preserves merchant request history, and exposes the staged requestStatus through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderAcceptFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptFulfillmentRequest", "FulfillmentOrderAcceptFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service acceptance semantics, estimated shipped timestamps, request status transitions, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service acceptance for submitted fulfillment requests, transitions requestStatus to ACCEPTED/status to IN_PROGRESS, and keeps downstream fulfillment-order reads consistent without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderCancel",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires replacement fulfillment-order creation, partial remaining-work semantics, and status transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 lifecycle support for locally cancelling an open fulfillment order: the original closes with empty line items, a replacement OPEN fulfillment order carries remaining line items, downstream order/top-level reads observe both records, and runtime handling does not proxy upstream."
   },
   {
     "name": "fulfillmentOrderClose",
@@ -2101,17 +2621,17 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderClose", "FulfillmentOrderClose"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires accepted fulfillment-service request semantics, in-progress constraints, and control handoff back to merchant-managed fulfillment before support."
+    "supportNotes": "HAR-234 captured the merchant-managed guardrail `The fulfillment order's assigned fulfillment service must be of api type`; this root remains unimplemented for full lifecycle support because no success path was captured for API fulfillment-service orders."
   },
   {
     "name": "fulfillmentOrderHold",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderHold", "FulfillmentOrderHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold handle/id behavior, multiple active holds per app, limit userErrors, and downstream fulfillmentHolds reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial hold support with fulfillmentHold metadata, ON_HOLD status, held line-item quantities, remaining OPEN fulfillment-order creation, manualHoldsFulfillmentOrders visibility, and release read-after-write behavior."
   },
   {
     "name": "fulfillmentOrderLineItemsPreparedForPickup",
@@ -2138,60 +2658,60 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderMove", "FulfillmentOrderMove"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires inventory/location eligibility, partial move split behavior, requestStatus restrictions, and replacement order reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial move support with moved/original/remaining fulfillment-order payloads, assigned-location changes, line-item quantity splitting, and downstream order/top-level reads."
   },
   {
     "name": "fulfillmentOrderOpen",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled and progress-reported state transitions plus downstream status/requestStatus reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 MARK_AS_OPEN behavior after report-progress state: local staging returns OPEN status and restores open supported actions for downstream reads."
   },
   {
     "name": "fulfillmentOrderRejectCancellationRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectCancellationRequest", "FulfillmentOrderRejectCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request rejection lifecycle, merchant request records, and post-rejection fulfillment-order status behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request rejection for accepted order-backed fulfillment orders, transitions requestStatus to CANCELLATION_REJECTED, and preserves merchant request history without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderRejectFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectFulfillmentRequest", "FulfillmentOrderRejectFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires rejection reasons, rejected line-item semantics, merchant request records, and unfulfillable-line behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages rejection for submitted order-backed fulfillment requests, transitions requestStatus to REJECTED, preserves requested line-item quantities, and keeps downstream reads local without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderReleaseHold",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReleaseHold", "FulfillmentOrderReleaseHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold id filtering, release-all behavior, externalId tracking, and downstream fulfillmentHolds/status changes before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 release-hold support for app-created holds: local staging clears fulfillmentHolds, restores OPEN status/actions, and updates manualHoldsFulfillmentOrders/downstream fulfillment-order reads."
   },
   {
     "name": "fulfillmentOrderReportProgress",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReportProgress", "FulfillmentOrderReportProgress"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires progress report state, status transitions, and interaction with move/open restrictions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 report-progress support for OPEN merchant-managed fulfillment orders: local staging moves status to IN_PROGRESS and exposes MARK_AS_OPEN in downstream reads."
   },
   {
     "name": "fulfillmentOrderReschedule",
@@ -2201,7 +2721,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled fulfillment-order semantics, future fulfillAt validation, and downstream fulfillAt/status visibility before support."
+    "supportNotes": "HAR-234 captured the open-order guardrail `Fulfillment order must be scheduled.`; this root remains unimplemented for full lifecycle support until scheduled fulfillment-order setup and success read-after-write behavior are captured."
   },
   {
     "name": "fulfillmentOrdersReroute",
@@ -2211,7 +2731,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrdersReroute", "FulfillmentOrdersReroute"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires order-routing location selection, included/excluded location semantics, and assignedLocation updates before support."
+    "supportNotes": "HAR-234 captured unknown-id RESOURCE_NOT_FOUND and a live included-location branch returning Shopify INTERNAL_SERVER_ERROR for the current disposable setup; this root remains unimplemented until a successful reroute scenario is captured."
   },
   {
     "name": "fulfillmentOrdersSetFulfillmentDeadline",
@@ -2238,20 +2758,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitCancellationRequest", "FulfillmentOrderSubmitCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request creation, merchant request history, notification semantics, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request creation for accepted order-backed fulfillment orders, records a CANCELLATION_REQUEST merchant request/message, and exposes it through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderSubmitFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitFulfillmentRequest", "FulfillmentOrderSubmitFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires full and partial fulfillment request semantics, split-on-partial behavior, notifyCustomer handling, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages full and partial fulfillment requests for order-backed fulfillment orders, records FULFILLMENT_REQUEST merchant request messages/options, splits partial line-item quantities into submitted and unsubmitted fulfillment-order records, and avoids service callback side effects."
   },
   {
     "name": "fulfillmentService",
@@ -2970,7 +3490,7 @@
     "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivity",
@@ -2980,7 +3500,7 @@
     "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; staged external activity lifecycle mutations are visible immediately."
   },
   {
     "name": "marketingEvent",
@@ -3000,7 +3520,7 @@
     "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivityCreate",
@@ -3027,70 +3547,70 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityCreateExternal", "MarketingActivityCreateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external remoteId/UTM fields, userErrors, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity creation from captured write_marketing_events evidence. Preserves remoteId/UTM attribution, selected Shopify-like fields, userErrors, original mutation log retention, and downstream marketingActivity/marketingActivities visibility."
   },
   {
     "name": "marketingActivityUpdateExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpdateExternal", "MarketingActivityUpdateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external activity identity, status updates, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity updates by remoteId or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields."
   },
   {
     "name": "marketingActivityUpsertExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpsertExternal", "MarketingActivityUpsertExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for create-vs-update behavior, remoteId identity, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity upserts using remoteId identity from captured write_marketing_events evidence. Missing remoteIds create staged activity/event rows; existing remoteIds update staged fields while preserving immutable UTM attribution."
   },
   {
     "name": "marketingActivityDeleteExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityDeleteExternal", "MarketingActivityDeleteExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity deletion by remoteId or staged id from captured write_marketing_events evidence. Missing activities return captured userErrors and successful deletes hide activity/event rows from downstream reads."
   },
   {
     "name": "marketingActivitiesDeleteAllExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivitiesDeleteAllExternal", "MarketingActivitiesDeleteAllExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for asynchronous job payloads and blocked create/update behavior while deletion is pending."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages bulk external activity deletion and returns a Shopify-like asynchronous Job payload from captured write_marketing_events evidence. Downstream marketing reads hide locally known external activities after the staged delete-all."
   },
   {
     "name": "marketingEngagementCreate",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for activity-level and channel-level engagement metrics and report visibility."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
   },
   {
     "name": "marketingEngagementsDelete",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages channel-level engagement deletion with captured selector validation. Activity-level engagement writes are retained because Shopify exposes no activity-level selector on marketingEngagementsDelete; delete-all removes known local channel engagement records and returns the captured result shape."
   },
   {
     "name": "webhookSubscription",
