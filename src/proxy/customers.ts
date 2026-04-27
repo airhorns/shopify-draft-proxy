@@ -19,6 +19,7 @@ import {
   serializeMetafieldSelection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { serializeOrderNode } from './orders.js';
 import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
@@ -31,6 +32,7 @@ import type {
   CustomerPaymentMethodRecord,
   CustomerPaymentMethodSubscriptionContractRecord,
   CustomerRecord,
+  OrderRecord,
 } from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -408,6 +410,29 @@ function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = 
     amount: normalizeStringField(raw, 'amount'),
     currencyCode: normalizeStringField(raw, 'currencyCode'),
   };
+}
+
+function listOrdersForCustomer(customerId: string): OrderRecord[] {
+  return store.getOrders().filter((order) => order.customer?.id === customerId);
+}
+
+function serializeCustomerOrdersConnection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const orders = listOrdersForCustomer(customerId);
+  const window = paginateConnectionItems(orders, field, variables, (order) => order.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (order) => order.id,
+    serializeNode: (order, selection) => serializeOrderNode(selection, order, variables),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { includeInlineFragments: true },
+  });
 }
 
 function normalizeDefaultEmailAddress(
@@ -1344,10 +1369,12 @@ function serializeCustomerSelection(
         result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
         break;
       case 'events':
-      case 'orders':
       case 'storeCreditAccounts':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'orders':
+        result[key] = serializeCustomerOrdersConnection(customer.id, selection, variables);
         break;
       case 'paymentMethods':
         result[key] = serializeCustomerPaymentMethodsConnectionSelection(customer.id, selection, variables);
