@@ -1,0 +1,26 @@
+query ProductOptionLifecycleDownstream($id: ID!) {
+  product(id: $id) {
+    id
+    options {
+      id
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        selectedOptions {
+          name
+          value
+        }
+      }
+    }
+  }
+}

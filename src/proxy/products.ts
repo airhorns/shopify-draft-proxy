@@ -122,11 +122,13 @@ function getOperationPathLabel(document: string): string {
   return operation.name ? `${operationType} ${operation.name.value}` : operationType;
 }
 
+const maxProductHandleLength = 255;
+
 function normalizeHandleParts(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
 }
 
@@ -149,7 +151,8 @@ function stripHtmlToDescription(value: string): string {
 
 type ExplicitHandleResolution =
   | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string };
+  | { kind: 'fallback-explicit'; handle: string }
+  | { kind: 'invalid'; error: { field: string[]; message: string } };
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
@@ -173,6 +176,16 @@ function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResol
   const normalized = normalizeHandleParts(trimmedHandle);
   if (!normalized) {
     return { kind: 'fallback-explicit', handle: 'product' };
+  }
+
+  if (Array.from(normalized).length > maxProductHandleLength) {
+    return {
+      kind: 'invalid',
+      error: {
+        field: ['handle'],
+        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
+      },
+    };
   }
 
   return { kind: 'normalized-explicit', handle: normalized };
@@ -223,6 +236,10 @@ function prepareProductInputWithResolvedHandle(
 ): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
   const explicitHandle = readExplicitHandle(input);
   if (explicitHandle) {
+    if (explicitHandle.kind === 'invalid') {
+      return { input, error: explicitHandle.error };
+    }
+
     if (explicitHandle.kind === 'normalized-explicit') {
       if (productHandleInUse(explicitHandle.handle, existing?.id)) {
         return { input, error: productHandleConflictError(explicitHandle.handle) };
@@ -390,6 +407,12 @@ interface CollectionProductMove {
 }
 
 type CollectionReorderUserError = { field: string[]; message: string };
+type ProductReorderUserError = { field: string[]; message: string };
+
+interface ProductVariantPosition {
+  id: string;
+  position: number;
+}
 
 function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
   return store
@@ -464,6 +487,66 @@ function readCollectionProductMoves(rawMoves: unknown): {
   return { moves, userErrors };
 }
 
+function readProductVariantPositions(rawPositions: unknown): {
+  positions: ProductVariantPosition[];
+  userErrors: ProductReorderUserError[];
+} {
+  const rawPositionList = Array.isArray(rawPositions) ? rawPositions : isObject(rawPositions) ? [rawPositions] : [];
+  const positions: ProductVariantPosition[] = [];
+  const userErrors: ProductReorderUserError[] = [];
+
+  if (rawPositionList.length === 0) {
+    return {
+      positions,
+      userErrors: [{ field: ['positions'], message: 'At least one position is required' }],
+    };
+  }
+
+  for (const [index, rawPosition] of rawPositionList.entries()) {
+    if (!isObject(rawPosition)) {
+      userErrors.push({ field: ['positions', `${index}`], message: 'Position is invalid' });
+      continue;
+    }
+
+    const variantId = typeof rawPosition['id'] === 'string' ? rawPosition['id'] : null;
+    const position = readCollectionReorderPosition(rawPosition['position']);
+    if (!variantId) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant id is required' });
+    }
+    if (position === null || position < 1) {
+      userErrors.push({ field: ['positions', `${index}`, 'position'], message: 'Position is invalid' });
+    }
+    if (variantId && position !== null && position >= 1) {
+      positions.push({ id: variantId, position: position - 1 });
+    }
+  }
+
+  return { positions, userErrors };
+}
+
+function applySequentialReorder<T>(
+  items: T[],
+  moves: Array<{ id: string; position: number }>,
+  getId: (item: T) => string | null | undefined,
+): T[] {
+  const orderedItems = [...items];
+  for (const move of moves) {
+    const currentIndex = orderedItems.findIndex((item) => getId(item) === move.id);
+    if (currentIndex < 0) {
+      continue;
+    }
+
+    const [item] = orderedItems.splice(currentIndex, 1);
+    if (!item) {
+      continue;
+    }
+
+    orderedItems.splice(Math.min(move.position, orderedItems.length), 0, item);
+  }
+
+  return orderedItems;
+}
+
 function reorderCollectionProducts(
   collection: CollectionRecord,
   rawMoves: unknown,
@@ -494,20 +577,12 @@ function reorderCollectionProducts(
     return { job: null, userErrors };
   }
 
-  for (const move of moves) {
-    const currentIndex = orderedEntries.findIndex((entry) => entry.product.id === move.id);
-    if (currentIndex < 0) {
-      continue;
-    }
-
-    const [entry] = orderedEntries.splice(currentIndex, 1);
-    if (!entry) {
-      continue;
-    }
-
-    const nextIndex = Math.min(move.newPosition, orderedEntries.length);
-    orderedEntries.splice(nextIndex, 0, entry);
-  }
+  const reorderedEntries = applySequentialReorder(
+    orderedEntries,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (entry) => entry.product.id,
+  );
+  orderedEntries.splice(0, orderedEntries.length, ...reorderedEntries);
 
   for (const [position, entry] of orderedEntries.entries()) {
     const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
@@ -523,6 +598,71 @@ function reorderCollectionProducts(
 
   return {
     job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductMedia(
+  productId: string,
+  rawMoves: unknown,
+): { job: { id: string; done: boolean } | null; userErrors: ProductReorderUserError[] } {
+  const { moves, userErrors } = readCollectionProductMoves(rawMoves);
+  const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+  const mediaIds = new Set(
+    effectiveMedia
+      .map((mediaRecord) => mediaRecord.id)
+      .filter((mediaId): mediaId is string => typeof mediaId === 'string'),
+  );
+
+  for (const [index, move] of moves.entries()) {
+    if (!mediaIds.has(move.id)) {
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Media does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { job: null, userErrors };
+  }
+
+  const nextMedia = applySequentialReorder(
+    effectiveMedia,
+    moves.map((move) => ({ id: move.id, position: move.newPosition })),
+    (mediaRecord) => mediaRecord.id,
+  ).map((mediaRecord, position) => ({
+    ...mediaRecord,
+    position,
+  }));
+  store.replaceStagedMediaForProduct(productId, nextMedia);
+
+  return {
+    job: { id: makeSyntheticGid('Job'), done: false },
+    userErrors: [],
+  };
+}
+
+function reorderProductVariants(
+  productId: string,
+  rawPositions: unknown,
+): { product: ProductRecord | null; userErrors: ProductReorderUserError[] } {
+  const { positions, userErrors } = readProductVariantPositions(rawPositions);
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const variantIds = new Set(effectiveVariants.map((variant) => variant.id));
+
+  for (const [index, position] of positions.entries()) {
+    if (!variantIds.has(position.id)) {
+      userErrors.push({ field: ['positions', `${index}`, 'id'], message: 'Variant does not exist' });
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { product: null, userErrors };
+  }
+
+  const nextVariants = applySequentialReorder(effectiveVariants, positions, (variant) => variant.id);
+  store.replaceStagedVariantsForProduct(productId, nextVariants);
+
+  return {
+    product: syncProductInventorySummary(productId),
     userErrors: [],
   };
 }
@@ -629,25 +769,56 @@ function serializeJobSelectionSet(
   return result;
 }
 
-function readProductSetInventoryQuantity(raw: unknown): number | null {
+interface ProductSetInventoryQuantityInput {
+  locationId: string | null;
+  name: string;
+  quantity: number;
+}
+
+function readProductSetInventoryQuantityInputs(raw: unknown): ProductSetInventoryQuantityInput[] {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    return Math.floor(raw);
+    return [
+      {
+        locationId: null,
+        name: 'available',
+        quantity: Math.floor(raw),
+      },
+    ];
   }
 
   if (!Array.isArray(raw)) {
-    return null;
+    return [];
   }
 
-  const quantities = raw
+  return raw
     .filter((value): value is Record<string, unknown> => isObject(value))
-    .map((value) => value['quantity'])
-    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    .map((value) => {
+      const rawQuantity = value['quantity'];
+      if (typeof rawQuantity !== 'number' || !Number.isFinite(rawQuantity)) {
+        return null;
+      }
+
+      const rawName = value['name'];
+      const rawLocationId = value['locationId'];
+      return {
+        locationId: typeof rawLocationId === 'string' && rawLocationId.trim() ? rawLocationId : null,
+        name: typeof rawName === 'string' && rawName.trim() ? rawName : 'available',
+        quantity: Math.floor(rawQuantity),
+      };
+    })
+    .filter((value): value is ProductSetInventoryQuantityInput => value !== null);
+}
+
+function readProductSetInventoryQuantity(raw: unknown): number | null {
+  const quantities = readProductSetInventoryQuantityInputs(raw)
+    .filter((value) => value.name === 'available')
+    .map((value) => value.quantity);
 
   if (quantities.length === 0) {
     return null;
   }
 
-  return quantities.reduce((total, quantity) => total + Math.floor(quantity), 0);
+  return quantities.reduce((total, quantity) => total + quantity, 0);
 }
 
 function readProductSetSelectedOptions(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -1191,6 +1362,100 @@ function makeSyntheticProductImageId(mediaContentType: string | null | undefined
   return null;
 }
 
+const CREATE_MEDIA_CONTENT_TYPES = new Set(['VIDEO', 'EXTERNAL_VIDEO', 'MODEL_3D', 'IMAGE']);
+
+function isValidMediaSource(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function mediaValidationProductNotFoundPayload(shape: 'create' | 'update' | 'delete') {
+  if (shape === 'delete') {
+    return {
+      deletedMediaIds: null,
+      deletedProductImageIds: null,
+      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+      product: null,
+    };
+  }
+
+  return {
+    media: null,
+    mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    ...(shape === 'create' ? { product: null } : {}),
+  };
+}
+
+function buildInvalidProductMediaContentTypeVariableError(
+  media: unknown[],
+  mediaIndex: number,
+  mediaContentType: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: unknown[];
+      problems: Array<{ path: Array<string | number>; explanation: string }>;
+    };
+  }>;
+} {
+  const explanation = `Expected "${mediaContentType}" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE`;
+  return {
+    errors: [
+      {
+        message: `Variable $media of type [CreateMediaInput!]! was provided invalid value for ${mediaIndex}.mediaContentType (${explanation})`,
+        locations: getVariableDefinitionLocation(document, 'media'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(media),
+          problems: [{ path: [mediaIndex, 'mediaContentType'], explanation }],
+        },
+      },
+    ],
+  };
+}
+
+function buildInvalidProductMediaProductIdVariableError(
+  productId: string,
+  document: string,
+): {
+  errors: Array<{
+    message: string;
+    locations: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: string;
+      problems: Array<{ path: never[]; explanation: string; message: string }>;
+    };
+  }>;
+} {
+  const message = `Invalid global id '${productId}'`;
+  return {
+    errors: [
+      {
+        message: 'Variable $productId of type ID! was provided invalid value',
+        locations: getVariableDefinitionLocation(document, 'productId'),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: productId,
+          problems: [{ path: [], explanation: message, message }],
+        },
+      },
+    ],
+  };
+}
+
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   const timestamp = makeSyntheticTimestamp();
   const duplicated: ProductMetafieldRecord = {
@@ -1348,13 +1613,20 @@ function insertOptionAtPosition(
 }
 
 function productUsesOnlyDefaultOptionState(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
+  const selectedOptions = variants[0]?.selectedOptions ?? [];
+  const variantUsesDefaultSelection =
+    selectedOptions.length === 0 ||
+    (selectedOptions.length === 1 &&
+      selectedOptions[0]?.name === 'Title' &&
+      selectedOptions[0]?.value === 'Default Title');
+
   return (
     options.length === 1 &&
     options[0]?.name === 'Title' &&
     options[0]?.optionValues.length === 1 &&
     options[0]?.optionValues[0]?.name === 'Default Title' &&
     variants.length === 1 &&
-    variants[0]?.selectedOptions.length === 0
+    variantUsesDefaultSelection
   );
 }
 
@@ -1397,7 +1669,7 @@ function restoreDefaultOptionState(
         ...baseVariant,
         productId: product.id,
         title: 'Default Title',
-        selectedOptions: [],
+        selectedOptions: [{ name: 'Title', value: 'Default Title' }],
       },
     ],
   };
@@ -1419,6 +1691,28 @@ function remapVariantSelectionsForOptionUpdate(
         value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
       };
     });
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
+function reorderVariantSelectionsForOptions(
+  variants: ProductVariantRecord[],
+  options: ProductOptionRecord[],
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedByName = new Map(
+      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption]),
+    );
+    const selectedOptions = options
+      .map((option) => selectedByName.get(option.name) ?? null)
+      .filter(
+        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+      );
 
     return {
       ...structuredClone(variant),
@@ -1494,9 +1788,16 @@ function updateOptionRecords(
   }
 
   nextOptions.splice(existingIndex, 1);
+  const reorderedOptions = insertOptionAtPosition(nextOptions, target, optionInput['position']);
+  const remappedVariants = remapVariantSelectionsForOptionUpdate(
+    variants,
+    previousOptionName,
+    target.name,
+    renamedValues,
+  );
   return {
-    options: insertOptionAtPosition(nextOptions, target, optionInput['position']),
-    variants: remapVariantSelectionsForOptionUpdate(variants, previousOptionName, target.name, renamedValues),
+    options: reorderedOptions,
+    variants: reorderVariantSelectionsForOptions(remappedVariants, reorderedOptions),
   };
 }
 
@@ -1800,6 +2101,146 @@ function readInventoryItemInput(
   };
 }
 
+function makeInventoryItemForInventoryQuantities(
+  existing: ProductVariantRecord['inventoryItem'],
+): NonNullable<ProductVariantRecord['inventoryItem']> {
+  return existing
+    ? structuredClone(existing)
+    : {
+        id: makeSyntheticGid('InventoryItem'),
+        tracked: null,
+        requiresShipping: null,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: null,
+      };
+}
+
+function upsertInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+  updatedAt: string | null = makeSyntheticTimestamp(),
+): InventoryLevelRecord['quantities'] {
+  const nextQuantities = quantities.map((candidate) => structuredClone(candidate));
+  const existingIndex = nextQuantities.findIndex((candidate) => candidate.name === name);
+  const nextQuantity = {
+    name,
+    quantity,
+    updatedAt,
+  };
+
+  if (existingIndex >= 0) {
+    nextQuantities[existingIndex] = {
+      ...nextQuantities[existingIndex]!,
+      ...nextQuantity,
+    };
+  } else {
+    nextQuantities.push(nextQuantity);
+  }
+
+  return nextQuantities;
+}
+
+function ensureInventoryLevelQuantity(
+  quantities: InventoryLevelRecord['quantities'],
+  name: string,
+  quantity: number,
+): InventoryLevelRecord['quantities'] {
+  if (quantities.some((candidate) => candidate.name === name)) {
+    return quantities;
+  }
+
+  return [
+    ...quantities,
+    {
+      name,
+      quantity,
+      updatedAt: null,
+    },
+  ];
+}
+
+function buildProductSetInventoryLevels(
+  variant: ProductVariantRecord,
+  rawInventoryQuantities: unknown,
+  inventoryItem: NonNullable<ProductVariantRecord['inventoryItem']>,
+): InventoryLevelRecord[] | null {
+  const quantityInputs = readProductSetInventoryQuantityInputs(rawInventoryQuantities);
+  if (quantityInputs.length === 0) {
+    return inventoryItem.inventoryLevels ?? null;
+  }
+
+  const inputsByLocationId = new Map<string, ProductSetInventoryQuantityInput[]>();
+  for (const quantityInput of quantityInputs) {
+    const locationId = quantityInput.locationId ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
+    inputsByLocationId.set(locationId, [...(inputsByLocationId.get(locationId) ?? []), quantityInput]);
+  }
+
+  const existingLevelsByLocationId = new Map(
+    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels({ ...variant, inventoryItem })).map((level) => [
+      level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+      level,
+    ]),
+  );
+
+  return [...inputsByLocationId.entries()].map(([locationId, quantityInputsForLocation]) => {
+    const existingLevel = existingLevelsByLocationId.get(locationId) ?? null;
+    const effectiveLocation = store.getEffectiveLocationById(locationId);
+    let quantities = existingLevel?.quantities.map((quantity) => structuredClone(quantity)) ?? [];
+
+    for (const quantityInput of quantityInputsForLocation) {
+      quantities = upsertInventoryLevelQuantity(quantities, quantityInput.name, quantityInput.quantity);
+      if (quantityInput.name === 'available') {
+        quantities = upsertInventoryLevelQuantity(quantities, 'on_hand', quantityInput.quantity, null);
+      }
+    }
+
+    quantities = ensureInventoryLevelQuantity(quantities, 'available', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'on_hand', 0);
+    quantities = ensureInventoryLevelQuantity(quantities, 'incoming', 0);
+
+    return {
+      id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(inventoryItem.id, locationId),
+      cursor: existingLevel?.cursor ?? null,
+      location: {
+        id: locationId,
+        name: effectiveLocation?.name ?? existingLevel?.location?.name ?? null,
+      },
+      quantities,
+    };
+  });
+}
+
+function applyProductSetInventoryQuantitiesToVariant(
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  if (!hasOwnField(input, 'inventoryQuantities')) {
+    return variant;
+  }
+
+  const quantityInputs = readProductSetInventoryQuantityInputs(input['inventoryQuantities']);
+  if (quantityInputs.length === 0) {
+    return variant;
+  }
+
+  const inventoryItem = makeInventoryItemForInventoryQuantities(variant.inventoryItem);
+  const inventoryLevels = buildProductSetInventoryLevels(variant, input['inventoryQuantities'], inventoryItem);
+  const availableQuantity = readProductSetInventoryQuantity(input['inventoryQuantities']);
+
+  return {
+    ...variant,
+    inventoryQuantity: availableQuantity ?? variant.inventoryQuantity,
+    inventoryItem: {
+      ...inventoryItem,
+      inventoryLevels,
+    },
+  };
+}
+
 function deriveVariantTitle(
   rawTitle: unknown,
   selectedOptions: ProductVariantRecord['selectedOptions'],
@@ -1843,17 +2284,27 @@ function makeCreatedVariantRecord(
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
   const variant = makeCreatedVariantRecord(productId, input);
 
-  return {
-    ...variant,
-    taxable: variant.taxable ?? true,
-    inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
-    inventoryItem: variant.inventoryItem
-      ? {
-          ...variant.inventoryItem,
-          measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
-        }
-      : null,
-  };
+  return applyProductSetInventoryQuantitiesToVariant(
+    {
+      ...variant,
+      taxable: variant.taxable ?? true,
+      inventoryPolicy: variant.inventoryPolicy ?? 'DENY',
+      inventoryItem: variant.inventoryItem
+        ? {
+            ...variant.inventoryItem,
+            measurement: variant.inventoryItem.measurement ?? makeDefaultInventoryItemMeasurement(),
+          }
+        : null,
+    },
+    input,
+  );
+}
+
+function updateProductSetVariantRecord(
+  existing: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  return applyProductSetInventoryQuantitiesToVariant(updateVariantRecord(existing, input), input);
 }
 
 function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
@@ -1968,6 +2419,40 @@ function syncProductInventorySummary(productId: string): ProductRecord | null {
     ...structuredClone(existingProduct),
     updatedAt: makeSyntheticTimestamp(),
     totalInventory: sumVariantInventory(effectiveVariants),
+    tracksInventory: deriveTracksInventory(effectiveVariants),
+  };
+
+  store.stageUpdateProduct(nextProduct);
+  return store.getEffectiveProductById(productId);
+}
+
+function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number | null {
+  const quantities = variants
+    .filter((variant) => variant.inventoryItem?.tracked !== false)
+    .map((variant) => variant.inventoryQuantity)
+    .filter((inventoryQuantity): inventoryQuantity is number => typeof inventoryQuantity === 'number');
+
+  if (quantities.length === 0) {
+    return null;
+  }
+
+  return quantities.reduce((total, quantity) => total + quantity, 0);
+}
+
+function syncProductSetInventorySummary(
+  productId: string,
+  previousProduct: ProductRecord | null,
+): ProductRecord | null {
+  const existingProduct = store.getEffectiveProductById(productId);
+  if (!existingProduct) {
+    return null;
+  }
+
+  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const nextProduct: ProductRecord = {
+    ...structuredClone(existingProduct),
+    updatedAt: makeSyntheticTimestamp(),
+    totalInventory: previousProduct ? previousProduct.totalInventory : sumProductSetCreateInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
@@ -3282,7 +3767,7 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
       return existing
-        ? updateVariantRecord(existing, normalized)
+        ? updateProductSetVariantRecord(existing, normalized)
         : makeCreatedProductSetVariantRecord(productId, normalized);
     });
 }
@@ -7029,7 +7514,7 @@ export function handleProductMutation(
         );
       }
 
-      const product = syncProductInventorySummary(productId) ?? store.getEffectiveProductById(productId);
+      const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {
@@ -7426,7 +7911,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
             },
           },
         };
@@ -7500,6 +7985,23 @@ export function handleProductMutation(
       }
 
       const optionInput = readProductInput(args['option']);
+      const rawOptionId = optionInput['id'];
+      if (typeof rawOptionId === 'string') {
+        const optionExists = store
+          .getEffectiveOptionsByProductId(productId)
+          .some((option) => option.id === rawOptionId && option.productId === productId);
+        if (!optionExists) {
+          return {
+            data: {
+              [responseKey]: {
+                product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+                userErrors: [{ field: ['option'], message: 'Option does not exist' }],
+              },
+            },
+          };
+        }
+      }
+
       const updateResult = updateOptionRecords(
         productId,
         store.getEffectiveOptionsByProductId(productId),
@@ -7566,6 +8068,32 @@ export function handleProductMutation(
 
       const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
       const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const optionIds = Array.isArray(args['options'])
+        ? args['options'].filter((value): value is string => typeof value === 'string')
+        : [];
+      const existingOptionIds = new Set(effectiveOptions.map((option) => option.id));
+      const unknownOptionErrors = optionIds
+        .map((optionId, index) =>
+          existingOptionIds.has(optionId)
+            ? null
+            : {
+                field: ['options', String(index)],
+                message: 'Option does not exist',
+              },
+        )
+        .filter((userError): userError is { field: string[]; message: string } => userError !== null);
+      if (unknownOptionErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedOptionsIds: [],
+              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              userErrors: unknownOptionErrors,
+            },
+          },
+        };
+      }
+
       const deleteResult = deleteOptionRecords(productId, effectiveOptions, args['options']);
       let nextOptions = deleteResult.options;
       let nextVariants = effectiveVariants;
@@ -7823,9 +8351,68 @@ export function handleProductMutation(
         },
       };
     }
+    case 'productReorderMedia': {
+      const rawProductId = args['id'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              mediaUserErrors: [{ field: ['id'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductMedia(productId, args['moves']);
+      return {
+        data: {
+          [responseKey]: {
+            job: result.job
+              ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            mediaUserErrors: result.userErrors,
+          },
+        },
+      };
+    }
     case 'productCreateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
+      const mediaInput = Array.isArray(args['media']) ? args['media'] : [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const rawMediaContentType = media['mediaContentType'];
+        if (typeof rawMediaContentType === 'string' && !CREATE_MEDIA_CONTENT_TYPES.has(rawMediaContentType)) {
+          return buildInvalidProductMediaContentTypeVariableError(
+            mediaInput,
+            mediaIndex,
+            rawMediaContentType,
+            document,
+          );
+        }
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7842,27 +8429,40 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('create'),
           },
         };
       }
 
       const existingMedia = store.getEffectiveMediaByProductId(productId);
-      const createdMedia = (Array.isArray(args['media']) ? args['media'] : [])
-        .filter((media): media is Record<string, unknown> => isObject(media))
-        .map((media, index) => makeCreatedMediaRecord(productId, media, existingMedia.length + index));
+      const createdMedia: ProductMediaRecord[] = [];
+      const mediaUserErrors: Array<{ field: string[]; message: string }> = [];
+      for (const [mediaIndex, media] of mediaInput.entries()) {
+        if (!isObject(media)) {
+          continue;
+        }
+
+        const mediaContentType = typeof media['mediaContentType'] === 'string' ? media['mediaContentType'] : 'IMAGE';
+        if (mediaContentType === 'IMAGE' && !isValidMediaSource(media['originalSource'])) {
+          mediaUserErrors.push({
+            field: ['media', `${mediaIndex}`, 'originalSource'],
+            message: 'Image URL is invalid',
+          });
+          continue;
+        }
+
+        createdMedia.push(makeCreatedMediaRecord(productId, media, existingMedia.length + createdMedia.length));
+      }
       const nextMedia = [...existingMedia, ...createdMedia];
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, nextMedia);
+      }
 
       const response = {
         data: {
           [responseKey]: {
             media: serializeMediaPayload(createdMedia, getChildField(field, 'media')),
-            mediaUserErrors: [],
+            mediaUserErrors,
             product: serializeProduct(
               store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
@@ -7872,16 +8472,22 @@ export function handleProductMutation(
         },
       };
 
-      store.replaceStagedMediaForProduct(productId, [
-        ...existingMedia,
-        ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
-      ]);
+      if (createdMedia.length > 0) {
+        store.replaceStagedMediaForProduct(productId, [
+          ...existingMedia,
+          ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
+        ]);
+      }
 
       return response;
     }
     case 'productUpdateMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7897,10 +8503,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('update'),
           },
         };
       }
@@ -7913,11 +8516,16 @@ export function handleProductMutation(
         (media) => typeof media['id'] !== 'string' || !effectiveMedia.some((candidate) => candidate.id === media['id']),
       );
       if (missingMediaId) {
+        const rawMediaId = missingMediaId['id'];
+        const mediaUserError =
+          typeof rawMediaId === 'string'
+            ? { field: ['media'], message: `Media id ${rawMediaId} does not exist` }
+            : { field: ['media', 'id'], message: 'Media id is required' };
         return {
           data: {
             [responseKey]: {
-              media: [],
-              mediaUserErrors: [{ field: ['media', 'id'], message: 'Media id is required' }],
+              media: typeof rawMediaId === 'string' ? null : [],
+              mediaUserErrors: [mediaUserError],
             },
           },
         };
@@ -7969,6 +8577,10 @@ export function handleProductMutation(
     case 'productDeleteMedia': {
       const rawProductId = args['productId'];
       const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (productId === '') {
+        return buildInvalidProductMediaProductIdVariableError(productId, document);
+      }
+
       if (!productId) {
         return {
           data: {
@@ -7986,12 +8598,7 @@ export function handleProductMutation(
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: {
-              deletedMediaIds: [],
-              deletedProductImageIds: [],
-              mediaUserErrors: [{ field: ['productId'], message: 'Product not found' }],
-              product: null,
-            },
+            [responseKey]: mediaValidationProductNotFoundPayload('delete'),
           },
         };
       }
@@ -8000,6 +8607,26 @@ export function handleProductMutation(
         ? args['mediaIds'].filter((mediaId): mediaId is string => typeof mediaId === 'string')
         : [];
       const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+      const unknownMediaId = mediaIds.find(
+        (mediaId) => !effectiveMedia.some((mediaRecord) => mediaRecord.id === mediaId),
+      );
+      if (unknownMediaId) {
+        return {
+          data: {
+            [responseKey]: {
+              deletedMediaIds: null,
+              deletedProductImageIds: null,
+              mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
+              product: serializeProduct(
+                store.getEffectiveProductById(productId),
+                getChildField(field, 'product'),
+                variables,
+              ),
+            },
+          },
+        };
+      }
+
       const deletedMedia = effectiveMedia.filter(
         (mediaRecord) => typeof mediaRecord.id === 'string' && mediaIds.includes(mediaRecord.id),
       );
@@ -8748,6 +9375,42 @@ export function handleProductMutation(
           [responseKey]: {
             product: serializeProduct(product, getChildField(field, 'product'), variables),
             userErrors: [],
+          },
+        },
+      };
+    }
+    case 'productVariantsBulkReorder': {
+      const rawProductId = args['productId'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const result = reorderProductVariants(productId, args['positions']);
+      return {
+        data: {
+          [responseKey]: {
+            product: serializeProduct(result.product, getChildField(field, 'product'), variables),
+            userErrors: result.userErrors,
           },
         },
       };

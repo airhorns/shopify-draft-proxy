@@ -170,6 +170,20 @@ const defaultAddressMutation = `#graphql
   }
 `;
 
+const customerSetMutation = `#graphql
+  mutation CustomerAddressCustomerSet($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+    customerSet(identifier: $identifier, input: $input) {
+      customer {
+        ${customerSlice}
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const downstreamReadQuery = `#graphql
   query CustomerAddressLifecycleDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!) {
     customer(id: $id) {
@@ -190,6 +204,13 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+function summarizeAddressAttempt(result) {
+  return {
+    status: result.status,
+    response: result.payload,
+  };
+}
+
 const deleteCustomerMutation = `#graphql
   mutation CustomerAddressLifecycleDeleteCustomer($input: CustomerDeleteInput!) {
     customerDelete(input: $input) {
@@ -208,6 +229,7 @@ async function main() {
   const stamp = Date.now();
   const email = `hermes-address-${stamp}@example.com`;
   let createdCustomerId = null;
+  const cleanupCustomerIds = new Set();
 
   try {
     const createCustomerVariables = {
@@ -224,6 +246,7 @@ async function main() {
     if (typeof createdCustomerId !== 'string' || !createdCustomerId) {
       throw new Error(`customerCreate did not return id: ${JSON.stringify(createCustomer.payload, null, 2)}`);
     }
+    cleanupCustomerIds.add(createdCustomerId);
 
     const createFirstAddressVariables = {
       customerId: createdCustomerId,
@@ -303,6 +326,41 @@ async function main() {
     const downstreamRead = await runGraphql(downstreamReadQuery, downstreamReadVariables);
     assertNoTopLevelErrors(downstreamRead, 'customer address downstream read');
 
+    const createThirdAddressVariables = {
+      customerId: createdCustomerId,
+      address: {
+        address1: '3 Null Default St',
+        city: 'Vancouver',
+        countryCode: 'CA',
+        provinceCode: 'BC',
+        zip: 'V6B 1A1',
+      },
+    };
+    const createThirdAddress = await runGraphql(createAddressMutation, createThirdAddressVariables);
+    assertNoTopLevelErrors(createThirdAddress, 'customerAddressCreate setAsDefault omitted');
+    const thirdAddressId = createThirdAddress.payload?.data?.customerAddressCreate?.address?.id;
+
+    const createDuplicateAddressVariables = {
+      customerId: createdCustomerId,
+      address: createThirdAddressVariables.address,
+      setAsDefault: false,
+    };
+    const createDuplicateAddress = await runGraphql(createAddressMutation, createDuplicateAddressVariables);
+    assertNoTopLevelErrors(createDuplicateAddress, 'customerAddressCreate duplicate');
+
+    const orderingRead = await runGraphql(downstreamReadQuery, downstreamReadVariables);
+    assertNoTopLevelErrors(orderingRead, 'customer address ordering read');
+
+    const deleteDefaultAddressVariables = {
+      customerId: createdCustomerId,
+      addressId: secondAddressId,
+    };
+    const deleteDefaultAddress = await runGraphql(deleteAddressMutation, deleteDefaultAddressVariables);
+    assertNoTopLevelErrors(deleteDefaultAddress, 'customerAddressDelete default address');
+
+    const deleteDefaultRead = await runGraphql(downstreamReadQuery, downstreamReadVariables);
+    assertNoTopLevelErrors(deleteDefaultRead, 'customer address delete-default downstream read');
+
     const unknownCustomerVariables = {
       customerId: 'gid://shopify/Customer/999999999999999',
       address: createFirstAddressVariables.address,
@@ -331,6 +389,236 @@ async function main() {
       addressId: 'gid://shopify/MailingAddress/999999999999999',
     });
     assertHttpOk(unknownAddressDelete, 'customerAddressDelete unknown address validation');
+
+    const validationEmail = `hermes-address-validation-${stamp}@example.com`;
+    const createValidationCustomerVariables = {
+      input: {
+        email: validationEmail,
+        firstName: 'Hermes',
+        lastName: 'AddressValidation',
+      },
+    };
+    const createValidationCustomer = await runGraphql(createCustomerMutation, createValidationCustomerVariables);
+    assertNoTopLevelErrors(createValidationCustomer, 'customerCreate for address validations');
+    const validationCustomerId = createValidationCustomer.payload?.data?.customerCreate?.customer?.id;
+    if (typeof validationCustomerId !== 'string' || !validationCustomerId) {
+      throw new Error(
+        `validation customerCreate did not return id: ${JSON.stringify(createValidationCustomer.payload, null, 2)}`,
+      );
+    }
+    cleanupCustomerIds.add(validationCustomerId);
+
+    const crossOwnerEmail = `hermes-address-cross-owner-${stamp}@example.com`;
+    const createCrossOwnerCustomerVariables = {
+      input: {
+        email: crossOwnerEmail,
+        firstName: 'Hermes',
+        lastName: 'AddressCrossOwner',
+      },
+    };
+    const createCrossOwnerCustomer = await runGraphql(createCustomerMutation, createCrossOwnerCustomerVariables);
+    assertNoTopLevelErrors(createCrossOwnerCustomer, 'customerCreate for cross-owner address');
+    const crossOwnerCustomerId = createCrossOwnerCustomer.payload?.data?.customerCreate?.customer?.id;
+    if (typeof crossOwnerCustomerId !== 'string' || !crossOwnerCustomerId) {
+      throw new Error(
+        `cross-owner customerCreate did not return id: ${JSON.stringify(createCrossOwnerCustomer.payload, null, 2)}`,
+      );
+    }
+    cleanupCustomerIds.add(crossOwnerCustomerId);
+
+    const crossOwnerAddressVariables = {
+      customerId: crossOwnerCustomerId,
+      address: {
+        address1: '4 Cross Owner St',
+        city: 'Ottawa',
+        countryCode: 'CA',
+        provinceCode: 'ON',
+        zip: 'K1A 0B1',
+      },
+      setAsDefault: true,
+    };
+    const crossOwnerAddress = await runGraphql(createAddressMutation, crossOwnerAddressVariables);
+    assertNoTopLevelErrors(crossOwnerAddress, 'customerAddressCreate cross-owner source');
+    const crossOwnerAddressId = crossOwnerAddress.payload?.data?.customerAddressCreate?.address?.id;
+    if (typeof crossOwnerAddressId !== 'string' || !crossOwnerAddressId) {
+      throw new Error(
+        `cross-owner address create did not return id: ${JSON.stringify(crossOwnerAddress.payload, null, 2)}`,
+      );
+    }
+
+    const blankAddressCreateVariables = {
+      customerId: validationCustomerId,
+      address: {},
+      setAsDefault: true,
+    };
+    const blankAddressCreate = await runGraphql(createAddressMutation, blankAddressCreateVariables);
+
+    const blankStringAddressCreateVariables = {
+      customerId: validationCustomerId,
+      address: {
+        firstName: '',
+        lastName: '',
+        address1: '',
+        city: '',
+        countryCode: 'CA',
+        provinceCode: '',
+        zip: '',
+      },
+      setAsDefault: false,
+    };
+    const blankStringAddressCreate = await runGraphql(createAddressMutation, blankStringAddressCreateVariables);
+
+    const invalidProvinceCreateVariables = {
+      customerId: validationCustomerId,
+      address: {
+        address1: '5 Invalid Province St',
+        city: 'Ottawa',
+        countryCode: 'CA',
+        provinceCode: 'ZZ',
+        zip: 'K1A 0B1',
+      },
+      setAsDefault: false,
+    };
+    const invalidProvinceCreate = await runGraphql(createAddressMutation, invalidProvinceCreateVariables);
+
+    const invalidCountryCreateVariables = {
+      customerId: validationCustomerId,
+      address: {
+        address1: '6 Invalid Country St',
+        city: 'Nowhere',
+        countryCode: 'ZZ',
+        provinceCode: 'ZZ',
+        zip: '00000',
+      },
+      setAsDefault: false,
+    };
+    const invalidCountryCreate = await runGraphql(createAddressMutation, invalidCountryCreateVariables);
+
+    const invalidPostalCreateVariables = {
+      customerId: validationCustomerId,
+      address: {
+        address1: '7 Postal St',
+        city: 'Ottawa',
+        countryCode: 'CA',
+        provinceCode: 'ON',
+        zip: 'not-a-postal-code',
+      },
+      setAsDefault: false,
+    };
+    const invalidPostalCreate = await runGraphql(createAddressMutation, invalidPostalCreateVariables);
+
+    const crossCustomerUpdate = await runGraphql(updateAddressMutation, {
+      customerId: validationCustomerId,
+      addressId: crossOwnerAddressId,
+      address: { city: 'Cross Customer' },
+      setAsDefault: false,
+    });
+    const crossCustomerDefault = await runGraphql(defaultAddressMutation, {
+      customerId: validationCustomerId,
+      addressId: crossOwnerAddressId,
+    });
+    const crossCustomerDelete = await runGraphql(deleteAddressMutation, {
+      customerId: validationCustomerId,
+      addressId: crossOwnerAddressId,
+    });
+
+    const customerSetValidAddressesVariables = {
+      identifier: { id: validationCustomerId },
+      input: {
+        email: validationEmail,
+        addresses: [
+          {
+            address1: '8 CustomerSet St',
+            city: 'Toronto',
+            countryCode: 'CA',
+            provinceCode: 'ON',
+            zip: 'M5H 2N2',
+          },
+          {
+            address1: '8 CustomerSet St',
+            city: 'Toronto',
+            countryCode: 'CA',
+            provinceCode: 'ON',
+            zip: 'M5H 2N2',
+          },
+        ],
+      },
+    };
+    const customerSetValidAddresses = await runGraphql(customerSetMutation, customerSetValidAddressesVariables);
+    assertHttpOk(customerSetValidAddresses, 'customerSet duplicate address replacement');
+
+    const customerSetBlankAddressesVariables = {
+      identifier: { id: validationCustomerId },
+      input: {
+        email: validationEmail,
+        addresses: [{}],
+      },
+    };
+    const customerSetBlankAddresses = await runGraphql(customerSetMutation, customerSetBlankAddressesVariables);
+    assertHttpOk(customerSetBlankAddresses, 'customerSet blank address replacement');
+
+    const maximumCustomerEmail = `hermes-address-maximum-${stamp}@example.com`;
+    const createMaximumCustomerVariables = {
+      input: {
+        email: maximumCustomerEmail,
+        firstName: 'Hermes',
+        lastName: 'AddressMaximum',
+      },
+    };
+    const createMaximumCustomer = await runGraphql(createCustomerMutation, createMaximumCustomerVariables);
+    assertNoTopLevelErrors(createMaximumCustomer, 'customerCreate for maximum address probe');
+    const maximumCustomerId = createMaximumCustomer.payload?.data?.customerCreate?.customer?.id;
+    if (typeof maximumCustomerId !== 'string' || !maximumCustomerId) {
+      throw new Error(
+        `maximum customerCreate did not return id: ${JSON.stringify(createMaximumCustomer.payload, null, 2)}`,
+      );
+    }
+    cleanupCustomerIds.add(maximumCustomerId);
+
+    const maximumAddressProbe = {
+      attempted: 0,
+      successCount: 0,
+      firstFailure: null,
+      lastSuccess: null,
+    };
+    for (let index = 0; index < 105; index += 1) {
+      const maximumAddressVariables = {
+        customerId: maximumCustomerId,
+        address: {
+          address1: `${index} Maximum Address St`,
+          city: 'Ottawa',
+          countryCode: 'CA',
+          provinceCode: 'ON',
+          zip: 'K1A 0B1',
+        },
+        setAsDefault: index === 0,
+      };
+      const maximumAddressCreate = await runGraphql(createAddressMutation, maximumAddressVariables);
+      maximumAddressProbe.attempted += 1;
+      const userErrors = maximumAddressCreate.payload?.data?.customerAddressCreate?.userErrors ?? [];
+      if (
+        maximumAddressCreate.status >= 200 &&
+        maximumAddressCreate.status < 300 &&
+        !maximumAddressCreate.payload?.errors &&
+        Array.isArray(userErrors) &&
+        userErrors.length === 0
+      ) {
+        maximumAddressProbe.successCount += 1;
+        maximumAddressProbe.lastSuccess = {
+          index,
+          response: maximumAddressCreate.payload,
+        };
+        continue;
+      }
+
+      maximumAddressProbe.firstFailure = {
+        index,
+        variables: maximumAddressVariables,
+        status: maximumAddressCreate.status,
+        response: maximumAddressCreate.payload,
+      };
+      break;
+    }
 
     const result = {
       capturedAt: new Date().toISOString(),
@@ -364,6 +652,27 @@ async function main() {
         variables: downstreamReadVariables,
         response: downstreamRead.payload,
       },
+      createThirdAddressOmittedSetAsDefault: {
+        variables: createThirdAddressVariables,
+        response: createThirdAddress.payload,
+        createdAddressId: thirdAddressId,
+      },
+      createDuplicateAddress: {
+        variables: createDuplicateAddressVariables,
+        response: createDuplicateAddress.payload,
+      },
+      orderingRead: {
+        variables: downstreamReadVariables,
+        response: orderingRead.payload,
+      },
+      deleteDefaultAddress: {
+        variables: deleteDefaultAddressVariables,
+        response: deleteDefaultAddress.payload,
+      },
+      deleteDefaultRead: {
+        variables: downstreamReadVariables,
+        response: deleteDefaultRead.payload,
+      },
       validations: {
         unknownCustomerCreate: {
           variables: unknownCustomerVariables,
@@ -387,6 +696,58 @@ async function main() {
           },
           response: unknownAddressDelete.payload,
         },
+        blankAddressCreate: {
+          variables: blankAddressCreateVariables,
+          ...summarizeAddressAttempt(blankAddressCreate),
+        },
+        blankStringAddressCreate: {
+          variables: blankStringAddressCreateVariables,
+          ...summarizeAddressAttempt(blankStringAddressCreate),
+        },
+        invalidProvinceCreate: {
+          variables: invalidProvinceCreateVariables,
+          ...summarizeAddressAttempt(invalidProvinceCreate),
+        },
+        invalidCountryCreate: {
+          variables: invalidCountryCreateVariables,
+          ...summarizeAddressAttempt(invalidCountryCreate),
+        },
+        invalidPostalCreate: {
+          variables: invalidPostalCreateVariables,
+          ...summarizeAddressAttempt(invalidPostalCreate),
+        },
+        crossCustomerUpdate: {
+          variables: {
+            customerId: validationCustomerId,
+            addressId: crossOwnerAddressId,
+            address: { city: 'Cross Customer' },
+            setAsDefault: false,
+          },
+          ...summarizeAddressAttempt(crossCustomerUpdate),
+        },
+        crossCustomerDefault: {
+          variables: {
+            customerId: validationCustomerId,
+            addressId: crossOwnerAddressId,
+          },
+          ...summarizeAddressAttempt(crossCustomerDefault),
+        },
+        crossCustomerDelete: {
+          variables: {
+            customerId: validationCustomerId,
+            addressId: crossOwnerAddressId,
+          },
+          ...summarizeAddressAttempt(crossCustomerDelete),
+        },
+        customerSetValidAddresses: {
+          variables: customerSetValidAddressesVariables,
+          ...summarizeAddressAttempt(customerSetValidAddresses),
+        },
+        customerSetBlankAddresses: {
+          variables: customerSetBlankAddressesVariables,
+          ...summarizeAddressAttempt(customerSetBlankAddresses),
+        },
+        maximumAddressProbe,
       },
     };
 
@@ -395,9 +756,12 @@ async function main() {
     console.log(`Wrote ${outputPath}`);
   } finally {
     if (createdCustomerId) {
-      const cleanup = await runGraphql(deleteCustomerMutation, { input: { id: createdCustomerId } });
+      cleanupCustomerIds.add(createdCustomerId);
+    }
+    for (const customerId of cleanupCustomerIds) {
+      const cleanup = await runGraphql(deleteCustomerMutation, { input: { id: customerId } });
       if (cleanup.status < 200 || cleanup.status >= 300 || cleanup.payload?.errors) {
-        console.error(`Customer cleanup failed: ${JSON.stringify(cleanup, null, 2)}`);
+        console.error(`Customer cleanup failed for ${customerId}: ${JSON.stringify(cleanup, null, 2)}`);
       }
     }
   }

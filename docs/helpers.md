@@ -8,6 +8,8 @@ Shared helpers for GraphQL Admin proxy serializers.
 
 - `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
 - `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
+- `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.
+- `readPlainObjectArray(value)` filters unknown array values down to plain objects before normalizing nested upstream payloads.
 - `getDocumentFragments(document)` parses reusable fragment definitions from a GraphQL document for serializers that project stored snapshot data through the requested selection set.
 - `readGraphqlDataResponsePayload(payload, responseKey)` reads a root `data` payload by response key, returning `null` for malformed or absent upstream payloads so hydrate paths keep Shopify-like no-data behavior.
 - `projectGraphqlValue(value, selections, fragments, options)` and `projectGraphqlObject(source, selections, fragments, options)` project stored objects, arrays, fragment spreads, inline fragments, aliases, `__typename`, and connection `nodes` fallback behavior through a selected GraphQL shape. Use `options.projectFieldValue` only when a resource needs field-specific projection such as nested connection filtering.
@@ -33,3 +35,13 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
 
 Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
+
+## `src/shopify/upstream-request.ts`
+
+Shared higher-level helpers for forwarding Admin GraphQL requests to upstream Shopify from Koa routes.
+
+- `buildForwardedGraphQLHeaders(ctx)` copies forwardable inbound request headers into the Shopify request, omitting hop-by-hop/framing headers such as `host`, `connection`, `transfer-encoding`, and `content-length`, forcing `content-type: application/json` for the serialized GraphQL body, and setting a proxy-specific `user-agent`.
+- `buildShopifyDraftProxyUserAgent(incomingUserAgent)` returns `shopify-draft-proxy` when no incoming user agent exists, or `shopify-draft-proxy (wrapping <incoming>)` when the client supplied one.
+- `requestUpstreamGraphQL(upstream, ctx, input)` sends a GraphQL request through an `UpstreamGraphQLClient` using the forwarded header policy, the current route path by default, and an explicit body. Pass `path` for replay paths such as `__meta/commit`.
+
+Use this module when a runtime route needs to forward a GraphQL operation to Shopify. Local staging branches should still synthesize responses without runtime Shopify writes; this helper is only for read-through, unsupported passthrough, and explicit commit replay paths.

@@ -33,12 +33,12 @@ Selected scalar detail fields currently include `id`, `legacyResourceId`, `title
 
 Lifecycle mutations stage against the same normalized records:
 
-- `paymentCustomizationCreate(paymentCustomization:)` creates a synthetic local `PaymentCustomization` record with selected metafields when required `title`, `enabled`, and `functionId` values are present.
-- `paymentCustomizationUpdate(id:, paymentCustomization:)` merges scalar/metafield input over an existing normalized record.
+- `paymentCustomizationCreate(paymentCustomization:)` creates a synthetic local `PaymentCustomization` record with selected metafields when required `title`, `enabled`, and a Function identifier are present. The current Admin API uses `functionHandle`; deprecated `functionId` remains accepted for captured 2025-01 parity branches.
+- `paymentCustomizationUpdate(id:, paymentCustomization:)` merges scalar/metafield input over an existing normalized record. Updating either Function identifier clears the other local identifier and does not invent a `shopifyFunction` object.
 - `paymentCustomizationActivation(ids:, enabled:)` toggles `enabled` on existing normalized records and returns the updated ids.
 - `paymentCustomizationDelete(id:)` marks a normalized record deleted so downstream detail reads return `null` and catalog reads omit it.
 
-Captured validation branches are modeled locally for missing create fields, missing Function id `gid://shopify/ShopifyFunction/0`, unknown update/delete ids, unknown activation ids, and empty activation id lists. The current local model does not maintain a full Shopify Function catalog; successful create/update paths preserve the provided `functionId` and return `shopifyFunction` only if that field was present in normalized state.
+Captured validation branches are modeled locally for missing create fields, missing Function id `gid://shopify/ShopifyFunction/0`, unknown update/delete ids, unknown activation ids, and empty activation id lists. The latest 2026-04 docs also expose `functionHandle`, `MULTIPLE_FUNCTION_IDENTIFIERS`, `FUNCTION_NOT_FOUND`, and `INVALID_METAFIELDS`; the local model accepts Function handles, rejects the captured invalid handle sentinels, rejects requests that provide both `functionId` and `functionHandle`, and rejects structurally invalid owner metafields. The current local model does not maintain a full Shopify Function catalog; successful create/update paths preserve the provided Function identifier and return `shopifyFunction` only if that field was present in normalized state.
 
 ## Access Scopes And Capture Notes
 
