@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { store } from '../state/store.js';
@@ -7,6 +7,10 @@ import { serializeConnection } from './graphql-helpers.js';
 
 interface GraphQLResponseError {
   message: string;
+  locations?: Array<{
+    line: number;
+    column: number;
+  }>;
   path: Array<string | number>;
   extensions: {
     code: string;
@@ -271,9 +275,20 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
   return result;
 }
 
-function staffMemberAccessDeniedError(path: string): GraphQLResponseError {
+function fieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
+  if (!field.loc) {
+    return undefined;
+  }
+
+  const location = getLocation(field.loc.source, field.loc.start);
+  return [{ line: location.line, column: location.column }];
+}
+
+function staffMemberAccessDeniedError(field: FieldNode): GraphQLResponseError {
+  const path = responseKey(field);
+  const locations = fieldLocation(field);
   if (path === 'staffMember') {
-    return {
+    const error: GraphQLResponseError = {
       message:
         'Access denied for staffMember field. Required access: `read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.',
       path: [path],
@@ -284,9 +299,13 @@ function staffMemberAccessDeniedError(path: string): GraphQLResponseError {
           '`read_users` access scope. Also: The app must be a finance embedded app or installed on a Shopify Plus or Advanced store. Contact Shopify Support to enable this scope for your app.',
       },
     };
+    if (locations) {
+      error.locations = locations;
+    }
+    return error;
   }
 
-  return {
+  const error: GraphQLResponseError = {
     message: 'Access denied for staffMembers field.',
     path: [path],
     extensions: {
@@ -294,6 +313,10 @@ function staffMemberAccessDeniedError(path: string): GraphQLResponseError {
       documentation: 'https://shopify.dev/api/usage/access-scopes',
     },
   };
+  if (locations) {
+    error.locations = locations;
+  }
+  return error;
 }
 
 function readIdListArgument(field: FieldNode, variables: Record<string, unknown>): string[] {
@@ -343,7 +366,7 @@ export function handleAdminPlatformQuery(
       case 'staffMember':
       case 'staffMembers':
         data[key] = null;
-        context.errors.push(staffMemberAccessDeniedError(field.name.value));
+        context.errors.push(staffMemberAccessDeniedError(field));
         break;
       default:
         data[key] = null;

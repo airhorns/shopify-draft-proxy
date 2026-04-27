@@ -1,3 +1,4 @@
+#graphql
 query StaffUtilityRead {
   staffMember {
     id

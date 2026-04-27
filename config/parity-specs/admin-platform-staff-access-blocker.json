@@ -8,7 +8,7 @@
     "documentPath": "config/parity-requests/admin-platform-staff-access-blocker.graphql"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-315 captured the current conformance credential blocker for staff utility roots: staffMember and staffMembers both return null plus ACCESS_DENIED errors. Authorized staff identity/catalog modeling remains unsupported until a credential with read_users and the required app/store eligibility is available.",
+  "notes": "HAR-315 captured the current conformance credential blocker for staff utility roots: staffMember and staffMembers both return null plus ACCESS_DENIED errors. Authorized staff identity/catalog modeling remains unsupported until a credential with read_users and the required app/store eligibility is available; HAR-335 tracks that follow-up.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -24,16 +24,17 @@
         "capturePath": "$.captures.staffAccessBlocker.result.payload.errors",
         "proxyPath": "$.errors",
         "upstreamCapturePath": null,
-        "selectedPaths": [
-          "$[0].message",
-          "$[0].path",
-          "$[0].extensions.code",
-          "$[0].extensions.documentation",
-          "$[0].extensions.requiredAccess",
-          "$[1].message",
-          "$[1].path",
-          "$[1].extensions.code",
-          "$[1].extensions.documentation"
+        "expectedDifferences": [
+          {
+            "path": "$[0].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The checked-in parity request is repository-formatted while the captured Shopify request carried extra GraphQL indentation; the line, path, message, and access metadata remain strictly compared."
+          },
+          {
+            "path": "$[1].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The checked-in parity request is repository-formatted while the captured Shopify request carried extra GraphQL indentation; the line, path, message, and access metadata remain strictly compared."
+          }
         ]
       }
     ]
