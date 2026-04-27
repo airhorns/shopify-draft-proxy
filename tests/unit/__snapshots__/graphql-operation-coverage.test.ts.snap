@@ -77,9 +77,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "menuCreate",
     "menuDelete",
     "menuUpdate",
-    "metafieldDefinitionCreate",
-    "metafieldDefinitionDelete",
-    "metafieldDefinitionUpdate",
     "metaobjectBulkDelete",
     "metaobjectCreate",
     "metaobjectDelete",
@@ -124,7 +121,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "webPresenceDelete",
   ],
   "unregistered": [
-    "abandonmentUpdateActivitiesDeliveryStatuses",
     "backupRegionUpdate",
     "bulkProductResourceFeedbackCreate",
     "cartTransformCreate",
@@ -283,7 +279,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
 
 exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutations that are not formally supported yet 1`] = `
 [
-  "abandonmentUpdateActivitiesDeliveryStatuses",
   "appPurchaseOneTimeCreate",
   "appRevokeAccessScopes",
   "appSubscriptionCancel",
@@ -411,9 +406,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "menuCreate",
   "menuDelete",
   "menuUpdate",
-  "metafieldDefinitionCreate",
-  "metafieldDefinitionDelete",
-  "metafieldDefinitionUpdate",
   "metaobjectBulkDelete",
   "metaobjectCreate",
   "metaobjectDelete",

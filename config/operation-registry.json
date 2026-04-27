@@ -2281,30 +2281,30 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Do not proxy as supported until metafield-definition state, validation, and affected value migration semantics are modeled."
+    "supportNotes": "Locally stages product-owner metafield definition creation from MetafieldDefinitionInput, including normalized definition state, selected validation/access/capability fields, optional pinning, downstream read visibility, and mutation-log preservation without runtime Shopify writes."
   },
   {
     "name": "metafieldDefinitionUpdate",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires immutable identity checks and validation job semantics before support."
+    "supportNotes": "Locally stages product-owner metafield definition updates for existing normalized definitions. Type, namespace, key, and owner type remain immutable; selected name, description, validations, access, and capability fields update downstream reads."
   },
   {
     "name": "metafieldDefinitionDelete",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires deleteAllAssociatedMetafields behavior and asynchronous associated-value deletion semantics before support."
+    "supportNotes": "Locally stages product-owner metafield definition deletion by id or identifier. The local tombstone hides base/staged definitions from downstream reads; deleteAllAssociatedMetafields conservatively removes matching product-owned metafields only."
   },
   {
     "name": "metafieldDefinitionPin",
@@ -2572,6 +2572,46 @@
     "implemented": true,
     "matchNames": ["ordersCount", "OrdersCount"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "abandonedCheckouts",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckouts", "AbandonedCheckouts"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data."
+  },
+  {
+    "name": "abandonedCheckoutsCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including limit-based AT_LEAST precision for local seeded records."
+  },
+  {
+    "name": "abandonment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonment", "Abandonment"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local detail reads return null for missing ids and project seeded Abandonment records, including the linked abandonedCheckoutPayload when the seeded record references a local abandoned checkout."
+  },
+  {
+    "name": "abandonmentByAbandonedCheckoutId",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonmentByAbandonedCheckoutId", "AbandonmentByAbandonedCheckoutId"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local lookup reads return null for missing abandoned checkout ids and resolve seeded abandonment records by abandonedCheckoutId."
   },
   {
     "name": "orderUpdate",
@@ -3357,6 +3397,16 @@
     "implemented": true,
     "matchNames": ["orderCreate", "OrderCreate"],
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "abandonmentUpdateActivitiesDeliveryStatuses",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["abandonmentUpdateActivitiesDeliveryStatuses", "AbandonmentUpdateActivitiesDeliveryStatuses"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records update the in-memory delivery activity map and selected abandonment payload without sending runtime writes to Shopify."
   },
   {
     "name": "refundCreate",

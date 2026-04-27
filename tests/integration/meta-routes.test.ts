@@ -102,6 +102,7 @@ const emptySnapshot = {
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
@@ -109,6 +110,10 @@ const emptySnapshot = {
   orders: {},
   draftOrders: {},
   calculatedOrders: {},
+  abandonedCheckouts: {},
+  abandonedCheckoutOrder: [],
+  abandonments: {},
+  abandonmentOrder: [],
 };
 
 describe('meta routes', () => {
