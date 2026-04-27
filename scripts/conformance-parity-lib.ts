@@ -4138,6 +4138,38 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
   ]);
 }
 
+function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): boolean {
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const seedProductId = readStringField(seed, 'productId');
+  const setupProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(seed, 'setupOptionsResponse'), 'data'), 'productOptionsCreate'),
+    'product',
+  );
+  const firstCase = readArrayField(capture as Record<string, unknown>, 'cases').find(isPlainObject) ?? null;
+  const beforeProduct = readRecordField(readRecordField(firstCase, 'before'), 'product');
+  const productId = seedProductId ?? readStringField(setupProduct, 'id') ?? readStringField(beforeProduct, 'id');
+
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const productSource = beforeProduct ?? setupProduct;
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
+
+  const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
+  const options = readCapturedProductOptions(productId, optionsSource);
+  if (options.length > 0) {
+    store.replaceBaseOptionsForProduct(productId, options);
+  }
+
+  const variants = readCapturedProductVariants(productId, beforeProduct ?? setupProduct);
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
+}
+
 function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
   const collectionMemberships: ProductCollectionRecord[] = [];
   for (const [position, node] of productNodes.filter(isPlainObject).entries()) {
@@ -5147,6 +5179,10 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
 }
 
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
+  if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
+    return;
+  }
+
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
     const productId = readStringField(seedProduct, 'id');
