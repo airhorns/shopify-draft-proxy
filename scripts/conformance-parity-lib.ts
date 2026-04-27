@@ -205,6 +205,7 @@ const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
 ]);
+const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1220,6 +1221,34 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handlePaymentMutation(document, variables),
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'payments' &&
+    parsed.rootFields.some((rootField) => ORDER_PAYMENT_MUTATION_ROOTS.has(rootField))
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Order-payment parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
     };
   }
 
@@ -6486,6 +6515,12 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (seedDiscountCatalogPreconditions(capture)) {
     return;
+  }
+
+  const explicitSeedOrder = readRecordField(capture as Record<string, unknown>, 'seedOrder');
+  const explicitSeedOrderId = readStringField(explicitSeedOrder, 'id');
+  if (explicitSeedOrder && explicitSeedOrderId) {
+    store.upsertBaseOrders([makeSeedOrder(explicitSeedOrderId, explicitSeedOrder)]);
   }
 
   const readOrderPayload =

@@ -1,0 +1,78 @@
+{
+  "scenarioId": "order-payment-mandate-local-staging",
+  "operationNames": ["orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "idempotency"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/order-payment-transaction-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/order-payment-transaction-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/order-payment-create-local-staging.graphql",
+    "variablesCapturePath": "$.mandateFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mandate-payment-stages-paid-order",
+        "capturePath": "$.mandateFlow.expected.mandate",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.orderCreateMandatePayment.job.done",
+          "$.data.orderCreateMandatePayment.order.displayFinancialStatus",
+          "$.data.orderCreateMandatePayment.order.capturable",
+          "$.data.orderCreateMandatePayment.order.totalCapturable",
+          "$.data.orderCreateMandatePayment.order.totalOutstandingSet",
+          "$.data.orderCreateMandatePayment.order.totalReceivedSet",
+          "$.data.orderCreateMandatePayment.order.paymentGatewayNames",
+          "$.data.orderCreateMandatePayment.order.transactions[0].kind",
+          "$.data.orderCreateMandatePayment.order.transactions[0].status",
+          "$.data.orderCreateMandatePayment.order.transactions[0].gateway",
+          "$.data.orderCreateMandatePayment.order.transactions[0].amountSet",
+          "$.data.orderCreateMandatePayment.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-mandate-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": {
+              "amount": "25.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      {
+        "name": "mandate-payment-repeat-is-idempotent",
+        "capturePath": "$.mandateFlow.expected.repeatMandate",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.orderCreateMandatePayment.job.done",
+          "$.data.orderCreateMandatePayment.order.displayFinancialStatus",
+          "$.data.orderCreateMandatePayment.order.transactions[0].kind",
+          "$.data.orderCreateMandatePayment.order.transactions[0].status",
+          "$.data.orderCreateMandatePayment.order.transactions[0].gateway",
+          "$.data.orderCreateMandatePayment.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-mandate-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "idempotencyKey": "har-353-idempotent-payment",
+            "amount": {
+              "amount": "25.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable sibling scenario for the successful orderCreateMandatePayment branch. It replays a pending synthetic order, stages a mandate payment locally, and verifies the repeat call with the same idempotency key does not create duplicate payment transactions."
+}

@@ -1,0 +1,20 @@
+query ReturnRead($id: ID!, $orderId: ID!) {
+  return(id: $id) {
+    id
+    status
+    totalQuantity
+    order {
+      id
+    }
+  }
+  order(id: $orderId) {
+    id
+    returns(first: 5) {
+      nodes {
+        id
+        status
+        totalQuantity
+      }
+    }
+  }
+}

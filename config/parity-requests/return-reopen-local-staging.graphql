@@ -1,0 +1,13 @@
+mutation ReturnReopen($id: ID!) {
+  returnReopen(id: $id) {
+    return {
+      id
+      status
+      closedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

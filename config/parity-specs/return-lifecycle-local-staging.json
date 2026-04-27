@@ -4,13 +4,130 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["schema-introspection", "runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/return-lifecycle-local-staging.json",
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json"
   ],
   "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
-  "notes": "HAR-311 captures no-side-effect 2026-04 schema evidence for reverse-logistics roots and enforces the locally supported order-backed return lifecycle slice through the runtime integration test. The generic parity runner does not chain fulfilled-order setup, return creation/request, lifecycle mutations, downstream return(id:), nested Order.returns reads, and meta-log assertions for this multi-step flow.",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/return-create-local-staging.graphql",
+    "variablesCapturePath": "$.returnCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
-  }
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-create-stages-open-return",
+        "capturePath": "$.expected.create",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.returnCreate.return.name",
+          "$.data.returnCreate.return.status",
+          "$.data.returnCreate.return.totalQuantity",
+          "$.data.returnCreate.return.order",
+          "$.data.returnCreate.return.returnLineItems.nodes[0].quantity",
+          "$.data.returnCreate.return.returnLineItems.nodes[0].processedQuantity",
+          "$.data.returnCreate.return.returnLineItems.nodes[0].returnReason",
+          "$.data.returnCreate.return.returnLineItems.nodes[0].returnReasonNote",
+          "$.data.returnCreate.return.returnLineItems.nodes[0].fulfillmentLineItem",
+          "$.data.returnCreate.return.reverseFulfillmentOrders",
+          "$.data.returnCreate.userErrors"
+        ]
+      },
+      {
+        "name": "return-close-stages-closed-status",
+        "capturePath": "$.expected.close",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.returnClose.return.status",
+          "$.data.returnClose.return.closedAt",
+          "$.data.returnClose.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-close-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "return-reopen-clears-closed-at",
+        "capturePath": "$.expected.reopen",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.returnReopen.return.status",
+          "$.data.returnReopen.return.closedAt",
+          "$.data.returnReopen.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-reopen-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "return-cancel-stages-canceled-status",
+        "capturePath": "$.expected.cancel",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data.returnCancel.return.status", "$.data.returnCancel.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-cancel-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "return-downstream-read-after-cancel",
+        "capturePath": "$.expected.readAfterCancel",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.return.status",
+          "$.data.return.totalQuantity",
+          "$.data.return.order",
+          "$.data.order.id",
+          "$.data.order.returns.nodes[0].status",
+          "$.data.order.returns.nodes[0].totalQuantity"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-read-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "orderId": "gid://shopify/Order/return-flow"
+          }
+        }
+      },
+      {
+        "name": "return-request-stages-requested-return",
+        "capturePath": "$.expected.request",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data.returnRequest.return.status", "$.data.returnRequest.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-request-local-staging.graphql",
+          "variablesCapturePath": "$.returnRequest.variables"
+        }
+      },
+      {
+        "name": "return-create-invalid-fulfillment-line-item",
+        "capturePath": "$.expected.invalidCreate",
+        "proxyPath": "$",
+        "selectedPaths": ["$.data.returnCreate.return", "$.data.returnCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-create-local-staging.graphql",
+          "variablesCapturePath": "$.invalidReturnCreate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Promoted from captured-fixture to executable strict parity for the supported local return lifecycle. The replay seeds a fulfilled order graph from the local-runtime fixture, stages returnCreate, returnClose, returnReopen, returnCancel, downstream return(id:) and Order.returns reads, returnRequest, and a missing fulfillment-line-item validation branch. Live 2026-04 no-side-effect introspection remains linked as schema evidence for reverse-logistics roots, while this generic parity contract now exercises the proxy behavior directly."
 }

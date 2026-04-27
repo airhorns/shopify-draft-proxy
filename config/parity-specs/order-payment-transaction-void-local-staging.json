@@ -1,0 +1,66 @@
+{
+  "scenarioId": "order-payment-transaction-void-local-staging",
+  "operationNames": ["transactionVoid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/order-payment-transaction-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/order-payment-transaction-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/order-payment-create-local-staging.graphql",
+    "variablesCapturePath": "$.voidFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "void-authorization-stages-void-transaction",
+        "capturePath": "$.voidFlow.expected.void",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.transactionVoid.transaction.kind",
+          "$.data.transactionVoid.transaction.status",
+          "$.data.transactionVoid.transaction.gateway",
+          "$.data.transactionVoid.transaction.parentTransaction.kind",
+          "$.data.transactionVoid.transaction.parentTransaction.status",
+          "$.data.transactionVoid.transaction.amountSet",
+          "$.data.transactionVoid.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-void-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "void-downstream-order-read",
+        "capturePath": "$.voidFlow.expected.readAfterVoid",
+        "proxyPath": "$",
+        "selectedPaths": [
+          "$.data.order.displayFinancialStatus",
+          "$.data.order.capturable",
+          "$.data.order.totalCapturable",
+          "$.data.order.totalOutstandingSet",
+          "$.data.order.transactions[0].kind",
+          "$.data.order.transactions[0].status",
+          "$.data.order.transactions[1].kind",
+          "$.data.order.transactions[1].status",
+          "$.data.order.transactions[1].amountSet"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-read-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable sibling scenario for successful transactionVoid, split from the capture scenario because voiding and final capture are mutually exclusive lifecycle branches for the same authorization."
+}

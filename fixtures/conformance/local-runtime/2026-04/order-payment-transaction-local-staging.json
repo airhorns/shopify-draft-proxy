@@ -1,12 +1,423 @@
 {
-  "capturedAt": "2026-04-25T18:42:00.000Z",
-  "source": "local-runtime-vitest",
-  "runtimeTest": "tests/integration/order-payment-transaction-flow.test.ts",
-  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
-  "summary": {
-    "orderCapture": "Stages partial and final captures for a synthetic successful authorization transaction, updates downstream order financial/capturable fields, and keeps original raw capture mutations in the meta log.",
-    "transactionVoid": "Stages a VOID child transaction for an uncaptured synthetic authorization and returns local userErrors for missing or already-voided transactions.",
-    "orderCreateMandatePayment": "Stages a completed synthetic Job, stable paymentReferenceId, and idempotent mandate-payment transaction without contacting a payment gateway."
+  "capturedAt": "2026-04-27T20:00:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "liveGatewaySideEffects": false,
+  "notes": "Gateway-affecting order payment operations are represented by deterministic local-runtime recordings instead of live payment captures. The fixture records the explicit proxy replay contract for supported local orderCapture, transactionVoid, and orderCreateMandatePayment behavior.",
+  "paymentCaptureFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "HAR-353 payment item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "create": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "displayFinancialStatus": "AUTHORIZED",
+              "capturable": true,
+              "totalCapturable": "25.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "overCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": null,
+            "order": {
+              "displayFinancialStatus": "AUTHORIZED",
+              "capturable": true,
+              "totalCapturable": "25.0"
+            },
+            "userErrors": [
+              {
+                "field": ["input", "amount"],
+                "message": "Amount exceeds capturable amount"
+              }
+            ]
+          }
+        }
+      },
+      "firstCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": {
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "order": {
+              "displayFinancialStatus": "PARTIALLY_PAID",
+              "capturable": true,
+              "totalCapturable": "15.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "finalCapture": {
+        "data": {
+          "orderCapture": {
+            "transaction": {
+              "kind": "CAPTURE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterFinal": {
+        "data": {
+          "order": {
+            "displayFinancialStatus": "PAID",
+            "capturable": false,
+            "totalCapturable": "0.0",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": [
+              {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              },
+              {
+                "kind": "CAPTURE",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "10.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              },
+              {
+                "kind": "CAPTURE",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "15.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "voidAfterCapture": {
+        "data": {
+          "transactionVoid": {
+            "transaction": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Transaction has already been captured"
+              }
+            ]
+          }
+        }
+      },
+      "missingMandateIdempotency": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": null,
+            "paymentReferenceId": null,
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0"
+            },
+            "userErrors": [
+              {
+                "field": ["idempotencyKey"],
+                "message": "Idempotency key is required"
+              }
+            ]
+          }
+        }
+      }
+    }
   },
-  "liveGatewaySideEffects": false
+  "voidFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [
+            {
+              "kind": "AUTHORIZATION",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "HAR-353 payment item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "void": {
+        "data": {
+          "transactionVoid": {
+            "transaction": {
+              "kind": "VOID",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "parentTransaction": {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              },
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "readAfterVoid": {
+        "data": {
+          "order": {
+            "displayFinancialStatus": "VOIDED",
+            "capturable": false,
+            "totalCapturable": "0.0",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "transactions": [
+              {
+                "kind": "AUTHORIZATION",
+                "status": "SUCCESS"
+              },
+              {
+                "kind": "VOID",
+                "status": "SUCCESS",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "mandateFlow": {
+    "create": {
+      "variables": {
+        "order": {
+          "currency": "CAD",
+          "transactions": [],
+          "lineItems": [
+            {
+              "title": "HAR-353 mandate item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "25.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "expected": {
+      "mandate": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": {
+              "done": true
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "capturable": false,
+              "totalCapturable": "0.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["mandate"],
+              "transactions": [
+                {
+                  "kind": "MANDATE_PAYMENT",
+                  "status": "SUCCESS",
+                  "gateway": "mandate",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "repeatMandate": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": {
+              "done": true
+            },
+            "order": {
+              "displayFinancialStatus": "PAID",
+              "transactions": [
+                {
+                  "kind": "MANDATE_PAYMENT",
+                  "status": "SUCCESS",
+                  "gateway": "mandate"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  }
 }
