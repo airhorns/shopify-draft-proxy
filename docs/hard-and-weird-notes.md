@@ -2755,6 +2755,7 @@ Captured facts:
 
 Practical rule:
 
+- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe to model as local empty/null overlay behavior and are enforced by `finance-risk-no-data-read`
 - do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
 - do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
 - keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes

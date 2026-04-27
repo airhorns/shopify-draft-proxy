@@ -314,6 +314,26 @@ function serializeEmptyPaymentCustomizationsConnection(field: FieldNode): Record
   return connection;
 }
 
+function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
+  const connection: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+      case 'edges':
+        connection[key] = [];
+        break;
+      case 'pageInfo':
+        connection[key] = serializeEmptyConnectionPageInfo(selection);
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+  return connection;
+}
+
 function requiredPaymentCustomizationInputError(fieldName: string): PaymentCustomizationUserError {
   return {
     field: ['paymentCustomization', fieldName],
@@ -708,6 +728,18 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
                 return customization ? serializePaymentCustomization(customization, field, variables) : null;
               })()
             : null;
+        break;
+      case 'cashTrackingSession':
+      case 'pointOfSaleDevice':
+      case 'dispute':
+      case 'disputeEvidence':
+      case 'shopPayPaymentRequestReceipt':
+        data[key] = null;
+        break;
+      case 'cashTrackingSessions':
+      case 'disputes':
+      case 'shopPayPaymentRequestReceipts':
+        data[key] = serializeEmptyConnectionSelection(field);
         break;
       default:
         data[key] = null;

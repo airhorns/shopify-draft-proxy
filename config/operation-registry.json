@@ -824,20 +824,20 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["cashTrackingSession", "CashTrackingSession"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown CashTrackingSession id; do not synthesize POS cash sessions, balances, staff, or register activity without disposable non-empty evidence."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown CashTrackingSession id; the local overlay mirrors absent-session reads only and must not synthesize POS cash sessions, balances, staff, or register activity without disposable non-empty evidence."
   },
   {
     "name": "cashTrackingSessions",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["cashTrackingSessions", "CashTrackingSessions"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned an empty cashTrackingSessions connection with false pageInfo flags; future support needs a POS cash-tracking state model and must not invent cash drawer records."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty cashTrackingSessions connection with false pageInfo flags; future non-empty support needs a POS cash-tracking state model and must not invent cash drawer records."
   },
   {
     "name": "customerPaymentMethod",
@@ -914,30 +914,30 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["pointOfSaleDevice", "PointOfSaleDevice"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown PointOfSaleDevice id; future support needs captured POS device inventory and must not invent hardware records."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown PointOfSaleDevice id; future non-empty support needs captured POS device inventory and must not invent hardware records."
   },
   {
     "name": "dispute",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["dispute", "Dispute"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown ShopifyPaymentsDispute id; non-empty dispute modeling requires authorized dispute fixtures and must not invent chargeback amounts, reasons, or statuses."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned null for an unknown ShopifyPaymentsDispute id; non-empty dispute modeling requires authorized dispute fixtures and must not invent chargeback amounts, reasons, or statuses."
   },
   {
     "name": "disputes",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["disputes", "Disputes"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-316 finance/risk scaffold only. Captured 2025-01 harry-test-heelo safe probe returned an empty disputes connection while disputeEvidence was denied separately; future support needs authorized non-empty Shopify Payments dispute evidence before local overlay behavior."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "HAR-316 finance/risk no-data support. Captured 2025-01 harry-test-heelo safe probe returned an empty disputes connection while disputeEvidence was denied separately; future non-empty support needs authorized Shopify Payments dispute evidence before local overlay behavior."
   },
   {
     "name": "disputeEvidence",
@@ -954,20 +954,20 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopPayPaymentRequestReceipt", "ShopPayPaymentRequestReceipt"],
-    "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. HAR-316 captured 2025-01 harry-test-heelo unknown-token null behavior; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo unknown-token null behavior; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support."
   },
   {
     "name": "shopPayPaymentRequestReceipts",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopPayPaymentRequestReceipts", "ShopPayPaymentRequestReceipts"],
-    "runtimeTests": [],
-    "supportNotes": "Shop Pay payment request receipt scaffold only. HAR-316 captured 2025-01 harry-test-heelo empty connection behavior with type-only node selections; future capture should avoid creating customer-visible payment requests before local overlay support."
+    "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
+    "supportNotes": "Shop Pay payment request receipt no-data support. HAR-316 captured 2025-01 harry-test-heelo empty connection behavior with type-only node selections; future non-empty capture should avoid creating customer-visible payment requests before broader local overlay support."
   },
   {
     "name": "shopifyPaymentsAccount",
