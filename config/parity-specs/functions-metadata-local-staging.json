@@ -1,0 +1,32 @@
+{
+  "scenarioId": "functions-metadata-local-staging",
+  "operationNames": [
+    "validation",
+    "validations",
+    "validationCreate",
+    "validationUpdate",
+    "validationDelete",
+    "cartTransforms",
+    "cartTransformCreate",
+    "cartTransformDelete",
+    "shopifyFunction",
+    "shopifyFunctions",
+    "taxAppConfigure"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "function-metadata-only"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions-metadata-flow.json"],
+  "runtimeTestFiles": ["tests/integration/functions-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-325 covers Function-backed Admin metadata roots with a committed runtime fixture and integration test rather than executing external Shopify Functions locally. The local proxy stages validation/cart transform/tax app metadata, exposes downstream validation(s), cartTransforms, and shopifyFunction(s) reads, preserves raw mutation request bodies in the meta log, and verifies runtime requests do not hit Shopify. Root availability is backed by the checked-in 2025-01 Admin GraphQL root introspection fixture; live success-path Shopify Function execution remains intentionally out of scope."
+}

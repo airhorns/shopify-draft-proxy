@@ -1,0 +1,35 @@
+{
+  "scenarioId": "functions-metadata-local-staging",
+  "capturedAt": "2026-04-27T17:32:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "summary": "Runtime-test-backed local fixture for HAR-325 Function metadata staging.",
+  "evidence": {
+    "runtimeTest": "tests/integration/functions-flow.test.ts",
+    "rootIntrospectionFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json",
+    "modeledRoots": [
+      "validation",
+      "validations",
+      "validationCreate",
+      "validationUpdate",
+      "validationDelete",
+      "cartTransforms",
+      "cartTransformCreate",
+      "cartTransformDelete",
+      "shopifyFunction",
+      "shopifyFunctions",
+      "taxAppConfigure"
+    ]
+  },
+  "runtimeContract": {
+    "supportedMutationsStageLocally": true,
+    "downstreamReadsReflectStagedMetadata": true,
+    "rawMutationRequestBodiesRemainInMetaLog": true,
+    "externalShopifyFunctionsExecuted": false,
+    "upstreamShopifyFetchesDuringRuntimeFlow": 0
+  },
+  "boundaries": [
+    "Function WASM, checkout cart-transform behavior, validation execution, and tax calculation callbacks are not executed locally.",
+    "Metafield owner records for validation and cart transform resources are not expanded in this increment."
+  ]
+}
