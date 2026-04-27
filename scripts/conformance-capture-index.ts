@@ -13,6 +13,7 @@ const domainSchema = z.enum([
   'discounts',
   'draft-orders',
   'files',
+  'gift-cards',
   'inventory',
   'marketing',
   'markets',
@@ -601,6 +602,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'gift-cards',
+    packageScript: 'conformance:capture-gift-cards',
+    scriptPath: 'scripts/capture-gift-card-conformance.ts',
+    purpose: 'Gift-card read/configuration/count behavior plus create/update/credit/debit/deactivate lifecycle parity.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [`${CAPTURE_ROOT}gift-card-lifecycle.json`, 'config/parity-specs/gift-card-lifecycle.json'],
+    cleanupBehavior:
+      'Creates a disposable gift card, records transaction lifecycle behavior, and deactivates it; notification roots are not executed.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'customers',
     packageScript: 'conformance:capture-customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
@@ -704,6 +721,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-tax-exemption-*.json`],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-validation',
+    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
+    purpose: 'Customer input validation and downstream read parity for create/update/merge/delete behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
+      'config/parity-specs/customerInputValidation-parity.json',
+    ],
+    cleanupBehavior: 'Creates disposable customers, exercises validation branches, and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

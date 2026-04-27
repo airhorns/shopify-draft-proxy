@@ -23,6 +23,7 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import { handleGiftCardMutation, handleGiftCardQuery } from './gift-cards.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import {
   handleLocalizationMutation,
@@ -1536,6 +1537,51 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       setGraphQLResponse(request, 200, webhookSubscriptionMutation.response);
+      return true;
+    },
+  },
+  {
+    name: 'gift-cards',
+    canHandle: (request) => request.capability.domain === 'gift-cards',
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(request, 200, handleGiftCardQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          store.hasGiftCards() || store.hasStagedGiftCards()
+            ? handleGiftCardQuery(request.body.query, request.variables)
+            : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const responseBody = handleGiftCardMutation(request.body.query, request.variables);
+      appendStagedMutationLog(request, {
+        responseBody,
+        notes:
+          request.primaryRootField === 'giftCardSendNotificationToCustomer' ||
+          request.primaryRootField === 'giftCardSendNotificationToRecipient'
+            ? 'Short-circuited locally in the in-memory gift-card draft store; no customer-visible notification is sent at runtime.'
+            : 'Staged locally in the in-memory gift-card draft store.',
+      });
+      setGraphQLResponse(request, 200, responseBody);
       return true;
     },
   },
