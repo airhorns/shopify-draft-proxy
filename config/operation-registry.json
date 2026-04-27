@@ -338,6 +338,349 @@
     "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
   },
   {
+    "name": "companies",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companies", "Companies"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companiesCount",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companiesCount", "CompaniesCount"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "company",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["company", "Company"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyContact",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyContact", "CompanyContact"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyContactRole",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyContactRole", "CompanyContactRole"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyLocation",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyLocation", "CompanyLocation"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyLocations",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyLocations", "CompanyLocations"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companiesDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companiesDelete", "CompaniesDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until local company/contact/location deletion semantics and downstream reads are modeled without runtime Shopify writes."
+  },
+  {
+    "name": "companyAddressDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAddressDelete", "CompanyAddressDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company address mutation scaffold only. Keep unsupported until company location billing/shipping address semantics are modeled locally."
+  },
+  {
+    "name": "companyAssignCustomerAsContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAssignCustomerAsContact", "CompanyAssignCustomerAsContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact assignment scaffold only. Keep unsupported until customer-to-company contact linkage and downstream company/customer reads are modeled locally."
+  },
+  {
+    "name": "companyAssignMainContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAssignMainContact", "CompanyAssignMainContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactAssignRole",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactAssignRole", "CompanyContactAssignRole"],
+    "runtimeTests": [],
+    "supportNotes": "B2B role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactAssignRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactAssignRoles", "CompanyContactAssignRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactCreate", "CompanyContactCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact creation, customer linkage, userErrors, and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactDelete", "CompanyContactDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactRemoveFromCompany",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRemoveFromCompany", "CompanyContactRemoveFromCompany"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact membership mutation scaffold only. Keep unsupported until removing a contact from a company and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyContactRevokeRole",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRevokeRole", "CompanyContactRevokeRole"],
+    "runtimeTests": [],
+    "supportNotes": "B2B role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactRevokeRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactsDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactsDelete", "CompanyContactsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk contact deletion scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactSendWelcomeEmail",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactSendWelcomeEmail", "CompanyContactSendWelcomeEmail"],
+    "runtimeTests": [],
+    "supportNotes": "B2B welcome-email side effect scaffold only. Keep unsupported because local staging cannot faithfully emulate Shopify email delivery side effects."
+  },
+  {
+    "name": "companyContactUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactUpdate", "CompanyContactUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact update semantics, userErrors, and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyCreate", "CompanyCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company creation, default roles/location behavior, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyDelete", "CompanyDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company deletion semantics and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignAddress",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignAddress", "CompanyLocationAssignAddress"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location address mutation scaffold only. Keep unsupported until billing/shipping address assignment and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location role assignment scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignStaffMembers",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignStaffMembers", "CompanyLocationAssignStaffMembers"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location staff assignment scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationCreate", "CompanyLocationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location creation, address/tax defaults, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationDelete", "CompanyLocationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationRemoveStaffMembers",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationRemoveStaffMembers", "CompanyLocationRemoveStaffMembers"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location staff removal scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationRevokeRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location role revocation scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationsDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationsDelete", "CompanyLocationsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk company location deletion scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationTaxSettingsUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationTaxSettingsUpdate", "CompanyLocationTaxSettingsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location tax settings scaffold only. Keep unsupported until tax exemption/registration semantics and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationUpdate", "CompanyLocationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location update semantics, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyRevokeMainContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyRevokeMainContact", "CompanyRevokeMainContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyUpdate", "CompanyUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company update semantics, userErrors, and downstream reads are modeled locally."
+  },
+  {
     "name": "cashManagementLocationSummary",
     "type": "query",
     "domain": "store-properties",
