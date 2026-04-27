@@ -66,6 +66,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Do not limit conformance captures to validation-only branches solely because
   the success path has Shopify side effects. If the store and credentials are
   suitable, capture the success path with explicit setup and cleanup evidence.
+- When a conformance scenario needs store state that does not already exist,
+  create it deliberately in the recorder or setup path, then clean it up. Do
+  not downgrade to capture-only or validation-only evidence just because setup
+  requires extra Admin API calls or realistic test-shop mutations.
 - Do not add tests that only reassert self-evident properties of checked-in
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison
@@ -101,6 +105,10 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   that uses the recording. Recording-only changes are not acceptable evidence,
   even when the fixture was captured from a real store.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
+- For parity comparisons, prefer comparing the whole selected resource payload
+  and carving out explicit volatile paths such as IDs, timestamps, cursors, and
+  throttle metadata. Do not build confidence by allowlisting only the scalar
+  fields the current implementation already matches.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
   tests pass. Opaque Shopify connection cursors are an acceptable expected
@@ -115,6 +123,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package
   scripts. Bare `pnpm` may not be on `PATH` even though the repo is configured
   for pnpm through Corepack.
+- Before adding a resource-local parser, serializer, scalar reader, projection
+  helper, or metafield/search/connection utility, read `docs/helpers.md` and
+  search for an existing shared helper. If a new shared helper is genuinely
+  needed, add it to the shared module and document it in `docs/helpers.md` in
+  the same change.
 - Search implementations must use the shared helpers in
   `src/search-query-parser.ts` for Shopify Admin `query:` parsing, execution,
   AST traversal, term-list guards, and primitive term matching. Endpoint modules
