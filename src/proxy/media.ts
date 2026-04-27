@@ -1,8 +1,9 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
-import { getRootField, getRootFieldArguments } from '../graphql/root-field.js';
+import { getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { FileRecord, ProductMediaRecord } from '../state/types.js';
+import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 
 interface FilesUserError {
   field: string[];
@@ -32,6 +33,10 @@ function readFileUpdateInputs(raw: unknown): Record<string, unknown>[] {
 
 function readFileIdsInput(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((fileId): fileId is string => typeof fileId === 'string') : [];
+}
+
+function readStagedUploadInputs(raw: unknown): Record<string, unknown>[] {
+  return Array.isArray(raw) ? raw.filter((input): input is Record<string, unknown> => isObject(input)) : [];
 }
 
 function readIdListInput(raw: unknown): string[] {
@@ -72,6 +77,10 @@ function makeSyntheticFileId(contentType: string | null): string {
     default:
       return makeSyntheticGid('File');
   }
+}
+
+function makeSyntheticStagedUploadId(index: number): string {
+  return makeSyntheticGid(`StagedUploadTarget${index}`);
 }
 
 function validateFileInput(input: Record<string, unknown>, index: number): FilesUserError[] {
@@ -382,6 +391,10 @@ function serializeFilesUserError(error: FilesUserError, selections: readonly Sel
   return result;
 }
 
+function serializeUserError(error: FilesUserError, selections: readonly SelectionNode[]): Record<string, unknown> {
+  return serializeFilesUserError(error, selections);
+}
+
 function serializeImageSelectionSet(file: FileRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -423,6 +436,23 @@ function inlineFragmentApplies(file: FileRecord, typeName: string): boolean {
   );
 }
 
+function getFileTypename(file: FileRecord): string {
+  switch (file.contentType) {
+    case 'IMAGE':
+      return 'MediaImage';
+    case 'VIDEO':
+      return 'Video';
+    case 'EXTERNAL_VIDEO':
+      return 'ExternalVideo';
+    case 'MODEL_3D':
+      return 'Model3d';
+    case 'FILE':
+      return 'GenericFile';
+    default:
+      return 'File';
+  }
+}
+
 function serializeFileSelectionSet(file: FileRecord, selections: readonly SelectionNode[]): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -442,7 +472,7 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case '__typename':
-        result[key] = file.contentType === 'IMAGE' ? 'MediaImage' : 'File';
+        result[key] = getFileTypename(file);
         break;
       case 'id':
         result[key] = file.id;
@@ -473,6 +503,156 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
   }
 
   return result;
+}
+
+function serializeFilesConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const files = store.listEffectiveFiles();
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(files, field, variables, (file) => file.id);
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (file) => file.id,
+    serializeNode: (file, selection) => serializeFileSelectionSet(file, selection.selectionSet?.selections ?? []),
+  });
+}
+
+function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: () => '',
+    serializeNode: () => null,
+  });
+}
+
+function validateStagedUploadInput(input: Record<string, unknown>, index: number): FilesUserError[] {
+  const errors: FilesUserError[] = [];
+
+  for (const fieldName of ['filename', 'mimeType', 'resource']) {
+    if (typeof input[fieldName] !== 'string' || input[fieldName].length === 0) {
+      errors.push({
+        field: ['input', String(index), fieldName],
+        message: `${fieldName} is required`,
+        code: 'REQUIRED',
+      });
+    }
+  }
+
+  return errors;
+}
+
+function serializeStagedUploadParameters(
+  parametersField: FieldNode | null,
+  parameters: Array<{ name: string; value: string }>,
+): Record<string, string>[] {
+  const selections = parametersField?.selectionSet?.selections ?? [];
+  return parameters.map((parameter) => {
+    const result: Record<string, string> = {};
+    for (const selection of selections) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'name':
+          result[key] = parameter.name;
+          break;
+        case 'value':
+          result[key] = parameter.value;
+          break;
+        default:
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeStagedTarget(
+  target: { url: string; resourceUrl: string; parameters: Array<{ name: string; value: string }> },
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const parametersField =
+    selections.find(
+      (selection): selection is FieldNode => selection.kind === Kind.FIELD && selection.name.value === 'parameters',
+    ) ?? null;
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'url':
+        result[key] = target.url;
+        break;
+      case 'resourceUrl':
+        result[key] = target.resourceUrl;
+        break;
+      case 'parameters':
+        result[key] = serializeStagedUploadParameters(parametersField, target.parameters);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return result;
+}
+
+function makeStagedTarget(
+  input: Record<string, unknown>,
+  index: number,
+): {
+  url: string;
+  resourceUrl: string;
+  parameters: Array<{ name: string; value: string }>;
+} {
+  const id = makeSyntheticStagedUploadId(index);
+  const filename = typeof input['filename'] === 'string' ? input['filename'] : `upload-${index}`;
+  const mimeType = typeof input['mimeType'] === 'string' ? input['mimeType'] : 'application/octet-stream';
+  const resource = typeof input['resource'] === 'string' ? input['resource'] : 'FILE';
+  const method = typeof input['httpMethod'] === 'string' ? input['httpMethod'] : 'POST';
+  const encodedId = encodeURIComponent(id);
+  const encodedFilename = encodeURIComponent(filename);
+
+  return {
+    url: `https://shopify-draft-proxy.local/staged-uploads/${encodedId}`,
+    resourceUrl: `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
+    parameters: [
+      { name: 'key', value: `shopify-draft-proxy/${id}/${filename}` },
+      { name: 'Content-Type', value: mimeType },
+      { name: 'x-shopify-draft-proxy-resource', value: resource },
+      { name: 'x-shopify-draft-proxy-http-method', value: method },
+    ],
+  };
+}
+
+export function handleMediaQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+
+  for (const field of getRootFields(document)) {
+    const responseKey = field.alias?.value ?? field.name.value;
+    switch (field.name.value) {
+      case 'files':
+        data[responseKey] = serializeFilesConnection(field, variables);
+        break;
+      case 'fileSavedSearches':
+        data[responseKey] = serializeEmptyConnection(field);
+        break;
+      default:
+        data[responseKey] = null;
+        break;
+    }
+  }
+
+  return { data };
 }
 
 export function handleMediaMutation(query: string, variables: Record<string, unknown>): Record<string, unknown> {
@@ -592,6 +772,36 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
         data: {
           [responseKey]: {
             deletedFileIds: deletedFileIdsField ? fileIds : undefined,
+            userErrors: [],
+          },
+        },
+      };
+    }
+    case 'stagedUploadsCreate': {
+      const inputs = readStagedUploadInputs(args['input']);
+      const userErrors = inputs.flatMap((input, index) => validateStagedUploadInput(input, index));
+      const stagedTargetsField = getChildField(field, 'stagedTargets');
+      const userErrorsField = getChildField(field, 'userErrors');
+
+      if (userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              stagedTargets: [],
+              userErrors: userErrors.map((error) =>
+                serializeUserError(error, userErrorsField?.selectionSet?.selections ?? []),
+              ),
+            },
+          },
+        };
+      }
+
+      return {
+        data: {
+          [responseKey]: {
+            stagedTargets: inputs.map((input, index) =>
+              serializeStagedTarget(makeStagedTarget(input, index), stagedTargetsField?.selectionSet?.selections ?? []),
+            ),
             userErrors: [],
           },
         },

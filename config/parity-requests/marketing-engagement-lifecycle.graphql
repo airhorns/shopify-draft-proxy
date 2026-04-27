@@ -1,0 +1,154 @@
+mutation MarketingEngagementLifecycle(
+  $activityInput: MarketingActivityCreateExternalInput!
+  $remoteId: String!
+  $invalidRemoteId: String!
+  $invalidChannelHandle: String!
+  $engagement: MarketingEngagementInput!
+  $duplicateEngagement: MarketingEngagementInput!
+  $missingIdentifierEngagement: MarketingEngagementInput!
+) {
+  createActivity: marketingActivityCreateExternal(input: $activityInput) {
+    marketingActivity {
+      id
+      adSpend {
+        amount
+        currencyCode
+      }
+      marketingEvent {
+        remoteId
+        channelHandle
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createByRemoteId: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {
+    marketingEngagement {
+      occurredOn
+      utcOffset
+      isCumulative
+      impressionsCount
+      viewsCount
+      clicksCount
+      uniqueClicksCount
+      adSpend {
+        amount
+        currencyCode
+      }
+      sales {
+        amount
+        currencyCode
+      }
+      orders
+      firstTimeCustomers
+      returningCustomers
+      marketingActivity {
+        adSpend {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateSameDay: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $duplicateEngagement) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+      clicksCount
+      adSpend {
+        amount
+        currencyCode
+      }
+      marketingActivity {
+        adSpend {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingIdentifier: marketingEngagementCreate(marketingEngagement: $missingIdentifierEngagement) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalidRemoteId: marketingEngagementCreate(
+    remoteId: $invalidRemoteId
+    marketingEngagement: $missingIdentifierEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  multipleIdentifiers: marketingEngagementCreate(
+    remoteId: $remoteId
+    channelHandle: $invalidChannelHandle
+    marketingEngagement: $missingIdentifierEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalidChannel: marketingEngagementCreate(
+    channelHandle: $invalidChannelHandle
+    marketingEngagement: $missingIdentifierEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+      channelHandle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  deleteAllChannels: marketingEngagementsDelete(deleteEngagementsForAllChannels: true) {
+    result
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  deleteMissingSelector: marketingEngagementsDelete {
+    result
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
