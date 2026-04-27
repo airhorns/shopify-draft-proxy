@@ -27,6 +27,7 @@ import {
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
+  handleMetaobjectDefinitionMutation,
   handleMetaobjectDefinitionQuery,
   hydrateMetaobjectDefinitionsFromUpstreamResponse,
 } from './metaobject-definitions.js';
@@ -667,6 +668,29 @@ export function createProxyRouter(config: AppConfig): Router {
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes: 'Staged locally in the in-memory metafield definition draft store.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+      const responseBody = handleMetaobjectDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
       });
 
       ctx.status = 200;

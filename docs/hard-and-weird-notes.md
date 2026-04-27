@@ -1178,7 +1178,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 

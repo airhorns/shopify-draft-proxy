@@ -90,6 +90,7 @@ const emptySnapshot = {
   deletedCatalogIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetaobjectDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
   orderMandatePayments: {},
