@@ -901,8 +901,11 @@ export function createProxyRouter(config: AppConfig): Router {
 
       if (config.readMode === 'live-hybrid') {
         const liveHybridOrderId = typeof variables['id'] === 'string' ? variables['id'] : null;
+        const liveHybridAbandonedCheckoutId =
+          typeof variables['abandonedCheckoutId'] === 'string' ? variables['abandonedCheckoutId'] : null;
         const hasStagedOrders = store.getOrders().length > 0;
         const hasStagedDraftOrders = store.getDraftOrders().length > 0;
+        const hasLocalAbandonedCheckouts = store.getAbandonedCheckouts().length > 0;
         const canServeLocalOrderDetail =
           primaryRootField === 'order' && liveHybridOrderId !== null && store.getOrderById(liveHybridOrderId) !== null;
         const canServeLocalOrderCatalog =
@@ -917,12 +920,28 @@ export function createProxyRouter(config: AppConfig): Router {
           (primaryRootField === 'draftOrders' || primaryRootField === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
           shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
+        const canServeLocalAbandonedCheckoutCatalog =
+          (primaryRootField === 'abandonedCheckouts' || primaryRootField === 'abandonedCheckoutsCount') &&
+          hasLocalAbandonedCheckouts &&
+          typeof variables['query'] !== 'string' &&
+          typeof variables['savedSearchId'] !== 'string';
+        const canServeLocalAbandonmentDetail =
+          primaryRootField === 'abandonment' &&
+          liveHybridOrderId !== null &&
+          store.getAbandonmentById(liveHybridOrderId) !== null;
+        const canServeLocalAbandonmentByCheckout =
+          primaryRootField === 'abandonmentByAbandonedCheckoutId' &&
+          liveHybridAbandonedCheckoutId !== null &&
+          store.getAbandonmentByAbandonedCheckoutId(liveHybridAbandonedCheckoutId) !== null;
 
         if (
           canServeLocalOrderDetail ||
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
-          canServeLocalDraftOrderCatalog
+          canServeLocalDraftOrderCatalog ||
+          canServeLocalAbandonedCheckoutCatalog ||
+          canServeLocalAbandonmentDetail ||
+          canServeLocalAbandonmentByCheckout
         ) {
           ctx.status = 200;
           ctx.body = handleOrderQuery(body.query, variables);
@@ -1341,6 +1360,7 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderDelete' ||
         primaryRootField === 'draftOrderInvoiceSend' ||
         primaryRootField === 'draftOrderCreateFromOrder' ||
+        primaryRootField === 'abandonmentUpdateActivitiesDeliveryStatuses' ||
         primaryRootField === 'fulfillmentCreate' ||
         primaryRootField === 'fulfillmentEventCreate' ||
         primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
@@ -1392,6 +1412,8 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
           draftOrderCreateFromOrder:
             'Locally staged draftOrderCreateFromOrder in live-hybrid mode for a synthetic/local order.',
+          abandonmentUpdateActivitiesDeliveryStatuses:
+            'Locally staged abandonmentUpdateActivitiesDeliveryStatuses in live-hybrid mode for a synthetic/local abandonment.',
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
           fulfillmentEventCreate:
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',

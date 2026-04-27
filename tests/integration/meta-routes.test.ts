@@ -94,6 +94,10 @@ const emptySnapshot = {
   orders: {},
   draftOrders: {},
   calculatedOrders: {},
+  abandonedCheckouts: {},
+  abandonedCheckoutOrder: [],
+  abandonments: {},
+  abandonmentOrder: [],
 };
 
 describe('meta routes', () => {
