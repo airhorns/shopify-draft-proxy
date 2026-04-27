@@ -4580,6 +4580,51 @@ function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
   }
 }
 
+function readDraftOrderInvoiceSendSeedSource(
+  capture: Record<string, unknown>,
+  pathSegments: string[],
+  payloadName: string,
+): Record<string, unknown> | null {
+  let current: Record<string, unknown> | null = capture;
+  for (const segment of pathSegments) {
+    current = readRecordField(current, segment);
+  }
+
+  const payload = readRecordField(
+    readRecordField(readRecordField(readRecordField(current, 'mutation'), 'response'), 'data'),
+    payloadName,
+  );
+  return readRecordField(payload, 'draftOrder');
+}
+
+function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture) || capture['safetyPolicy'] === undefined) {
+    return false;
+  }
+
+  const openDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['recipient', 'openNoRecipient', 'setup', 'draftOrderCreate'],
+    'draftOrderCreate',
+  );
+  const openDraftOrderId = readStringField(openDraftOrder, 'id');
+  if (openDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(openDraftOrderId, openDraftOrder));
+  }
+
+  const completedDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['lifecycle', 'completedNoRecipient', 'setup', 'draftOrderComplete'],
+    'draftOrderComplete',
+  );
+  const completedDraftOrderId = readStringField(completedDraftOrder, 'id');
+  if (completedDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(completedDraftOrderId, completedDraftOrder));
+  }
+
+  return Boolean(openDraftOrderId || completedDraftOrderId);
+}
+
 function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): void {
   for (const value of Object.values(data ?? {})) {
     const connection = isPlainObject(value) ? value : null;
@@ -6433,6 +6478,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedFulfillmentOrderRequestLifecyclePreconditions(capture)) {
+    return;
+  }
+
+  if (seedDraftOrderInvoiceSendSafetyPreconditions(capture)) {
     return;
   }
 
