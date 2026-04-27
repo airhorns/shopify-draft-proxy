@@ -11,7 +11,12 @@ import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
-import { handleMarketingMutation, handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
+import {
+  handleMarketingMutation,
+  handleMarketingQuery,
+  hydrateMarketingFromUpstreamResponse,
+  MARKETING_MUTATION_ROOTS,
+} from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
@@ -105,14 +110,6 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceCreate',
   'carrierServiceUpdate',
   'carrierServiceDelete',
-]);
-
-const MARKETING_ACTIVITY_MUTATION_ROOTS = new Set([
-  'marketingActivityCreateExternal',
-  'marketingActivityUpdateExternal',
-  'marketingActivityUpsertExternal',
-  'marketingActivityDeleteExternal',
-  'marketingActivitiesDeleteAllExternal',
 ]);
 
 const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
@@ -803,11 +800,11 @@ export function createProxyRouter(config: AppConfig): Router {
       capability.execution === 'stage-locally' &&
       capability.domain === 'marketing' &&
       primaryRootField &&
-      MARKETING_ACTIVITY_MUTATION_ROOTS.has(primaryRootField)
+      MARKETING_MUTATION_ROOTS.has(primaryRootField)
     ) {
       const marketingMutation = handleMarketingMutation(body.query, variables);
       if (marketingMutation) {
-        if (marketingMutation.stagedResourceIds.length > 0) {
+        if (marketingMutation.shouldLog) {
           store.appendLog({
             id: makeSyntheticGid('MutationLogEntry'),
             receivedAt: makeSyntheticTimestamp(),

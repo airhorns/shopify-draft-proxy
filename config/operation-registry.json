@@ -3597,20 +3597,20 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for activity-level and channel-level engagement metrics and report visibility."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
   },
   {
     "name": "marketingEngagementsDelete",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages channel-level engagement deletion with captured selector validation. Activity-level engagement writes are retained because Shopify exposes no activity-level selector on marketingEngagementsDelete; delete-all removes known local channel engagement records and returns the captured result shape."
   },
   {
     "name": "webhookSubscription",

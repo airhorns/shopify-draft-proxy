@@ -919,18 +919,20 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Marketing-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
-      operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
-      query: document,
-      variables,
-      status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
-      stagedResourceIds: marketingMutation.stagedResourceIds,
-      notes: marketingMutation.notes,
-    });
+    if (marketingMutation.shouldLog) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2025-01/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: marketingMutation.stagedResourceIds,
+        notes: marketingMutation.notes,
+      });
+    }
 
     return {
       status: 200,
