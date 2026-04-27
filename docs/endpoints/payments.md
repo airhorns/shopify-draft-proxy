@@ -48,10 +48,34 @@ HAR-219 recorded that the refreshed 2026-04-25 conformance app can safely read p
 
 The current test store had no released `ShopifyFunction` nodes at capture time, so non-empty live happy-path create/update/delete/activation remains local-runtime evidence rather than a live Shopify parity contract. HAR-223 added and deployed the repo-local `conformance-payment-customization` Function extension to the conformance app, but the existing store install still returned an empty `shopifyFunctions` catalog afterward; a future live happy-path capture likely needs a refreshed app install/grant that can see the released Function. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
 
+## Finance, Risk, Disputes, And POS Cash
+
+HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
+
+The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
+
+Current 2025-01 implemented no-data coverage:
+
+- `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` return `null` for unknown identifiers.
+- `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` return empty connections with false `pageInfo` flags on the current store.
+- `disputes(first: 1)` returns an empty connection.
+
+Still-blocked sensitive coverage:
+
+- `disputeEvidence(id:)` is denied without `read_shopify_payments_dispute_evidences`.
+- `financeAppAccessPolicy` is denied without the required valid finance app user session/client; `financeKycInformation` is denied without `read_financial_kyc_information` plus finance-app permission.
+- `disputeEvidenceUpdate` is denied without `write_shopify_payments_dispute_evidences` plus staff dispute/order permission.
+- `tenderTransactions(first: 1)` may expose real transaction rows on the current store, so the capture selects only `__typename` and page flags. Do not add IDs, amounts, payment methods, remote references, users, or transaction details unless the fixture is deliberately scrubbed and justified.
+- `shopifyPaymentsPayoutAlternateCurrencyCreate` must remain unsupported until a local payout model exists; live happy paths can alter payout configuration or money movement.
+
+The `finance-risk-no-data-read` parity scenario enforces the implemented empty/null local overlay slice. Future support needs disposable-store fixtures, sensitive-data minimization, Shopify-like no-data behavior, local read-after-write modeling for mutations, and raw mutation preservation for commit replay.
+
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 
 ## Validation
 
 - `tests/integration/payment-customization-query-shapes.test.ts`
+- `config/parity-specs/finance-risk-no-data-read.json`
+- `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
