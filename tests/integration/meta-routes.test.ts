@@ -23,6 +23,7 @@ const emptySnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerSegmentMembersQueries: {},
   segments: {},
   webhookSubscriptions: {},
   webhookSubscriptionOrder: [],
