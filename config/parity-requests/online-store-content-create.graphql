@@ -1,0 +1,35 @@
+mutation OnlineStoreContentCreate($blog: BlogCreateInput!, $page: PageCreateInput!) {
+  blogCreate(blog: $blog) {
+    blog {
+      id
+      title
+      handle
+      commentPolicy
+      templateSuffix
+      tags
+      articlesCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+      bodySummary
+      isPublished
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -58,6 +58,11 @@ import {
 } from '../src/proxy/localization.js';
 import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
+import {
+  handleOnlineStoreMutation,
+  handleOnlineStoreQuery,
+  hydrateOnlineStoreFromUpstreamResponse,
+} from '../src/proxy/online-store.js';
 import { findOperationRegistryEntry, listOperationRegistryEntries } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
@@ -772,9 +777,14 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, proxyResponses: Record<string, unknown>, capture?: unknown): unknown {
+function materializeValue(
+  rawValue: unknown,
+  proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
+  capture?: unknown,
+): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, proxyResponses, capture));
+    return rawValue.map((item) => materializeValue(item, proxyResponses, previousProxyResponse, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -789,21 +799,29 @@ function materializeValue(rawValue: unknown, proxyResponses: Record<string, unkn
     return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
   }
 
+  if (typeof rawValue['fromPreviousProxyPath'] === 'string') {
+    return readJsonPath(previousProxyResponse, rawValue['fromPreviousProxyPath']);
+  }
+
   if (typeof rawValue['fromCapturePath'] === 'string') {
     return readJsonPath(capture, rawValue['fromCapturePath']);
   }
 
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, proxyResponses, capture)]),
+    Object.entries(rawValue).map(([key, value]) => [
+      key,
+      materializeValue(value, proxyResponses, previousProxyResponse, capture),
+    ]),
   );
 }
 
 function materializeVariables(
   rawVariables: unknown,
   proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
   capture?: unknown,
 ): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, capture);
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, previousProxyResponse, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -1234,6 +1252,31 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: marketingMutation.response,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
+    const onlineStoreMutation = handleOnlineStoreMutation(document, variables);
+    if (!onlineStoreMutation) {
+      throw new Error(`Online-store parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      stagedResourceIds: onlineStoreMutation.stagedResourceIds,
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: onlineStoreMutation.response,
     };
   }
 
@@ -1672,6 +1715,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketingQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
+    if (upstreamPayload !== undefined) {
+      hydrateOnlineStoreFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleOnlineStoreQuery(document, variables),
     };
   }
 
@@ -6585,6 +6639,23 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
   return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
 }
 
+function seedOnlineStoreContentPreconditions(capture: unknown): void {
+  const interactions = readArrayField(capture as Record<string, unknown>, 'interactions').filter(isPlainObject);
+  for (const interaction of interactions) {
+    if (interaction['name'] !== 'baseline-catalog-detail-empty') {
+      continue;
+    }
+
+    const request = readRecordField(interaction, 'request');
+    const response = readRecordField(interaction, 'response');
+    const query = readStringField(request, 'query');
+    if (query && response) {
+      hydrateOnlineStoreFromUpstreamResponse(query, response);
+    }
+    return;
+  }
+}
+
 const bulkOperationStatuses = new Set([
   'CANCELED',
   'CANCELING',
@@ -6724,6 +6795,8 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;
   }
+
+  seedOnlineStoreContentPreconditions(capture);
 
   if (seedBulkOperationPreconditions(capture)) {
     return;
@@ -7472,15 +7545,21 @@ function readRequestVariables(
   request: ProxyRequestSpec,
   capture: unknown,
   proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), proxyResponses, capture);
+    return materializeVariables(
+      readJsonPath(capture, request.variablesCapturePath),
+      proxyResponses,
+      previousProxyResponse,
+      capture,
+    );
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, proxyResponses, capture);
+  return materializeVariables(rawVariables, proxyResponses, previousProxyResponse, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -7547,7 +7626,7 @@ export async function executeParityScenario({
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
   const proxyResponses: Record<string, unknown> = {};
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses);
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
   const executedOperations: ExecutedOperation[] = [];
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
@@ -7559,6 +7638,7 @@ export async function executeParityScenario({
   proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
+  let previousProxyResponseBody: unknown = primaryProxyResponse.body;
   for (const target of readComparisonTargets(paritySpec.comparison)) {
     const expected = readJsonPath(capture, target.capturePath);
     let proxyResponseBody: unknown = primaryProxyResponse.body;
@@ -7568,7 +7648,13 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, proxyResponses);
+      const variables = readRequestVariables(
+        repoRoot,
+        target.proxyRequest,
+        capture,
+        proxyResponses,
+        previousProxyResponseBody,
+      );
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
@@ -7579,6 +7665,7 @@ export async function executeParityScenario({
         executedOperations.push(operation),
       );
       proxyResponseBody = proxyResponse.body;
+      previousProxyResponseBody = proxyResponse.body;
       proxyResponses[target.name] = proxyResponse.body;
     }
 

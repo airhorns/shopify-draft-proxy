@@ -171,7 +171,10 @@ function listRecords(
 ): OnlineStoreContentRecord[] {
   const args = getFieldArguments(field, variables);
   return sortRecords(
-    store.listEffectiveOnlineStoreContent(kind).filter((record) => matchesQuery(record, args['query'])),
+    store
+      .listEffectiveOnlineStoreContent(kind)
+      .filter((record) => kind !== 'article' || record.data['isPublished'] !== false)
+      .filter((record) => matchesQuery(record, args['query'])),
     field,
     variables,
   );
