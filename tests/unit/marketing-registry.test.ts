@@ -48,11 +48,12 @@ const implementedSegmentQueryRoots = [
   'segmentValueSuggestions',
   'segmentMigrations',
 ] as const;
-const scaffoldOnlySegmentQueryRoots = [
+const implementedSegmentMemberQueryRoots = [
   'customerSegmentMembers',
   'customerSegmentMembersQuery',
   'customerSegmentMembership',
 ] as const;
+const scaffoldOnlySegmentQueryRoots = [] as const;
 const segmentMutationRoots = [
   'customerSegmentMembersQueryCreate',
   'segmentCreate',
@@ -60,7 +61,8 @@ const segmentMutationRoots = [
   'segmentDelete',
 ] as const;
 const implementedSegmentMutationRoots = ['segmentCreate', 'segmentUpdate', 'segmentDelete'] as const;
-const scaffoldOnlySegmentMutationRoots = ['customerSegmentMembersQueryCreate'] as const;
+const implementedSegmentMemberMutationRoots = ['customerSegmentMembersQueryCreate'] as const;
+const scaffoldOnlySegmentMutationRoots = [] as const;
 
 const marketingRoots = [...marketingQueryRoots, ...marketingMutationRoots] as const;
 const segmentRoots = [...segmentQueryRoots, ...segmentMutationRoots] as const;
@@ -149,6 +151,14 @@ describe('Marketing and segment registry scaffold', () => {
       );
     }
 
+    for (const root of implementedSegmentMemberQueryRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should be enabled by HAR-217 segment member coverage`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should claim runtime segment member coverage`).toContain(
+        'tests/integration/customer-segment-member-flow.test.ts',
+      );
+    }
+
     for (const root of implementedMarketingQueryRoots) {
       const entry = entriesByName.get(root);
       expect(entry?.implemented, `${root} should be enabled by HAR-212 marketing read coverage`).toBe(true);
@@ -162,6 +172,14 @@ describe('Marketing and segment registry scaffold', () => {
       expect(entry?.implemented, `${root} should be enabled by HAR-216 segment lifecycle coverage`).toBe(true);
       expect(entry?.runtimeTests, `${root} should claim runtime segment lifecycle coverage`).toContain(
         'tests/integration/segment-lifecycle-flow.test.ts',
+      );
+    }
+
+    for (const root of implementedSegmentMemberMutationRoots) {
+      const entry = entriesByName.get(root);
+      expect(entry?.implemented, `${root} should be enabled by HAR-217 segment member coverage`).toBe(true);
+      expect(entry?.runtimeTests, `${root} should claim runtime segment member coverage`).toContain(
+        'tests/integration/customer-segment-member-flow.test.ts',
       );
     }
   });
@@ -221,9 +239,9 @@ describe('Marketing and segment registry scaffold', () => {
         rootFields: ['customerSegmentMembersQueryCreate'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'CreateSegmentMembersQuery',
+      domain: 'segments',
+      execution: 'stage-locally',
+      operationName: 'customerSegmentMembersQueryCreate',
       type: 'mutation',
     });
 
@@ -247,7 +265,7 @@ describe('Marketing and segment registry scaffold', () => {
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(false);
     }
 
-    for (const root of implementedSegmentQueryRoots) {
+    for (const root of [...implementedSegmentQueryRoots, ...implementedSegmentMemberQueryRoots]) {
       expect(scenarioOperations.has(root), `${root} should have executable segment parity coverage`).toBe(true);
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
@@ -257,7 +275,7 @@ describe('Marketing and segment registry scaffold', () => {
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(true);
     }
 
-    for (const root of implementedSegmentMutationRoots) {
+    for (const root of [...implementedSegmentMutationRoots, ...implementedSegmentMemberMutationRoots]) {
       expect(scenarioOperations.has(root), `${root} should have executable segment mutation parity coverage`).toBe(
         true,
       );

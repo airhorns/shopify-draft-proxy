@@ -3587,40 +3587,40 @@
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembers", "CustomerSegmentMembers"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for member pagination, statistics, and empty membership behavior."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 captured member connection behavior for query, queryId, and segmentId reads. Local support is intentionally limited to number_of_orders numeric comparisons and customer_tags CONTAINS string matches over effective customer state; unsupported segment grammar is not claimed."
   },
   {
     "name": "customerSegmentMembersQuery",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembersQuery", "CustomerSegmentMembersQuery"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for asynchronous query job shape and missing-job behavior."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 stages customer segment member query jobs locally and models immediate downstream lookup after the captured async job shape. Missing query IDs preserve Shopify's captured null plus INTERNAL_SERVER_ERROR response."
   },
   {
     "name": "customerSegmentMembership",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembership", "CustomerSegmentMembership"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for membership boolean maps, unknown segment IDs, and empty responses."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 models membership booleans for existing local/staged segments using the selected supported query grammar, skips unknown segment IDs, and returns false for known segments when the customer is absent or does not match."
   },
   {
     "name": "customerSegmentMembersQueryCreate",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembersQueryCreate", "CustomerSegmentMembersQueryCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for asynchronous job identity, validation, and downstream query reads."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 locally stages query jobs and retains the original raw mutation for commit replay. Creation returns Shopify-like pending job fields while the stored local job is immediately available for downstream lookup/member reads."
   },
   {
     "name": "segmentCreate",

@@ -594,6 +594,15 @@ export const segmentRecordSchema = z.strictObject({
 });
 export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
 
+export const customerSegmentMembersQueryRecordSchema = z.strictObject({
+  id: z.string(),
+  query: nullableStringSchema,
+  segmentId: nullableStringSchema,
+  currentCount: z.number(),
+  done: z.boolean(),
+});
+export type CustomerSegmentMembersQueryRecord = z.infer<typeof customerSegmentMembersQueryRecordSchema>;
+
 export const webhookSubscriptionEndpointRecordSchema = z.strictObject({
   __typename: z.enum(['WebhookHttpEndpoint', 'WebhookEventBridgeEndpoint', 'WebhookPubSubEndpoint']),
   callbackUrl: nullableStringSchema.optional(),
@@ -1577,6 +1586,7 @@ export const stateSnapshotSchema = z.strictObject({
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
+  customerSegmentMembersQueries: z.record(z.string(), customerSegmentMembersQueryRecordSchema).default({}),
   webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
   webhookSubscriptionOrder: z.array(z.string()).default([]),
   marketingActivities: z.record(z.string(), marketingRecordSchema).default({}),
