@@ -1,0 +1,3192 @@
+{
+  "capturedAt": "2026-04-25T23:10:12.229Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "seed": {
+    "productId": "gid://shopify/Product/10170577649970",
+    "defaultVariantId": "gid://shopify/ProductVariant/51098789871922",
+    "createProductResponse": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10170577649970",
+            "title": "HAR-290 Bulk Variant Validation 1777158604520"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "setupOptionsResponse": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10170577649970",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12716248138034",
+                "name": "Color",
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972252254514",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972252287282",
+                    "name": "Blue",
+                    "hasVariants": false
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/ProductOption/12716248170802",
+                "name": "Size",
+                "values": ["Small"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972252320050",
+                    "name": "Small",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7972252352818",
+                    "name": "Large",
+                    "hasVariants": false
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51098789871922",
+                  "title": "Red / Small"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 18,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "HAR-290 live validation and atomicity capture for productVariantsBulkCreate, productVariantsBulkUpdate, and productVariantsBulkDelete. All rejected branches preserve before/after product state.",
+  "cases": [
+    {
+      "name": "create-unknown-product",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/999999999999999999",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-empty-batch",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-duplicate-option-values",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                },
+                {
+                  "optionName": "Color",
+                  "name": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-DUP"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "optionValues"],
+                  "message": "Duplicated option name 'Color'",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-option-does-not-exist",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Material",
+                  "name": "Cotton"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-NOOPT"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "optionValues", "0"],
+                  "message": "Option does not exist",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-missing-required-option",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-MISS"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0"],
+                  "message": "You need to add option values for Size",
+                  "code": "NEED_TO_ADD_OPTION_VALUES"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-invalid-inventory-location",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                },
+                {
+                  "optionName": "Size",
+                  "name": "Large"
+                }
+              ],
+              "inventoryQuantities": [
+                {
+                  "availableQuantity": 5,
+                  "locationId": "gid://shopify/Location/999999999999999999"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-INVLOC"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "inventoryQuantities"],
+                  "message": "Quantity for Blue / Large couldn't be set because the location was deleted.",
+                  "code": "TRACKED_VARIANT_LOCATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "create-mixed-valid-invalid",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "optionValues": [
+                {
+                  "optionName": "Color",
+                  "name": "Blue"
+                },
+                {
+                  "optionName": "Size",
+                  "name": "Large"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-VALID"
+              }
+            },
+            {
+              "optionValues": [
+                {
+                  "optionName": "Material",
+                  "name": "Cotton"
+                }
+              ],
+              "inventoryItem": {
+                "sku": "HAR290-604520-BAD"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkCreate": {
+              "product": null,
+              "productVariants": [],
+              "userErrors": [
+                {
+                  "field": ["variants", "1", "optionValues", "0"],
+                  "message": "Option does not exist",
+                  "code": "INVALID_INPUT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-unknown-product",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/999999999999999999",
+          "variants": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": null,
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-empty-batch",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": null,
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Something went wrong, please try again.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-missing-variant-id",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "inventoryItem": {
+                "sku": "HAR290-604520-NOID"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "id"],
+                  "message": "Product variant is missing ID attribute",
+                  "code": "PRODUCT_VARIANT_ID_MISSING"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-unknown-variant-id",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/999999999999999999",
+              "inventoryItem": {
+                "sku": "HAR290-604520-UNKVAR"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "id"],
+                  "message": "Product variant does not exist",
+                  "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-invalid-inventory-quantities",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51098789871922",
+              "inventoryQuantities": [
+                {
+                  "availableQuantity": 4,
+                  "locationId": "gid://shopify/Location/1"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "inventoryQuantities"],
+                  "message": "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
+                  "code": "NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-option-does-not-exist",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51098789871922",
+              "optionValues": [
+                {
+                  "optionName": "Material",
+                  "name": "Cotton"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["variants", "0", "optionValues", "0"],
+                  "message": "Option does not exist",
+                  "code": "OPTION_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "update-mixed-valid-invalid",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variants": [
+            {
+              "id": "gid://shopify/ProductVariant/51098789871922",
+              "inventoryItem": {
+                "sku": "HAR290-604520-UPVALID"
+              }
+            },
+            {
+              "id": "gid://shopify/ProductVariant/999999999999999999",
+              "inventoryItem": {
+                "sku": "HAR290-604520-UPBAD"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "productVariants": null,
+              "userErrors": [
+                {
+                  "field": ["variants", "1", "id"],
+                  "message": "Product variant does not exist",
+                  "code": "PRODUCT_VARIANT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown-product",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/999999999999999999",
+          "variantsIds": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkDelete": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-empty-batch",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variantsIds": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkDelete": {
+              "product": {
+                "id": "gid://shopify/Product/10170577649970",
+                "totalInventory": 0,
+                "tracksInventory": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-unknown-variant-id",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variantsIds": ["gid://shopify/ProductVariant/999999999999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkDelete": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["variantsIds", "0"],
+                  "message": "At least one variant does not belong to the product",
+                  "code": "AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "delete-mixed-valid-invalid",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/10170577649970",
+          "variantsIds": [
+            "gid://shopify/ProductVariant/51098789871922",
+            "gid://shopify/ProductVariant/999999999999999999"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkDelete": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["variantsIds", "1"],
+                  "message": "At least one variant does not belong to the product",
+                  "code": "AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "atomicNoWrite": true,
+      "before": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      },
+      "after": {
+        "product": {
+          "id": "gid://shopify/Product/10170577649970",
+          "totalInventory": 0,
+          "tracksInventory": false,
+          "options": [
+            {
+              "name": "Color",
+              "values": ["Red"],
+              "optionValues": [
+                {
+                  "name": "Red",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Blue",
+                  "hasVariants": false
+                }
+              ]
+            },
+            {
+              "name": "Size",
+              "values": ["Small"],
+              "optionValues": [
+                {
+                  "name": "Small",
+                  "hasVariants": true
+                },
+                {
+                  "name": "Large",
+                  "hasVariants": false
+                }
+              ]
+            }
+          ],
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51098789871922",
+                "title": "Red / Small",
+                "sku": null,
+                "inventoryQuantity": 0,
+                "selectedOptions": [
+                  {
+                    "name": "Color",
+                    "value": "Red"
+                  },
+                  {
+                    "name": "Size",
+                    "value": "Small"
+                  }
+                ],
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53201579999538",
+                  "tracked": false,
+                  "requiresShipping": true
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

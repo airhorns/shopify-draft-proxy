@@ -7,6 +7,7 @@ This document catalogs shared helper surfaces that future work should reuse befo
 Shared helpers for GraphQL Admin proxy serializers.
 
 - `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
+- `getNodeLocation(node)` and `getVariableDefinitionLocation(document, variableName)` return Shopify-like `{ line, column }` GraphQL validation locations for AST nodes and variable definitions.
 - `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
 - `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.
 - `readPlainObjectArray(value)` filters unknown array values down to plain objects before normalizing nested upstream payloads.
@@ -35,6 +36,18 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
 
 Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
+
+## `src/search-query-parser.ts`
+
+Shared helpers for Shopify Admin `query:` parsing, query execution, and common term matching.
+
+- `parseSearchQuery(raw, options)` parses boolean-style Shopify search syntax into `SearchQueryNode` trees with implicit `AND`, `OR`, grouped expressions, leading `-` negation, optional `NOT`, field names, comparators, and quote handling.
+- `applySearchQuery(items, rawQuery, options, matchesPositiveTerm)` is the preferred helper for endpoints that support boolean/grouped search. Resource modules provide only the domain-specific positive term matcher; the shared helper handles raw-query guards, parsing, AST traversal, and term/group negation.
+- `parseSearchQueryTermList(rawQuery, options)` and `applySearchQueryTerms(items, rawQuery, options, matchesPositiveTerm)` cover endpoints whose captured behavior is still a simple term-list/implicit-AND subset. Use options such as `ignoredKeywords`, `preserveQuotesInTerms`, and `dropEmptyValues` to mirror endpoint-specific evidence without duplicating raw-query guards.
+- `searchQueryTermValue(term)` reconstructs comparator-prefixed values such as `>=2026-01-01` for endpoint matchers.
+- `stripSearchQueryValueQuotes(value)`, `normalizeSearchQueryValue(value)`, `matchesSearchQueryString(...)`, `matchesSearchQueryNumber(...)`, and `matchesSearchQueryDate(...)` provide reusable primitive matching behavior for field filters.
+
+New or expanded endpoint search support should use this module for parsing, execution, and primitive matching. Keep endpoint-specific Shopify semantics in the resource module's positive term matcher, especially unsupported fields, known no-op warning behavior, and domain-specific search-index lag.
 
 ## `src/shopify/upstream-request.ts`
 

@@ -1480,6 +1480,259 @@ describe('Markets lifecycle staging', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('resolves marketsResolvedValues from staged market catalog and web presence effects', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('resolved values staging must not proxy'));
+    const app = createApp(config).callback();
+
+    const marketResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${MARKET_FIELDS}
+          mutation CreateResolvedMarket($input: MarketCreateInput!) {
+            marketCreate(input: $input) {
+              market {
+                ...LifecycleMarketFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: 'Codex Germany',
+            handle: 'codex-germany',
+            status: 'ACTIVE',
+            conditions: {
+              regionsCondition: {
+                regions: [{ countryCode: 'DE' }],
+              },
+            },
+            currencySettings: {
+              baseCurrency: 'EUR',
+              localCurrencies: false,
+              roundingEnabled: true,
+            },
+            priceInclusions: {
+              dutiesPricingStrategy: 'INCLUDES_DUTIES_IN_PRICE',
+              taxPricingStrategy: 'INCLUDES_TAXES_IN_PRICE',
+            },
+          },
+        },
+      });
+
+    expect(marketResponse.status).toBe(200);
+    expect(marketResponse.body.data.marketCreate.userErrors).toEqual([]);
+    const marketId = marketResponse.body.data.marketCreate.market.id as string;
+
+    const catalogResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateResolvedCatalog($input: CatalogCreateInput!) {
+            catalogCreate(input: $input) {
+              catalog {
+                __typename
+                id
+                ... on MarketCatalog {
+                  title
+                  status
+                  priceList {
+                    id
+                  }
+                  markets(first: 5) {
+                    nodes {
+                      id
+                    }
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            title: 'Codex Germany Catalog',
+            status: 'ACTIVE',
+            context: {
+              marketIds: [marketId],
+            },
+            priceListId: 'gid://shopify/PriceList/919',
+          },
+        },
+      });
+
+    expect(catalogResponse.status).toBe(200);
+    expect(catalogResponse.body.data.catalogCreate.userErrors).toEqual([]);
+    const catalogId = catalogResponse.body.data.catalogCreate.catalog.id as string;
+
+    const webPresenceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${WEB_PRESENCE_FIELDS}
+          mutation CreateResolvedWebPresence($input: WebPresenceCreateInput!) {
+            webPresenceCreate(input: $input) {
+              webPresence {
+                ...LifecycleWebPresenceFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            defaultLocale: 'de',
+            alternateLocales: ['en'],
+            subfolderSuffix: 'de',
+          },
+        },
+      });
+
+    expect(webPresenceResponse.status).toBe(200);
+    expect(webPresenceResponse.body.data.webPresenceCreate.userErrors).toEqual([]);
+    const webPresenceId = webPresenceResponse.body.data.webPresenceCreate.webPresence.id as string;
+
+    const associateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AssociateResolvedWebPresence($id: ID!, $input: MarketUpdateInput!) {
+            marketUpdate(id: $id, input: $input) {
+              market {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: marketId,
+          input: {
+            webPresencesToAdd: [webPresenceId],
+          },
+        },
+      });
+
+    expect(associateResponse.status).toBe(200);
+    expect(associateResponse.body.data.marketUpdate.userErrors).toEqual([]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadResolvedValues {
+            marketsResolvedValues(buyerSignal: { countryCode: DE }) {
+              currencyCode
+              priceInclusivity {
+                dutiesIncluded
+                taxesIncluded
+              }
+              catalogs(first: 5) {
+                nodes {
+                  id
+                  title
+                  priceList {
+                    id
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                  defaultLocale {
+                    locale
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        `,
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.marketsResolvedValues).toEqual({
+      currencyCode: 'EUR',
+      priceInclusivity: {
+        dutiesIncluded: true,
+        taxesIncluded: true,
+      },
+      catalogs: {
+        nodes: [
+          {
+            id: catalogId,
+            title: 'Codex Germany Catalog',
+            priceList: {
+              id: 'gid://shopify/PriceList/919',
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: catalogId,
+          endCursor: catalogId,
+        },
+      },
+      webPresences: {
+        nodes: [
+          {
+            id: webPresenceId,
+            subfolderSuffix: 'de',
+            defaultLocale: {
+              locale: 'de',
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: webPresenceId,
+          endCursor: webPresenceId,
+        },
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'marketCreate',
+      'catalogCreate',
+      'webPresenceCreate',
+      'marketUpdate',
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns MarketUserError shapes for invalid web presence inputs without staging records', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('web presence validation must not proxy'));
     const app = createApp(config).callback();

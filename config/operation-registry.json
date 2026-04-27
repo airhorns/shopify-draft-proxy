@@ -9,6 +9,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts"]
   },
   {
+    "name": "productByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productByIdentifier", "ProductByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id and handle identifier branches against effective local product state. customId returns null until product unique-metafield evidence exists."
+  },
+  {
     "name": "products",
     "type": "query",
     "domain": "products",
@@ -27,6 +37,276 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productVariants",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariants", "ProductVariants"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Top-level variant helper connection resolves from effective local product variants, with local pagination, reverse, basic sort keys, and Shopify-style query filtering for id/product_id/title/sku/barcode/vendor/product_type/tag terms."
+  },
+  {
+    "name": "productVariantsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantsCount", "ProductVariantsCount"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Counts effective local product variants with the same supported query terms as productVariants; limit precision remains exact for the in-memory model."
+  },
+  {
+    "name": "productTags",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTags", "ProductTags"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local product tags; absent product data returns an empty connection."
+  },
+  {
+    "name": "productTypes",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTypes", "ProductTypes"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local productType values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productVendors",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVendors", "ProductVendors"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productSavedSearches",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local support currently returns Shopify-like empty SavedSearchConnection behavior; saved search CRUD/storage remains unsupported."
+  },
+  {
+    "name": "productOperation",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productOperation", "ProductOperation"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false); unknown operation IDs return null."
+  },
+  {
+    "name": "productDuplicateJob",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productDuplicateJob", "ProductDuplicateJob"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. productDuplicate itself remains locally synchronous and does not create a long-running job."
+  },
+  {
+    "name": "productResourceFeedback",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productResourceFeedback", "ProductResourceFeedback"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Returns null for absent local feedback. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so feedback mutation-created records are not claimed."
+  },
+  {
+    "name": "productFeed",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeed", "ProductFeed"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns null for an absent productFeed id. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "productFeeds",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productFeeds", "ProductFeeds"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+  },
+  {
+    "name": "app",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["app", "App"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app identity read gap. Captured 2025-01 evidence records current conformance app lookup shapes by id/handle/key and missing lookup nullability; local overlay support requires an app/installation model before implementation."
+  },
+  {
+    "name": "appByHandle",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByHandle", "AppByHandle"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app handle lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-handle nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appByKey",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appByKey", "AppByKey"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app API-key lookup gap. Captured 2025-01 evidence records accessible app object fields and missing-key nullability; local overlay support requires an app identity index before implementation."
+  },
+  {
+    "name": "appInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallation", "AppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation read gap. Captured 2025-01 evidence records current installation object shape, active subscription empty list behavior, billing connection empty behavior, and unknown installation nullability."
+  },
+  {
+    "name": "appInstallations",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["appInstallations", "AppInstallations"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared app installation catalog gap. Current conformance app receives field-level ACCESS_DENIED for appInstallations, so local support must wait for an eligible credential or fixture that captures authorized empty/non-empty connection behavior."
+  },
+  {
+    "name": "currentAppInstallation",
+    "type": "query",
+    "domain": "apps",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["currentAppInstallation", "CurrentAppInstallation"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 declared current app installation read gap. Captured 2025-01 evidence records access scopes, app identity, empty activeSubscriptions, empty allSubscriptions, and empty oneTimePurchases for the active conformance install."
+  },
+  {
+    "name": "appPurchaseOneTimeCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until one-time purchase confirmation URL creation, merchant approval status, downstream installation billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCreate", "AppSubscriptionCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy recurring billing mutation gap. Do not support until subscription confirmation URL creation, replacement behavior, trial/line item modeling, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionCancel",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionCancel", "AppSubscriptionCancel"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until cancellation/proration behavior, downstream subscription status reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionLineItemUpdate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionLineItemUpdate", "AppSubscriptionLineItemUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until capped amount updates, line item lookup/error behavior, downstream billing reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appSubscriptionTrialExtend",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until trial extension limits, status transitions, downstream subscription reads, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUsageRecordCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUsageRecordCreate", "AppUsageRecordCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until idempotency behavior, usage record connection reads, billing limit errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appRevokeAccessScopes",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 side-effect-heavy access mutation gap. Do not support until scope revocation effects, app grant visibility, validation errors, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "appUninstall",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["appUninstall", "AppUninstall"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 destructive installation mutation gap. Do not support until uninstall effects, post-uninstall read behavior, app/session invalidation consequences, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenCreate",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token scope/resource modeling, returned token secrecy rules, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
+    "name": "delegateAccessTokenDestroy",
+    "type": "mutation",
+    "domain": "apps",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token lookup/destruction behavior, idempotency/error semantics, downstream authorization effects, and raw commit replay semantics are modeled locally."
+  },
+  {
     "name": "productVariant",
     "type": "query",
     "domain": "products",
@@ -34,6 +314,16 @@
     "implemented": true,
     "matchNames": ["productVariant", "ProductVariant"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariantByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantByIdentifier", "ProductVariantByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id identifier lookups against effective local variant state. customId returns null until product-variant unique-metafield evidence exists."
   },
   {
     "name": "inventoryItem",
@@ -45,6 +335,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryItems",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryItems", "InventoryItems"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice."
+  },
+  {
     "name": "inventoryLevel",
     "type": "query",
     "domain": "products",
@@ -52,6 +352,16 @@
     "implemented": true,
     "matchNames": ["inventoryLevel", "InventoryLevel"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryProperties",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryProperties", "InventoryProperties"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Returns the captured 2025-01 quantity-name catalog used by inventory-level reads and staged quantity mutations."
   },
   {
     "name": "collection",
@@ -156,6 +466,349 @@
     "implemented": true,
     "matchNames": ["businessEntity", "BusinessEntity"],
     "runtimeTests": ["tests/integration/business-entity-query-shapes.test.ts"]
+  },
+  {
+    "name": "companies",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companies", "Companies"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companiesCount",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companiesCount", "CompaniesCount"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "company",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["company", "Company"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyContact",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyContact", "CompanyContact"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyContactRole",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyContactRole", "CompanyContactRole"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyLocation",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyLocation", "CompanyLocation"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companyLocations",
+    "type": "query",
+    "domain": "b2b",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["companyLocations", "CompanyLocations"],
+    "runtimeTests": ["tests/integration/b2b-company-query-shapes.test.ts"]
+  },
+  {
+    "name": "companiesDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companiesDelete", "CompaniesDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until local company/contact/location deletion semantics and downstream reads are modeled without runtime Shopify writes."
+  },
+  {
+    "name": "companyAddressDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAddressDelete", "CompanyAddressDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company address mutation scaffold only. Keep unsupported until company location billing/shipping address semantics are modeled locally."
+  },
+  {
+    "name": "companyAssignCustomerAsContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAssignCustomerAsContact", "CompanyAssignCustomerAsContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact assignment scaffold only. Keep unsupported until customer-to-company contact linkage and downstream company/customer reads are modeled locally."
+  },
+  {
+    "name": "companyAssignMainContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyAssignMainContact", "CompanyAssignMainContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactAssignRole",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactAssignRole", "CompanyContactAssignRole"],
+    "runtimeTests": [],
+    "supportNotes": "B2B role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactAssignRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactAssignRoles", "CompanyContactAssignRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactCreate", "CompanyContactCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact creation, customer linkage, userErrors, and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactDelete", "CompanyContactDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactRemoveFromCompany",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRemoveFromCompany", "CompanyContactRemoveFromCompany"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact membership mutation scaffold only. Keep unsupported until removing a contact from a company and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyContactRevokeRole",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRevokeRole", "CompanyContactRevokeRole"],
+    "runtimeTests": [],
+    "supportNotes": "B2B role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactRevokeRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+  },
+  {
+    "name": "companyContactsDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactsDelete", "CompanyContactsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk contact deletion scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyContactSendWelcomeEmail",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactSendWelcomeEmail", "CompanyContactSendWelcomeEmail"],
+    "runtimeTests": [],
+    "supportNotes": "B2B welcome-email side effect scaffold only. Keep unsupported because local staging cannot faithfully emulate Shopify email delivery side effects."
+  },
+  {
+    "name": "companyContactUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyContactUpdate", "CompanyContactUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact update semantics, userErrors, and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyCreate", "CompanyCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company creation, default roles/location behavior, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyDelete", "CompanyDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company deletion semantics and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignAddress",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignAddress", "CompanyLocationAssignAddress"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location address mutation scaffold only. Keep unsupported until billing/shipping address assignment and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location role assignment scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationAssignStaffMembers",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationAssignStaffMembers", "CompanyLocationAssignStaffMembers"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location staff assignment scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationCreate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationCreate", "CompanyLocationCreate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location creation, address/tax defaults, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationDelete", "CompanyLocationDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationRemoveStaffMembers",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationRemoveStaffMembers", "CompanyLocationRemoveStaffMembers"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location staff removal scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationRevokeRoles",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location role revocation scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationsDelete",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationsDelete", "CompanyLocationsDelete"],
+    "runtimeTests": [],
+    "supportNotes": "B2B bulk company location deletion scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyLocationTaxSettingsUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationTaxSettingsUpdate", "CompanyLocationTaxSettingsUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location tax settings scaffold only. Keep unsupported until tax exemption/registration semantics and downstream location reads are modeled locally."
+  },
+  {
+    "name": "companyLocationUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyLocationUpdate", "CompanyLocationUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location update semantics, userErrors, and downstream reads are modeled locally."
+  },
+  {
+    "name": "companyRevokeMainContact",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyRevokeMainContact", "CompanyRevokeMainContact"],
+    "runtimeTests": [],
+    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+  },
+  {
+    "name": "companyUpdate",
+    "type": "mutation",
+    "domain": "b2b",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["companyUpdate", "CompanyUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company update semantics, userErrors, and downstream reads are modeled locally."
   },
   {
     "name": "cashManagementLocationSummary",
@@ -273,6 +926,36 @@
     "implemented": true,
     "matchNames": ["customer", "Customer"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "event",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["event", "Event"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "events",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["events", "Events"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "eventsCount",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["eventsCount", "EventsCount"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
   },
   {
     "name": "customers",
@@ -494,6 +1177,26 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "bulkProductResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkProductResourceFeedbackCreate", "BulkProductResourceFeedbackCreate"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Registered unsupported feedback mutation. Future support must stage ProductResourceFeedback records locally, preserve raw mutation order for commit, and expose downstream productResourceFeedback reads without runtime Shopify writes. Until then, runtime passthrough remains the unsupported escape hatch and is logged as proxied."
+  },
+  {
+    "name": "shopResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registered unsupported shop feedback mutation. Future support requires an app/shop feedback state model, access-scope-backed conformance, local staging, and downstream read effects before this root can be supported without runtime Shopify writes."
+  },
+  {
     "name": "productCreate",
     "type": "mutation",
     "domain": "products",
@@ -549,6 +1252,66 @@
     "implemented": true,
     "matchNames": ["productChangeStatus", "ProductChangeStatus"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productFeedCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedCreate", "ProductFeedCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo probe for country US/language EN returned a top-level NOT_FOUND error: Unable to find channel for product feed. Full local support needs channel-backed success evidence and downstream productFeed/productFeeds read-after-write behavior."
+  },
+  {
+    "name": "productFeedDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFeedDelete", "ProductFeedDelete"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned deletedId null plus userErrors field [id], message ProductFeed does not exist. Full support needs delete success evidence and downstream productFeeds removal behavior."
+  },
+  {
+    "name": "productFullSync",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productFullSync", "ProductFullSync"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned id null plus userErrors field [id], message ProductFeed does not exist. Full support needs product-feed job/status success evidence before staging locally."
+  },
+  {
+    "name": "productBundleCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleCreate", "ProductBundleCreate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo empty-components probe returned productBundleOperation null plus userErrors message At least one component is required. Full support needs component-backed success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "productBundleUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productBundleUpdate", "ProductBundleUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-product probe returned productBundleOperation null plus userErrors message Product does not exist. Full support needs bundle update success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+  },
+  {
+    "name": "combinedListingUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
+    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
+    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
   },
   {
     "name": "productPublish",
@@ -662,6 +1425,256 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "article",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["article", "Article"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields are resolved from the local online-store content graph."
+  },
+  {
+    "name": "articleAuthors",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleAuthors", "ArticleAuthors"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives the author connection from locally staged or hydrated article authors with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "articles",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articles", "Articles"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, and staged read-after-write effects."
+  },
+  {
+    "name": "articleTags",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleTags", "ArticleTags"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives article tags from the effective local article graph and returns an empty list when no articles carry tags."
+  },
+  {
+    "name": "articleCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleCreate", "ArticleCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article creation locally, including handle/publication/tag/author fields and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
+  },
+  {
+    "name": "articleUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleUpdate", "ArticleUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article updates locally for the supported scalar lifecycle fields and keeps downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
+  },
+  {
+    "name": "articleDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleDelete", "ArticleDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article tombstones locally so detail reads return null and catalog/blog article reads omit the deleted article."
+  },
+  {
+    "name": "blog",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blog", "Blog"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Blog detail reads return staged or hydrated records with nested articles/counts and null for missing IDs."
+  },
+  {
+    "name": "blogs",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogs", "Blogs"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Blog catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "blogsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogsCount", "BlogsCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local blog graph, honoring the same simple query filter as blogs."
+  },
+  {
+    "name": "blogCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogCreate", "BlogCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog creation locally with title, handle, template suffix, and comment policy, then updates downstream blog/blogs/blogsCount reads without upstream writes."
+  },
+  {
+    "name": "blogUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogUpdate", "BlogUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog scalar updates locally and keeps nested article/catalog/count reads coherent."
+  },
+  {
+    "name": "blogDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogDelete", "BlogDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog."
+  },
+  {
+    "name": "page",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["page", "Page"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Page detail reads return staged or hydrated records and null for missing IDs."
+  },
+  {
+    "name": "pages",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pages", "Pages"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Page catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "pagesCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pagesCount", "PagesCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local page graph."
+  },
+  {
+    "name": "pageCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageCreate", "PageCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page creation locally with handle/body/publication/template fields and downstream page/pages/pagesCount visibility."
+  },
+  {
+    "name": "pageUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageUpdate", "PageUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page scalar updates locally and keeps downstream reads coherent."
+  },
+  {
+    "name": "pageDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageDelete", "PageDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page tombstones locally so detail reads return null and page catalog/count reads omit deleted pages."
+  },
+  {
+    "name": "comment",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comment", "Comment"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Comment detail reads return staged or hydrated records and null for missing local IDs; live Shopify returned an internal error for an unknown comment ID during capture and that quirk is documented rather than emulated."
+  },
+  {
+    "name": "comments",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comments", "Comments"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Comment catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged moderation/delete visibility."
+  },
+  {
+    "name": "commentApprove",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentApprove", "CommentApprove"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment approval locally for hydrated/snapshot comments, setting the local status to PUBLISHED and updating downstream comment reads without upstream writes."
+  },
+  {
+    "name": "commentSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentSpam", "CommentSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment spam classification locally for hydrated/snapshot comments, setting the local status to SPAM."
+  },
+  {
+    "name": "commentNotSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentNotSpam", "CommentNotSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages not-spam moderation locally for hydrated/snapshot comments, returning the comment to a pending local status."
+  },
+  {
+    "name": "commentDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentDelete", "CommentDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment."
   },
   {
     "name": "menu",
@@ -1290,6 +2303,26 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventorySetQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventorySetQuantities", "InventorySetQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging."
+  },
+  {
+    "name": "inventoryMoveQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryMoveQuantities", "InventoryMoveQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag."
+  },
+  {
     "name": "inventoryActivate",
     "type": "mutation",
     "domain": "products",
@@ -1378,30 +2411,30 @@
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Do not proxy as supported until metafield-definition state, validation, and affected value migration semantics are modeled."
+    "supportNotes": "Locally stages product-owner metafield definition creation from MetafieldDefinitionInput, including normalized definition state, selected validation/access/capability fields, optional pinning, downstream read visibility, and mutation-log preservation without runtime Shopify writes."
   },
   {
     "name": "metafieldDefinitionUpdate",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires immutable identity checks and validation job semantics before support."
+    "supportNotes": "Locally stages product-owner metafield definition updates for existing normalized definitions. Type, namespace, key, and owner type remain immutable; selected name, description, validations, access, and capability fields update downstream reads."
   },
   {
     "name": "metafieldDefinitionDelete",
     "type": "mutation",
     "domain": "metafields",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
     "runtimeTests": ["tests/integration/metafield-definition-draft-flow.test.ts"],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires deleteAllAssociatedMetafields behavior and asynchronous associated-value deletion semantics before support."
+    "supportNotes": "Locally stages product-owner metafield definition deletion by id or identifier. The local tombstone hides base/staged definitions from downstream reads; deleteAllAssociatedMetafields conservatively removes matching product-owned metafields only."
   },
   {
     "name": "metafieldDefinitionPin",
@@ -1444,30 +2477,30 @@
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobject", "Metaobject"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry read root. Registry-only declared gap until live capture proves ID lookup nullability, selected field shape, capabilities, references, and empty/no-data behavior."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry ID lookup root. HAR-243 supports snapshot and live-hybrid overlay reads from normalized fixture/local state, including missing ID nullability, selected field shape, capabilities, ordered fields, field(key:) lookup, and safe empty referencedBy behavior."
   },
   {
     "name": "metaobjectByHandle",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectByHandle", "MetaobjectByHandle"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. Registry-only declared gap until type-plus-handle identity, missing-handle nullability, and app-owned type behavior are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 handle lookup root. HAR-243 supports normalized type-plus-handle lookup in snapshot and live-hybrid overlay modes, including missing handle nullability."
   },
   {
     "name": "metaobjects",
     "type": "query",
     "domain": "metaobjects",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjects", "Metaobjects"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL 2026-04 entry connection root. Registry-only declared gap until type-scoped empty connections, pagination, search filters, sorting, and field-value query semantics are captured."
+    "runtimeTests": ["tests/integration/metaobject-query-shapes.test.ts"],
+    "supportNotes": "Admin GraphQL 2026-04 entry connection root. HAR-243 supports normalized type-scoped entry connections, empty connections, stable local cursors, pagination, reverse, documented sort keys, and field-value query filters."
   },
   {
     "name": "metaobjectDefinition",
@@ -1554,40 +2587,40 @@
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until definition schema validation, capabilities, access, and entry catalog side effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally."
   },
   {
     "name": "metaobjectDefinitionUpdate",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field definition migrations, validation jobs, access changes, and downstream entry effects are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model."
   },
   {
     "name": "metaobjectDefinitionDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until associated entry deletion, unknown-type behavior, and downstream definition absence are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled."
   },
   {
     "name": "standardMetaobjectDefinitionEnable",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["standardMetaobjectDefinitionEnable", "StandardMetaobjectDefinitionEnable"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until standard template catalog capture, enable validation, and created-definition semantics are modeled."
+    "runtimeTests": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+    "supportNotes": "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes."
   },
   {
     "name": "collectionCreate",
@@ -1653,6 +2686,16 @@
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
   },
   {
+    "name": "return",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["return", "Return"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed Return detail lookup. Snapshot and local live-hybrid reads resolve returns already present on the local order graph, return null for missing IDs, and keep top-level Return serialization aligned with nested Order.returns after staged returnCreate/returnRequest/lifecycle mutations."
+  },
+  {
     "name": "orders",
     "type": "query",
     "domain": "orders",
@@ -1669,6 +2712,96 @@
     "implemented": true,
     "matchNames": ["ordersCount", "OrdersCount"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "returnCalculate",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnCalculate", "ReturnCalculate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Live introspection captured CalculateReturnInput/CalculatedReturn shape, but local support needs calculation parity for restocking fees, exchange lines, shipping fees, tax/discount totals, and error behavior before this root can be implemented."
+  },
+  {
+    "name": "returnableFulfillment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillment", "ReturnableFulfillment"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires returnable-fulfillment identity, eligibility, and line-item quantity parity over fulfilled order state before local reads can be supported."
+  },
+  {
+    "name": "returnableFulfillments",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillments", "ReturnableFulfillments"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured order eligibility, pagination, reverse ordering, and returnable line-item quantity behavior before local catalog support."
+  },
+  {
+    "name": "reverseDelivery",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseDelivery", "ReverseDelivery"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires a normalized reverse-delivery graph linked to reverse fulfillment orders, labels/tracking, and return line items before local detail reads can be supported."
+  },
+  {
+    "name": "reverseFulfillmentOrder",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires reverse fulfillment order lifecycle, status, line items, reverse deliveries, and order linkage parity before local detail reads can be supported."
+  },
+  {
+    "name": "abandonedCheckouts",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckouts", "AbandonedCheckouts"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data."
+  },
+  {
+    "name": "abandonedCheckoutsCount",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including limit-based AT_LEAST precision for local seeded records."
+  },
+  {
+    "name": "abandonment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonment", "Abandonment"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local detail reads return null for missing ids and project seeded Abandonment records, including the linked abandonedCheckoutPayload when the seeded record references a local abandoned checkout."
+  },
+  {
+    "name": "abandonmentByAbandonedCheckoutId",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["abandonmentByAbandonedCheckoutId", "AbandonmentByAbandonedCheckoutId"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local lookup reads return null for missing abandoned checkout ids and resolve seeded abandonment records by abandonedCheckoutId."
   },
   {
     "name": "orderUpdate",
@@ -2068,30 +3201,30 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptCancellationRequest", "FulfillmentOrderAcceptCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service cancellation request lifecycle, status/requestStatus transitions, merchant request history, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service cancellation request acceptance for order-backed fulfillment orders, closes the accepted fulfillment order, preserves merchant request history, and exposes the staged requestStatus through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderAcceptFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptFulfillmentRequest", "FulfillmentOrderAcceptFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service acceptance semantics, estimated shipped timestamps, request status transitions, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service acceptance for submitted fulfillment requests, transitions requestStatus to ACCEPTED/status to IN_PROGRESS, and keeps downstream fulfillment-order reads consistent without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderCancel",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires replacement fulfillment-order creation, partial remaining-work semantics, and status transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 lifecycle support for locally cancelling an open fulfillment order: the original closes with empty line items, a replacement OPEN fulfillment order carries remaining line items, downstream order/top-level reads observe both records, and runtime handling does not proxy upstream."
   },
   {
     "name": "fulfillmentOrderClose",
@@ -2101,17 +3234,17 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderClose", "FulfillmentOrderClose"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires accepted fulfillment-service request semantics, in-progress constraints, and control handoff back to merchant-managed fulfillment before support."
+    "supportNotes": "HAR-234 captured the merchant-managed guardrail `The fulfillment order's assigned fulfillment service must be of api type`; this root remains unimplemented for full lifecycle support because no success path was captured for API fulfillment-service orders."
   },
   {
     "name": "fulfillmentOrderHold",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderHold", "FulfillmentOrderHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold handle/id behavior, multiple active holds per app, limit userErrors, and downstream fulfillmentHolds reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial hold support with fulfillmentHold metadata, ON_HOLD status, held line-item quantities, remaining OPEN fulfillment-order creation, manualHoldsFulfillmentOrders visibility, and release read-after-write behavior."
   },
   {
     "name": "fulfillmentOrderLineItemsPreparedForPickup",
@@ -2138,60 +3271,60 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderMove", "FulfillmentOrderMove"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires inventory/location eligibility, partial move split behavior, requestStatus restrictions, and replacement order reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial move support with moved/original/remaining fulfillment-order payloads, assigned-location changes, line-item quantity splitting, and downstream order/top-level reads."
   },
   {
     "name": "fulfillmentOrderOpen",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled and progress-reported state transitions plus downstream status/requestStatus reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 MARK_AS_OPEN behavior after report-progress state: local staging returns OPEN status and restores open supported actions for downstream reads."
   },
   {
     "name": "fulfillmentOrderRejectCancellationRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectCancellationRequest", "FulfillmentOrderRejectCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request rejection lifecycle, merchant request records, and post-rejection fulfillment-order status behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request rejection for accepted order-backed fulfillment orders, transitions requestStatus to CANCELLATION_REJECTED, and preserves merchant request history without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderRejectFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectFulfillmentRequest", "FulfillmentOrderRejectFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires rejection reasons, rejected line-item semantics, merchant request records, and unfulfillable-line behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages rejection for submitted order-backed fulfillment requests, transitions requestStatus to REJECTED, preserves requested line-item quantities, and keeps downstream reads local without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderReleaseHold",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReleaseHold", "FulfillmentOrderReleaseHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold id filtering, release-all behavior, externalId tracking, and downstream fulfillmentHolds/status changes before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 release-hold support for app-created holds: local staging clears fulfillmentHolds, restores OPEN status/actions, and updates manualHoldsFulfillmentOrders/downstream fulfillment-order reads."
   },
   {
     "name": "fulfillmentOrderReportProgress",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReportProgress", "FulfillmentOrderReportProgress"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires progress report state, status transitions, and interaction with move/open restrictions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 report-progress support for OPEN merchant-managed fulfillment orders: local staging moves status to IN_PROGRESS and exposes MARK_AS_OPEN in downstream reads."
   },
   {
     "name": "fulfillmentOrderReschedule",
@@ -2201,7 +3334,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled fulfillment-order semantics, future fulfillAt validation, and downstream fulfillAt/status visibility before support."
+    "supportNotes": "HAR-234 captured the open-order guardrail `Fulfillment order must be scheduled.`; this root remains unimplemented for full lifecycle support until scheduled fulfillment-order setup and success read-after-write behavior are captured."
   },
   {
     "name": "fulfillmentOrdersReroute",
@@ -2211,7 +3344,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrdersReroute", "FulfillmentOrdersReroute"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires order-routing location selection, included/excluded location semantics, and assignedLocation updates before support."
+    "supportNotes": "HAR-234 captured unknown-id RESOURCE_NOT_FOUND and a live included-location branch returning Shopify INTERNAL_SERVER_ERROR for the current disposable setup; this root remains unimplemented until a successful reroute scenario is captured."
   },
   {
     "name": "fulfillmentOrdersSetFulfillmentDeadline",
@@ -2238,20 +3371,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitCancellationRequest", "FulfillmentOrderSubmitCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request creation, merchant request history, notification semantics, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request creation for accepted order-backed fulfillment orders, records a CANCELLATION_REQUEST merchant request/message, and exposes it through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderSubmitFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitFulfillmentRequest", "FulfillmentOrderSubmitFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires full and partial fulfillment request semantics, split-on-partial behavior, notifyCustomer handling, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages full and partial fulfillment requests for order-backed fulfillment orders, records FULFILLMENT_REQUEST merchant request messages/options, splits partial line-item quantities into submitted and unsubmitted fulfillment-order records, and avoids service callback side effects."
   },
   {
     "name": "fulfillmentService",
@@ -2456,6 +3589,16 @@
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
   },
   {
+    "name": "abandonmentUpdateActivitiesDeliveryStatuses",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["abandonmentUpdateActivitiesDeliveryStatuses", "AbandonmentUpdateActivitiesDeliveryStatuses"],
+    "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
+    "supportNotes": "Local-only support for seeded/snapshot abandonment records. Unknown abandonment ids mirror the captured safe userError `abandonment_not_found`; known local records update the in-memory delivery activity map and selected abandonment payload without sending runtime writes to Shopify."
+  },
+  {
     "name": "refundCreate",
     "type": "mutation",
     "domain": "orders",
@@ -2463,6 +3606,106 @@
     "implemented": true,
     "matchNames": ["refundCreate", "RefundCreate"],
     "runtimeTests": ["tests/integration/order-refund-flow.test.ts"]
+  },
+  {
+    "name": "returnCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCreate", "ReturnCreate"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed local return creation. Stages Return rows against locally known orders/fulfillment line items, preserves original raw mutation for commit replay, and exposes staged returns through top-level return(id:) and nested Order.returns without runtime Shopify writes."
+  },
+  {
+    "name": "returnRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnRequest", "ReturnRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes."
+  },
+  {
+    "name": "returnCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCancel", "ReturnCancel"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CANCELED and exposes the status through top-level and nested return reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnClose",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnClose", "ReturnClose"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CLOSED, records a local closedAt timestamp, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnReopen",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnReopen", "ReturnReopen"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Reopens known local returns to OPEN, clears closedAt, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "removeFromReturn",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["removeFromReturn", "RemoveFromReturn"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured removal semantics for return and exchange line items, quantity recomputation, validation errors, and downstream Return/Order.returns read effects before support."
+  },
+  {
+    "name": "returnProcess",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["returnProcess", "ReturnProcess"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires processing semantics for return/exchange line items, refund duties/shipping, financial transfers, notifications, and downstream refund/return/order effects before support."
+  },
+  {
+    "name": "reverseDeliveryCreateWithShipping",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires normalized reverse fulfillment orders, reverse delivery line items, tracking/label payload behavior, notifications, and downstream reverseDelivery reads before support."
+  },
+  {
+    "name": "reverseDeliveryShippingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryShippingUpdate", "ReverseDeliveryShippingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured reverse-delivery tracking/label update semantics and downstream reverseDelivery read effects before support."
+  },
+  {
+    "name": "reverseFulfillmentOrderDispose",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrderDispose", "ReverseFulfillmentOrderDispose"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires disposition semantics, inventory/location effects, reverse fulfillment order status updates, and downstream reads before support."
   },
   {
     "name": "draftOrder",
@@ -2490,6 +3733,36 @@
     "implemented": true,
     "matchNames": ["draftOrdersCount", "DraftOrdersCount"],
     "runtimeTests": ["tests/integration/order-creation-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderAvailableDeliveryOptions",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderAvailableDeliveryOptions", "DraftOrderAvailableDeliveryOptions"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 no-data behavior returns empty delivery-rate/local-delivery/local-pickup arrays and empty pageInfo. Local snapshot/live-hybrid helper reads mirror that empty/no-data shape."
+  },
+  {
+    "name": "draftOrderSavedSearches",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Captured 2025-01 default draft-order saved searches are modeled as a stable local connection and can drive local bulk helper search selection by savedSearchId."
+  },
+  {
+    "name": "draftOrderTag",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["draftOrderTag", "DraftOrderTag"],
+    "runtimeTests": [],
+    "supportNotes": "Blocked on valid-ID evidence. HAR-318 live probing showed raw tag strings fail ID validation and guessed gid://shopify/DraftOrderTag/<tag> IDs return null; no exposed catalog produced valid DraftOrderTag IDs. Runtime can synthesize local staged tag IDs for internal consistency, but registry support remains false until a real valid-id capture exists."
   },
   {
     "name": "draftOrderCreate",
@@ -2528,6 +3801,33 @@
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
   },
   {
+    "name": "draftOrderBulkAddTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkAddTags", "DraftOrderBulkAddTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkRemoveTags",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkRemoveTags", "DraftOrderBulkRemoveTags"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderBulkDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderBulkDelete", "DraftOrderBulkDelete"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
     "name": "draftOrderDelete",
     "type": "mutation",
     "domain": "orders",
@@ -2535,6 +3835,26 @@
     "implemented": true,
     "matchNames": ["draftOrderDelete", "DraftOrderDelete"],
     "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"]
+  },
+  {
+    "name": "draftOrderCalculate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderCalculate", "DraftOrderCalculate"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior."
+  },
+  {
+    "name": "draftOrderInvoicePreview",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["draftOrderInvoicePreview", "DraftOrderInvoicePreview"],
+    "runtimeTests": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+    "supportNotes": "Local support returns deterministic preview subject/html for staged draft orders and never sends invoice email or writes upstream."
   },
   {
     "name": "draftOrderInvoiceSend",
@@ -2970,7 +4290,7 @@
     "implemented": true,
     "matchNames": ["marketingActivities", "MarketingActivities"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivity",
@@ -2980,7 +4300,7 @@
     "implemented": true,
     "matchNames": ["marketingActivity", "MarketingActivity"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; no arbitrary marketing activity records are synthesized."
+    "supportNotes": "Snapshot/local singular lookup support for captured selected fields. Missing IDs return null; staged external activity lifecycle mutations are visible immediately."
   },
   {
     "name": "marketingEvent",
@@ -3000,7 +4320,7 @@
     "implemented": true,
     "matchNames": ["marketingEvents", "MarketingEvents"],
     "runtimeTests": ["tests/integration/marketing-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, and cursor/pageInfo shapes. No marketing mutation staging is included."
+    "supportNotes": "Snapshot/local read support for captured selected fields, empty connections, filtering, sorting, reverse ordering, cursor/pageInfo shapes, and staged external activity lifecycle overlays."
   },
   {
     "name": "marketingActivityCreate",
@@ -3027,70 +4347,70 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityCreateExternal", "MarketingActivityCreateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external remoteId/UTM fields, userErrors, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity creation from captured write_marketing_events evidence. Preserves remoteId/UTM attribution, selected Shopify-like fields, userErrors, original mutation log retention, and downstream marketingActivity/marketingActivities visibility."
   },
   {
     "name": "marketingActivityUpdateExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpdateExternal", "MarketingActivityUpdateExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for external activity identity, status updates, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity updates by remoteId or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields."
   },
   {
     "name": "marketingActivityUpsertExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpsertExternal", "MarketingActivityUpsertExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for create-vs-update behavior, remoteId identity, and downstream list/detail visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity upserts using remoteId identity from captured write_marketing_events evidence. Missing remoteIds create staged activity/event rows; existing remoteIds update staged fields while preserving immutable UTM attribution."
   },
   {
     "name": "marketingActivityDeleteExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityDeleteExternal", "MarketingActivityDeleteExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for deletion payloads, unknown IDs, and downstream absence behavior."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages external activity deletion by remoteId or staged id from captured write_marketing_events evidence. Missing activities return captured userErrors and successful deletes hide activity/event rows from downstream reads."
   },
   {
     "name": "marketingActivitiesDeleteAllExternal",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivitiesDeleteAllExternal", "MarketingActivitiesDeleteAllExternal"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for asynchronous job payloads and blocked create/update behavior while deletion is pending."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages bulk external activity deletion and returns a Shopify-like asynchronous Job payload from captured write_marketing_events evidence. Downstream marketing reads hide locally known external activities after the staged delete-all."
   },
   {
     "name": "marketingEngagementCreate",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for activity-level and channel-level engagement metrics and report visibility."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
   },
   {
     "name": "marketingEngagementsDelete",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingEngagementsDelete", "MarketingEngagementsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for channel-level deletion semantics and userErrors."
+    "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
+    "supportNotes": "Locally stages channel-level engagement deletion with captured selector validation. Activity-level engagement writes are retained because Shopify exposes no activity-level selector on marketingEngagementsDelete; delete-all removes known local channel engagement records and returns the captured result shape."
   },
   {
     "name": "webhookSubscription",
@@ -3147,10 +4467,10 @@
     "type": "mutation",
     "domain": "webhooks",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webhookSubscriptionDelete", "WebhookSubscriptionDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Conformance scaffold only. HAR-267 captures delete payloads, post-delete absence, and unknown-id userErrors, but supported runtime deregistration must wait for local state/read-after-delete modeling."
+    "runtimeTests": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+    "supportNotes": "Local staging deregisters staged or hydrated API-created webhook subscriptions for the HAR-267 captured subset, returning deletedWebhookSubscriptionId/userErrors payloads, preserving raw mutation-log replay order, and making downstream detail/catalog/count reads observe deletion without runtime Shopify writes. Unknown or already deleted IDs return the captured Webhook subscription does not exist userError; missing/null ID branches return Shopify-like GraphQL validation errors locally."
   },
   {
     "name": "segment",
@@ -3227,40 +4547,40 @@
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembers", "CustomerSegmentMembers"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for member pagination, statistics, and empty membership behavior."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 captured member connection behavior for query, queryId, and segmentId reads. Local support is intentionally limited to number_of_orders numeric comparisons and customer_tags CONTAINS string matches over effective customer state; unsupported segment grammar is not claimed."
   },
   {
     "name": "customerSegmentMembersQuery",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembersQuery", "CustomerSegmentMembersQuery"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for asynchronous query job shape and missing-job behavior."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 stages customer segment member query jobs locally and models immediate downstream lookup after the captured async job shape. Missing query IDs preserve Shopify's captured null plus INTERNAL_SERVER_ERROR response."
   },
   {
     "name": "customerSegmentMembership",
     "type": "query",
     "domain": "segments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembership", "CustomerSegmentMembership"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap. Requires read_customers and unrestricted/protected-customer-data capture for membership boolean maps, unknown segment IDs, and empty responses."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 models membership booleans for existing local/staged segments using the selected supported query grammar, skips unknown segment IDs, and returns false for known segments when the customer is absent or does not match."
   },
   {
     "name": "customerSegmentMembersQueryCreate",
     "type": "mutation",
     "domain": "segments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["customerSegmentMembersQueryCreate", "CustomerSegmentMembersQueryCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_customers and protected-customer-data captures for asynchronous job identity, validation, and downstream query reads."
+    "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
+    "supportNotes": "HAR-217 locally stages query jobs and retains the original raw mutation for commit replay. Creation returns Shopify-like pending job fields while the stored local job is immediately available for downstream lookup/member reads."
   },
   {
     "name": "segmentCreate",
@@ -3614,6 +4934,146 @@
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+  },
+  {
+    "name": "availableLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["availableLocales", "AvailableLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves the captured locale catalog slice locally, with snapshot state allowed to override the default seed."
+  },
+  {
+    "name": "shopLocales",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopLocales", "ShopLocales"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Serves shop locale reads from local state, including staged enable, update, disable, and published filtering."
+  },
+  {
+    "name": "translatableResource",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResource", "TranslatableResource"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph; missing or unsupported resources return null."
+  },
+  {
+    "name": "translatableResources",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResources", "TranslatableResources"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Supports resourceType PRODUCT and METAFIELD over locally known products/product metafields; other resource types return an explicit empty connection."
+  },
+  {
+    "name": "translatableResourcesByIds",
+    "type": "query",
+    "domain": "localization",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["translatableResourcesByIds", "TranslatableResourcesByIds"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Resolves locally known product and product-metafield IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "shopLocaleEnable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleEnable", "ShopLocaleEnable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages session-local locale enablement without mutating Shopify; locale names come from the captured availableLocales slice."
+  },
+  {
+    "name": "shopLocaleUpdate",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleUpdate", "ShopLocaleUpdate"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages published-state and market-web-presence association updates for locally known shop locales."
+  },
+  {
+    "name": "shopLocaleDisable",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+  },
+  {
+    "name": "translationsRegister",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRegister", "TranslationsRegister"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, locale, and value validation; market-specific translation inputs are explicit unsupported branches."
+  },
+  {
+    "name": "translationsRemove",
+    "type": "mutation",
+    "domain": "localization",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["translationsRemove", "TranslationsRemove"],
+    "runtimeTests": ["tests/integration/localization-flow.test.ts"],
+    "supportNotes": "Removes staged/base translations for supported local product and product-metafield resources without runtime Shopify writes."
+  },
+  {
+    "name": "files",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["files", "Files"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs."
+  },
+  {
+    "name": "fileSavedSearches",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns Shopify-like empty saved-search connections in snapshot mode; saved search records are not modeled yet."
+  },
+  {
+    "name": "stagedUploadsCreate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["stagedUploadsCreate", "StagedUploadsCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns inert draft-proxy staged upload target metadata without creating external upload storage or acknowledging uploaded content."
+  },
+  {
+    "name": "fileAcknowledgeUpdateFailed",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
+    "runtimeTests": [],
+    "supportNotes": "Explicitly unsupported because acknowledging upload failure is an external Files API side effect; this registry entry is a commitment to model failure state locally before support, not a permanent passthrough capability."
   },
   {
     "name": "fileCreate",

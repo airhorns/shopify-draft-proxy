@@ -1,0 +1,13 @@
+mutation FulfillmentOrderRejectFulfillmentRequestLifecycle($id: ID!, $message: String) {
+  fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: $message) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -39,12 +39,15 @@ export const operationRegistryEntrySchema = z.strictObject({
   type: z.enum(['query', 'mutation']),
   domain: z.enum([
     'products',
+    'b2b',
+    'apps',
     'media',
     'bulk-operations',
     'customers',
     'orders',
     'store-properties',
     'discounts',
+    'events',
     'payments',
     'marketing',
     'online-store',
@@ -52,6 +55,7 @@ export const operationRegistryEntrySchema = z.strictObject({
     'segments',
     'shipping-fulfillments',
     'webhooks',
+    'localization',
     'metafields',
     'metaobjects',
     'markets',
@@ -99,6 +103,8 @@ export const comparisonTargetSchema = z.strictObject({
   proxyPath: z.string(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
+  selectedPaths: z.array(z.string()).optional(),
+  expectedDifferences: z.array(expectedDifferenceSchema).optional(),
 });
 export type ComparisonTarget = z.infer<typeof comparisonTargetSchema>;
 

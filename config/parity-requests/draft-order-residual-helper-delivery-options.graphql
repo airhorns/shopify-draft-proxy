@@ -1,0 +1,38 @@
+query DraftOrderAvailableDeliveryOptions($input: DraftOrderAvailableDeliveryOptionsInput!) {
+  draftOrderAvailableDeliveryOptions(input: $input) {
+    availableShippingRates {
+      handle
+      title
+      code
+      source
+      price {
+        amount
+        currencyCode
+      }
+    }
+    availableLocalDeliveryRates {
+      handle
+      title
+      code
+      source
+      price {
+        amount
+        currencyCode
+      }
+    }
+    availableLocalPickupOptions {
+      handle
+      title
+      source
+      code
+      instructions
+      locationId
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

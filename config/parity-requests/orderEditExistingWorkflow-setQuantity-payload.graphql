@@ -1,0 +1,23 @@
+mutation OrderEditExistingWorkflowSetQuantityPayload($id: ID!, $lineItemId: ID!, $quantity: Int!, $restock: Boolean) {
+  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity, restock: $restock) {
+    calculatedLineItem {
+      title
+      quantity
+      currentQuantity
+      sku
+      variant {
+        id
+      }
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

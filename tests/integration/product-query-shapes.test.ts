@@ -18,6 +18,69 @@ describe('product query shapes', () => {
     vi.restoreAllMocks();
   });
 
+  it('serves Shopify-like empty product feed reads in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot product feed reads should not proxy upstream');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query ProductFeedsEmpty($missingProductFeedId: ID!) {
+            missingProductFeed: productFeed(id: $missingProductFeedId) {
+              id
+              country
+              language
+              status
+            }
+            productFeeds(first: 10) {
+              nodes {
+                id
+                country
+                language
+                status
+              }
+              edges {
+                cursor
+                node {
+                  id
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        `,
+        variables: {
+          missingProductFeedId: 'gid://shopify/ProductFeed/999999999999999',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        missingProductFeed: null,
+        productFeeds: {
+          nodes: [],
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('serves products edges and pageInfo from staged local state', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
@@ -131,6 +194,182 @@ describe('product query shapes', () => {
         nikeActive: {
           count: 1,
           precision: 'EXACT',
+        },
+      },
+    });
+  });
+
+  it('serves residual product helper roots from staged local state in snapshot mode', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot product helper reads should stay local'));
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const firstCreate = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Helper Hat", vendor: "Acme", productType: "Accessory", tags: ["Winter", "Hat"] }) { product { id handle variants(first: 1) { nodes { id } } } userErrors { field message } } }',
+    });
+    const secondCreate = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Helper Board", vendor: "Bravo", productType: "Snowboard", tags: ["Winter", "Board"] }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = firstCreate.body.data.productCreate.product.id as string;
+    const productHandle = firstCreate.body.data.productCreate.product.handle as string;
+    const variantId = firstCreate.body.data.productCreate.product.variants.nodes[0].id as string;
+    const secondProductId = secondCreate.body.data.productCreate.product.id as string;
+    const jobId = 'gid://shopify/ProductDuplicateJob/999999999999';
+
+    const response = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'query Helpers($productId: ID!, $productHandle: String!, $variantId: ID!, $secondProductId: ID!, $jobId: ID!) { byId: productByIdentifier(identifier: { id: $productId }) { id handle title } byHandle: productByIdentifier(identifier: { handle: $productHandle }) { id handle title } missingProduct: productByIdentifier(identifier: { id: "gid://shopify/Product/404" }) { id } variantById: productVariantByIdentifier(identifier: { id: $variantId }) { id title product { id } } missingVariant: productVariantByIdentifier(identifier: { id: "gid://shopify/ProductVariant/404" }) { id } productVariants(first: 5, sortKey: ID) { nodes { id product { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } acmeVariants: productVariantsCount(query: "vendor:Acme") { count precision } productTags(first: 10) { nodes pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } productTypes(first: 10) { nodes pageInfo { hasNextPage hasPreviousPage } } productVendors(first: 10) { nodes pageInfo { hasNextPage hasPreviousPage } } productSavedSearches(first: 10) { nodes { id name query searchTerms resourceType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } productOperation(id: "gid://shopify/ProductSetOperation/404") { __typename status product { id } ... on ProductSetOperation { id userErrors { field message } } } productDuplicateJob(id: $jobId) { __typename id done } productResourceFeedback(id: $secondProductId) { productId state messages feedbackGeneratedAt productUpdatedAt } }',
+      variables: { productId, productHandle, variantId, secondProductId, jobId },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.byId).toEqual({ id: productId, handle: productHandle, title: 'Helper Hat' });
+    expect(response.body.data.byHandle).toEqual({ id: productId, handle: productHandle, title: 'Helper Hat' });
+    expect(response.body.data.missingProduct).toBeNull();
+    expect(response.body.data.variantById).toEqual({
+      id: variantId,
+      title: 'Default Title',
+      product: { id: productId },
+    });
+    expect(response.body.data.missingVariant).toBeNull();
+    expect(
+      response.body.data.productVariants.nodes.map((variant: { product: { id: string } }) => variant.product.id),
+    ).toEqual([productId, secondProductId]);
+    expect(response.body.data.productVariants.pageInfo).toMatchObject({
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: expect.stringMatching(/^cursor:gid:\/\/shopify\/ProductVariant\//),
+      endCursor: expect.stringMatching(/^cursor:gid:\/\/shopify\/ProductVariant\//),
+    });
+    expect(response.body.data.acmeVariants).toEqual({ count: 1, precision: 'EXACT' });
+    expect(response.body.data.productTags.nodes).toEqual(['Board', 'Hat', 'Winter']);
+    expect(response.body.data.productTags.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: 'cursor:Board',
+      endCursor: 'cursor:Winter',
+    });
+    expect(response.body.data.productTypes).toMatchObject({
+      nodes: ['Accessory', 'Snowboard'],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    });
+    expect(response.body.data.productVendors).toMatchObject({
+      nodes: ['Acme', 'Bravo'],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false },
+    });
+    expect(response.body.data.productSavedSearches).toEqual({
+      nodes: [],
+      pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
+    });
+    expect(response.body.data.productOperation).toBeNull();
+    expect(response.body.data.productDuplicateJob).toEqual({
+      __typename: 'ProductDuplicateJob',
+      id: jobId,
+      done: true,
+    });
+    expect(response.body.data.productResourceFeedback).toBeNull();
+  });
+
+  it('returns locally staged productSet operations through productOperation', async () => {
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const setResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation SetProduct($input: ProductSetInput!) { productSet(input: $input, synchronous: false) { product { id } productSetOperation { __typename id status userErrors { field message } } userErrors { field message } } }',
+        variables: {
+          input: {
+            title: 'Async Helper Hat',
+            vendor: 'Acme',
+          },
+        },
+      });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.data.productSet.product).toBeNull();
+    expect(setResponse.body.data.productSet.userErrors).toEqual([]);
+    const operation = setResponse.body.data.productSet.productSetOperation;
+    expect(operation).toEqual({
+      __typename: 'ProductSetOperation',
+      id: expect.stringMatching(/^gid:\/\/shopify\/ProductSetOperation\//),
+      status: 'CREATED',
+      userErrors: [],
+    });
+
+    const operationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOperation($id: ID!) { productOperation(id: $id) { __typename status product { id title vendor } ... on ProductSetOperation { id userErrors { field message } } } }',
+        variables: { id: operation.id },
+      });
+
+    expect(operationResponse.status).toBe(200);
+    expect(operationResponse.body.data.productOperation).toEqual({
+      __typename: 'ProductSetOperation',
+      id: operation.id,
+      status: 'CREATED',
+      product: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Product\//),
+        title: 'Async Helper Hat',
+        vendor: 'Acme',
+      },
+      userErrors: [],
+    });
+  });
+
+  it('keeps product resource feedback mutations registered but unsupported passthrough', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            bulkProductResourceFeedbackCreate: {
+              feedback: null,
+              userErrors: [{ field: ['feedbackInput', '0', 'productId'], message: 'Product does not exist' }],
+            },
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const mutationQuery =
+      'mutation Feedback($feedbackInput: [ProductResourceFeedbackInput!]!) { bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) { feedback { productId state } userErrors { field message } } }';
+    const variables = {
+      feedbackInput: [
+        {
+          productId: 'gid://shopify/Product/404',
+          state: 'REQUIRES_ACTION',
+          feedbackGeneratedAt: '2024-01-01T00:00:00Z',
+          productUpdatedAt: '2024-01-01T00:00:00Z',
+          messages: ['missing'],
+        },
+      ],
+    };
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({ query: mutationQuery, variables });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.bulkProductResourceFeedbackCreate.userErrors).toEqual([
+      { field: ['feedbackInput', '0', 'productId'], message: 'Product does not exist' },
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'Feedback',
+      status: 'proxied',
+      requestBody: { query: mutationQuery, variables },
+      interpreted: {
+        registeredOperation: {
+          name: 'bulkProductResourceFeedbackCreate',
+          implemented: false,
         },
       },
     });

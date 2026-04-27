@@ -1,0 +1,29 @@
+{
+  "scenarioId": "metafield-definition-lifecycle-mutations",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition",
+    "metafieldDefinitions",
+    "metafieldsSet"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/metafield-definition-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Runtime-test-backed live fixture for product-owner metafield definition create/update/delete. The live capture records create, downstream definition/metafield reads, update, delete with deleteAllAssociatedMetafields, and immediate downstream no-data reads after delete. Generic parity replay is fixture-backed through the lifecycle integration test because the runner cannot yet chain this multi-step schema mutation flow while preserving the created definition/product IDs across steps."
+}

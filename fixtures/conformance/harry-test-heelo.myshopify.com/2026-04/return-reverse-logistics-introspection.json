@@ -1,0 +1,112 @@
+{
+  "capturedAt": "2026-04-27T14:26:17Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "captureType": "no-side-effect-introspection",
+  "queryRoots": {
+    "return": {
+      "args": ["id: ID!"],
+      "type": "Return"
+    },
+    "returnCalculate": {
+      "args": ["input: CalculateReturnInput!"],
+      "type": "CalculatedReturn",
+      "blocker": "Requires calculation parity for restocking fees, exchanges, shipping, tax, discount, and validation behavior."
+    },
+    "returnableFulfillment": {
+      "args": ["id: ID!"],
+      "type": "ReturnableFulfillment",
+      "blocker": "Requires returnability eligibility and line-item quantity parity over fulfilled orders."
+    },
+    "returnableFulfillments": {
+      "args": ["orderId: ID!", "first: Int", "after: String", "last: Int", "before: String", "reverse: Boolean"],
+      "type": "ReturnableFulfillmentConnection",
+      "blocker": "Requires order eligibility, pagination, reverse ordering, and returnable line-item quantity behavior."
+    },
+    "reverseDelivery": {
+      "args": ["id: ID!"],
+      "type": "ReverseDelivery",
+      "blocker": "Requires a normalized reverse-delivery graph linked to reverse fulfillment orders."
+    },
+    "reverseFulfillmentOrder": {
+      "args": ["id: ID!"],
+      "type": "ReverseFulfillmentOrder",
+      "blocker": "Requires reverse fulfillment order lifecycle, line items, reverse deliveries, and order linkage parity."
+    }
+  },
+  "mutationRoots": {
+    "returnCreate": {
+      "args": ["returnInput: ReturnInput!"],
+      "payloadFields": ["return", "userErrors"]
+    },
+    "returnRequest": {
+      "args": ["input: ReturnRequestInput!"],
+      "payloadFields": ["return", "userErrors"]
+    },
+    "returnCancel": {
+      "args": ["id: ID!"],
+      "payloadFields": ["return", "userErrors"]
+    },
+    "returnClose": {
+      "args": ["id: ID!"],
+      "payloadFields": ["return", "userErrors"]
+    },
+    "returnReopen": {
+      "args": ["id: ID!"],
+      "payloadFields": ["return", "userErrors"]
+    },
+    "removeFromReturn": {
+      "args": [
+        "returnId: ID!",
+        "returnLineItems: [ReturnLineItemRemoveFromReturnInput!]",
+        "exchangeLineItems: [ExchangeLineItemRemoveFromReturnInput!]"
+      ],
+      "blocker": "Requires removal semantics for return and exchange line items plus downstream read effects."
+    },
+    "returnProcess": {
+      "args": ["input: ReturnProcessInput!"],
+      "blocker": "Requires processing semantics for returned/exchanged items, refunds, duties, shipping, financial transfers, and notifications."
+    },
+    "reverseDeliveryCreateWithShipping": {
+      "args": [
+        "reverseFulfillmentOrderId: ID!",
+        "reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!",
+        "trackingInput: ReverseDeliveryTrackingInput",
+        "labelInput: ReverseDeliveryLabelInput",
+        "notifyCustomer: Boolean"
+      ],
+      "blocker": "Requires normalized reverse fulfillment order and reverse delivery state plus tracking/label behavior."
+    },
+    "reverseDeliveryShippingUpdate": {
+      "args": [
+        "reverseDeliveryId: ID!",
+        "trackingInput: ReverseDeliveryTrackingInput",
+        "labelInput: ReverseDeliveryLabelInput",
+        "notifyCustomer: Boolean"
+      ],
+      "blocker": "Requires captured reverse-delivery tracking/label update semantics."
+    },
+    "reverseFulfillmentOrderDispose": {
+      "args": ["dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!"],
+      "blocker": "Requires disposition, inventory/location effects, status updates, and downstream reads."
+    }
+  },
+  "typeEvidence": {
+    "ReturnStatus": ["CANCELED", "CLOSED", "OPEN", "REQUESTED", "DECLINED"],
+    "ReturnInput": ["exchangeLineItems", "requestedAt", "orderId", "returnLineItems", "returnShippingFee"],
+    "ReturnLineItemInput": ["quantity", "returnReason", "returnReasonNote", "fulfillmentLineItemId", "restockingFee"],
+    "ReturnRequestInput": ["orderId", "returnLineItems", "returnShippingFee"],
+    "ReturnProcessInput": [
+      "returnId",
+      "returnLineItems",
+      "exchangeLineItems",
+      "refundDuties",
+      "refundShipping",
+      "tipLineId",
+      "note",
+      "notifyCustomer",
+      "financialTransfer"
+    ],
+    "absentRoots": ["returnApprove", "returnDecline"]
+  }
+}

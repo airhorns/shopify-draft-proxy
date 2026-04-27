@@ -8,20 +8,39 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
-import { handleMediaMutation } from './media.js';
-import { handleMarketingQuery, hydrateMarketingFromUpstreamResponse } from './marketing.js';
+import { handleMediaMutation, handleMediaQuery } from './media.js';
+import {
+  handleMarketingMutation,
+  handleMarketingQuery,
+  hydrateMarketingFromUpstreamResponse,
+  MARKETING_MUTATION_ROOTS,
+} from './marketing.js';
 import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstreamResponse } from './customers.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
+import { handleEventsQuery } from './events.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
+import {
+  handleLocalizationMutation,
+  handleLocalizationQuery,
+  hydrateLocalizationFromUpstreamResponse,
+} from './localization.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
+import {
+  handleOnlineStoreMutation,
+  handleOnlineStoreQuery,
+  hydrateOnlineStoreFromUpstreamResponse,
+  isOnlineStoreContentQueryRoot,
+} from './online-store.js';
 import { handleProductMutation, handleProductQuery, hydrateProductsFromUpstreamResponse } from './products.js';
 import { handleMetafieldDefinitionMutation, handleMetafieldDefinitionQuery } from './metafield-definitions.js';
 import {
-  handleMetaobjectDefinitionQuery,
-  hydrateMetaobjectDefinitionsFromUpstreamResponse,
+  handleMetaobjectDefinitionMutation,
+  handleMetaobjectQuery,
+  hydrateMetaobjectsFromUpstreamResponse,
 } from './metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from './payments.js';
 import { handleSegmentMutation, handleSegmentsQuery, hydrateSegmentsFromUpstreamResponse } from './segments.js';
@@ -46,7 +65,45 @@ const APP_DISCOUNT_MUTATION_ROOTS = new Set([
   'discountAutomaticAppUpdate',
 ]);
 
+const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
+  'appPurchaseOneTimeCreate',
+  'appSubscriptionCreate',
+  'appSubscriptionCancel',
+  'appSubscriptionLineItemUpdate',
+  'appSubscriptionTrialExtend',
+  'appUsageRecordCreate',
+  'appRevokeAccessScopes',
+  'appUninstall',
+  'delegateAccessTokenCreate',
+  'delegateAccessTokenDestroy',
+]);
+
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const ORDER_RETURN_MUTATION_ROOTS = new Set([
+  'returnCreate',
+  'returnRequest',
+  'returnCancel',
+  'returnClose',
+  'returnReopen',
+]);
+const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
+  'orderCapture',
+  'transactionVoid',
+  'orderCreateMandatePayment',
+  'orderClose',
+  'orderOpen',
+  'orderMarkAsPaid',
+  'orderCreateManualPayment',
+  'orderCustomerSet',
+  'orderCustomerRemove',
+  'taxSummaryCreate',
+  'orderCancel',
+  'returnCreate',
+  'returnRequest',
+  'returnCancel',
+  'returnClose',
+  'returnReopen',
+]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationActivation',
@@ -72,6 +129,20 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceUpdate',
   'carrierServiceDelete',
 ]);
+
+const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
+  'fulfillmentOrderHold',
+  'fulfillmentOrderReleaseHold',
+  'fulfillmentOrderMove',
+  'fulfillmentOrderOpen',
+  'fulfillmentOrderCancel',
+  'fulfillmentOrderReportProgress',
+  'fulfillmentOrderReschedule',
+  'fulfillmentOrderClose',
+  'fulfillmentOrdersReroute',
+]);
+
+const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -125,6 +196,44 @@ function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): st
   }
 
   return [...seen];
+}
+
+function hasLocalMutationErrors(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => hasLocalMutationErrors(item));
+  }
+
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'errors' && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if ((key === 'userErrors' || key.endsWith('UserErrors')) && Array.isArray(child) && child.length > 0) {
+      return true;
+    }
+
+    if (hasLocalMutationErrors(child)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shouldAppendLocalMutationLog(primaryRootField: string | null | undefined, responseBody: unknown): boolean {
+  if (isRejectedCreateMutationResponse(primaryRootField, responseBody)) {
+    return false;
+  }
+
+  if (!hasLocalMutationErrors(responseBody)) {
+    return true;
+  }
+
+  return !NO_LOG_ERROR_MUTATION_ROOTS.has(primaryRootField ?? '');
 }
 
 function interpretMutationLogEntry(
@@ -206,6 +315,18 @@ function buildUnsupportedMutationObservability(parsed: ParsedOperation): Partial
     };
   }
 
+  if (APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return {
+      registeredOperation,
+      safety: {
+        classification: 'unsupported-app-billing-access-mutation',
+        wouldProxyToShopify: true,
+        reason:
+          'App billing, access-scope, delegated-token, and uninstall mutations can alter merchant billing, installation state, or app access; local staging and commit replay semantics are required before support.',
+      },
+    };
+  }
+
   return { registeredOperation };
 }
 
@@ -213,6 +334,10 @@ function unsupportedMutationNotes(parsed: ParsedOperation): string {
   const primaryRootField = parsed.rootFields[0] ?? null;
   if (primaryRootField && APP_DISCOUNT_MUTATION_ROOTS.has(primaryRootField)) {
     return 'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.';
+  }
+
+  if (primaryRootField && APP_BILLING_ACCESS_MUTATION_ROOTS.has(primaryRootField)) {
+    return 'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.';
   }
 
   const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
@@ -385,6 +510,34 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (primaryRootField && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(primaryRootField)) {
+      const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
+      if (responseBody) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: primaryRootField,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes:
+            primaryRootField === 'fulfillmentOrderReschedule' ||
+            primaryRootField === 'fulfillmentOrderClose' ||
+            primaryRootField === 'fulfillmentOrdersReroute'
+              ? 'Returned a captured fulfillment-order lifecycle guardrail locally without proxying upstream; full local lifecycle support remains unimplemented for this root.'
+              : 'Staged locally in the in-memory fulfillment-order lifecycle draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = responseBody;
+        return;
+      }
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'shipping-fulfillments' &&
@@ -515,6 +668,20 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'media') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.listEffectiveFiles().length > 0) {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
       const responseBody = handleMetafieldDefinitionMutation(body.query, variables);
 
@@ -537,6 +704,29 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+      const responseBody = handleMetaobjectDefinitionMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes:
+          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
     if (
       capability.execution === 'stage-locally' &&
       capability.domain === 'payments' &&
@@ -544,19 +734,23 @@ export function createProxyRouter(config: AppConfig): Router {
     ) {
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin);
       if (responseBody) {
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
-          operationName: capability.operationName,
-          path: ctx.path,
-          query: body.query,
-          variables,
-          requestBody,
-          stagedResourceIds: collectProxySyntheticGids(responseBody),
-          status: 'staged',
-          interpreted: interpretMutationLogEntry(parsed, capability),
-          notes: 'Staged locally in the in-memory order payment draft store.',
-        });
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
+        if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
+          store.appendLog({
+            id: logEntryId,
+            receivedAt: logReceivedAt,
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: collectProxySyntheticGids(responseBody),
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: 'Staged locally in the in-memory order payment draft store.',
+          });
+        }
 
         ctx.status = 200;
         ctx.body = responseBody;
@@ -583,6 +777,28 @@ export function createProxyRouter(config: AppConfig): Router {
         interpreted: interpretMutationLogEntry(parsed, capability),
         notes:
           'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
+      });
+
+      ctx.status = 200;
+      ctx.body = responseBody;
+      return;
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
+      const responseBody = handleLocalizationMutation(body.query, variables);
+
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: ctx.path,
+        query: body.query,
+        variables,
+        requestBody,
+        stagedResourceIds: collectProxySyntheticGids(responseBody),
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the in-memory localization draft store.',
       });
 
       ctx.status = 200;
@@ -636,8 +852,40 @@ export function createProxyRouter(config: AppConfig): Router {
 
     if (
       capability.execution === 'stage-locally' &&
+      capability.domain === 'marketing' &&
+      primaryRootField &&
+      MARKETING_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      const marketingMutation = handleMarketingMutation(body.query, variables);
+      if (marketingMutation) {
+        if (marketingMutation.shouldLog) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: marketingMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: marketingMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = marketingMutation.response;
+        return;
+      }
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
       capability.domain === 'webhooks' &&
-      (primaryRootField === 'webhookSubscriptionCreate' || primaryRootField === 'webhookSubscriptionUpdate')
+      (primaryRootField === 'webhookSubscriptionCreate' ||
+        primaryRootField === 'webhookSubscriptionUpdate' ||
+        primaryRootField === 'webhookSubscriptionDelete')
     ) {
       const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(body.query, variables);
       if (webhookSubscriptionMutation) {
@@ -659,6 +907,29 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = 200;
         ctx.body = webhookSubscriptionMutation.response;
+        return;
+      }
+    }
+
+    if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
+      const onlineStoreMutation = handleOnlineStoreMutation(body.query, variables);
+      if (onlineStoreMutation) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: ctx.path,
+          query: body.query,
+          variables,
+          requestBody,
+          stagedResourceIds: onlineStoreMutation.stagedResourceIds,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          notes: 'Staged locally in the in-memory online-store content draft store.',
+        });
+
+        ctx.status = 200;
+        ctx.body = onlineStoreMutation.response;
         return;
       }
     }
@@ -762,6 +1033,13 @@ export function createProxyRouter(config: AppConfig): Router {
       });
 
       const upstreamBody = await response.json();
+
+      if (primaryRootField && PRODUCT_FEED_QUERY_ROOTS.has(primaryRootField)) {
+        ctx.status = response.status;
+        ctx.body = upstreamBody;
+        return;
+      }
+
       hydrateProductsFromUpstreamResponse(body.query, variables, upstreamBody);
 
       ctx.status = response.status;
@@ -805,10 +1083,17 @@ export function createProxyRouter(config: AppConfig): Router {
 
       if (config.readMode === 'live-hybrid') {
         const liveHybridOrderId = typeof variables['id'] === 'string' ? variables['id'] : null;
+        const liveHybridAbandonedCheckoutId =
+          typeof variables['abandonedCheckoutId'] === 'string' ? variables['abandonedCheckoutId'] : null;
         const hasStagedOrders = store.getOrders().length > 0;
         const hasStagedDraftOrders = store.getDraftOrders().length > 0;
+        const hasLocalAbandonedCheckouts = store.getAbandonedCheckouts().length > 0;
         const canServeLocalOrderDetail =
           primaryRootField === 'order' && liveHybridOrderId !== null && store.getOrderById(liveHybridOrderId) !== null;
+        const canServeLocalReturnDetail =
+          primaryRootField === 'return' &&
+          liveHybridOrderId !== null &&
+          store.getOrders().some((order) => order.returns.some((orderReturn) => orderReturn.id === liveHybridOrderId));
         const canServeLocalOrderCatalog =
           (primaryRootField === 'orders' || primaryRootField === 'ordersCount') &&
           hasStagedOrders &&
@@ -816,17 +1101,39 @@ export function createProxyRouter(config: AppConfig): Router {
         const canServeLocalDraftOrderDetail =
           primaryRootField === 'draftOrder' &&
           liveHybridOrderId !== null &&
-          store.getDraftOrderById(liveHybridOrderId) !== null;
+          (store.getDraftOrderById(liveHybridOrderId) !== null || store.hasDeletedDraftOrder(liveHybridOrderId));
         const canServeLocalDraftOrderCatalog =
           (primaryRootField === 'draftOrders' || primaryRootField === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
           shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
+        const canServeLocalDraftOrderHelper =
+          primaryRootField === 'draftOrderAvailableDeliveryOptions' ||
+          primaryRootField === 'draftOrderSavedSearches' ||
+          primaryRootField === 'draftOrderTag';
+        const canServeLocalAbandonedCheckoutCatalog =
+          (primaryRootField === 'abandonedCheckouts' || primaryRootField === 'abandonedCheckoutsCount') &&
+          hasLocalAbandonedCheckouts &&
+          typeof variables['query'] !== 'string' &&
+          typeof variables['savedSearchId'] !== 'string';
+        const canServeLocalAbandonmentDetail =
+          primaryRootField === 'abandonment' &&
+          liveHybridOrderId !== null &&
+          store.getAbandonmentById(liveHybridOrderId) !== null;
+        const canServeLocalAbandonmentByCheckout =
+          primaryRootField === 'abandonmentByAbandonedCheckoutId' &&
+          liveHybridAbandonedCheckoutId !== null &&
+          store.getAbandonmentByAbandonedCheckoutId(liveHybridAbandonedCheckoutId) !== null;
 
         if (
           canServeLocalOrderDetail ||
+          canServeLocalReturnDetail ||
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
-          canServeLocalDraftOrderCatalog
+          canServeLocalDraftOrderCatalog ||
+          canServeLocalDraftOrderHelper ||
+          canServeLocalAbandonedCheckoutCatalog ||
+          canServeLocalAbandonmentDetail ||
+          canServeLocalAbandonmentByCheckout
         ) {
           ctx.status = 200;
           ctx.body = handleOrderQuery(body.query, variables);
@@ -856,6 +1163,35 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'live-hybrid' && store.hasDiscounts()) {
         ctx.status = 200;
         ctx.body = handleDiscountQuery(body.query, variables);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'events') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleEventsQuery(body.query);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleB2BQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
     }
@@ -981,6 +1317,30 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleLocalizationQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateLocalizationFromUpstreamResponse(upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body = store.hasStagedLocalizationState() ? handleLocalizationQuery(body.query, variables) : upstreamBody;
+        return;
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -1030,12 +1390,13 @@ export function createProxyRouter(config: AppConfig): Router {
     if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
-        ctx.body = handleMetaobjectDefinitionQuery(body.query, variables);
+        ctx.body = handleMetaobjectQuery(body.query, variables);
         return;
       }
 
       if (config.readMode === 'live-hybrid') {
         const hadLocalDefinitions = store.hasEffectiveMetaobjectDefinitions();
+        const hadLocalMetaobjects = store.hasEffectiveMetaobjects();
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1044,12 +1405,14 @@ export function createProxyRouter(config: AppConfig): Router {
         });
 
         const upstreamBody = await response.json();
-        hydrateMetaobjectDefinitionsFromUpstreamResponse(body.query, variables, upstreamBody);
+        hydrateMetaobjectsFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
         ctx.body =
-          store.hasEffectiveMetaobjectDefinitions() && (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())
-            ? handleMetaobjectDefinitionQuery(body.query, variables)
+          (store.hasEffectiveMetaobjectDefinitions() &&
+            (hadLocalDefinitions || store.hasStagedMetaobjectDefinitions())) ||
+          (store.hasEffectiveMetaobjects() && (hadLocalMetaobjects || store.hasStagedMetaobjects()))
+            ? handleMetaobjectQuery(body.query, variables)
             : upstreamBody;
         return;
       }
@@ -1077,6 +1440,18 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
+        if (
+          primaryRootField !== null &&
+          ['customerSegmentMembers', 'customerSegmentMembersQuery', 'customerSegmentMembership'].includes(
+            primaryRootField,
+          ) &&
+          (store.hasCustomerSegmentMembersQueries() || store.hasStagedSegments() || store.hasStagedCustomers())
+        ) {
+          ctx.status = 200;
+          ctx.body = handleSegmentsQuery(body.query, variables);
+          return;
+        }
+
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1120,6 +1495,36 @@ export function createProxyRouter(config: AppConfig): Router {
       }
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleOnlineStoreQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        const upstreamBody = await response.json();
+        hydrateOnlineStoreFromUpstreamResponse(body.query, upstreamBody);
+
+        ctx.status = response.status;
+        ctx.body =
+          store.hasStagedOnlineStoreContent() ||
+          (primaryRootField !== null &&
+            isOnlineStoreContentQueryRoot(primaryRootField) &&
+            store.hasOnlineStoreContent())
+            ? handleOnlineStoreQuery(body.query, variables)
+            : upstreamBody;
+        return;
+      }
+    }
+
     if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
@@ -1139,12 +1544,19 @@ export function createProxyRouter(config: AppConfig): Router {
         hydrateMarketingFromUpstreamResponse(body.query, variables, upstreamBody);
 
         ctx.status = response.status;
-        ctx.body = upstreamBody;
+        ctx.body = store.hasStagedMarketingRecords() ? handleMarketingQuery(body.query, variables) : upstreamBody;
         return;
       }
     }
 
-    const orderBackedLocalFulfillmentMutation = primaryRootField === 'fulfillmentEventCreate';
+    const orderBackedLocalFulfillmentMutation =
+      primaryRootField === 'fulfillmentEventCreate' ||
+      primaryRootField === 'fulfillmentOrderSubmitFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderAcceptFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderRejectFulfillmentRequest' ||
+      primaryRootField === 'fulfillmentOrderSubmitCancellationRequest' ||
+      primaryRootField === 'fulfillmentOrderAcceptCancellationRequest' ||
+      primaryRootField === 'fulfillmentOrderRejectCancellationRequest';
     if (
       capability.execution === 'stage-locally' &&
       (capability.domain === 'orders' ||
@@ -1152,20 +1564,21 @@ export function createProxyRouter(config: AppConfig): Router {
       (config.readMode === 'snapshot' || primaryRootField === 'draftOrderCreate')
     ) {
       const logEntryId = makeSyntheticGid('MutationLogEntry');
-      const receivedAt = makeSyntheticTimestamp();
+      const logReceivedAt = makeSyntheticTimestamp();
       const responseBody = handleOrderMutation(body.query, variables, config.readMode, config.shopifyAdminOrigin) ?? {
         data: {},
       };
 
-      if (!isRejectedCreateMutationResponse(primaryRootField, responseBody)) {
+      if (shouldAppendLocalMutationLog(primaryRootField, responseBody)) {
         store.appendLog({
           id: logEntryId,
-          receivedAt,
+          receivedAt: logReceivedAt,
           operationName: capability.operationName,
           path: ctx.path,
           query: body.query,
           variables,
           requestBody,
+          stagedResourceIds: collectProxySyntheticGids(responseBody),
           status: 'staged',
           interpreted: interpretMutationLogEntry(parsed, capability),
           notes: orderBackedLocalFulfillmentMutation
@@ -1204,12 +1617,25 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderUpdate' ||
         primaryRootField === 'draftOrderDuplicate' ||
         primaryRootField === 'draftOrderDelete' ||
+        primaryRootField === 'draftOrderBulkAddTags' ||
+        primaryRootField === 'draftOrderBulkRemoveTags' ||
+        primaryRootField === 'draftOrderBulkDelete' ||
+        primaryRootField === 'draftOrderCalculate' ||
+        primaryRootField === 'draftOrderInvoicePreview' ||
         primaryRootField === 'draftOrderInvoiceSend' ||
         primaryRootField === 'draftOrderCreateFromOrder' ||
+        primaryRootField === 'abandonmentUpdateActivitiesDeliveryStatuses' ||
         primaryRootField === 'fulfillmentCreate' ||
         primaryRootField === 'fulfillmentEventCreate' ||
+        primaryRootField === 'fulfillmentOrderSubmitFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderAcceptFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderRejectFulfillmentRequest' ||
+        primaryRootField === 'fulfillmentOrderSubmitCancellationRequest' ||
+        primaryRootField === 'fulfillmentOrderAcceptCancellationRequest' ||
+        primaryRootField === 'fulfillmentOrderRejectCancellationRequest' ||
         primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
-        primaryRootField === 'fulfillmentCancel')
+        primaryRootField === 'fulfillmentCancel' ||
+        (primaryRootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(primaryRootField)))
     ) {
       const orderMutationResponse = handleOrderMutation(
         body.query,
@@ -1218,6 +1644,8 @@ export function createProxyRouter(config: AppConfig): Router {
         config.shopifyAdminOrigin,
       );
       if (orderMutationResponse) {
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const logReceivedAt = makeSyntheticTimestamp();
         const shortCircuitNotesByOperation: Record<string, string> = {
           orderCreate: 'Locally short-circuited captured orderCreate validation in live-hybrid mode.',
           refundCreate:
@@ -1251,24 +1679,53 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged draftOrderDuplicate in live-hybrid mode for a synthetic/local staged draft order.',
           draftOrderDelete:
             'Locally staged draftOrderDelete in live-hybrid mode for a synthetic/local staged draft order.',
+          draftOrderBulkAddTags:
+            'Locally staged draftOrderBulkAddTags in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderBulkRemoveTags:
+            'Locally staged draftOrderBulkRemoveTags in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderBulkDelete:
+            'Locally staged draftOrderBulkDelete in live-hybrid mode for synthetic/local staged draft orders.',
+          draftOrderCalculate: 'Locally calculated draftOrderCalculate in live-hybrid mode without writing to Shopify.',
+          draftOrderInvoicePreview:
+            'Locally handled draftOrderInvoicePreview in live-hybrid mode without sending invoice email.',
           draftOrderInvoiceSend:
             'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
           draftOrderCreateFromOrder:
             'Locally staged draftOrderCreateFromOrder in live-hybrid mode for a synthetic/local order.',
+          abandonmentUpdateActivitiesDeliveryStatuses:
+            'Locally staged abandonmentUpdateActivitiesDeliveryStatuses in live-hybrid mode for a synthetic/local abandonment.',
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
           fulfillmentEventCreate:
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',
+          fulfillmentOrderSubmitFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request without invoking fulfillment-service callbacks.',
+          fulfillmentOrderAcceptFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request acceptance without invoking fulfillment-service callbacks.',
+          fulfillmentOrderRejectFulfillmentRequest:
+            'Locally staged fulfillment-order fulfillment request rejection without invoking fulfillment-service callbacks.',
+          fulfillmentOrderSubmitCancellationRequest:
+            'Locally staged fulfillment-order cancellation request without invoking fulfillment-service callbacks.',
+          fulfillmentOrderAcceptCancellationRequest:
+            'Locally staged fulfillment-order cancellation request acceptance without invoking fulfillment-service callbacks.',
+          fulfillmentOrderRejectCancellationRequest:
+            'Locally staged fulfillment-order cancellation request rejection without invoking fulfillment-service callbacks.',
+          returnCreate: 'Locally staged returnCreate in live-hybrid mode for a synthetic/local order.',
+          returnRequest: 'Locally staged returnRequest in live-hybrid mode for a synthetic/local order.',
+          returnCancel: 'Locally staged returnCancel in live-hybrid mode for a synthetic/local return.',
+          returnClose: 'Locally staged returnClose in live-hybrid mode for a synthetic/local return.',
+          returnReopen: 'Locally staged returnReopen in live-hybrid mode for a synthetic/local return.',
         };
 
-        if (!isRejectedCreateMutationResponse(primaryRootField, orderMutationResponse)) {
+        if (shouldAppendLocalMutationLog(primaryRootField, orderMutationResponse)) {
           store.appendLog({
-            id: makeSyntheticGid('MutationLogEntry'),
-            receivedAt: makeSyntheticTimestamp(),
+            id: logEntryId,
+            receivedAt: logReceivedAt,
             operationName: capability.operationName,
             path: ctx.path,
             query: body.query,
             variables,
             requestBody,
+            stagedResourceIds: collectProxySyntheticGids(orderMutationResponse),
             status: 'staged',
             interpreted: interpretMutationLogEntry(parsed, capability),
             notes:
