@@ -1144,6 +1144,7 @@ export const bulkOperationRecordSchema = z.strictObject({
   partialDataUrl: nullableStringSchema,
   query: nullableStringSchema,
   cursor: nullableStringSchema.optional(),
+  resultJsonl: z.string().optional(),
 });
 export type BulkOperationRecord = z.infer<typeof bulkOperationRecordSchema>;
 
@@ -2342,6 +2343,13 @@ export interface MutationLogInterpretedMetadata {
     classification: string;
     wouldProxyToShopify: boolean;
     reason: string;
+  };
+  bulkOperationImport?: {
+    bulkOperationId: string;
+    lineNumber: number | null;
+    stagedUploadPath: string | null;
+    outerRequestBody: Record<string, unknown>;
+    innerMutation: string | null;
   };
 }
 

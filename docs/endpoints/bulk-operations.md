@@ -2,7 +2,7 @@
 
 The Bulk Operations group covers Shopify Admin GraphQL's root-level asynchronous export/import API. These roots create, inspect, list, and cancel `BulkOperation` jobs; they are not product variant bulk mutations, inventory bulk toggles, discount bulk roots, or metaobject bulk delete.
 
-HAR-263 adds the shared in-memory `BulkOperation` job model plus local read/list/current/cancel handling. HAR-264 adds local product-first `bulkOperationRunQuery` export staging with generated JSONL result records. The proxy still does not execute mutation imports or staged upload processing.
+HAR-263 adds the shared in-memory `BulkOperation` job model plus local read/list/current/cancel handling. HAR-264 adds local product-first `bulkOperationRunQuery` export staging with generated JSONL result records. HAR-265 adds the first mutation-import execution slice for product-first bulk imports backed by the proxy's local staged upload handoff.
 
 ## Supported roots
 
@@ -16,12 +16,11 @@ Local-staging mutations:
 
 - `bulkOperationCancel`
 - `bulkOperationRunQuery` for supported `products` and `productVariants` query exports
+- `bulkOperationRunMutation` for supported product inner mutation roots only
 
 Unsupported execution roots:
 
-- `bulkOperationRunMutation`
-
-`bulkOperationRunMutation` remains `implemented: false`; it may proxy through as an unsupported mutation, but it must not be treated as permanent passthrough support.
+- None for this root group in the checked-in registry slice. Unsupported query export shapes and unsafe mutation import roots fail locally with explicit `userErrors` and must not be normalized as permanent passthrough support.
 
 ## Current 2026-04 behavior and local coverage
 
@@ -41,6 +40,28 @@ Current root behavior:
 - `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, and never proxy supported export requests upstream at runtime.
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated.
 - `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, staged non-terminal jobs transition to `CANCELING`; terminal and unknown jobs return captured userErrors without upstream access.
+
+## Local mutation import support
+
+`bulkOperationRunMutation` is local-only for the product-first slice added in HAR-265. A successful local import requires all of the following:
+
+- The JSONL variables file was uploaded to a proxy staged upload target returned by local `stagedUploadsCreate`.
+- The caller passes the target `parameters { name: "key" }` value as `stagedUploadPath`.
+- The `mutation` argument parses as a single-root mutation.
+- The inner root is already implemented by the product local-staging pipeline, such as `productCreate` and other implemented product roots.
+
+When those requirements are met, the proxy parses each non-empty JSONL line as one variables object, calls the same local product mutation handler used by normal GraphQL mutations, stages downstream product state, and creates a completed local `BulkOperation` with `type: MUTATION`. The local result JSONL is stored in the in-memory job record and exposed through the synthetic `BulkOperation.url` under `/__meta/bulk-operations/<encoded-id>/result.jsonl`.
+
+Mutation log semantics are intentionally commit-oriented:
+
+- The proxy records one staged mutation-log entry per JSONL line, in original line order.
+- Each entry's replay body is the original inner mutation document plus that line's variables, so `__meta/commit` can preserve synthetic-to-authoritative ID mapping with the existing commit executor.
+- Each entry also carries `interpreted.bulkOperationImport` metadata with the local BulkOperation ID, line number, staged upload path, original outer bulk request body, and inner mutation text.
+- The outer `bulkOperationRunMutation` request itself is preserved as metadata rather than as an additional staged commit entry, because replaying the outer request would require recreating Shopify-hosted staged upload storage during commit.
+
+Unsupported or unsafe imports fail locally. If the staged upload content is missing, the inner mutation is not a supported product local root, or the inner document is malformed/multi-root, the proxy stages a failed local `BulkOperation`, returns explicit `userErrors`, records a failed observability log entry, and does not call upstream Shopify at runtime. Unsupported inner roots are not permanent passthrough support.
+
+Per-line result behavior is locally modeled but still needs deeper live Shopify evidence for every branch. Product mutation validation userErrors are represented in the corresponding result JSONL row and do not increment `objectCount`; invalid JSONL lines create result rows with `errors` and mark the local job `FAILED`. Dedicated live conformance for Shopify's exact import result-file schema, partial failure status semantics, and counter/file-size edge cases remains needed before broadening this beyond already supported product mutation roots.
 
 ## Version drift
 
@@ -99,7 +120,8 @@ Local `bulkOperationCancel` supports:
 
 - Validation/userErrors for malformed export queries, unsupported connections, nesting limits, overlapping active jobs, missing staged upload paths, and invalid mutation documents.
 - Full status transition behavior across `CREATED`, `RUNNING`, `CANCELING`, `CANCELED`, `COMPLETED`, `EXPIRED`, and `FAILED`, including result URL/partial-data URL expiry, counters, file sizes, and error codes.
-- Import read-after-write behavior from locally staged `bulkOperationRunMutation` through `bulkOperation`, `bulkOperations`, and `currentBulkOperation`.
+- Read-after-write behavior from locally staged `bulkOperationRunQuery` and broader `bulkOperationRunMutation` import families through `bulkOperation`, `bulkOperations`, and `currentBulkOperation`.
+- Shopify's exact `bulkOperationRunMutation` result JSONL schema and partial-failure status/counter semantics for product import validation and malformed-line branches.
 - `bulkOperationRunQuery` parity for non-product roots, grouped output, active-job limits, failure/partial-data branches, and exact Shopify result URL expiry semantics.
 
 ## Captured 2026-04 evidence
