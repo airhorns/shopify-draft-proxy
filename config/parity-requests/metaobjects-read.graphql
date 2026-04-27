@@ -1,0 +1,71 @@
+fragment MetaobjectReadFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  titleField: field(key: "title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+  catalog: metaobjects(type: $type, first: 10) {
+    edges {
+      cursor
+      node {
+        ...MetaobjectReadFields
+      }
+    }
+    nodes {
+      ...MetaobjectReadFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  detail: metaobject(id: $id) {
+    ...MetaobjectReadFields
+  }
+  byHandle: metaobjectByHandle(handle: $handle) {
+    ...MetaobjectReadFields
+  }
+}

@@ -131,14 +131,17 @@ The seeded branch creates one disposable merchant-owned metaobject definition an
 
 HAR-241 adds `config/parity-specs/metaobject-definitions-read.json` for the definition-read subset of this fixture, enforced by `tests/integration/metaobject-definition-query-shapes.test.ts`.
 
+HAR-243 adds `config/parity-specs/metaobjects-read.json` and `config/parity-requests/metaobjects-read.graphql` for the entry-read subset. The parity runner seeds the local proxy from the captured definition and entry read payloads, then replays `metaobjects`, `metaobject`, and `metaobjectByHandle` with strict comparison targets for seeded and no-data branches. Opaque Shopify connection cursors remain an expected difference because snapshot mode emits stable synthetic cursors.
+
 HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobject-definition-*.graphql`, and `tests/integration/metaobject-definition-draft-flow.test.ts`. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
 
-Entry reads and entry mutation lifecycles still need implementation before the full `metaobjects-read.json` capture can be promoted as a strict end-to-end parity scenario without expected gaps.
+Entry mutation lifecycles still need implementation before the setup/cleanup mutation branches in the broader `metaobjects-read.json` capture can be promoted as strict end-to-end parity scenarios.
 
 ## Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Definition read runtime tests: `tests/integration/metaobject-definition-query-shapes.test.ts`
+- Entry read runtime tests: `tests/integration/metaobject-query-shapes.test.ts`
 - Definition mutation runtime tests: `tests/integration/metaobject-definition-draft-flow.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
