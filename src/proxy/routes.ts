@@ -1102,7 +1102,10 @@ export function createProxyRouter(config: AppConfig): Router {
         return;
       }
 
-      if (config.readMode === 'live-hybrid' && store.hasPaymentCustomizations()) {
+      if (
+        config.readMode === 'live-hybrid' &&
+        (store.hasPaymentCustomizations() || primaryRootField === 'paymentTermsTemplates')
+      ) {
         ctx.status = 200;
         ctx.body = handlePaymentQuery(body.query, variables);
         return;

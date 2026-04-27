@@ -10,6 +10,7 @@ This endpoint group tracks Admin GraphQL payment-area roots whose behavior is se
 - `paymentCustomizationUpdate`
 - `paymentCustomizationDelete`
 - `paymentCustomizationActivation`
+- `paymentTermsTemplates(paymentTermsType:)`
 
 Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
@@ -48,8 +49,20 @@ The current test store had no released `ShopifyFunction` nodes at capture time, 
 
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 
+## Payment terms templates
+
+`paymentTermsTemplates(paymentTermsType:)` is modeled as a read-only local catalog in snapshot and live-hybrid modes. The normalized default catalog is based on the 2025-01 `harry-test-heelo.myshopify.com` capture from 2026-04-27 and preserves Shopify's order and scalar values for:
+
+- `Due on receipt` (`RECEIPT`, `dueInDays: null`)
+- `Due on fulfillment` (`FULFILLMENT`, `dueInDays: null`)
+- `Net 7`, `Net 15`, `Net 30`, `Net 45`, `Net 60`, and `Net 90` (`NET`)
+- `Fixed` (`FIXED`, `dueInDays: null`)
+
+The optional `paymentTermsType` argument filters by exact enum value. Selected template fields currently include `id`, `name`, `description`, `dueInDays`, `paymentTermsType`, `translatedName`, and `__typename`. Payment terms lifecycle mutations (`paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete`) remain unsupported and may only pass through as unknown/unsupported operations; they are not registered as local capabilities.
+
 ## Validation
 
 - `tests/integration/payment-customization-query-shapes.test.ts`
+- `tests/integration/payment-terms-query-shapes.test.ts`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

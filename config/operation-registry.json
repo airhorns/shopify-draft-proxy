@@ -211,10 +211,10 @@
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentTermsTemplates", "PaymentTermsTemplates"],
-    "runtimeTests": [],
-    "supportNotes": "Payment terms scaffold only. The 2026-04-25 harry-test-heelo probe can capture the template catalog; future capture should also record paymentTermsType filtering before local overlay support."
+    "runtimeTests": ["tests/integration/payment-terms-query-shapes.test.ts"],
+    "supportNotes": "Snapshot and live-hybrid payment terms template reads serialize the captured standard template catalog, including due-day values, translated names, and paymentTermsType filtering. Payment terms lifecycle mutations remain out of scope."
   },
   {
     "name": "shopPayPaymentRequestReceipt",

@@ -40,6 +40,7 @@ import type {
   OrderFulfillmentRecord,
   OrderFulfillmentServiceRecord,
   MoneyV2Record,
+  PaymentScheduleRecord,
   OrderCustomerRecord,
   OrderDiscountApplicationRecord,
   OrderLineItemRecord,
@@ -294,28 +295,52 @@ function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>):
   };
 }
 
-function normalizeDraftOrderPaymentTerms(raw: unknown): DraftOrderPaymentTermsRecord | null {
+function normalizePaymentScheduleAmount(
+  amountSet: { shopMoney: MoneyV2Record } | null | undefined,
+): MoneyV2Record | null {
+  return amountSet?.shopMoney ? structuredClone(amountSet.shopMoney) : null;
+}
+
+function normalizeDraftOrderPaymentTerms(
+  raw: unknown,
+  amountSet?: { shopMoney: MoneyV2Record } | null,
+): DraftOrderPaymentTermsRecord | null {
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
 
   const paymentTerms = raw as Record<string, unknown>;
   const schedules = Array.isArray(paymentTerms['paymentSchedules']) ? paymentTerms['paymentSchedules'] : [];
-  const firstSchedule = schedules.find(
-    (schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null,
-  );
+  const normalizedSchedules = schedules
+    .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
+    .map((schedule) => ({
+      id: makeSyntheticGid('PaymentSchedule'),
+      dueAt: readString(schedule['dueAt']),
+      issuedAt: readString(schedule['issuedAt']),
+      completedAt: readString(schedule['completedAt']),
+      completed: readBoolean(schedule['completed'], false),
+      due: typeof schedule['due'] === 'boolean' ? schedule['due'] : false,
+      amount: normalizePaymentScheduleAmount(amountSet),
+      balanceDue: normalizePaymentScheduleAmount(amountSet),
+      totalBalance: normalizePaymentScheduleAmount(amountSet),
+    }));
+  const firstSchedule = normalizedSchedules[0] ?? null;
   const hasDueAt = typeof firstSchedule?.['dueAt'] === 'string';
   const hasIssuedAt = typeof firstSchedule?.['issuedAt'] === 'string';
-  const name = hasDueAt ? 'Due on date' : hasIssuedAt ? 'Net terms' : 'Custom payment terms';
+  const templateId = readString(paymentTerms['paymentTermsTemplateId']);
+  const template = templateId ? store.getEffectivePaymentTermsTemplateById(templateId) : null;
+  const name = template?.name ?? (hasDueAt ? 'Fixed' : hasIssuedAt ? 'Net terms' : 'Custom payment terms');
+  const paymentTermsType = template?.paymentTermsType ?? (hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN');
 
   return {
     id: makeSyntheticGid('PaymentTerms'),
     due: false,
     overdue: false,
-    dueInDays: null,
+    dueInDays: template?.dueInDays ?? null,
     paymentTermsName: name,
-    paymentTermsType: hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN',
-    translatedName: name,
+    paymentTermsType,
+    translatedName: template?.translatedName ?? name,
+    paymentSchedules: normalizedSchedules,
   };
 }
 
@@ -808,6 +833,7 @@ function buildOrderFromInput(input: unknown): OrderRecord {
     customer,
     shippingLines,
     lineItems,
+    paymentTerms: null,
     fulfillments: [],
     fulfillmentOrders: [],
     transactions: normalizedTransactions,
@@ -860,7 +886,9 @@ function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): D
     taxExempt: readBoolean(inputRecord['taxExempt'], false),
     taxesIncluded: readBoolean(inputRecord['taxesIncluded'], false),
     reserveInventoryUntil: readString(inputRecord['reserveInventoryUntil']),
-    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms']),
+    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], {
+      shopMoney: normalizeMoney(total, currencyCode),
+    }),
     appliedDiscount,
     customAttributes: normalizeDraftOrderAttributes(inputRecord['customAttributes']),
     billingAddress: normalizeDraftOrderAddress(inputRecord['billingAddress']),
@@ -966,6 +994,9 @@ function buildUpdatedDraftOrder(
     shippingLine: Object.hasOwn(inputRecord, 'shippingLine')
       ? normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode)
       : structuredClone(draftOrder.shippingLine),
+    paymentTerms: Object.hasOwn(inputRecord, 'paymentTerms')
+      ? normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], draftOrder.totalPriceSet)
+      : structuredClone(draftOrder.paymentTerms),
     updatedAt,
     lineItems,
   });
@@ -1272,6 +1303,7 @@ function buildOrderFromCompletedDraftOrder(
     customer: buildOrderCustomerFromDraftOrder(draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
     lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    paymentTerms: structuredClone(draftOrder.paymentTerms),
     transactions: [],
     refunds: [],
     returns: [],
@@ -2366,7 +2398,7 @@ function serializeDraftOrderPaymentTerms(
         result[key] = paymentTerms.translatedName;
         break;
       case 'paymentSchedules':
-        result[key] = serializeDraftOrderLineItemsConnection(selection, []);
+        result[key] = serializePaymentSchedulesConnection(selection, paymentTerms.paymentSchedules ?? []);
         break;
       default:
         result[key] = null;
@@ -2374,6 +2406,65 @@ function serializeDraftOrderPaymentTerms(
     }
   }
   return result;
+}
+
+function serializePaymentScheduleNode(field: FieldNode, schedule: PaymentScheduleRecord): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = schedule.id;
+        break;
+      case 'dueAt':
+        result[key] = schedule.dueAt;
+        break;
+      case 'issuedAt':
+        result[key] = schedule.issuedAt;
+        break;
+      case 'completedAt':
+        result[key] = schedule.completedAt;
+        break;
+      case 'completed':
+        result[key] = schedule.completed ?? false;
+        break;
+      case 'due':
+        result[key] = schedule.due ?? false;
+        break;
+      case 'amount':
+        result[key] = serializeMoneyField(selection, schedule.amount ?? null);
+        break;
+      case 'balanceDue':
+        result[key] = serializeMoneyField(selection, schedule.balanceDue ?? null);
+        break;
+      case 'totalBalance':
+        result[key] = serializeMoneyField(selection, schedule.totalBalance ?? null);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializePaymentSchedulesConnection(
+  field: FieldNode,
+  schedules: PaymentScheduleRecord[],
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    schedules,
+    field,
+    {},
+    (schedule) => schedule.id,
+  );
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (schedule) => schedule.id,
+    serializeNode: (schedule, selection) => serializePaymentScheduleNode(selection, schedule),
+  });
 }
 
 function serializeDraftOrderLineItemNode(
@@ -4162,6 +4253,9 @@ function serializeOrderNode(
       case 'customer':
         result[key] = serializeOrderCustomer(selection, order.customer);
         break;
+      case 'paymentTerms':
+        result[key] = serializeDraftOrderPaymentTerms(selection, order.paymentTerms ?? null);
+        break;
       case 'shippingLines':
         result[key] = serializeOrderShippingLinesConnection(selection, order.shippingLines);
         break;
@@ -4692,6 +4786,11 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
     userErrors.push({
       field: null,
       message: 'Payment terms template id can not be empty.',
+    });
+  } else if (paymentTerms !== null) {
+    userErrors.push({
+      field: null,
+      message: 'The user must have access to set payment terms.',
     });
   }
 
@@ -6136,6 +6235,21 @@ export function handleOrderMutation(
       const input = readDraftOrderUpdateInput(variables);
       if (inlineInputArgument.value.kind === Kind.VARIABLE && input === null) {
         errors.push(buildMissingVariableError(inlineInputArgument.value.name.value, 'DraftOrderInput!'));
+        continue;
+      }
+
+      const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+      const paymentTerms = typeof inputRecord['paymentTerms'] === 'object' ? inputRecord['paymentTerms'] : null;
+      if (paymentTerms !== null) {
+        const hasTemplateId = typeof (paymentTerms as Record<string, unknown>)['paymentTermsTemplateId'] === 'string';
+        data[key] = serializeDraftOrderMutationPayload(field, null, [
+          {
+            field: null,
+            message: hasTemplateId
+              ? 'The user must have access to set payment terms.'
+              : 'Payment terms template id can not be empty.',
+          },
+        ]);
         continue;
       }
 

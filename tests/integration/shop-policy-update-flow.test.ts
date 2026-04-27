@@ -9,7 +9,12 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
-import type { NormalizedStateSnapshotFile, ShopRecord } from '../../src/state/types.js';
+import {
+  defaultPaymentTermsTemplateOrder,
+  defaultPaymentTermsTemplateRecordMap,
+  type NormalizedStateSnapshotFile,
+  type ShopRecord,
+} from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -152,6 +157,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       discountBulkOperations: {},
       paymentCustomizations: {},
       paymentCustomizationOrder: [],
+      paymentTermsTemplates: defaultPaymentTermsTemplateRecordMap,
+      paymentTermsTemplateOrder: defaultPaymentTermsTemplateOrder,
       deletedPaymentCustomizationIds: {},
       businessEntities: {},
       businessEntityOrder: [],
