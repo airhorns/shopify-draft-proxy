@@ -19,13 +19,179 @@
     "tests/integration/webhook-subscription-mutation-flow.test.ts"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/webhook-subscription-catalog-read.graphql",
-    "variablesPath": "config/parity-requests/webhook-subscription-catalog-read.variables.json"
+    "documentPath": "config/parity-requests/webhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.lifecycle.create.variables"
   },
-  "comparisonMode": "captured-fixture",
-  "notes": "HAR-267 captured Admin GraphQL 2026-04 API-created webhook subscription empty catalog/count reads, unknown detail null behavior, create/update/delete lifecycle payloads, detail read-after-create/update/delete, missing URI validation, and unknown-id update/delete userErrors. HAR-268 adds local read support, HAR-269 adds local create/update staging for the captured Admin API-created HTTP URI subset, and HAR-270 adds local delete staging/read-after-delete behavior for staged or hydrated local records. The capture explicitly excludes app TOML webhooks and does not trigger webhook deliveries.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Promoted from captured-fixture to executable proxy comparison for Admin GraphQL 2026-04 API-created webhook subscription create/update/delete lifecycle payloads, detail read-after-create/update/delete, missing URI validation, and unknown-id update/delete userErrors. The strict lifecycle contract replays the original captured create variables, uses the proxy-created synthetic webhook subscription ID for downstream local update/detail/delete reads, and accepts only deterministic ID/timestamp differences. Empty catalog/count/unknown-detail read parity for the same capture now lives in webhook-subscription-catalog-read. The capture explicitly excludes app TOML webhooks and does not trigger webhook deliveries.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "webhook-create-payload",
+        "capturePath": "$.lifecycle.create.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "webhook-detail-after-create",
+        "capturePath": "$.lifecycle.detailAfterCreate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "webhook-update-payload",
+        "capturePath": "$.lifecycle.update.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.lifecycle.update.variables.webhookSubscription"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The update runs against the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The update payload keeps the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for the local update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "webhook-detail-after-update",
+        "capturePath": "$.lifecycle.detailAfterUpdate.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read keeps the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          }
+        ]
+      },
+      {
+        "name": "webhook-delete-payload",
+        "capturePath": "$.lifecycle.delete.response.payload.data.webhookSubscriptionDelete",
+        "proxyPath": "$.data.webhookSubscriptionDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhookSubscriptionDelete-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedWebhookSubscriptionId",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The delete returns the proxy-created synthetic webhook subscription ID."
+          }
+        ]
+      },
+      {
+        "name": "webhook-detail-after-delete",
+        "capturePath": "$.lifecycle.postDeleteDetail.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "webhook-validation-branches",
+        "capturePath": "$.validation.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhook-subscription-validation-branches.graphql",
+          "variablesCapturePath": "$.validation.variables"
+        }
+      }
+    ]
   }
 }

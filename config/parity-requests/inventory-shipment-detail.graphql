@@ -1,0 +1,31 @@
+query InventoryShipmentDetailParity($id: ID!) {
+  inventoryShipment(id: $id) {
+    id
+    name
+    status
+    lineItemTotalQuantity
+    totalAcceptedQuantity
+    totalReceivedQuantity
+    totalRejectedQuantity
+    tracking {
+      trackingNumber
+      company
+      trackingUrl
+      arrivesAt
+    }
+    lineItems(first: 10) {
+      nodes {
+        id
+        quantity
+        acceptedQuantity
+        rejectedQuantity
+        unreceivedQuantity
+        inventoryItem {
+          id
+          sku
+          tracked
+        }
+      }
+    }
+  }
+}

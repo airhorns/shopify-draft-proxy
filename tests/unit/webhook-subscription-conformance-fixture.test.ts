@@ -41,7 +41,7 @@ function rootFieldNames(relativePath: string): string[] {
 }
 
 describe('webhook subscription conformance fixture', () => {
-  it('discovers captured fixture evidence while routing supported create staging locally', () => {
+  it('discovers executable parity evidence while routing supported create staging locally', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenario = scenarios.find((candidate) => candidate.id === 'webhook-subscription-conformance');
     const paritySpec = readJson<ParitySpec>(specPath);
@@ -58,7 +58,8 @@ describe('webhook subscription conformance fixture', () => {
       ],
       captureFiles: [fixturePath],
     });
-    expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('enforced-by-fixture');
+    expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');
+    expect(paritySpec.comparison?.targets?.length).toBeGreaterThan(0);
 
     const parsedCreate = parseOperation(readText('config/parity-requests/webhookSubscriptionCreate-parity.graphql'));
     const parsedCatalog = parseOperation(readText('config/parity-requests/webhook-subscription-catalog-read.graphql'));
