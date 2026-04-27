@@ -1,0 +1,11 @@
+query InventoryPropertiesRead {
+  inventoryProperties {
+    quantityNames {
+      name
+      displayName
+      isInUse
+      belongsTo
+      comprises
+    }
+  }
+}

@@ -48,10 +48,21 @@ const paymentOrderSelection = `{
   transactions ${transactionSelection}
 }`;
 
-async function createOrder(
-  app: ReturnType<typeof createApp>['callback'] extends () => infer T ? T : never,
-  transactions: unknown[],
-) {
+type TestApp = ReturnType<typeof createApp>['callback'] extends () => infer T ? T : never;
+
+async function snapshotMeta(app: TestApp) {
+  const [stateResponse, logResponse] = await Promise.all([
+    request(app).get('/__meta/state'),
+    request(app).get('/__meta/log'),
+  ]);
+
+  return {
+    state: stateResponse.body,
+    log: logResponse.body,
+  };
+}
+
+async function createOrder(app: TestApp, transactions: unknown[]) {
   return request(app)
     .post('/admin/api/2026-04/graphql.json')
     .send({
@@ -240,6 +251,10 @@ describe('order payment capture, void, and mandate flows', () => {
       transaction: null,
       userErrors: [{ field: ['id'], message: 'Transaction does not exist' }],
     });
+    const metaAfterMissingVoid = await snapshotMeta(app);
+    expect(metaAfterMissingVoid.log.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'orderCreate',
+    ]);
 
     const voidResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -260,6 +275,7 @@ describe('order payment capture, void, and mandate flows', () => {
       parentTransaction: { id: authorizationId, kind: 'AUTHORIZATION', status: 'SUCCESS' },
       amountSet: { shopMoney: { amount: '25.0', currencyCode: 'CAD' } },
     });
+    const metaAfterVoid = await snapshotMeta(app);
 
     const duplicateVoid = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -276,6 +292,7 @@ describe('order payment capture, void, and mandate flows', () => {
       transaction: null,
       userErrors: [{ field: ['id'], message: 'Transaction has already been voided' }],
     });
+    expect(await snapshotMeta(app)).toEqual(metaAfterVoid);
 
     const downstreamRead = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -314,6 +331,7 @@ describe('order payment capture, void, and mandate flows', () => {
     ]);
     const orderId = createResponse.body.data.orderCreate.order.id;
     const authorizationId = createResponse.body.data.orderCreate.order.transactions[0].id;
+    const metaAfterCreate = await snapshotMeta(app);
 
     const response = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -346,6 +364,83 @@ describe('order payment capture, void, and mandate flows', () => {
       totalCapturable: '25.0',
       transactions: [expect.objectContaining({ id: authorizationId, kind: 'AUTHORIZATION' })],
     });
+    expect(await snapshotMeta(app)).toEqual(metaAfterCreate);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns userErrors for void-after-capture and invalid mandate payment without mutating state or logs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('payment validation branches should not hit upstream in snapshot mode');
+    });
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await createOrder(app, [
+      {
+        kind: 'AUTHORIZATION',
+        status: 'SUCCESS',
+        gateway: 'manual',
+        amountSet: { shopMoney: { amount: '25.00', currencyCode: 'CAD' } },
+      },
+    ]);
+    const orderId = createResponse.body.data.orderCreate.order.id;
+    const authorizationId = createResponse.body.data.orderCreate.order.transactions[0].id;
+
+    const captureResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Capture($input: OrderCaptureInput!) {
+          orderCapture(input: $input) {
+            transaction ${transactionSelection}
+            order ${paymentOrderSelection}
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: orderId,
+            parentTransactionId: authorizationId,
+            amount: '25.00',
+            currency: 'CAD',
+            finalCapture: true,
+          },
+        },
+      });
+    expect(captureResponse.body.data.orderCapture.userErrors).toEqual([]);
+    const metaAfterCapture = await snapshotMeta(app);
+
+    const voidCaptured = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Void($id: ID!) {
+          transactionVoid(id: $id) {
+            transaction ${transactionSelection}
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: authorizationId },
+      });
+    expect(voidCaptured.body.data.transactionVoid).toEqual({
+      transaction: null,
+      userErrors: [{ field: ['id'], message: 'Transaction has already been captured' }],
+    });
+    expect(await snapshotMeta(app)).toEqual(metaAfterCapture);
+
+    const missingIdempotencyKey = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Mandate($id: ID!) {
+          orderCreateMandatePayment(id: $id) {
+            job { id done }
+            paymentReferenceId
+            order ${paymentOrderSelection}
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: orderId },
+      });
+    expect(missingIdempotencyKey.body.data.orderCreateMandatePayment.userErrors).toEqual([
+      { field: ['idempotencyKey'], message: 'Idempotency key is required' },
+    ]);
+    expect(await snapshotMeta(app)).toEqual(metaAfterCapture);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

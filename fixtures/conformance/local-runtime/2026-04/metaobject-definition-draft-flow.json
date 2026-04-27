@@ -1,0 +1,274 @@
+{
+  "kind": "local-runtime-fixture",
+  "apiVersion": "2026-04",
+  "scenarioId": "metaobject-definition-lifecycle-local-staging",
+  "issue": "HAR-242",
+  "runtimeTestFiles": ["tests/integration/metaobject-definition-draft-flow.test.ts"],
+  "coveredOperations": [
+    "metaobjectDefinitionCreate",
+    "metaobjectDefinitionUpdate",
+    "metaobjectDefinitionDelete",
+    "standardMetaobjectDefinitionEnable",
+    "metaobjectDefinition",
+    "metaobjectDefinitionByType",
+    "metaobjectDefinitions"
+  ],
+  "evidence": [
+    "Snapshot-mode create/update/delete requests are handled without upstream fetch.",
+    "Staged definitions are visible through catalog, ID, and type reads.",
+    "Meta API state exposes staged definition records and tombstones.",
+    "Meta API log preserves original raw mutation request bodies in order for commit replay.",
+    "Merchant-owned create with access.admin returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
+    "Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
+    "standardMetaobjectDefinitionEnable stages the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types."
+  ],
+  "create": {
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+            "type": "codex_stage_definition",
+            "name": "Codex Stage Definition",
+            "description": "A locally staged metaobject definition.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Title field.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body field.",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "500"
+                  }
+                ]
+              }
+            ],
+            "metaobjectsCount": 0,
+            "standardTemplate": null
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "update": {
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+            "type": "codex_stage_definition",
+            "name": "Codex Updated Definition",
+            "description": "Updated locally.",
+            "displayNameKey": "body",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": true
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "body",
+                "name": "Body Copy",
+                "description": "Updated body.",
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "250"
+                  }
+                ]
+              },
+              {
+                "key": "summary",
+                "name": "Summary",
+                "description": "Summary field.",
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "metaobjectsCount": 0,
+            "standardTemplate": null
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterUpdate": {
+    "response": {
+      "data": {
+        "byId": {
+          "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+          "type": "codex_stage_definition",
+          "name": "Codex Updated Definition",
+          "displayNameKey": "body",
+          "fieldDefinitions": [
+            {
+              "key": "body"
+            },
+            {
+              "key": "summary"
+            }
+          ]
+        },
+        "byType": {
+          "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+          "type": "codex_stage_definition",
+          "name": "Codex Updated Definition",
+          "displayNameKey": "body",
+          "fieldDefinitions": [
+            {
+              "key": "body"
+            },
+            {
+              "key": "summary"
+            }
+          ]
+        },
+        "catalog": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+              "type": "codex_stage_definition",
+              "name": "Codex Updated Definition"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "delete": {
+    "response": {
+      "data": {
+        "metaobjectDefinitionDelete": {
+          "deletedId": "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "response": {
+      "data": {
+        "byId": null,
+        "byType": null,
+        "catalog": {
+          "nodes": []
+        }
+      }
+    }
+  },
+  "standardEnable": {
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/5?shopify-draft-proxy=synthetic",
+            "type": "shopify--qa-pair",
+            "name": "Q&A pair",
+            "displayNameKey": "question",
+            "standardTemplate": {
+              "type": "shopify--qa-pair",
+              "name": "Q&A pair"
+            },
+            "fieldDefinitions": [
+              {
+                "key": "question",
+                "name": "Question",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              },
+              {
+                "key": "answer",
+                "name": "Answer",
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "standardEnableUnknown": {
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["type"],
+              "message": "A standard metaobject definition wasn't found for the specified type.",
+              "code": "TEMPLATE_NOT_FOUND"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,12 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import {
   buildSyntheticCursor,
   getFieldResponseKey,
@@ -19,6 +24,7 @@ import {
   serializeMetafieldSelection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { serializeOrderNode } from './orders.js';
 import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
@@ -31,6 +37,7 @@ import type {
   CustomerPaymentMethodRecord,
   CustomerPaymentMethodSubscriptionContractRecord,
   CustomerRecord,
+  OrderRecord,
 } from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -408,6 +415,29 @@ function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = 
     amount: normalizeStringField(raw, 'amount'),
     currencyCode: normalizeStringField(raw, 'currencyCode'),
   };
+}
+
+function listOrdersForCustomer(customerId: string): OrderRecord[] {
+  return store.getOrders().filter((order) => order.customer?.id === customerId);
+}
+
+function serializeCustomerOrdersConnection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const orders = listOrdersForCustomer(customerId);
+  const window = paginateConnectionItems(orders, field, variables, (order) => order.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (order) => order.id,
+    serializeNode: (order, selection) => serializeOrderNode(selection, order, variables),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { includeInlineFragments: true },
+  });
 }
 
 function normalizeDefaultEmailAddress(
@@ -1344,10 +1374,12 @@ function serializeCustomerSelection(
         result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
         break;
       case 'events':
-      case 'orders':
       case 'storeCreditAccounts':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'orders':
+        result[key] = serializeCustomerOrdersConnection(customer.id, selection, variables);
         break;
       case 'paymentMethods':
         result[key] = serializeCustomerPaymentMethodsConnectionSelection(customer.id, selection, variables);
@@ -1601,38 +1633,12 @@ function buildCustomerCustomIdentifierError(field: FieldNode): Record<string, un
   };
 }
 
-function isPrefixPattern(rawValue: string): boolean {
-  return rawValue.endsWith('*');
-}
-
 function matchesStringValue(
   candidate: string | null | undefined,
   rawValue: string,
   matchMode: 'includes' | 'exact',
 ): boolean {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return true;
-  }
-
-  const prefixMode = isPrefixPattern(value);
-  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
-  if (!normalizedValue) {
-    return true;
-  }
-
-  const normalizedCandidate = normalizeCustomerSearchValue(candidate);
-  if (prefixMode) {
-    if (normalizedCandidate.startsWith(normalizedValue)) {
-      return true;
-    }
-
-    return normalizedCandidate.split(/[^a-z0-9]+/u).some((part) => part.startsWith(normalizedValue));
-  }
-
-  return matchMode === 'exact'
-    ? normalizedCandidate === normalizedValue
-    : normalizedCandidate.includes(normalizedValue);
+  return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
 function customerMatchesBareToken(customer: CustomerRecord, token: string): boolean {
@@ -1653,10 +1659,6 @@ function customerMatchesBareToken(customer: CustomerRecord, token: string): bool
   return haystacks.some((value) => matchesStringValue(value, normalizedToken, 'includes'));
 }
 
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
-}
-
 function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
     return customerMatchesBareToken(customer, term.value);
@@ -1666,7 +1668,7 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 
   const rawField = term.field;
-  const rawValue = searchTermValue(term);
+  const rawValue = searchQueryTermValue(term);
   const field = normalizeCustomerSearchValue(rawField);
 
   switch (field) {
@@ -1692,34 +1694,8 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 }
 
-function customerMatchesQueryNode(customer: CustomerRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term': {
-      const matches = customerMatchesPositiveQueryTerm(customer, node.term);
-      return node.term.negated ? !matches : matches;
-    }
-    case 'and':
-      return node.children.every((child) => customerMatchesQueryNode(customer, child));
-    case 'or':
-      return node.children.some((child) => customerMatchesQueryNode(customer, child));
-    case 'not':
-      return !customerMatchesQueryNode(customer, node.child);
-    default:
-      return true;
-  }
-}
-
 function filterCustomersByQuery(customers: CustomerRecord[], rawQuery: unknown): CustomerRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return customers;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { quoteCharacters: ['"'] });
-  if (!parsedQuery) {
-    return customers;
-  }
-
-  return customers.filter((customer) => customerMatchesQueryNode(customer, parsedQuery));
+  return applySearchQuery(customers, rawQuery, { quoteCharacters: ['"'] }, customerMatchesPositiveQueryTerm);
 }
 
 function compareNullableStrings(left: string | null, right: string | null): number {
@@ -2677,6 +2653,27 @@ function validateCustomerTaxExemptionInput(input: Record<string, unknown>): Cust
   );
 }
 
+function validateCustomerSetTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (input['taxExemptions'] === null) {
+    return [];
+  }
+
+  return validateCustomerTaxExemptionInput(input);
+}
+
+function validateCustomerSetTaxExemptInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (!hasOwnField(input, 'taxExempt') || input['taxExempt'] !== null) {
+    return [];
+  }
+
+  return [
+    {
+      field: ['input', 'taxExempt'],
+      message: 'Tax exempt is of unexpected type NilClass',
+    },
+  ];
+}
+
 function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: string): CustomerMutationUserError[] {
   if (rawMetafields === undefined) {
     return [];
@@ -3157,11 +3154,31 @@ function validateSupportedCustomerSetInput(input: Record<string, unknown>): Cust
   });
 
   const addressErrors: CustomerMutationUserError[] =
-    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+    hasOwnField(input, 'addresses') && input['addresses'] !== null && !Array.isArray(input['addresses'])
       ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
       : [];
 
-  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+  return [
+    ...unsupportedErrors,
+    ...addressErrors,
+    ...validateCustomerSetTaxExemptInput(input),
+    ...validateCustomerSetTaxExemptionInput(input),
+  ];
+}
+
+function validateCustomerSetCreateIdentityUniqueness(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const errors: CustomerMutationUserError[] = [];
+  const email = normalizeCustomerIdentifierValue(input['email']);
+  if (email && findCustomerByIdentifier({ emailAddress: email })) {
+    errors.push({ field: ['input', 'email'], message: 'Email has already been taken' });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && findCustomerByIdentifier({ phoneNumber: phone })) {
+    errors.push({ field: ['input', 'phone'], message: 'Phone has already been taken' });
+  }
+
+  return errors;
 }
 
 function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
@@ -3210,8 +3227,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
     return [
       {
-        field: ['input', 'email'],
-        message: 'customerSet local staging requires input.email to match identifier.email',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -3229,8 +3246,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (phone && inputPhone && phone !== inputPhone) {
     return [
       {
-        field: ['input', 'phone'],
-        message: 'customerSet local staging requires input.phone to match identifier.phone',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -3744,7 +3761,7 @@ export function handleCustomerMutation(
         ...validateCustomerSetIdentifier(identifier),
         ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
       ];
-      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+      if (Array.isArray(effectiveInput['addresses']) && !existingCustomer) {
         userErrors.push({
           field: ['input', 'addresses'],
           message: 'customerSet local staging supports addresses only when updating an existing customer',
@@ -3769,6 +3786,7 @@ export function handleCustomerMutation(
 
       if (!existingCustomer) {
         userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+        userErrors.push(...validateCustomerSetCreateIdentityUniqueness(effectiveInput));
       }
 
       if (userErrors.length > 0) {
@@ -3779,7 +3797,7 @@ export function handleCustomerMutation(
       const stagedCustomer = existingCustomer
         ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
         : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
-      const customer = hasOwnField(effectiveInput, 'addresses')
+      const customer = Array.isArray(effectiveInput['addresses'])
         ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
         : stagedCustomer;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);

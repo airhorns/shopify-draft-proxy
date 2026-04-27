@@ -1,31 +1,66 @@
 {
   "scenarioId": "order-edit-commit-live-parity",
   "operationNames": ["orderEditCommit"],
-  "scenarioStatus": "planned",
+  "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/order-edit-existing-order-happy-path.json"
+  ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orderEditCommit-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/orderEditCommit-parity-plan.variables.json"
+    "documentPath": "config/parity-requests/orderEditExistingWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-order-edit-commit-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-115",
-      "requiredScopes": ["write_order_edits"],
-      "probeRoots": ["orderEditCommit"],
-      "blockedMutations": ["orderEditCommit"],
-      "failingMessage": "Access denied for orderEditCommit field. Required access: Requires `write_order_edits` access scope.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "First order-edit parity scaffold for `orderEditCommit`. Live capture stays blocked until the conformance credential can write order edits."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable replacement for the old single-root `orderEditCommit` access-scope plan. It stages the captured add-variant edit, commits it locally, and compares the stable commit success message plus downstream current quantity without sending the supported mutation upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "commit-setup-add-variant",
+        "capturePath": "$.addVariant.response.data.orderEditAddVariant.calculatedLineItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderEditExistingWorkflow-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/46789254021353",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant.calculatedLineItem"
+      },
+      {
+        "name": "commit-success-messages",
+        "capturePath": "$.commitAdd.response.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderEditExistingWorkflow-commit-status.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "HAR-115 order edit add capture"
+          }
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "downstream-added-line-current-quantity",
+        "capturePath": "$.commitAdd.response.data.orderEditCommit.order.lineItems.nodes[2].currentQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orderEditExistingWorkflow-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.originalOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.lineItems.nodes[2].currentQuantity"
+      }
+    ]
+  }
 }

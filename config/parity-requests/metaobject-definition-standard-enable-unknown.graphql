@@ -1,0 +1,12 @@
+mutation MetaobjectDefinitionStandardEnableUnknown($type: String!) {
+  standardMetaobjectDefinitionEnable(type: $type) {
+    metaobjectDefinition {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
