@@ -19,6 +19,13 @@ export type DiscountReadCapture = {
   discountNodesCatalog: unknown;
 };
 
+export type DiscountDetailCapture = {
+  variables: Record<string, unknown>;
+  create: unknown;
+  response: unknown;
+  cleanup: unknown;
+};
+
 type ScopeNode = {
   handle?: unknown;
 };
@@ -114,6 +121,477 @@ export const DISCOUNT_NODES_CATALOG_QUERY = `#graphql
   }
 `;
 
+const DISCOUNT_CODE_BASIC_CREATE_MUTATION = `#graphql
+  mutation DiscountCodeBasicDetailCreate($input: DiscountCodeBasicInput!) {
+    discountCodeBasicCreate(basicCodeDiscount: $input) {
+      codeDiscountNode {
+        id
+        codeDiscount {
+          __typename
+          ... on DiscountCodeBasic {
+            title
+            status
+            summary
+            startsAt
+            endsAt
+            createdAt
+            updatedAt
+            asyncUsageCount
+            discountClasses
+            combinesWith {
+              productDiscounts
+              orderDiscounts
+              shippingDiscounts
+            }
+            codes(first: 2) {
+              nodes {
+                id
+                code
+                asyncUsageCount
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            context {
+              __typename
+              ... on DiscountBuyerSelectionAll {
+                all
+              }
+            }
+            customerGets {
+              value {
+                __typename
+                ... on DiscountPercentage {
+                  percentage
+                }
+                ... on DiscountAmount {
+                  amount {
+                    amount
+                    currencyCode
+                  }
+                  appliesOnEachItem
+                }
+              }
+              items {
+                __typename
+                ... on AllDiscountItems {
+                  allItems
+                }
+              }
+              appliesOnOneTimePurchase
+              appliesOnSubscription
+            }
+            minimumRequirement {
+              __typename
+              ... on DiscountMinimumSubtotal {
+                greaterThanOrEqualToSubtotal {
+                  amount
+                  currencyCode
+                }
+              }
+              ... on DiscountMinimumQuantity {
+                greaterThanOrEqualToQuantity
+              }
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const DISCOUNT_AUTOMATIC_BASIC_CREATE_MUTATION = `#graphql
+  mutation DiscountAutomaticBasicDetailCreate($input: DiscountAutomaticBasicInput!) {
+    discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+      automaticDiscountNode {
+        id
+        automaticDiscount {
+          __typename
+          ... on DiscountAutomaticBasic {
+            title
+            status
+            summary
+            startsAt
+            endsAt
+            createdAt
+            updatedAt
+            asyncUsageCount
+            discountClasses
+            combinesWith {
+              productDiscounts
+              orderDiscounts
+              shippingDiscounts
+            }
+            context {
+              __typename
+              ... on DiscountBuyerSelectionAll {
+                all
+              }
+            }
+            customerGets {
+              value {
+                __typename
+                ... on DiscountPercentage {
+                  percentage
+                }
+              }
+              items {
+                __typename
+                ... on AllDiscountItems {
+                  allItems
+                }
+              }
+              appliesOnOneTimePurchase
+              appliesOnSubscription
+            }
+            minimumRequirement {
+              __typename
+              ... on DiscountMinimumQuantity {
+                greaterThanOrEqualToQuantity
+              }
+              ... on DiscountMinimumSubtotal {
+                greaterThanOrEqualToSubtotal {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+export const DISCOUNT_CODE_DETAIL_QUERY = `#graphql
+  query DiscountCodeDetailRead($id: ID!, $code: String!) {
+    discountNode(id: $id) {
+      id
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountPercentage {
+                percentage
+              }
+              ... on DiscountAmount {
+                amount {
+                  amount
+                  currencyCode
+                }
+                appliesOnEachItem
+              }
+            }
+            items {
+              __typename
+              ... on AllDiscountItems {
+                allItems
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+          minimumRequirement {
+            __typename
+            ... on DiscountMinimumSubtotal {
+              greaterThanOrEqualToSubtotal {
+                amount
+                currencyCode
+              }
+            }
+            ... on DiscountMinimumQuantity {
+              greaterThanOrEqualToQuantity
+            }
+          }
+        }
+      }
+      metafield(namespace: "custom", key: "har192_missing") {
+        id
+      }
+      metafields(first: 2) {
+        nodes {
+          id
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      events(first: 2) {
+        edges {
+          cursor
+          node {
+            __typename
+            ... on BasicEvent {
+              id
+              action
+              message
+              createdAt
+              subjectId
+              subjectType
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    codeDiscountNode(id: $id) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              id
+              code
+              asyncUsageCount
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }
+      }
+    }
+    codeDiscountNodeByCode(code: $code) {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+        }
+      }
+    }
+  }
+`;
+
+export const DISCOUNT_AUTOMATIC_DETAIL_QUERY = `#graphql
+  query DiscountAutomaticDetailRead($id: ID!) {
+    discountNode(id: $id) {
+      id
+      discount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          createdAt
+          updatedAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountPercentage {
+                percentage
+              }
+            }
+            items {
+              __typename
+              ... on AllDiscountItems {
+                allItems
+              }
+            }
+            appliesOnOneTimePurchase
+            appliesOnSubscription
+          }
+          minimumRequirement {
+            __typename
+            ... on DiscountMinimumQuantity {
+              greaterThanOrEqualToQuantity
+            }
+            ... on DiscountMinimumSubtotal {
+              greaterThanOrEqualToSubtotal {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+    automaticDiscountNode(id: $id) {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          customerGets {
+            value {
+              __typename
+              ... on DiscountPercentage {
+                percentage
+              }
+            }
+          }
+          minimumRequirement {
+            __typename
+            ... on DiscountMinimumQuantity {
+              greaterThanOrEqualToQuantity
+            }
+          }
+        }
+      }
+      metafields(first: 2) {
+        edges {
+          cursor
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      events(first: 2) {
+        edges {
+          cursor
+          node {
+            __typename
+            ... on BasicEvent {
+              id
+              action
+              message
+              createdAt
+              subjectId
+              subjectType
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const DISCOUNT_CODE_DELETE_MUTATION = `#graphql
+  mutation DiscountCodeDetailCleanup($id: ID!) {
+    discountCodeDelete(id: $id) {
+      deletedCodeDiscountId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const DISCOUNT_AUTOMATIC_DELETE_MUTATION = `#graphql
+  mutation DiscountAutomaticDetailCleanup($id: ID!) {
+    discountAutomaticDelete(id: $id) {
+      deletedAutomaticDiscountId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 export async function probeDiscountConformanceScopes(options: AdminGraphqlOptions): Promise<DiscountScopeProbeResult> {
   const { runGraphql } = createAdminGraphqlClient(options);
   const payload = (await runGraphql(DISCOUNT_ACCESS_SCOPES_QUERY)) as AccessScopesPayload;
@@ -172,5 +650,119 @@ export async function captureDiscountReadEvidence(
   return {
     discountNodesCount,
     discountNodesCatalog,
+  };
+}
+
+function readCreatedCodeDiscountId(response: unknown): string {
+  const id = (response as { data?: { discountCodeBasicCreate?: { codeDiscountNode?: { id?: unknown } } } }).data
+    ?.discountCodeBasicCreate?.codeDiscountNode?.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`discountCodeBasicCreate did not return a codeDiscountNode id: ${JSON.stringify(response)}`);
+  }
+  return id;
+}
+
+function readCreatedAutomaticDiscountId(response: unknown): string {
+  const id = (response as { data?: { discountAutomaticBasicCreate?: { automaticDiscountNode?: { id?: unknown } } } })
+    .data?.discountAutomaticBasicCreate?.automaticDiscountNode?.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(
+      `discountAutomaticBasicCreate did not return an automaticDiscountNode id: ${JSON.stringify(response)}`,
+    );
+  }
+  return id;
+}
+
+export async function captureDiscountDetailEvidence(options: AdminGraphqlOptions): Promise<{
+  codeDetail: DiscountDetailCapture;
+  automaticDetail: DiscountDetailCapture;
+}> {
+  const { runGraphql, runGraphqlRaw } = createAdminGraphqlClient(options);
+  const stamp = Date.now();
+  const startsAt = '2026-04-25T00:00:00Z';
+  const code = `HAR192DETAIL${stamp}`;
+
+  const codeCreateVariables = {
+    input: {
+      title: `HAR-192 detail code ${stamp}`,
+      code,
+      startsAt,
+      endsAt: null,
+      combinesWith: {
+        productDiscounts: false,
+        orderDiscounts: true,
+        shippingDiscounts: false,
+      },
+      context: {
+        all: 'ALL',
+      },
+      minimumRequirement: {
+        subtotal: {
+          greaterThanOrEqualToSubtotal: '1.00',
+        },
+      },
+      customerGets: {
+        value: {
+          percentage: 0.1,
+        },
+        items: {
+          all: true,
+        },
+      },
+    },
+  };
+  const codeCreate = await runGraphql(DISCOUNT_CODE_BASIC_CREATE_MUTATION, codeCreateVariables);
+  const codeId = readCreatedCodeDiscountId(codeCreate);
+  const codeDetailVariables = { id: codeId, code };
+  const codeResponse = await runGraphql(DISCOUNT_CODE_DETAIL_QUERY, codeDetailVariables);
+  const codeCleanup = await runGraphqlRaw(DISCOUNT_CODE_DELETE_MUTATION, { id: codeId });
+
+  const automaticCreateVariables = {
+    input: {
+      title: `HAR-192 detail automatic ${stamp}`,
+      startsAt,
+      endsAt: null,
+      combinesWith: {
+        productDiscounts: false,
+        orderDiscounts: true,
+        shippingDiscounts: false,
+      },
+      context: {
+        all: 'ALL',
+      },
+      minimumRequirement: {
+        quantity: {
+          greaterThanOrEqualToQuantity: '2',
+        },
+      },
+      customerGets: {
+        value: {
+          percentage: 0.15,
+        },
+        items: {
+          all: true,
+        },
+      },
+    },
+  };
+  const automaticCreate = await runGraphql(DISCOUNT_AUTOMATIC_BASIC_CREATE_MUTATION, automaticCreateVariables);
+  const automaticId = readCreatedAutomaticDiscountId(automaticCreate);
+  const automaticDetailVariables = { id: automaticId };
+  const automaticResponse = await runGraphql(DISCOUNT_AUTOMATIC_DETAIL_QUERY, automaticDetailVariables);
+  const automaticCleanup = await runGraphqlRaw(DISCOUNT_AUTOMATIC_DELETE_MUTATION, { id: automaticId });
+
+  return {
+    codeDetail: {
+      variables: codeDetailVariables,
+      create: codeCreate,
+      response: codeResponse,
+      cleanup: codeCleanup,
+    },
+    automaticDetail: {
+      variables: automaticDetailVariables,
+      create: automaticCreate,
+      response: automaticResponse,
+      cleanup: automaticCleanup,
+    },
   };
 }

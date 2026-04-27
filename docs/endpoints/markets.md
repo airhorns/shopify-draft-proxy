@@ -1,6 +1,6 @@
 # Markets Endpoint Group
 
-The markets group has read-only local slices for captured Shopify Markets data. Keep Markets-specific capture details, coverage boundaries, and field behavior here instead of in `docs/architecture.md`.
+The markets group has local slices for captured Shopify Markets reads and stage-local lifecycle mutations. Keep Markets-specific capture details, coverage boundaries, and field behavior here instead of in `docs/architecture.md`.
 
 ## Implemented roots
 
@@ -8,31 +8,80 @@ Overlay reads:
 
 - `market`
 - `markets`
+- `catalog`
 - `catalogs`
+- `catalogsCount`
+- `priceList`
+- `priceLists`
 - `webPresences`
 - `marketsResolvedValues`
+- `marketLocalizableResource`
+- `marketLocalizableResources`
+- `marketLocalizableResourcesByIds`
 
-## Unsupported roots still tracked by the registry
+Stage-local mutations:
 
 - `marketCreate`
 - `marketUpdate`
 - `marketDelete`
+- `catalogCreate`
+- `catalogUpdate`
+- `catalogContextUpdate`
+- `catalogDelete`
+- `priceListCreate`
+- `priceListUpdate`
+- `priceListDelete`
+- `priceListFixedPricesAdd`
+- `priceListFixedPricesUpdate`
+- `priceListFixedPricesDelete`
+- `priceListFixedPricesByProductUpdate`
 - `webPresenceCreate`
 - `webPresenceUpdate`
-- `webPresenceDelete`
 - `marketLocalizationsRegister`
 - `marketLocalizationsRemove`
 
+## Unsupported roots still tracked by the registry
+
+- `webPresenceDelete`
+
 ## Behavior notes
 
-- Captured Markets reads hydrate normalized Market records keyed by ID, with captured cursor and order metadata preserved for connection responses.
+- Captured Markets reads hydrate normalized Market, Catalog, and PriceList records keyed by ID, with captured cursor and order metadata preserved for connection responses.
 - Snapshot `market(id:)` and `markets(...)` reads resolve from the normalized Market bucket. The local serializer preserves selected-field behavior, unknown-id `null`, empty connections, `nodes`, `edges`, `pageInfo`, `first`, `last`, `before`, `after`, `reverse`, sort keys, root `type` and `status`, and captured-safe `query` filters such as `name`, `id`, `market_type`, and `market_condition_types`.
-- Nested Market connection fields such as `conditions.regions`, `catalogs`, and `webPresences` are projected from captured nested payloads with local connection windowing. The proxy does not invent arbitrary nested Markets values when fixture data is absent.
-- Adjacent Markets roots such as top-level `catalogs`, `webPresences`, and `marketsResolvedValues` still replay captured root payload slices until deeper normalized models are added for those resources.
-- Markets mutations remain unsupported runtime scope. Registry entries are declared gaps for future local staging and must not be read as current supported behavior.
+- Snapshot `catalog(id:)`, `catalogs(...)`, and `catalogsCount(...)` resolve from captured Catalog records. The current modeled slice covers MarketCatalog fields `id`, `title`, `status`, `markets`, `marketsCount`, `priceList`, `publication`, and `operations`, plus pagination, `type: MARKET`, `query` filters for `id`, `title`, `status`, and `market_id`, and count `limit` precision.
+- Snapshot `priceList(id:)` and `priceLists(...)` resolve from captured and staged PriceList records. The current modeled slice covers `id`, `name`, `currency`, `fixedPricesCount`, `parent.adjustment`, nullable `catalog`, and `prices` for captured relative rows plus locally staged fixed price rows linked to product variants. `PriceList.prices(query: "variant_id:<numeric-id>")`, `product_id:<numeric-id>`, `originType`, and local connection pagination are modeled only for hydrated or staged rows.
+- Nested Market connection fields such as `conditions.regions`, `catalogs`, and `webPresences` are projected from captured nested payloads with local connection windowing. Captured connection `pageInfo` is preserved when the stored slice is replayed as-is, which matters for truncated price-list prices.
+- Top-level `webPresences`, nested `Market.webPresences`, and `MarketsResolvedValues.webPresences` hydrate normalized `MarketWebPresence` records from captured payloads and apply local connection windowing.
+- Unsupported catalog/price-list branches remain explicit null/empty projections when no captured data exists. Quantity rules, catalog membership mutations, and staged price-list fixed-price mutations are not faked.
+- Supported lifecycle mutations are staged locally and are not sent upstream during normal runtime handling. The mutation log keeps the original raw request body and route path so commit can replay the exact mutation order later.
+- `marketCreate` generates stable synthetic `Market` IDs, handles, status/enabled values, timestamps, conditions, currency settings, price inclusions, catalog references, and web presence references from the input.
+- `marketUpdate` resolves staged or captured markets by ID, preserves existing fields when inputs omit them, and stages merged changes for downstream `market` and `markets` reads.
+- `marketDelete` marks the market deleted in staged state. Deleted staged/captured markets return `null` from `market(id:)` and are removed from `markets(...)` connections while the deleted ID remains visible in meta state.
+- `catalogCreate` stages MarketCatalog records only. It generates stable synthetic `MarketCatalog` IDs, title/status values, timestamps, empty operations, optional linked publication and price-list references, and a market context connection from existing Market IDs. It does not invent markets, price lists, publications, product memberships, or publication state.
+- `catalogUpdate` resolves staged or captured MarketCatalog records by ID, preserves omitted fields, supports title/status changes, and can replace the market context when `input.context.marketIds` is provided.
+- `catalogContextUpdate` adds and removes existing Market IDs from a staged/captured MarketCatalog context. Resulting `catalog`, `catalogs`, `catalogsCount`, `Market.catalogs`, and `MarketCatalog.markets` reads use the effective staged catalog state.
+- `catalogDelete` marks the MarketCatalog deleted in staged state. Deleted staged/captured catalogs return `null` from `catalog(id:)`, disappear from `catalogs(...)`, `catalogsCount(...)`, and nested `Market.catalogs`, while the deleted ID remains visible in meta state.
+- Catalog mutation validation is intentionally conservative. Captured parity currently covers blank `catalogCreate` titles and unknown IDs for `catalogUpdate`, `catalogContextUpdate`, and `catalogDelete`; unsupported non-market catalog contexts return local userErrors instead of claiming full B2B or app catalog support.
+- `priceListCreate`, `priceListUpdate`, and `priceListDelete` stage local PriceList lifecycle records. Create/update support the schema-current slice needed by downstream reads: `name`, `currency`, `parent.adjustment`, optional `catalogId`, stable synthetic IDs, timestamps, empty `quantityRules`, and read-after-write visibility through `priceList`, `priceLists`, linked MarketCatalog reads, meta state, and the mutation log.
+- Currency changes on `priceListUpdate` clear locally staged fixed-price rows and reset `fixedPricesCount` to `0`, matching Shopify's destructive currency-change behavior without inventing replacement prices.
+- `priceListFixedPricesAdd`, `priceListFixedPricesUpdate`, `priceListFixedPricesDelete`, and `priceListFixedPricesByProductUpdate` stage fixed price rows for product variants already present in normalized product state. Fixed rows are exposed through `PriceList.prices(originType: FIXED)`, `fixedPricesCount`, meta state, and mutation log entries; relative price rows from captures are preserved unless the currency changes.
+- Price-list validation is intentionally conservative until live write fixtures exist. Local branches cover blank/duplicate names, invalid currencies, unknown price-list/catalog/product/variant IDs, duplicate fixed-price additions, deleting/updating missing fixed prices, and product-scoped variant mismatches. Permission/access-scope failures and Shopify's exact live payloads for successful writes remain documented gaps because safe disposable price-list write captures are not yet checked in.
+- Product and variant contextual pricing fields are not broadly synthesized. The current supported downstream product-adjacent behavior is that staged fixed prices reference normalized product variants inside `PriceList.prices`; product/variant contextual pricing read fields should only be added once captured read shapes exist for that field family.
+- `webPresenceCreate` and `webPresenceUpdate` stage local `MarketWebPresence` records using the schema-current 2026-04 input slice: `domainId`, `defaultLocale`, `alternateLocales`, and `subfolderSuffix`. The local model enforces domain/subfolder mutual exclusion, basic locale format and uniqueness checks, duplicate domain/subfolder checks against effective state, and update-by-ID existence checks.
+- Web presence root URL derivation is local-only. Subfolder presences derive locale URLs from the captured shop/web-presence domain when available and fall back to the proxy's synthetic shop URL; domain-ID-only presences synthesize a stable domain object because `WebPresenceCreateInput` does not carry a host.
+- Current-schema `webPresenceCreate` does not take a market ID. Market association remains modeled through market-side web presence references such as `marketUpdate` inputs that add web presence IDs. When a staged market references a modeled web presence, downstream top-level `webPresences`, nested `Market.webPresences`, `MarketsResolvedValues.webPresences` with a captured baseline, meta state, and the mutation log expose the local-only change.
+- Captured validation parity currently covers safe no-side-effect branches for blank `marketCreate` names and unknown IDs for `marketUpdate`/`marketDelete`. Additional success-path conformance should use disposable market setup/cleanup before touching shared buyer-facing market configuration.
+- Admin GraphQL 2026-04 currently exposes market-localizable resource filtering for `METAFIELD` and `METAOBJECT`, not direct `PRODUCT` or `COLLECTION` resource types. The local proxy supports the product-adjacent `METAFIELD` slice first by projecting product metafields as `MarketLocalizableResource` records with one localizable content entry: key `value`, current metafield value, and the metafield `compareDigest`.
+- `marketLocalizableResource(resourceId:)` resolves supported product metafield IDs from effective local state and returns `null` for unknown IDs. `marketLocalizableResources(resourceType: METAFIELD, ...)` and `marketLocalizableResourcesByIds(...)` preserve Shopify-like connection shape, cursor pagination, selected fields, unknown-id omission, and empty/no-data responses. `METAOBJECT` currently returns an empty local slice until metaobject state exists.
+- `marketLocalizationsRegister` stages market-specific values locally for product metafield resources only. It validates resource ID, market ID, key support, blank values, digest equality against `marketLocalizableContent.digest`, and empty input arrays, returning `TranslationUserError`-shaped `field`, `message`, and `code` values without proxying supported calls upstream.
+- Re-registering the same resource/key/market combination updates the staged localization value and timestamp. `marketLocalizationsRemove` removes staged values for requested keys and markets and returns the removed localization payloads. Downstream `marketLocalizableResource(...).marketLocalizations(marketId:)` reads observe staged register/remove changes; product reads do not invent unsupported localized product fields.
+- Current live evidence for these roots was captured against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04. The empty read capture proves `read_translations` access for the read roots; no-side-effect unknown-resource mutation captures prove `write_translations` access and `RESOURCE_NOT_FOUND` semantics. Successful live localization writes remain intentionally avoided until a disposable setup/cleanup story exists for buyer-facing localized values.
+- `webPresenceDelete` is schema-current in 2026-04, and deprecated `marketWebPresenceCreate` / `marketWebPresenceUpdate` / `marketWebPresenceDelete` aliases remain visible in Shopify docs, but this repo does not mark them implemented without fixture-backed behavior for payload shape, association cleanup, and validation errors.
 
 ## Validation anchors
 
 - Runtime reads: `tests/integration/markets-query-shapes.test.ts`
+- Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`
+- Runtime market localization staging: `tests/integration/markets-localization-flow.test.ts`
 - Conformance parity: `tests/unit/conformance-parity-scenarios.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, and matching files under `config/parity-requests/`
+- Conformance fixtures and requests: `config/parity-specs/market*.json`, `config/parity-specs/markets*.json`, `config/parity-specs/catalog*.json`, `config/parity-specs/price-list*.json`, and matching files under `config/parity-requests/`

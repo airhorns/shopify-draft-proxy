@@ -170,6 +170,14 @@ export function matchesSearchQueryNumber(value: number | null, term: SearchQuery
   }
 }
 
+export function matchesSearchQueryText(value: string | null | undefined, term: SearchQueryTerm): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return value.toLowerCase().includes(normalizeSearchQueryValue(term.value));
+}
+
 export function matchesSearchQueryDate(
   value: string | null | undefined,
   term: SearchQueryTerm,

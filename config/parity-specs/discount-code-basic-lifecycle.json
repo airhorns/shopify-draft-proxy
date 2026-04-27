@@ -1,0 +1,34 @@
+{
+  "scenarioId": "discount-code-basic-lifecycle",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeDeactivate",
+    "discountCodeActivate",
+    "discountCodeDelete",
+    "discountNode",
+    "codeDiscountNodeByCode",
+    "discountNodes",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discount-code-basic-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "lifecycle-create-payload",
+        "capturePath": "$.create.payload.data.discountCodeBasicCreate",
+        "proxyPath": "$.data.discountCodeBasicCreate",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 native DiscountCodeBasic create, update to fixed amount, deactivate, activate, delete cleanup, and downstream reads after each transition. Runtime parity is covered by tests/integration/discount-code-basic-lifecycle-flow.test.ts; the fixture anchors the newly supported lifecycle roots with live Shopify evidence while broader executable conformance comparison for mutation lifecycles is still being built."
+}

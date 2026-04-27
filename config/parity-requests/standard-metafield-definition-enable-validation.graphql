@@ -1,0 +1,25 @@
+mutation StandardMetafieldDefinitionEnableValidation(
+  $ownerType: MetafieldOwnerType!
+  $id: ID
+  $namespace: String
+  $key: String
+) {
+  standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, namespace: $namespace, key: $key) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      name
+      type {
+        name
+        category
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

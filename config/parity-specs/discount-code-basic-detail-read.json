@@ -1,0 +1,68 @@
+{
+  "scenarioId": "discount-code-basic-detail-read",
+  "operationNames": ["discountNode", "codeDiscountNode", "codeDiscountNodeByCode"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "nested-object-graph", "empty-connection-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/discount-code-basic-detail-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-code-basic-detail-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for singular native DiscountCodeBasic detail roots after creating a temporary code discount. The parity harness seeds the captured detail node as normalized discount state before issuing local discountNode/codeDiscountNode/codeDiscountNodeByCode reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.discountNode.discount.codes.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount redeem codes."
+      },
+      {
+        "path": "$.discountNode.discount.codes.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount redeem codes."
+      },
+      {
+        "path": "$.codeDiscountNode.codeDiscount.codes.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount redeem codes."
+      },
+      {
+        "path": "$.codeDiscountNode.codeDiscount.codes.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount redeem codes."
+      },
+      {
+        "path": "$.discountNode.events.edges[0].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
+      },
+      {
+        "path": "$.discountNode.events.edges[1].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
+      },
+      {
+        "path": "$.discountNode.events.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
+      },
+      {
+        "path": "$.discountNode.events.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify event connection cursors are opaque; the local proxy emits stable synthetic cursors for seeded discount event records."
+      }
+    ],
+    "targets": [
+      {
+        "name": "discount-code-basic-detail-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

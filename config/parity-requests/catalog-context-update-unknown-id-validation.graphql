@@ -1,0 +1,13 @@
+#graphql
+mutation CatalogContextUpdateUnknownId($catalogId: ID!, $contextsToAdd: CatalogContextInput) {
+  catalogContextUpdate(catalogId: $catalogId, contextsToAdd: $contextsToAdd) {
+    catalog {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

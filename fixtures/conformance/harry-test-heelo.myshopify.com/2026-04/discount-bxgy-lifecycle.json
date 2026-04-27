@@ -1,0 +1,1339 @@
+{
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "capturedAt": "2026-04-25T20:51:03.220Z",
+    "runId": 1777150259502
+  },
+  "prerequisites": {
+    "buyProduct": {
+      "variables": {
+        "product": {
+          "title": "HAR-195 BXGY buy product 1777150259502",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-bxgy", "1777150259502"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170555597106",
+              "title": "HAR-195 BXGY buy product 1777150259502",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51098643235122",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "getProduct": {
+      "variables": {
+        "product": {
+          "title": "HAR-195 BXGY get product 1777150259502",
+          "status": "ACTIVE",
+          "vendor": "HERMES",
+          "productType": "CONFORMANCE",
+          "tags": ["conformance", "discount-bxgy", "1777150259502"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10170555629874",
+              "title": "HAR-195 BXGY get product 1777150259502",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51098643267890",
+                    "title": "Default Title"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collection": {
+      "variables": {
+        "input": {
+          "title": "HAR-195 BXGY collection 1777150259502"
+        }
+      },
+      "response": {
+        "data": {
+          "collectionCreate": {
+            "collection": {
+              "id": "gid://shopify/Collection/512147128626",
+              "title": "HAR-195 BXGY collection 1777150259502"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collectionAddProducts": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/512147128626",
+            "title": "HAR-195 BXGY collection 1777150259502",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10170555629874",
+                  "title": "HAR-195 BXGY get product 1777150259502"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "code": {
+    "create": {
+      "variables": {
+        "input": {
+          "title": "HAR-195 code BXGY 1777150259502",
+          "code": "HAR195BXGY1777150259502",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10170555597106"],
+                "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 1
+                }
+              }
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/512147128626"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 1
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeBxgyCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1638465831218",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "HAR-195 code BXGY 1777150259502",
+                "status": "ACTIVE",
+                "summary": "Buy 2 items, get 1 item free",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "endsAt": null,
+                "createdAt": "2026-04-25T20:51:01Z",
+                "updatedAt": "2026-04-25T20:51:01Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "usageLimit": null,
+                "usesPerOrderLimit": 1,
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21507808690482",
+                      "code": "HAR195BXGY1777150259502",
+                      "asyncUsageCount": 0
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0="
+                  }
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": "2"
+                  },
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10170555597106",
+                          "title": "HAR-195 BXGY buy product 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51098643235122",
+                          "title": "Default Title"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": {
+                      "quantity": "1"
+                    },
+                    "effect": {
+                      "__typename": "DiscountPercentage",
+                      "percentage": 1
+                    }
+                  },
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/512147128626",
+                          "title": "HAR-195 BXGY collection 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                      }
+                    }
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 44,
+            "actualQueryCost": 43,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1957,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1638465831218",
+        "input": {
+          "title": "HAR-195 code BXGY updated 1777150259502",
+          "code": "HAR195BXGYUP1777150259502",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "2"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10170555597106"],
+                "productVariantsToAdd": ["gid://shopify/ProductVariant/51098643235122"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "2",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/512147128626"]
+              }
+            }
+          },
+          "usesPerOrderLimit": 1
+        }
+      },
+      "response": {
+        "data": {
+          "discountCodeBxgyUpdate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1638465831218",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBxgy",
+                "title": "HAR-195 code BXGY updated 1777150259502",
+                "status": "ACTIVE",
+                "summary": "Buy 2 items, get 2 items at 50% off",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "endsAt": null,
+                "createdAt": "2026-04-25T20:51:01Z",
+                "updatedAt": "2026-04-25T20:51:01Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "usageLimit": null,
+                "usesPerOrderLimit": 1,
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21507808690482",
+                      "code": "HAR195BXGYUP1777150259502",
+                      "asyncUsageCount": 0
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0="
+                  }
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": "2"
+                  },
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10170555597106",
+                          "title": "HAR-195 BXGY buy product 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ProductVariant/51098643235122",
+                          "title": "Default Title"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9"
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": {
+                      "quantity": "2"
+                    },
+                    "effect": {
+                      "__typename": "DiscountPercentage",
+                      "percentage": 0.5
+                    }
+                  },
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/512147128626",
+                          "title": "HAR-195 BXGY collection 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                      }
+                    }
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 44,
+            "actualQueryCost": 43,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1939,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deactivate": {
+      "data": {
+        "discountCodeDeactivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1638465831218",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBxgy",
+              "title": "HAR-195 code BXGY updated 1777150259502",
+              "status": "EXPIRED",
+              "summary": "Buy 2 items, get 2 items at 50% off",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": "2026-04-25T20:51:01Z",
+              "createdAt": "2026-04-25T20:51:01Z",
+              "updatedAt": "2026-04-25T20:51:01Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["PRODUCT"],
+              "usageLimit": null,
+              "usesPerOrderLimit": 1,
+              "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/21507808690482",
+                    "code": "HAR195BXGYUP1777150259502",
+                    "asyncUsageCount": 0
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0="
+                }
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerBuys": {
+                "value": {
+                  "__typename": "DiscountQuantity",
+                  "quantity": "2"
+                },
+                "items": {
+                  "__typename": "DiscountProducts",
+                  "products": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Product/10170555597106",
+                        "title": "HAR-195 BXGY buy product 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9"
+                    }
+                  },
+                  "productVariants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51098643235122",
+                        "title": "Default Title"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9"
+                    }
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountOnQuantity",
+                  "quantity": {
+                    "quantity": "2"
+                  },
+                  "effect": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.5
+                  }
+                },
+                "items": {
+                  "__typename": "DiscountCollections",
+                  "collections": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Collection/512147128626",
+                        "title": "HAR-195 BXGY collection 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                    }
+                  }
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 44,
+          "actualQueryCost": 43,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1920,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "activate": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1638465831218",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBxgy",
+              "title": "HAR-195 code BXGY updated 1777150259502",
+              "status": "ACTIVE",
+              "summary": "Buy 2 items, get 2 items at 50% off",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": null,
+              "createdAt": "2026-04-25T20:51:01Z",
+              "updatedAt": "2026-04-25T20:51:01Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["PRODUCT"],
+              "usageLimit": null,
+              "usesPerOrderLimit": 1,
+              "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+              },
+              "codes": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/DiscountRedeemCode/21507808690482",
+                    "code": "HAR195BXGYUP1777150259502",
+                    "asyncUsageCount": 0
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoyMTUwNzgwODY5MDQ4MiwibGFzdF92YWx1ZSI6IjIxNTA3ODA4NjkwNDgyIn0="
+                }
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerBuys": {
+                "value": {
+                  "__typename": "DiscountQuantity",
+                  "quantity": "2"
+                },
+                "items": {
+                  "__typename": "DiscountProducts",
+                  "products": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Product/10170555597106",
+                        "title": "HAR-195 BXGY buy product 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9",
+                      "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTU5NzEwNiwibGFzdF92YWx1ZSI6MTAxNzA1NTU1OTcxMDZ9"
+                    }
+                  },
+                  "productVariants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/51098643235122",
+                        "title": "Default Title"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTA5ODY0MzIzNTEyMiwibGFzdF92YWx1ZSI6NTEwOTg2NDMyMzUxMjJ9"
+                    }
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountOnQuantity",
+                  "quantity": {
+                    "quantity": "2"
+                  },
+                  "effect": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.5
+                  }
+                },
+                "items": {
+                  "__typename": "DiscountCollections",
+                  "collections": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Collection/512147128626",
+                        "title": "HAR-195 BXGY collection 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                    }
+                  }
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 44,
+          "actualQueryCost": 43,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1896,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "delete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638465831218",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1833,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "automatic": {
+    "create": {
+      "variables": {
+        "input": {
+          "title": "HAR-195 automatic BXGY 1777150259502",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/512147128626"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10170555629874"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1"
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticBxgyCreate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBxgy",
+                "title": "HAR-195 automatic BXGY 1777150259502",
+                "status": "ACTIVE",
+                "summary": "Buy 1 item, get 1 item at 50% off",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "endsAt": null,
+                "createdAt": "2026-04-25T20:51:01Z",
+                "updatedAt": "2026-04-25T20:51:01Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "usesPerOrderLimit": 1,
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": "1"
+                  },
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/512147128626",
+                          "title": "HAR-195 BXGY collection 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": {
+                      "quantity": "1"
+                    },
+                    "effect": {
+                      "__typename": "DiscountPercentage",
+                      "percentage": 0.5
+                    }
+                  },
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10170555629874",
+                          "title": "HAR-195 BXGY get product 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 41,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1874,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "variables": {
+        "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+        "input": {
+          "title": "HAR-195 automatic BXGY updated 1777150259502",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "combinesWith": {
+            "productDiscounts": true,
+            "orderDiscounts": false,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "3"
+            },
+            "items": {
+              "collections": {
+                "add": ["gid://shopify/Collection/512147128626"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10170555629874"]
+              }
+            }
+          },
+          "usesPerOrderLimit": "1"
+        }
+      },
+      "response": {
+        "data": {
+          "discountAutomaticBxgyUpdate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBxgy",
+                "title": "HAR-195 automatic BXGY updated 1777150259502",
+                "status": "ACTIVE",
+                "summary": "Buy 3 items, get 1 item at 50% off",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "endsAt": null,
+                "createdAt": "2026-04-25T20:51:01Z",
+                "updatedAt": "2026-04-25T20:51:02Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "usesPerOrderLimit": 1,
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                },
+                "context": {
+                  "__typename": "DiscountBuyerSelectionAll",
+                  "all": "ALL"
+                },
+                "customerBuys": {
+                  "value": {
+                    "__typename": "DiscountQuantity",
+                    "quantity": "3"
+                  },
+                  "items": {
+                    "__typename": "DiscountCollections",
+                    "collections": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Collection/512147128626",
+                          "title": "HAR-195 BXGY collection 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                        "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                      }
+                    }
+                  }
+                },
+                "customerGets": {
+                  "value": {
+                    "__typename": "DiscountOnQuantity",
+                    "quantity": {
+                      "quantity": "1"
+                    },
+                    "effect": {
+                      "__typename": "DiscountPercentage",
+                      "percentage": 0.5
+                    }
+                  },
+                  "items": {
+                    "__typename": "DiscountProducts",
+                    "products": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/Product/10170555629874",
+                          "title": "HAR-195 BXGY get product 1777150259502"
+                        }
+                      ],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9",
+                        "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9"
+                      }
+                    },
+                    "productVariants": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "appliesOnOneTimePurchase": true,
+                  "appliesOnSubscription": false
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 41,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1857,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deactivate": {
+      "data": {
+        "discountAutomaticDeactivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBxgy",
+              "title": "HAR-195 automatic BXGY updated 1777150259502",
+              "status": "EXPIRED",
+              "summary": "Buy 3 items, get 1 item at 50% off",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": "2026-04-25T20:51:02Z",
+              "createdAt": "2026-04-25T20:51:01Z",
+              "updatedAt": "2026-04-25T20:51:02Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["PRODUCT"],
+              "usesPerOrderLimit": 1,
+              "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerBuys": {
+                "value": {
+                  "__typename": "DiscountQuantity",
+                  "quantity": "3"
+                },
+                "items": {
+                  "__typename": "DiscountCollections",
+                  "collections": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Collection/512147128626",
+                        "title": "HAR-195 BXGY collection 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                    }
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountOnQuantity",
+                  "quantity": {
+                    "quantity": "1"
+                  },
+                  "effect": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.5
+                  }
+                },
+                "items": {
+                  "__typename": "DiscountProducts",
+                  "products": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Product/10170555629874",
+                        "title": "HAR-195 BXGY get product 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9",
+                      "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9"
+                    }
+                  },
+                  "productVariants": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 41,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1838,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "activate": {
+      "data": {
+        "discountAutomaticActivate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+            "automaticDiscount": {
+              "__typename": "DiscountAutomaticBxgy",
+              "title": "HAR-195 automatic BXGY updated 1777150259502",
+              "status": "ACTIVE",
+              "summary": "Buy 3 items, get 1 item at 50% off",
+              "startsAt": "2026-04-25T00:00:00Z",
+              "endsAt": null,
+              "createdAt": "2026-04-25T20:51:01Z",
+              "updatedAt": "2026-04-25T20:51:02Z",
+              "asyncUsageCount": 0,
+              "discountClasses": ["PRODUCT"],
+              "usesPerOrderLimit": 1,
+              "combinesWith": {
+                "productDiscounts": true,
+                "orderDiscounts": false,
+                "shippingDiscounts": false
+              },
+              "context": {
+                "__typename": "DiscountBuyerSelectionAll",
+                "all": "ALL"
+              },
+              "customerBuys": {
+                "value": {
+                  "__typename": "DiscountQuantity",
+                  "quantity": "3"
+                },
+                "items": {
+                  "__typename": "DiscountCollections",
+                  "collections": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Collection/512147128626",
+                        "title": "HAR-195 BXGY collection 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0=",
+                      "endCursor": "eyJsYXN0X2lkIjo1MTIxNDcxMjg2MjYsImxhc3RfdmFsdWUiOjUxMjE0NzEyODYyNn0="
+                    }
+                  }
+                }
+              },
+              "customerGets": {
+                "value": {
+                  "__typename": "DiscountOnQuantity",
+                  "quantity": {
+                    "quantity": "1"
+                  },
+                  "effect": {
+                    "__typename": "DiscountPercentage",
+                    "percentage": 0.5
+                  }
+                },
+                "items": {
+                  "__typename": "DiscountProducts",
+                  "products": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/Product/10170555629874",
+                        "title": "HAR-195 BXGY get product 1777150259502"
+                      }
+                    ],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9",
+                      "endCursor": "eyJsYXN0X2lkIjoxMDE3MDU1NTYyOTg3NCwibGFzdF92YWx1ZSI6MTAxNzA1NTU2Mjk4NzR9"
+                    }
+                  },
+                  "productVariants": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                },
+                "appliesOnOneTimePurchase": true,
+                "appliesOnSubscription": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 41,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1816,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "delete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/1638465863986",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1844,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "data": {
+      "discountNode": {
+        "id": "gid://shopify/DiscountCodeNode/1638465831218",
+        "discount": {
+          "__typename": "DiscountCodeBxgy",
+          "title": "HAR-195 code BXGY updated 1777150259502",
+          "status": "ACTIVE"
+        }
+      },
+      "codeDiscountNodeByCode": {
+        "id": "gid://shopify/DiscountCodeNode/1638465831218"
+      },
+      "automaticDiscountNode": {
+        "id": "gid://shopify/DiscountAutomaticNode/1638465863986",
+        "automaticDiscount": {
+          "__typename": "DiscountAutomaticBxgy",
+          "title": "HAR-195 automatic BXGY updated 1777150259502",
+          "status": "ACTIVE"
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 5,
+        "actualQueryCost": 5,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1828,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

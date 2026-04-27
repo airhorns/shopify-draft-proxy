@@ -1,0 +1,101 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "response": {
+    "query": "#graphql\nquery DiscountAutomaticNodesRead($first: Int!, $query: String) {\n  automaticDiscountNodes(first: $first, query: $query) {\n    nodes {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          discountClasses\n          combinesWith { productDiscounts orderDiscounts shippingDiscounts }\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          discountClasses\n          combinesWith { productDiscounts orderDiscounts shippingDiscounts }\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          discountClasses\n          combinesWith { productDiscounts orderDiscounts shippingDiscounts }\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        automaticDiscount {\n          __typename\n          ... on DiscountAutomaticBasic { title status }\n          ... on DiscountAutomaticBxgy { title status }\n          ... on DiscountAutomaticFreeShipping { title status }\n        }\n      }\n    }\n    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n  }\n}",
+    "variables": {
+      "first": 5,
+      "query": null
+    },
+    "response": {
+      "data": {
+        "automaticDiscountNodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBxgy",
+                "title": "Buy one, get the second 10 percent off",
+                "status": "EXPIRED",
+                "summary": "Buy 1 item, get 1 item at 10% off",
+                "startsAt": "2025-04-10T00:00:00Z",
+                "endsAt": "2025-04-25T00:00:00Z",
+                "createdAt": "2025-03-26T19:51:38Z",
+                "updatedAt": "2025-03-26T19:51:38Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "combinesWith": {
+                  "productDiscounts": false,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                }
+              }
+            },
+            {
+              "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticBasic",
+                "title": "Buy three, get 30 percent off",
+                "status": "EXPIRED",
+                "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
+                "startsAt": "2025-03-26T00:00:00Z",
+                "endsAt": "2025-04-05T00:00:00Z",
+                "createdAt": "2025-03-26T19:51:38Z",
+                "updatedAt": "2025-03-26T19:51:38Z",
+                "asyncUsageCount": 0,
+                "discountClasses": ["PRODUCT"],
+                "combinesWith": {
+                  "productDiscounts": true,
+                  "orderDiscounts": false,
+                  "shippingDiscounts": false
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+              "node": {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
+                "automaticDiscount": {
+                  "__typename": "DiscountAutomaticBxgy",
+                  "title": "Buy one, get the second 10 percent off",
+                  "status": "EXPIRED"
+                }
+              }
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ==",
+              "node": {
+                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
+                "automaticDiscount": {
+                  "__typename": "DiscountAutomaticBasic",
+                  "title": "Buy three, get 30 percent off",
+                  "status": "EXPIRED"
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "status": 200
+  }
+}

@@ -3,7 +3,7 @@
   "operationNames": ["draftOrderUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-update-parity.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/draft-order-update-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/draftOrderUpdate-parity-plan.graphql",
     "variablesPath": "config/parity-requests/draftOrderUpdate-parity-plan.variables.json",

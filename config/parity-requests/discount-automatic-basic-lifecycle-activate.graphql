@@ -1,0 +1,22 @@
+mutation DiscountAutomaticBasicLifecycleActivate($id: ID!) {
+  discountAutomaticActivate(id: $id) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

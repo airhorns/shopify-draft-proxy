@@ -6,6 +6,7 @@ import {
   matchesSearchQueryDate,
   matchesSearchQueryNumber,
   matchesSearchQueryString,
+  matchesSearchQueryText,
   normalizeSearchQueryValue,
   parseSearchQuery,
   parseSearchQueryTerm,
@@ -185,6 +186,9 @@ describe('search query parser', () => {
 
   it('normalizes and compares typed term values for endpoint filters', () => {
     expect(normalizeSearchQueryValue(' "ACTIVE" ')).toBe('active');
+
+    expect(matchesSearchQueryText('Summer Campaign', parseSearchQueryTerm('title:summer'))).toBe(true);
+    expect(matchesSearchQueryText(null, parseSearchQueryTerm('title:summer'))).toBe(false);
 
     expect(matchesSearchQueryNumber(5, parseSearchQueryTerm('times_used:>=5'))).toBe(true);
     expect(matchesSearchQueryNumber(4, parseSearchQueryTerm('times_used:>=5'))).toBe(false);

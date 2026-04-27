@@ -21,10 +21,21 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 3. **Do not send supported mutations to Shopify at runtime**
    - Supported mutations must stage locally.
    - Unsupported mutations may proxy through, but must be visible in logs/observability.
+   - This runtime rule does not prohibit intentional Shopify writes in other
+     phases. `__meta/commit` is expected to replay the original staged
+     mutations to Shopify, and live conformance work may deliberately mutate
+     disposable test shops to record faithful fixtures.
    - Do not register operations as permanent passthrough capabilities. A
      registered operation is a commitment to model it locally before it is
      considered supported; passthrough is only the unknown/unsupported escape
      hatch, not an intended execution posture for a known operation.
+   - Do not mark branch-only, validation-only, or otherwise partial mutation
+     handling as implemented operation support. Half support is not enough:
+     a mutation root reaches supported status only when the local model can
+     emulate the operation's supported lifecycle behavior and downstream
+     read-after-write effects without runtime Shopify writes. Captured
+     validation guardrails are useful evidence, but they must be documented as
+     guardrails rather than presented as full local emulation.
 
 4. **Keep original raw mutations for commit**
    - Commit should replay original mutations in original order.
@@ -48,10 +59,24 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Expose and test the meta API.
 - Add tests for every supported operation.
 - Prefer conformance fixtures over hand-wavy comments about expected behavior.
+- Conformance/test shops are disposable fidelity targets. When a ticket needs
+  real Shopify evidence, agents may modify those test shops deeply as needed
+  to create, update, activate, delete, and clean up realistic fixtures; do not
+  avoid necessary live setup just because it changes test-shop data.
+- Do not limit conformance captures to validation-only branches solely because
+  the success path has Shopify side effects. If the store and credentials are
+  suitable, capture the success path with explicit setup and cleanup evidence.
 - Do not add tests that only reassert self-evident properties of checked-in
   metadata, such as exact fields in registry or parity-spec JSON files. Test
   executable behavior, schema validation, discovery semantics, or comparison
   contracts instead.
+- For coverage-map-only registry work, do not add tests whose only signal is
+  that specific roots exist in `config/operation-registry.json`, have a
+  particular `domain`, `implemented: false`, empty `runtimeTests`, or also
+  appear in the checked-in root introspection fixture. Those assertions are
+  just restating the edited JSON. Use existing schema/conformance discovery
+  checks unless the change introduces executable behavior or a real discovery
+  contract.
 - Do not add new planned-only or blocked-only parity scenarios as a way to
   reserve future coverage. Add checked-in parity specs only when they are backed
   by a captured interaction and can run as working evidence; otherwise keep the
@@ -59,6 +84,18 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   Ticket-specific requests for scaffold files do not override this rule; for
   coverage-map-only work, update the operation registry and the Linear/workpad
   notes without adding parity spec or parity request placeholders.
+- Do not add capture-only parity specs as a shortcut for expensive local
+  implementation. Capture-only specs should be rare and limited to cases where
+  proxy implementation is hard-blocked or close to impossible with the current
+  harness. If implementation work is merely large, defer it in Linear instead:
+  find or create the follow-up issue(s), keep them in the appropriate workflow
+  state, and mention those issue identifiers in the capture-only spec
+  description/notes if a capture-only spec is truly justified.
+- Captured scenarios checked into `config/parity-specs` must be executable
+  evidence by schema and inventory validation: either a proxy request with
+  strict comparison targets that runs in the `conformance:parity` script, or
+  an explicitly runtime-test-backed fixture mode for multi-step flows the
+  generic parity runner cannot yet replay.
 - Conformance parity scenarios are discovered by convention from `config/parity-specs/*.json` and executed by the single vitest suite at `tests/unit/conformance-parity-scenarios.test.ts` (also exposed as `pnpm conformance:parity`). Do not add per-scenario `it(...)` blocks that re-run one scenario — the iterator already covers it. Encode scenario-specific expectations in the parity spec.
 - Treat conformance `expectedDifferences` as a last resort after modeling or
   fixture seeding has been exhausted; do not add them merely to make parity
@@ -77,6 +114,12 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   should provide only the domain-specific positive term matcher and documented
   Shopify quirks; do not add new resource-local query parsers or duplicated
   `matches*QueryNode` traversal helpers.
+- Connection implementations must use the shared helpers in
+  `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
+  serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
+  filtering, cursor derivation, and node projection in the owning resource
+  module, then pass those decisions into `paginateConnectionItems(...)` and
+  `serializeConnection(...)` instead of rebuilding connection loops locally.
 
 ## GitHub repository
 

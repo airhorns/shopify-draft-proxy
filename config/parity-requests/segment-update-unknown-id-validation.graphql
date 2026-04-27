@@ -1,0 +1,15 @@
+mutation SegmentUpdateUnknownId($id: ID!, $name: String) {
+  segmentUpdate(id: $id, name: $name) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

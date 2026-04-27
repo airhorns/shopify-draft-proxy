@@ -196,6 +196,298 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('serializes seeded customer payment method roots and customer-owned connections with revoked filtering', async () => {
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/8801',
+        firstName: 'Payment',
+        lastName: 'Holder',
+        displayName: 'Payment Holder',
+        email: 'payment-holder@example.com',
+        legacyResourceId: '8801',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'ENABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: { amount: '0.0', currencyCode: 'USD' },
+        defaultEmailAddress: { emailAddress: 'payment-holder@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
+      },
+    ]);
+    store.upsertBaseCustomerPaymentMethods([
+      {
+        id: 'gid://shopify/CustomerPaymentMethod/active-card',
+        customerId: 'gid://shopify/Customer/8801',
+        cursor: 'active-card-cursor',
+        revokedAt: null,
+        revokedReason: null,
+        instrument: {
+          typeName: 'CustomerCreditCard',
+          data: {
+            __typename: 'CustomerCreditCard',
+            brand: 'VISA',
+            lastDigits: '4242',
+            expiryMonth: 12,
+            expiryYear: 2030,
+            name: 'Payment Holder',
+            maskedNumber: '**** **** **** 4242',
+          },
+        },
+        subscriptionContracts: [
+          {
+            id: 'gid://shopify/SubscriptionContract/contract-1',
+            cursor: 'contract-cursor',
+            data: {
+              __typename: 'SubscriptionContract',
+              status: 'ACTIVE',
+            },
+          },
+        ],
+      },
+      {
+        id: 'gid://shopify/CustomerPaymentMethod/revoked-paypal',
+        customerId: 'gid://shopify/Customer/8801',
+        cursor: 'revoked-paypal-cursor',
+        revokedAt: '2024-02-02T00:00:00.000Z',
+        revokedReason: 'CUSTOMER_REVOKED',
+        instrument: {
+          typeName: 'CustomerPaypalBillingAgreement',
+          data: {
+            __typename: 'CustomerPaypalBillingAgreement',
+            paypalAccountEmail: 'paypal@example.com',
+            inactive: true,
+          },
+        },
+        subscriptionContracts: [],
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('seeded customer payment method snapshot reads should not hit upstream fetch');
+    });
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query PaymentMethodReads($customerId: ID!, $activeId: ID!, $revokedId: ID!) {
+          active: customerPaymentMethod(id: $activeId) {
+            id
+            revokedAt
+            instrument {
+              __typename
+              ... on CustomerCreditCard {
+                brand
+                lastDigits
+                expiryMonth
+                expiryYear
+                name
+                maskedNumber
+              }
+            }
+            customer { id email }
+            subscriptionContracts(first: 2) {
+              nodes { id status }
+              edges { cursor node { id status } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          revokedHidden: customerPaymentMethod(id: $revokedId) { id revokedAt }
+          revokedShown: customerPaymentMethod(id: $revokedId, showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+            instrument {
+              __typename
+              ... on CustomerPaypalBillingAgreement {
+                paypalAccountEmail
+                inactive
+              }
+            }
+          }
+          customer(id: $customerId) {
+            paymentMethods(first: 5) {
+              nodes { id revokedAt }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+            allPaymentMethods: paymentMethods(first: 5, showRevoked: true) {
+              nodes { id revokedAt }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/8801',
+          activeId: 'gid://shopify/CustomerPaymentMethod/active-card',
+          revokedId: 'gid://shopify/CustomerPaymentMethod/revoked-paypal',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        active: {
+          id: 'gid://shopify/CustomerPaymentMethod/active-card',
+          revokedAt: null,
+          instrument: {
+            __typename: 'CustomerCreditCard',
+            brand: 'VISA',
+            lastDigits: '4242',
+            expiryMonth: 12,
+            expiryYear: 2030,
+            name: 'Payment Holder',
+            maskedNumber: '**** **** **** 4242',
+          },
+          customer: {
+            id: 'gid://shopify/Customer/8801',
+            email: 'payment-holder@example.com',
+          },
+          subscriptionContracts: {
+            nodes: [
+              {
+                id: 'gid://shopify/SubscriptionContract/contract-1',
+                status: 'ACTIVE',
+              },
+            ],
+            edges: [
+              {
+                cursor: 'cursor:contract-cursor',
+                node: {
+                  id: 'gid://shopify/SubscriptionContract/contract-1',
+                  status: 'ACTIVE',
+                },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'cursor:contract-cursor',
+              endCursor: 'cursor:contract-cursor',
+            },
+          },
+        },
+        revokedHidden: null,
+        revokedShown: {
+          id: 'gid://shopify/CustomerPaymentMethod/revoked-paypal',
+          revokedAt: '2024-02-02T00:00:00.000Z',
+          revokedReason: 'CUSTOMER_REVOKED',
+          instrument: {
+            __typename: 'CustomerPaypalBillingAgreement',
+            paypalAccountEmail: 'paypal@example.com',
+            inactive: true,
+          },
+        },
+        customer: {
+          paymentMethods: {
+            nodes: [
+              {
+                id: 'gid://shopify/CustomerPaymentMethod/active-card',
+                revokedAt: null,
+              },
+            ],
+            edges: [
+              {
+                cursor: 'cursor:active-card-cursor',
+                node: {
+                  id: 'gid://shopify/CustomerPaymentMethod/active-card',
+                },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'cursor:active-card-cursor',
+              endCursor: 'cursor:active-card-cursor',
+            },
+          },
+          allPaymentMethods: {
+            nodes: [
+              {
+                id: 'gid://shopify/CustomerPaymentMethod/active-card',
+                revokedAt: null,
+              },
+              {
+                id: 'gid://shopify/CustomerPaymentMethod/revoked-paypal',
+                revokedAt: '2024-02-02T00:00:00.000Z',
+              },
+            ],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: 'cursor:active-card-cursor',
+              endCursor: 'cursor:revoked-paypal-cursor',
+            },
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs sensitive customer payment method mutations as unsupported passthrough boundaries', async () => {
+    const upstreamBody = {
+      data: {
+        customerPaymentMethodRevoke: {
+          revokedCustomerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/remote',
+          userErrors: [],
+        },
+      },
+    };
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(upstreamBody), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const app = createApp(config).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation RevokeCustomerPaymentMethod($id: ID!) {
+          customerPaymentMethodRevoke(customerPaymentMethodId: $id) {
+            revokedCustomerPaymentMethodId
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/CustomerPaymentMethod/remote' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual(upstreamBody);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'RevokeCustomerPaymentMethod',
+      status: 'proxied',
+      interpreted: {
+        operationType: 'mutation',
+        rootFields: ['customerPaymentMethodRevoke'],
+        primaryRootField: 'customerPaymentMethodRevoke',
+        registeredOperation: {
+          name: 'customerPaymentMethodRevoke',
+          domain: 'payments',
+          execution: 'stage-locally',
+          implemented: false,
+        },
+      },
+    });
+    expect(logResponse.body.entries[0].interpreted.registeredOperation.supportNotes).toContain(
+      'write_customer_payment_methods',
+    );
+  });
+
   it('serves customerByIdentifier by id, email, and phone from snapshot state without trusting the operation name', async () => {
     store.upsertBaseCustomers([
       {

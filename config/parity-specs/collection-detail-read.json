@@ -13,6 +13,7 @@
     "documentPath": "config/parity-requests/collection-detail-read.graphql",
     "variablesPath": "config/parity-requests/collection-detail-read.variables.json"
   },
+  "comparisonMode": "captured-vs-proxy-request",
   "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed. The detail capture includes one custom collection and one smart collection so rich metadata, blank description values, sortOrder, and ruleSet behavior are grounded in Shopify.",
   "comparison": {
     "mode": "strict-json",

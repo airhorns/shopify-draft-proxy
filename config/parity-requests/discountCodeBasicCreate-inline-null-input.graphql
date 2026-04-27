@@ -1,0 +1,13 @@
+mutation DiscountCodeBasicCreateInlineNullInput {
+  discountCodeBasicCreate(basicCodeDiscount: null) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

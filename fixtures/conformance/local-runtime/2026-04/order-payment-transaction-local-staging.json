@@ -1,0 +1,12 @@
+{
+  "capturedAt": "2026-04-25T18:42:00.000Z",
+  "source": "local-runtime-vitest",
+  "runtimeTest": "tests/integration/order-payment-transaction-flow.test.ts",
+  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
+  "summary": {
+    "orderCapture": "Stages partial and final captures for a synthetic successful authorization transaction, updates downstream order financial/capturable fields, and keeps original raw capture mutations in the meta log.",
+    "transactionVoid": "Stages a VOID child transaction for an uncaptured synthetic authorization and returns local userErrors for missing or already-voided transactions.",
+    "orderCreateMandatePayment": "Stages a completed synthetic Job, stable paymentReferenceId, and idempotent mandate-payment transaction without contacting a payment gateway."
+  },
+  "liveGatewaySideEffects": false
+}

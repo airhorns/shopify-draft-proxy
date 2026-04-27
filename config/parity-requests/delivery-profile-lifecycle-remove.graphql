@@ -1,0 +1,12 @@
+mutation DeliveryProfileLifecycleRemove($id: ID!) {
+  deliveryProfileRemove(id: $id) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

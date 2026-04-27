@@ -4,14 +4,22 @@ import { operationRegistrySchema, type OperationRegistryEntry } from '../json-sc
 export type CapabilityDomain =
   | 'products'
   | 'media'
+  | 'bulk-operations'
   | 'customers'
   | 'orders'
   | 'store-properties'
   | 'discounts'
+  | 'events'
+  | 'payments'
   | 'marketing'
+  | 'online-store'
+  | 'privacy'
   | 'segments'
+  | 'shipping-fulfillments'
+  | 'webhooks'
   | 'markets'
   | 'metafields'
+  | 'metaobjects'
   | 'unknown';
 export type CapabilityExecution = 'overlay-read' | 'stage-locally' | 'passthrough';
 export type OperationType = 'query' | 'mutation';
@@ -28,4 +36,25 @@ export function listOperationRegistryEntries(): OperationRegistryEntry[] {
 
 export function listImplementedOperationRegistryEntries(): OperationRegistryEntry[] {
   return operationRegistry.filter((entry) => entry.implemented);
+}
+
+export function findOperationRegistryEntry(
+  type: OperationType,
+  names: Array<string | null | undefined>,
+): OperationRegistryEntry | null {
+  const candidates = names.filter((name): name is string => typeof name === 'string' && name.length > 0);
+  for (const candidate of candidates) {
+    const entry = operationRegistry.find(
+      (registryEntry) => registryEntry.type === type && registryEntry.matchNames.includes(candidate),
+    );
+    if (entry) {
+      return {
+        ...entry,
+        matchNames: [...entry.matchNames],
+        runtimeTests: [...entry.runtimeTests],
+      };
+    }
+  }
+
+  return null;
 }

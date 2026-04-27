@@ -1,0 +1,203 @@
+query MetafieldDefinitionsProductRead($first: Int!, $namespace: String!, $key: String!, $missingNamespace: String!) {
+  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {
+    id
+    name
+    namespace
+    key
+    ownerType
+    type {
+      name
+      category
+    }
+    description
+    validations {
+      name
+      value
+    }
+    access {
+      admin
+      storefront
+    }
+    capabilities {
+      adminFilterable {
+        enabled
+        eligible
+        status
+      }
+      smartCollectionCondition {
+        enabled
+        eligible
+      }
+      uniqueValues {
+        enabled
+        eligible
+      }
+    }
+    constraints {
+      key
+      values(first: 10) {
+        nodes {
+          value
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    pinnedPosition
+    validationStatus
+    metafieldsCount
+    metafields(first: 5) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        ownerType
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  missing: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $missingNamespace, key: "missing" }) {
+    id
+    name
+  }
+  metafieldDefinitions(ownerType: PRODUCT, first: $first, sortKey: PINNED_POSITION, pinnedStatus: PINNED) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      pinnedPosition
+      validationStatus
+      metafieldsCount
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  filteredByQuery: metafieldDefinitions(
+    ownerType: PRODUCT
+    first: 5
+    namespace: $namespace
+    query: "key:binding_mount"
+    sortKey: NAME
+  ) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      pinnedPosition
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  empty: metafieldDefinitions(ownerType: PRODUCT, first: 5, namespace: $missingNamespace) {
+    nodes {
+      id
+    }
+    edges {
+      cursor
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  seedCatalog: metafieldDefinitions(ownerType: PRODUCT, first: $first, sortKey: PINNED_POSITION) {
+    nodes {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      description
+      validations {
+        name
+        value
+      }
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+      constraints {
+        key
+        values(first: 10) {
+          nodes {
+            value
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      pinnedPosition
+      validationStatus
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          type
+          value
+          ownerType
+          owner {
+            ... on Product {
+              id
+              title
+            }
+          }
+        }
+      }
+    }
+  }
+}

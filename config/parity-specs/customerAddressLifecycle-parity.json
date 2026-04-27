@@ -1,0 +1,22 @@
+{
+  "scenarioId": "customer-address-lifecycle-parity",
+  "operationNames": [
+    "customerAddressCreate",
+    "customerAddressUpdate",
+    "customerAddressDelete",
+    "customerUpdateDefaultAddress",
+    "customer",
+    "customerByIdentifier",
+    "customers"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-address-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "Captured evidence covers Admin customer address create/update/delete/default-address roots, downstream customer/customerByIdentifier/customers address reads, unknown-customer payload userErrors, unknown-address RESOURCE_NOT_FOUND GraphQL errors, cross-customer address ownership userErrors, blank/invalid/duplicate address branches, default-address deletion, setAsDefault omitted/false behavior, customerSet address replacement, and a bounded maximum-address probe. Runtime parity is covered by integration tests while the generic parity runner lacks multi-step mutation chaining between target proxy requests.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

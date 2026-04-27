@@ -1,0 +1,10 @@
+{
+  "id": "gid://shopify/WebhookSubscription/0",
+  "webhookSubscription": {
+    "filter": "",
+    "format": "JSON",
+    "includeFields": ["id"],
+    "metafieldNamespaces": [],
+    "uri": "https://example.com/hermes-webhook-conformance-updated"
+  }
+}

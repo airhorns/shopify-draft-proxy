@@ -1,0 +1,33 @@
+{
+  "variables": {
+    "first": 2,
+    "query": "enabled:true",
+    "unknownId": "gid://shopify/PaymentCustomization/999999999999"
+  },
+  "response": {
+    "data": {
+      "paymentCustomizations": {
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "paymentCustomization": null
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 5,
+        "actualQueryCost": 4,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1996,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}
