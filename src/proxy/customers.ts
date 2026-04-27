@@ -2714,10 +2714,17 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
 }
 
 function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
-  return upsertOwnerMetafields('customerId', customerId, inputs, store.getEffectiveMetafieldsByCustomerId(customerId), {
-    allowIdLookup: true,
-    trimIdentity: true,
-  }).metafields;
+  const result = upsertOwnerMetafields(
+    'customerId',
+    customerId,
+    inputs,
+    store.getEffectiveMetafieldsByCustomerId(customerId),
+    {
+      allowIdLookup: true,
+      trimIdentity: true,
+    },
+  );
+  return result.createdOrUpdated.length === result.metafields.length ? result.createdOrUpdated : result.metafields;
 }
 
 function readCustomerAddressInput(raw: unknown): Record<string, unknown> {
@@ -3091,8 +3098,69 @@ function buildMergedCustomer(
     emailMarketingConsent: emailSource.emailMarketingConsent,
     smsMarketingConsent: phoneSource.smsMarketingConsent,
     defaultAddress,
+    createdAt: customerOne.createdAt,
     updatedAt: options.updateTimestamp === false ? customerTwo.updatedAt : makeSyntheticTimestamp(),
   };
+}
+
+type CustomerMergeAttachedResources = {
+  sourceAddresses: CustomerAddressRecord[];
+  mergedMetafields: CustomerMetafieldRecord[];
+  sourceOrders: OrderRecord[];
+};
+
+function customerMetafieldStorageKey(metafield: CustomerMetafieldRecord): string {
+  return `${metafield.namespace}::${metafield.key}`;
+}
+
+function collectCustomerMergeAttachedResources(
+  customerOne: CustomerRecord,
+  customerTwo: CustomerRecord,
+): CustomerMergeAttachedResources {
+  const resultMetafields = store.getEffectiveMetafieldsByCustomerId(customerTwo.id);
+  const resultMetafieldKeys = new Set(resultMetafields.map(customerMetafieldStorageKey));
+  const copiedSourceMetafields = store
+    .getEffectiveMetafieldsByCustomerId(customerOne.id)
+    .filter((metafield) => !resultMetafieldKeys.has(customerMetafieldStorageKey(metafield)))
+    .map((metafield): CustomerMetafieldRecord => {
+      return {
+        ...metafield,
+        id: makeSyntheticGid('Metafield'),
+        customerId: customerTwo.id,
+      };
+    });
+
+  return {
+    sourceAddresses: store.listEffectiveCustomerAddresses(customerOne.id),
+    mergedMetafields: [...resultMetafields, ...copiedSourceMetafields],
+    sourceOrders: listOrdersForCustomer(customerOne.id),
+  };
+}
+
+function stageCustomerMergeAttachedResources(
+  resources: CustomerMergeAttachedResources,
+  resultingCustomer: CustomerRecord,
+): void {
+  for (const address of resources.sourceAddresses) {
+    store.stageUpsertCustomerAddress({
+      ...address,
+      customerId: resultingCustomer.id,
+    });
+  }
+
+  store.replaceStagedMetafieldsForCustomer(resultingCustomer.id, resources.mergedMetafields);
+
+  for (const order of resources.sourceOrders) {
+    store.updateOrder({
+      ...order,
+      email: resultingCustomer.email,
+      customer: {
+        id: resultingCustomer.id,
+        email: resultingCustomer.email,
+        displayName: resultingCustomer.displayName,
+      },
+    });
+  }
 }
 
 function buildCustomerMergeMissingArgumentError(field: FieldNode, missingArguments: string[]): Record<string, unknown> {
@@ -4160,6 +4228,7 @@ export function handleCustomerMutation(
 
       const overrideFields = readCustomerMergeOverrideFields(args['overrideFields']);
       const mergedCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields);
+      const attachedResources = collectCustomerMergeAttachedResources(customerOne, customerTwo);
       const jobId = makeSyntheticGid('Job');
       const customer = store.stageMergeCustomers(customerOne.id, mergedCustomer, {
         jobId,
@@ -4167,6 +4236,7 @@ export function handleCustomerMutation(
         status: 'COMPLETED',
         customerMergeErrors: [],
       });
+      stageCustomerMergeAttachedResources(attachedResources, customer);
       data[key] = serializeCustomerMutationPayload(
         field,
         {

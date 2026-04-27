@@ -1538,6 +1538,265 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages customerMerge attached resources represented in normalized state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerMerge attached resources should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createMutation = `mutation CustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer { id email defaultPhoneNumber { phoneNumber } metafields(first: 5) { nodes { id namespace key type value } } }
+        userErrors { field message }
+      }
+    }`;
+
+    const createOneResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-attached-one@example.com',
+            phone: '+16475550111',
+            firstName: 'Merge',
+            lastName: 'One',
+            note: 'one note',
+            tags: ['har-291-merge', 'merge-one'],
+            metafields: [
+              { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+              { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'source-conflict' },
+            ],
+          },
+        },
+      });
+    const createTwoResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: createMutation,
+        variables: {
+          input: {
+            email: 'merge-attached-two@example.com',
+            phone: '+16475550222',
+            firstName: 'Merge',
+            lastName: 'Two',
+            note: 'two note',
+            tags: ['har-291-merge', 'merge-two'],
+            metafields: [
+              { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+              { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            ],
+          },
+        },
+      });
+
+    const customerOneId = createOneResponse.body.data.customerCreate.customer.id;
+    const customerTwoId = createTwoResponse.body.data.customerCreate.customer.id;
+
+    const addressMutation = `mutation CustomerAddressCreate($customerId: ID!, $address: MailingAddressInput!, $setAsDefault: Boolean) {
+      customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: $setAsDefault) {
+        address { id address1 city provinceCode countryCodeV2 zip }
+        userErrors { field message }
+      }
+    }`;
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: addressMutation,
+        variables: {
+          customerId: customerOneId,
+          address: {
+            firstName: 'Source',
+            lastName: 'Address',
+            address1: '1 Source Merge St',
+            city: 'Ottawa',
+            provinceCode: 'ON',
+            countryCode: 'CA',
+            zip: 'K1A 0B1',
+          },
+          setAsDefault: true,
+        },
+      });
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: addressMutation,
+        variables: {
+          customerId: customerTwoId,
+          address: {
+            firstName: 'Result',
+            lastName: 'Address',
+            address1: '2 Result Merge Ave',
+            city: 'Toronto',
+            provinceCode: 'ON',
+            countryCode: 'CA',
+            zip: 'M5H 2N2',
+          },
+          setAsDefault: true,
+        },
+      });
+
+    const orderResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMergeOrderCreate($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email customer { id email displayName } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          order: {
+            customerId: customerOneId,
+            email: 'merge-attached-one@example.com',
+            currency: 'CAD',
+            lineItems: [
+              {
+                title: 'HAR-291 merge source order item',
+                quantity: 1,
+                priceSet: { shopMoney: { amount: '11.00', currencyCode: 'CAD' } },
+              },
+            ],
+          },
+        },
+      });
+    const orderId = orderResponse.body.data.orderCreate.order.id;
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMergeOrderCustomerSet($orderId: ID!, $customerId: ID!) {
+          orderCustomerSet(orderId: $orderId, customerId: $customerId) {
+            order { id customer { id email displayName } }
+            userErrors { field message }
+          }
+        }`,
+        variables: { orderId, customerId: customerOneId },
+      });
+
+    const mergeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerMerge($one: ID!, $two: ID!, $override: CustomerMergeOverrideFields) {
+          customerMerge(customerOneId: $one, customerTwoId: $two, overrideFields: $override) {
+            resultingCustomerId
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          one: customerOneId,
+          two: customerTwoId,
+          override: {
+            customerIdOfEmailToKeep: customerTwoId,
+            customerIdOfPhoneNumberToKeep: customerOneId,
+            customerIdOfFirstNameToKeep: customerOneId,
+            customerIdOfLastNameToKeep: customerTwoId,
+            note: 'merged note',
+            tags: ['har-291-merge', 'merged'],
+          },
+        },
+      });
+    const jobId = mergeResponse.body.data.customerMerge.job.id;
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerMergeAttachedDownstream($one: ID!, $two: ID!, $jobId: ID!) {
+          source: customer(id: $one) { id }
+          result: customer(id: $two) {
+            id
+            email
+            note
+            tags
+            numberOfOrders
+            defaultPhoneNumber { phoneNumber }
+            defaultAddress { address1 city }
+            addressesV2(first: 10) { nodes { address1 city } }
+            metafields(first: 10) { nodes { namespace key type value } }
+            orders(first: 10) { nodes { id email customer { id email displayName } } }
+            lastOrder { id }
+          }
+          oldEmail: customerByIdentifier(identifier: { emailAddress: "merge-attached-one@example.com" }) { id }
+          newEmail: customerByIdentifier(identifier: { emailAddress: "merge-attached-two@example.com" }) {
+            id
+            addressesV2(first: 10) { nodes { address1 city } }
+            metafields(first: 10) { nodes { namespace key type value } }
+            orders(first: 10) { nodes { id email } }
+          }
+          mergeStatus: customerMergeJobStatus(jobId: $jobId) { jobId resultingCustomerId status customerMergeErrors { message } }
+        }`,
+        variables: { one: customerOneId, two: customerTwoId, jobId },
+      });
+
+    expect(downstreamResponse.status).toBe(200);
+    expect(downstreamResponse.body.data).toEqual({
+      source: null,
+      result: {
+        id: customerTwoId,
+        email: 'merge-attached-two@example.com',
+        note: 'merged note',
+        tags: ['har-291-merge', 'merged'],
+        numberOfOrders: 0,
+        defaultPhoneNumber: { phoneNumber: '+16475550111' },
+        defaultAddress: { address1: '2 Result Merge Ave', city: 'Toronto' },
+        addressesV2: {
+          nodes: [
+            { address1: '1 Source Merge St', city: 'Ottawa' },
+            { address1: '2 Result Merge Ave', city: 'Toronto' },
+          ],
+        },
+        metafields: {
+          nodes: [
+            { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+            { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+          ],
+        },
+        orders: {
+          nodes: [
+            {
+              id: orderId,
+              email: 'merge-attached-two@example.com',
+              customer: {
+                id: customerTwoId,
+                email: 'merge-attached-two@example.com',
+                displayName: 'Merge Two',
+              },
+            },
+          ],
+        },
+        lastOrder: null,
+      },
+      oldEmail: null,
+      newEmail: {
+        id: customerTwoId,
+        addressesV2: {
+          nodes: [
+            { address1: '1 Source Merge St', city: 'Ottawa' },
+            { address1: '2 Result Merge Ave', city: 'Toronto' },
+          ],
+        },
+        metafields: {
+          nodes: [
+            { namespace: 'custom', key: 'result_only', type: 'single_line_text_field', value: 'result' },
+            { namespace: 'custom', key: 'conflict', type: 'single_line_text_field', value: 'result-conflict' },
+            { namespace: 'custom', key: 'source_only', type: 'single_line_text_field', value: 'source' },
+          ],
+        },
+        orders: {
+          nodes: [{ id: orderId, email: 'merge-attached-two@example.com' }],
+        },
+      },
+      mergeStatus: {
+        jobId,
+        resultingCustomerId: customerTwoId,
+        status: 'COMPLETED',
+        customerMergeErrors: [],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns fixture-backed customerMerge validation errors locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customerMerge validation should not hit upstream fetch');

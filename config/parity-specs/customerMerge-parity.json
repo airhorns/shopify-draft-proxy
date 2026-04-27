@@ -6,17 +6,21 @@
     "customerMergeJobStatus",
     "customer",
     "customerByIdentifier",
-    "customersCount"
+    "customersCount",
+    "customerAddressCreate",
+    "orderCreate",
+    "draftOrderCreate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customer-merge-parity.json"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-merge-parity.json"],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customerMerge-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers the staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/self/unknown validation branches. Preview evidence is recorded in the live fixture and covered by runtime tests; the local first slice supports merge for staged or previously hydrated normalized customers and does not model unobserved attached-resource transfer beyond the customer fields captured here.",
+  "notes": "Strict comparison covers the staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, captured attached-resource transfer for normalized customer addresses, customer metafields, and orders, and captured missing/self/unknown validation branches. The live fixture also records an IN_PROGRESS poll followed by COMPLETED. Draft order setup is captured, but customer-merge draft-order transfer remains deferred until a downstream draft-order read is captured.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -29,6 +33,41 @@
         "path": "$.result.updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The downstream proxy read observes the deterministic local merge timestamp instead of Shopify's live write timestamp."
+      },
+      {
+        "path": "$.result.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.metafields.nodes[2].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
+      },
+      {
+        "path": "$.result.orders.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.orders.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
       },
       {
         "path": "$.mergeStatus.jobId",

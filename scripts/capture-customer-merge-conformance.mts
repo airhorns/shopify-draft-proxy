@@ -32,8 +32,23 @@ const customerSlice = `
   email
   note
   tags
+  numberOfOrders
   defaultEmailAddress { emailAddress }
   defaultPhoneNumber { phoneNumber }
+  defaultAddress { id address1 city provinceCode countryCodeV2 zip }
+  addressesV2(first: 10) {
+    nodes { id address1 city provinceCode countryCodeV2 zip }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  metafields(first: 10) {
+    nodes { id namespace key type value }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  orders(first: 10, sortKey: CREATED_AT, reverse: true) {
+    nodes { id name email createdAt }
+    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+  }
+  lastOrder { id name email createdAt }
   createdAt
   updatedAt
 `;
@@ -54,6 +69,73 @@ const createCustomerMutation = `#graphql
       customer {
         ${customerSlice}
       }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const createCustomerAddressMutation = `#graphql
+  mutation CustomerMergeAddressCreate($customerId: ID!, $address: MailingAddressInput!, $setAsDefault: Boolean) {
+    customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: $setAsDefault) {
+      address {
+        id
+        address1
+        city
+        provinceCode
+        countryCodeV2
+        zip
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const orderCreateMutation = `#graphql
+  mutation CustomerMergeOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+    orderCreate(order: $order, options: $options) {
+      order {
+        id
+        name
+        email
+        createdAt
+        customer { id email displayName }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const draftOrderCreateMutation = `#graphql
+  mutation CustomerMergeDraftOrderCreate($input: DraftOrderInput!) {
+    draftOrderCreate(input: $input) {
+      draftOrder {
+        id
+        name
+        status
+        email
+        customer { id email displayName }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const draftOrderDeleteMutation = `#graphql
+  mutation CustomerMergeDraftOrderDelete($input: DraftOrderDeleteInput!) {
+    draftOrderDelete(input: $input) {
+      deletedId
       userErrors {
         field
         message
@@ -171,6 +253,52 @@ const downstreamQuery = `#graphql
   }
 `;
 
+const attachedResourcesQuery = `#graphql
+  query CustomerMergeAttachedResources($one: ID!, $two: ID!, $emailOne: String!, $emailTwo: String!) {
+    source: customer(id: $one) {
+      ${customerSlice}
+    }
+    result: customer(id: $two) {
+      ${customerSlice}
+    }
+    byEmailOne: customerByIdentifier(identifier: { emailAddress: $emailOne }) {
+      id
+      email
+      defaultAddress { id address1 city }
+      addressesV2(first: 10) { nodes { id address1 city } }
+      metafields(first: 10) { nodes { namespace key type value } }
+      orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name } }
+      lastOrder { id name }
+    }
+    byEmailTwo: customerByIdentifier(identifier: { emailAddress: $emailTwo }) {
+      id
+      email
+      defaultAddress { id address1 city }
+      addressesV2(first: 10) { nodes { id address1 city } }
+      metafields(first: 10) { nodes { namespace key type value } }
+      orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name } }
+      lastOrder { id name }
+    }
+    customers(first: 10, query: "tag:har-291-merge") {
+      nodes {
+        id
+        email
+        tags
+        numberOfOrders
+        defaultAddress { id address1 city }
+        addressesV2(first: 10) { nodes { id address1 city } }
+        metafields(first: 10) { nodes { namespace key value } }
+        orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name } }
+        lastOrder { id name }
+      }
+    }
+    customersCount(query: "tag:har-291-merge") {
+      count
+      precision
+    }
+  }
+`;
+
 const deleteCustomerMutation = `#graphql
   mutation CustomerMergeCleanup($input: CustomerDeleteInput!) {
     customerDelete(input: $input) {
@@ -198,22 +326,54 @@ async function main() {
   }
 
   const stamp = Date.now();
+  const sourcePhone = `+1647555${String(stamp).slice(-4)}`;
+  const resultPhone = `+1647666${String(stamp).slice(-4)}`;
   const oneVariables = {
     input: {
       email: `hermes-merge-one-${stamp}@example.com`,
+      phone: sourcePhone,
       firstName: 'Merge',
       lastName: 'One',
       note: 'merge-one-note',
-      tags: ['merge-one', `merge-${stamp}`],
+      tags: ['har-291-merge', 'merge-one', `merge-${stamp}`],
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'source_only',
+          type: 'single_line_text_field',
+          value: `source-${stamp}`,
+        },
+        {
+          namespace: 'custom',
+          key: 'conflict',
+          type: 'single_line_text_field',
+          value: `source-conflict-${stamp}`,
+        },
+      ],
     },
   };
   const twoVariables = {
     input: {
       email: `hermes-merge-two-${stamp}@example.com`,
+      phone: resultPhone,
       firstName: 'Merge',
       lastName: 'Two',
       note: 'merge-two-note',
-      tags: ['merge-two', `merge-${stamp}`],
+      tags: ['har-291-merge', 'merge-two', `merge-${stamp}`],
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'result_only',
+          type: 'single_line_text_field',
+          value: `result-${stamp}`,
+        },
+        {
+          namespace: 'custom',
+          key: 'conflict',
+          type: 'single_line_text_field',
+          value: `result-conflict-${stamp}`,
+        },
+      ],
     },
   };
 
@@ -229,12 +389,104 @@ async function main() {
     );
   }
 
+  const addressOneVariables = {
+    customerId: customerOneId,
+    address: {
+      firstName: 'Source',
+      lastName: 'Address',
+      address1: '1 Source Merge St',
+      city: 'Ottawa',
+      provinceCode: 'ON',
+      countryCode: 'CA',
+      zip: 'K1A 0B1',
+    },
+    setAsDefault: true,
+  };
+  const addressTwoVariables = {
+    customerId: customerTwoId,
+    address: {
+      firstName: 'Result',
+      lastName: 'Address',
+      address1: '2 Result Merge Ave',
+      city: 'Toronto',
+      provinceCode: 'ON',
+      countryCode: 'CA',
+      zip: 'M5H 2N2',
+    },
+    setAsDefault: true,
+  };
+  const createAddressOne = await runGraphql(createCustomerAddressMutation, addressOneVariables);
+  assertNoTopLevelErrors(createAddressOne, 'customerAddressCreate one');
+  const createAddressTwo = await runGraphql(createCustomerAddressMutation, addressTwoVariables);
+  assertNoTopLevelErrors(createAddressTwo, 'customerAddressCreate two');
+
+  const orderVariables = {
+    order: {
+      customerId: customerOneId,
+      email: oneVariables.input.email,
+      note: 'HAR-291 customer merge source order',
+      tags: ['har-291-merge', `merge-${stamp}`],
+      test: true,
+      currency: 'CAD',
+      lineItems: [
+        {
+          title: 'HAR-291 merge source order item',
+          quantity: 1,
+          priceSet: {
+            shopMoney: {
+              amount: '11.00',
+              currencyCode: 'CAD',
+            },
+          },
+        },
+      ],
+    },
+    options: {
+      inventoryBehaviour: 'BYPASS',
+      sendReceipt: false,
+      sendFulfillmentReceipt: false,
+    },
+  };
+  const orderCreate = await runGraphql(orderCreateMutation, orderVariables);
+
+  const draftOrderVariables = {
+    input: {
+      purchasingEntity: {
+        customerId: customerOneId,
+      },
+      email: oneVariables.input.email,
+      note: 'HAR-291 customer merge source draft order',
+      tags: ['har-291-merge', `merge-${stamp}`],
+      lineItems: [
+        {
+          title: 'HAR-291 merge source draft item',
+          quantity: 1,
+          originalUnitPrice: '12.00',
+          requiresShipping: false,
+          taxable: false,
+        },
+      ],
+    },
+  };
+  const draftOrderCreate = await runGraphql(draftOrderCreateMutation, draftOrderVariables);
+  const draftOrderId = draftOrderCreate.payload?.data?.draftOrderCreate?.draftOrder?.id;
+
+  const attachedBeforeMergeVariables = {
+    one: customerOneId,
+    two: customerTwoId,
+    emailOne: oneVariables.input.email,
+    emailTwo: twoVariables.input.email,
+  };
+  const attachedBeforeMerge = await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables);
+  assertNoTopLevelErrors(attachedBeforeMerge, 'customerMerge attached resources before merge');
+
   const overrideFields = {
     customerIdOfEmailToKeep: customerTwoId,
+    customerIdOfPhoneNumberToKeep: customerOneId,
     customerIdOfFirstNameToKeep: customerOneId,
     customerIdOfLastNameToKeep: customerTwoId,
     note: 'merged note',
-    tags: ['merged', `merge-${stamp}`],
+    tags: ['har-291-merge', 'merged', `merge-${stamp}`],
   };
   const mergeVariables = {
     one: customerOneId,
@@ -264,14 +516,16 @@ async function main() {
 
   let status = await runGraphql(jobStatusQuery, { jobId });
   assertNoTopLevelErrors(status, 'customerMergeJobStatus');
+  const statusPolls = [status.payload];
   for (
     let attempt = 0;
-    attempt < 10 && status.payload?.data?.customerMergeJobStatus?.status === 'RUNNING';
+    attempt < 10 && status.payload?.data?.customerMergeJobStatus?.status === 'IN_PROGRESS';
     attempt += 1
   ) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     status = await runGraphql(jobStatusQuery, { jobId });
     assertNoTopLevelErrors(status, 'customerMergeJobStatus');
+    statusPolls.push(status.payload);
   }
 
   const downstreamVariables = {
@@ -283,7 +537,13 @@ async function main() {
   };
   const downstreamRead = await runGraphql(downstreamQuery, downstreamVariables);
   assertNoTopLevelErrors(downstreamRead, 'customerMerge downstream read');
+  const attachedAfterMerge = await runGraphql(attachedResourcesQuery, attachedBeforeMergeVariables);
+  assertNoTopLevelErrors(attachedAfterMerge, 'customerMerge attached resources after merge');
 
+  const draftOrderCleanup =
+    typeof draftOrderId === 'string'
+      ? await runGraphql(draftOrderDeleteMutation, { input: { id: draftOrderId } })
+      : null;
   const cleanup = await runGraphql(deleteCustomerMutation, { input: { id: customerTwoId } });
 
   const capture = {
@@ -296,6 +556,26 @@ async function main() {
       createTwo: {
         variables: twoVariables,
         response: createTwo.payload,
+      },
+      createAddressOne: {
+        variables: addressOneVariables,
+        response: createAddressOne.payload,
+      },
+      createAddressTwo: {
+        variables: addressTwoVariables,
+        response: createAddressTwo.payload,
+      },
+      orderCreate: {
+        variables: orderVariables,
+        response: orderCreate.payload,
+      },
+      draftOrderCreate: {
+        variables: draftOrderVariables,
+        response: draftOrderCreate.payload,
+      },
+      attachedBeforeMerge: {
+        variables: attachedBeforeMergeVariables,
+        response: attachedBeforeMerge.payload,
       },
     },
     preview: {
@@ -310,6 +590,11 @@ async function main() {
       variables: { jobId },
       response: status.payload,
     },
+    statusPolls: statusPolls.map((response, index) => ({
+      variables: { jobId },
+      attempt: index,
+      response,
+    })),
     downstreamRead: {
       variables: downstreamVariables,
       proxyVariables: {
@@ -317,6 +602,10 @@ async function main() {
         jobId: { fromPrimaryProxyPath: '$.data.customerMerge.job.id' },
       },
       response: downstreamRead.payload,
+    },
+    attachedAfterMerge: {
+      variables: attachedBeforeMergeVariables,
+      response: attachedAfterMerge.payload,
     },
     validation: {
       missingArgument: {
@@ -337,6 +626,12 @@ async function main() {
       },
     },
     cleanup: {
+      draftOrderDelete: draftOrderCleanup
+        ? {
+            variables: { input: { id: draftOrderId } },
+            response: draftOrderCleanup.payload,
+          }
+        : null,
       variables: { input: { id: customerTwoId } },
       response: cleanup.payload,
     },
