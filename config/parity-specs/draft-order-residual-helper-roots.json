@@ -3,7 +3,6 @@
   "operationNames": [
     "draftOrderAvailableDeliveryOptions",
     "draftOrderSavedSearches",
-    "draftOrderTag",
     "draftOrderBulkAddTags",
     "draftOrderBulkRemoveTags",
     "draftOrderBulkDelete",
@@ -15,11 +14,133 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/draft-order-residual-helper-roots.json"
   ],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draft-order-residual-helper-create.graphql",
+    "variablesCapturePath": "$.setup.draftOrderCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "calculate-payload",
+        "capturePath": "$.draftOrderCalculate.response.data.draftOrderCalculate",
+        "proxyPath": "$.data.draftOrderCalculate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-calculate.graphql",
+          "variablesCapturePath": "$.draftOrderCalculate.variables"
+        }
+      },
+      {
+        "name": "saved-searches-nodes",
+        "capturePath": "$.draftOrderSavedSearches.response.data.draftOrderSavedSearches",
+        "proxyPath": "$.data.draftOrderSavedSearches",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.nodes"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-saved-searches.graphql",
+          "variablesCapturePath": "$.draftOrderSavedSearches.variables"
+        }
+      },
+      {
+        "name": "available-delivery-options-empty-shape",
+        "capturePath": "$.draftOrderAvailableDeliveryOptions.response.data.draftOrderAvailableDeliveryOptions",
+        "proxyPath": "$.data.draftOrderAvailableDeliveryOptions",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-delivery-options.graphql",
+          "variablesCapturePath": "$.draftOrderAvailableDeliveryOptions.variables"
+        }
+      },
+      {
+        "name": "invoice-preview-safe-payload",
+        "capturePath": "$.draftOrderInvoicePreview.response.data.draftOrderInvoicePreview",
+        "proxyPath": "$.data.draftOrderInvoicePreview",
+        "selectedPaths": ["$.previewSubject", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-invoice-preview.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "email": {
+              "subject": "HAR-318 custom subject",
+              "customMessage": "Custom note"
+            }
+          }
+        }
+      },
+      {
+        "name": "bulk-add-tags-payload",
+        "capturePath": "$.draftOrderBulkAddTags.response.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-bulk-add-tags.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": ["har-318-added"]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      },
+      {
+        "name": "bulk-remove-tags-payload",
+        "capturePath": "$.draftOrderBulkRemoveTags.response.data.draftOrderBulkRemoveTags",
+        "proxyPath": "$.data.draftOrderBulkRemoveTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-bulk-remove-tags.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ],
+            "tags": ["har-318-base"]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      },
+      {
+        "name": "bulk-delete-payload",
+        "capturePath": "$.draftOrderBulkDelete.response.data.draftOrderBulkDelete",
+        "proxyPath": "$.data.draftOrderBulkDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draft-order-residual-helper-bulk-delete.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      }
+    ]
   },
-  "notes": "HAR-318 residual helper capture records default saved searches, empty available-delivery-options no-data shape, calculate and invoice preview payloads, bulk tag/delete job payloads, downstream tag/delete reads, and the current draftOrderTag valid-ID blocker. Runtime tests enforce local staging/read-after-write behavior for the implemented helper roots without adding per-scenario parity tests."
+  "notes": "HAR-318 residual helper capture records default saved searches, empty available-delivery-options no-data shape, calculate and invoice preview payloads, bulk tag/delete job payloads, downstream tag/delete reads, and the current draftOrderTag valid-ID blocker. Generic parity now executes the supported helper roots through explicit proxy requests; runtime tests cover local read-after-write tag/delete effects that intentionally differ from Shopify's asynchronous bulk job timing."
 }

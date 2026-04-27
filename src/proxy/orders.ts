@@ -2041,7 +2041,7 @@ function serializeTransactionVoidPayload(
   return payload;
 }
 
-function serializeJob(field: FieldNode, jobId: string): Record<string, unknown> {
+function serializeJob(field: FieldNode, jobId: string, done = true): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -2050,7 +2050,7 @@ function serializeJob(field: FieldNode, jobId: string): Record<string, unknown> 
         result[key] = jobId;
         break;
       case 'done':
-        result[key] = true;
+        result[key] = done;
         break;
       default:
         result[key] = null;
@@ -7179,7 +7179,7 @@ function serializeDraftOrderBulkPayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'job':
-        payload[selectionKey] = jobId ? serializeJob(selection, jobId) : null;
+        payload[selectionKey] = jobId ? serializeJob(selection, jobId, false) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);

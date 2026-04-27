@@ -1104,7 +1104,7 @@ describe('draft-order mutation family flow', () => {
     expect(addResponse.body.data.draftOrderBulkAddTags).toEqual({
       job: {
         id: expect.stringMatching(/^gid:\/\/shopify\/Job\//),
-        done: true,
+        done: false,
       },
       userErrors: [],
     });
