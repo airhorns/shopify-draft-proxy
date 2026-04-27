@@ -1,0 +1,254 @@
+{
+  "capturedAt": "2026-04-27T00:56:09Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "operations": ["inventoryItems", "inventoryProperties", "inventorySetQuantities", "inventoryMoveQuantities"],
+  "schema": {
+    "inventoryItems": {
+      "args": ["first", "after", "last", "before", "reverse", "query"],
+      "type": "InventoryItemConnection!"
+    },
+    "inventoryProperties": {
+      "type": "InventoryProperties!",
+      "fields": ["quantityNames"]
+    },
+    "inventorySetQuantities": {
+      "input": "InventorySetQuantitiesInput!",
+      "payloadFields": ["inventoryAdjustmentGroup", "userErrors"],
+      "deprecatedInputFields": ["ignoreCompareQuantity", "InventoryQuantityInput.compareQuantity"]
+    },
+    "inventoryMoveQuantities": {
+      "input": "InventoryMoveQuantitiesInput!",
+      "payloadFields": ["inventoryAdjustmentGroup", "userErrors"]
+    }
+  },
+  "safeReadEvidence": {
+    "inventoryItemsEmptyByImpossibleId": {
+      "data": {
+        "inventoryItems": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      },
+      "searchWarning": "Expected field to be a positive integer or UUID, received `0`."
+    },
+    "inventoryProperties": {
+      "data": {
+        "inventoryProperties": {
+          "quantityNames": [
+            {
+              "name": "available",
+              "displayName": "Available",
+              "isInUse": true,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            },
+            {
+              "name": "committed",
+              "displayName": "Committed",
+              "isInUse": true,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            },
+            {
+              "name": "damaged",
+              "displayName": "Damaged",
+              "isInUse": false,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            },
+            { "name": "incoming", "displayName": "Incoming", "isInUse": false, "belongsTo": [], "comprises": [] },
+            {
+              "name": "on_hand",
+              "displayName": "On hand",
+              "isInUse": true,
+              "belongsTo": [],
+              "comprises": ["available", "committed", "damaged", "quality_control", "reserved", "safety_stock"]
+            },
+            {
+              "name": "quality_control",
+              "displayName": "Quality control",
+              "isInUse": false,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            },
+            {
+              "name": "reserved",
+              "displayName": "Reserved",
+              "isInUse": true,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            },
+            {
+              "name": "safety_stock",
+              "displayName": "Safety stock",
+              "isInUse": false,
+              "belongsTo": ["on_hand"],
+              "comprises": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "mutationEvidence": {
+    "setup": {
+      "productId": "gid://shopify/Product/10171266400562",
+      "variantId": "gid://shopify/ProductVariant/51101855646002",
+      "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+      "cleanup": {
+        "deletedProductId": "gid://shopify/Product/10171266400562",
+        "userErrors": []
+      }
+    },
+    "inventorySetQuantitiesAvailable": {
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-305/set/1777251367654",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 7
+            },
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+              "locationId": "gid://shopify/Location/106318463282",
+              "quantity": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-305/set/1777251367654",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 7,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                },
+                {
+                  "name": "available",
+                  "delta": 2,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "location": { "id": "gid://shopify/Location/106318463282", "name": "My Custom Location" }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 7,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 2,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "location": { "id": "gid://shopify/Location/106318463282", "name": "My Custom Location" }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "downstreamRead": {
+        "inventoryQuantity": 9,
+        "productTotalInventory": 0,
+        "levels": [
+          { "locationId": "gid://shopify/Location/106318430514", "available": 7, "on_hand": 7, "damaged": 0 },
+          { "locationId": "gid://shopify/Location/106318463282", "available": 2, "on_hand": 2, "damaged": 0 }
+        ]
+      }
+    },
+    "inventoryMoveQuantitiesAvailableToDamaged": {
+      "variables": {
+        "input": {
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-305/move/1777251367654",
+          "changes": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+              "quantity": 3,
+              "from": { "locationId": "gid://shopify/Location/106318430514", "name": "available" },
+              "to": {
+                "locationId": "gid://shopify/Location/106318430514",
+                "name": "damaged",
+                "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654"
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventoryMoveQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-305/move/1777251367654",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": -3,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": null,
+                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                },
+                {
+                  "name": "damaged",
+                  "delta": 3,
+                  "quantityAfterChange": null,
+                  "ledgerDocumentUri": "ledger://har-305/move/to/1777251367654",
+                  "location": { "id": "gid://shopify/Location/106318430514", "name": "Shop location" }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "downstreamRead": {
+        "inventoryQuantity": 6,
+        "productTotalInventory": 0,
+        "levels": [
+          { "locationId": "gid://shopify/Location/106318430514", "available": 4, "on_hand": 7, "damaged": 3 },
+          { "locationId": "gid://shopify/Location/106318463282", "available": 2, "on_hand": 2, "damaged": 0 }
+        ]
+      }
+    },
+    "blockedBranches": {
+      "setWithoutCompareOrIgnore": {
+        "userErrors": [
+          {
+            "field": ["input", "ignoreCompareQuantity"],
+            "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."
+          }
+        ]
+      },
+      "moveBetweenDifferentLocations": {
+        "userErrors": [
+          {
+            "field": ["input", "changes", "0"],
+            "message": "The quantities can't be moved between different locations."
+          }
+        ]
+      }
+    }
+  }
+}

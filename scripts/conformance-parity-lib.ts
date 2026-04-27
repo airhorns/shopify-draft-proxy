@@ -4850,6 +4850,105 @@ function seedInventoryLinkagePreconditions(capture: unknown): boolean {
   return true;
 }
 
+function makeInventoryQuantityRootSeedLevel(
+  inventoryItemId: string,
+  location: { id: string; name: string | null },
+): InventoryLevelRecord {
+  const locationTail = location.id.split('/').at(-1) ?? encodeURIComponent(location.id);
+
+  return {
+    id: `gid://shopify/InventoryLevel/${locationTail}?inventory_item_id=${encodeURIComponent(inventoryItemId)}`,
+    cursor: `cursor:${inventoryItemId}:${location.id}`,
+    location,
+    quantities: [
+      { name: 'available', quantity: 0, updatedAt: null },
+      { name: 'on_hand', quantity: 0, updatedAt: null },
+      { name: 'damaged', quantity: 0, updatedAt: null },
+    ],
+  };
+}
+
+function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
+  const mutationEvidence = readRecordField(capture as Record<string, unknown>, 'mutationEvidence');
+  const setup = readRecordField(mutationEvidence, 'setup');
+  const productId = readStringField(setup, 'productId');
+  const variantId = readStringField(setup, 'variantId');
+  const inventoryItemId = readStringField(setup, 'inventoryItemId');
+  if (!productId || !variantId || !inventoryItemId) {
+    return false;
+  }
+
+  const setEvidence = readRecordField(mutationEvidence, 'inventorySetQuantitiesAvailable');
+  const setInput = readRecordField(readRecordField(setEvidence, 'variables'), 'input');
+  const setQuantities = readArrayField(setInput, 'quantities').filter(isPlainObject);
+  const rawSetChanges = readJsonPath(
+    capture,
+    '$.mutationEvidence.inventorySetQuantitiesAvailable.response.data.inventorySetQuantities.inventoryAdjustmentGroup.changes',
+  );
+  const setChanges = Array.isArray(rawSetChanges) ? rawSetChanges.filter(isPlainObject) : [];
+  const downstreamRead = readRecordField(setEvidence, 'downstreamRead');
+  const productTotalInventory = readNumberField(downstreamRead, 'productTotalInventory') ?? 0;
+  const locationsById = new Map<string, { id: string; name: string | null }>();
+
+  for (const change of setChanges) {
+    const location = readRecordField(change, 'location');
+    const locationId = readStringField(location, 'id');
+    if (locationId) {
+      locationsById.set(locationId, { id: locationId, name: readStringField(location, 'name') });
+    }
+  }
+
+  for (const quantity of setQuantities) {
+    const locationId = readStringField(quantity, 'locationId');
+    if (locationId && !locationsById.has(locationId)) {
+      locationsById.set(locationId, { id: locationId, name: null });
+    }
+  }
+
+  store.upsertBaseLocations([...locationsById.values()]);
+  store.upsertBaseProducts([
+    makeSeedProduct(
+      productId,
+      {
+        id: productId,
+        title: 'Inventory quantity roots conformance seed',
+        totalInventory: productTotalInventory,
+        tracksInventory: true,
+      },
+      'Inventory quantity roots conformance seed',
+    ),
+  ]);
+  store.replaceBaseVariantsForProduct(productId, [
+    {
+      id: variantId,
+      productId,
+      title: 'Default Title',
+      sku: null,
+      barcode: null,
+      price: null,
+      compareAtPrice: null,
+      taxable: null,
+      inventoryPolicy: null,
+      inventoryQuantity: 0,
+      selectedOptions: [],
+      inventoryItem: {
+        id: inventoryItemId,
+        tracked: true,
+        requiresShipping: true,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: [...locationsById.values()].map((location) =>
+          makeInventoryQuantityRootSeedLevel(inventoryItemId, location),
+        ),
+      },
+    },
+  ]);
+
+  return true;
+}
+
 function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
   if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
     return false;
@@ -5384,6 +5483,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   seedProductMetafieldsReadPreconditions(capture);
   seedMetafieldDefinitionPreconditions(capture);
   if (seedInventoryLinkagePreconditions(capture)) {
+    return;
+  }
+
+  if (seedInventoryQuantityRootPreconditions(capture)) {
     return;
   }
 

@@ -13,7 +13,9 @@ Overlay reads:
 - `productFeeds`
 - `productVariant`
 - `inventoryItem`
+- `inventoryItems`
 - `inventoryLevel`
+- `inventoryProperties`
 - `collection`
 - `collectionByIdentifier`
 - `collectionByHandle`
@@ -49,6 +51,8 @@ Local staged mutations:
 - `productReorderMedia`
 - `inventoryItemUpdate`
 - `inventoryAdjustQuantities`
+- `inventorySetQuantities`
+- `inventoryMoveQuantities`
 - `inventoryActivate`
 - `inventoryDeactivate`
 - `inventoryBulkToggleActivation`
@@ -96,6 +100,10 @@ These product merchandising roots are registered in the operation registry as pr
 - Product-side collection membership effects are modeled as normalized product collection rows. `productSet(input.collections)` replaces the product's effective memberships, while `productDuplicate` copies the source product's effective memberships onto the staged duplicate; downstream `product.collections`, `collection(id:)`, collection `products`, `productsCount`, `hasProduct`, and top-level `collections(query: "product_id:...")` reads resolve from the same staged membership rows.
 - `productSet(input.variants[].inventoryQuantities[])` accepts the live Shopify shape with `locationId`, `name`, and `quantity`. Staged create and update flows store those entries as inventory item `inventoryLevels` rows instead of only collapsing them onto the variant. Downstream `product`, `productVariant`, and `inventoryItem` reads expose the location-level `inventoryLevels`, selected `quantities(names: ...)`, aggregate variant `inventoryQuantity`, and product `totalInventory` from the staged graph. Current live evidence uses `name: "available"`; the local row mirrors that quantity into `on_hand` for read parity and leaves `incoming` at `0` unless separately hydrated.
 - Product-level `totalInventory` intentionally follows the captured `productSet` timing rather than the generic variant mutation summary path: synchronous create counted the tracked variant's available quantity, while a follow-up `productSet` variant inventory update changed variant and inventory-item quantities immediately but left `product.totalInventory` at the prior aggregate in both the mutation payload and immediate downstream reads.
+- `inventoryItems(...)` lists inventory items from the same product-variant-backed inventory graph as `inventoryItem(id:)`; snapshot no-data reads return an empty connection with false page booleans and null cursors. The local search slice covers captured-safe `id`, `sku`, and `tracked` terms and otherwise stays permissive like other early product search slices.
+- `inventoryProperties` returns the captured 2025-01 inventory quantity-name catalog: `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`, including `belongsTo` / `comprises` relationships used by local quantity staging.
+- `inventorySetQuantities` stages absolute quantity writes over effective inventory item levels without runtime Shopify writes. Captured 2025-01 evidence showed `ignoreCompareQuantity: true` accepting available set writes, returning an `InventoryAdjustmentGroup`, mirroring available deltas into `on_hand` changes, immediately updating `inventoryItem.variant.inventoryQuantity`, and leaving `product.totalInventory` stale in immediate downstream reads. The local model also applies the same `on_hand` relationship for other component quantity names and rejects `on_hand` as a directly staged quantity name.
+- `inventoryMoveQuantities` stages same-location quantity moves over effective inventory item levels. Captured 2025-01 evidence showed an available-to-damaged move returning two `InventoryChange` rows, keeping `on_hand` unchanged because both names belong to `on_hand`, updating variant inventory quantity from available totals, and preserving stale product-level `totalInventory`. Different-location moves, same-name moves, and unsupported ledger-document branches return visible local `userErrors` and do not contact Shopify.
 - `collectionByIdentifier` supports id and handle identifier branches against effective local collection state. `customId` returns `null` until collection unique-metafield evidence exists.
 - `collectionByHandle` is a deprecated Shopify root but is supported as a handle lookup over effective local collection state.
 - Missing product-adjacent by-id roots return `null` without inventing records. The `product-related-by-id-not-found-read` parity scenario captures this for `collection(id:)`, `productVariant(id:)`, `inventoryItem(id:)`, and `inventoryLevel(id:)`.
@@ -107,6 +115,7 @@ These product merchandising roots are registered in the operation registry as pr
 ## Validation anchors
 
 - Runtime flows: `tests/integration/product-draft-flow.test.ts`
+- Inventory quantity roots: `tests/integration/inventory-quantity-roots.test.ts`
 - Product reads: `tests/integration/product-query-shapes.test.ts`
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`

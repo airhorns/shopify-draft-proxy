@@ -225,6 +225,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryItems",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryItems", "InventoryItems"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice."
+  },
+  {
     "name": "inventoryLevel",
     "type": "query",
     "domain": "products",
@@ -232,6 +242,16 @@
     "implemented": true,
     "matchNames": ["inventoryLevel", "InventoryLevel"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryProperties",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryProperties", "InventoryProperties"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Returns the captured 2025-01 quantity-name catalog used by inventory-level reads and staged quantity mutations."
   },
   {
     "name": "collection",
@@ -2151,6 +2171,26 @@
     "implemented": true,
     "matchNames": ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventorySetQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventorySetQuantities", "InventorySetQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging."
+  },
+  {
+    "name": "inventoryMoveQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryMoveQuantities", "InventoryMoveQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag."
   },
   {
     "name": "inventoryActivate",
