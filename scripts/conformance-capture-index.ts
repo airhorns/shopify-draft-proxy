@@ -628,13 +628,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     packageScript: 'conformance:capture-customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer mutation input validation, userErrors, and downstream read branches.',
-    requiredAuthScopes: ['read_customers', 'write_customers'],
+    purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
       'config/parity-specs/customerInputValidation-parity.json',
+      'config/parity-requests/customerInputValidation-*.graphql',
     ],
-    cleanupBehavior: 'Creates disposable customers for validation probes and removes remaining records.',
+    cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-store-credit',
+    scriptPath: 'scripts/capture-store-credit-conformance.ts',
+    purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}store-credit-account-parity.json`,
+      'config/parity-specs/store-credit-account-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -708,20 +723,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [`${CAPTURE_ROOT}customer-tax-exemption-*.json`],
     cleanupBehavior: 'Creates disposable customer and deletes it after tax-exemption probes.',
-    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
-  },
-  {
-    domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
-    scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
-    purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
-    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [
-      `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-      'config/parity-requests/customerInputValidation-*.graphql',
-    ],
-    cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

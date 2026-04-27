@@ -680,6 +680,25 @@ export const customerPaymentMethodRecordSchema = z.strictObject({
 });
 export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
 
+export const storeCreditAccountTransactionRecordSchema = z.strictObject({
+  id: z.string(),
+  accountId: z.string(),
+  amount: moneyV2RecordSchema,
+  balanceAfterTransaction: moneyV2RecordSchema,
+  createdAt: z.string(),
+  event: z.string(),
+  origin: jsonObjectSchema.nullable().default(null),
+});
+export type StoreCreditAccountTransactionRecord = z.infer<typeof storeCreditAccountTransactionRecordSchema>;
+
+export const storeCreditAccountRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  balance: moneyV2RecordSchema,
+});
+export type StoreCreditAccountRecord = z.infer<typeof storeCreditAccountRecordSchema>;
+
 export const segmentRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
@@ -1052,6 +1071,50 @@ export const paymentCustomizationRecordSchema = z.strictObject({
   metafields: z.array(paymentCustomizationMetafieldRecordSchema).optional(),
 });
 export type PaymentCustomizationRecord = z.infer<typeof paymentCustomizationRecordSchema>;
+
+export const shopifyFunctionRecordSchema = z.strictObject({
+  id: z.string(),
+  title: nullableStringSchema,
+  handle: nullableStringSchema,
+  apiType: nullableStringSchema,
+  description: nullableStringSchema.optional(),
+  appKey: nullableStringSchema.optional(),
+  app: jsonObjectSchema.optional(),
+});
+export type ShopifyFunctionRecord = z.infer<typeof shopifyFunctionRecordSchema>;
+
+export const validationRecordSchema = z.strictObject({
+  id: z.string(),
+  title: nullableStringSchema,
+  enable: nullableBooleanSchema,
+  blockOnFailure: nullableBooleanSchema,
+  functionId: nullableStringSchema,
+  functionHandle: nullableStringSchema.optional(),
+  shopifyFunctionId: nullableStringSchema,
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+});
+export type ValidationRecord = z.infer<typeof validationRecordSchema>;
+
+export const cartTransformRecordSchema = z.strictObject({
+  id: z.string(),
+  title: nullableStringSchema,
+  blockOnFailure: nullableBooleanSchema,
+  functionId: nullableStringSchema,
+  functionHandle: nullableStringSchema.optional(),
+  shopifyFunctionId: nullableStringSchema,
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+});
+export type CartTransformRecord = z.infer<typeof cartTransformRecordSchema>;
+
+export const taxAppConfigurationRecordSchema = z.strictObject({
+  id: z.string(),
+  ready: z.boolean(),
+  state: z.string(),
+  updatedAt: nullableStringSchema.optional(),
+});
+export type TaxAppConfigurationRecord = z.infer<typeof taxAppConfigurationRecordSchema>;
 
 export const customerMergeRequestRecordSchema = z.strictObject({
   jobId: z.string(),
@@ -1847,6 +1910,8 @@ export const stateSnapshotSchema = z.strictObject({
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
+  storeCreditAccounts: z.record(z.string(), storeCreditAccountRecordSchema).default({}),
+  storeCreditAccountTransactions: z.record(z.string(), storeCreditAccountTransactionRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   customerSegmentMembersQueries: z.record(z.string(), customerSegmentMembersQueryRecordSchema).default({}),
   webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
@@ -1874,6 +1939,13 @@ export const stateSnapshotSchema = z.strictObject({
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
   paymentCustomizationOrder: z.array(z.string()).default([]),
+  shopifyFunctions: z.record(z.string(), shopifyFunctionRecordSchema).default({}),
+  shopifyFunctionOrder: z.array(z.string()).default([]),
+  validations: z.record(z.string(), validationRecordSchema).default({}),
+  validationOrder: z.array(z.string()).default([]),
+  cartTransforms: z.record(z.string(), cartTransformRecordSchema).default({}),
+  cartTransformOrder: z.array(z.string()).default([]),
+  taxAppConfiguration: taxAppConfigurationRecordSchema.nullable().default(null),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
   b2bCompanies: z.record(z.string(), b2bCompanyRecordSchema).default({}),
@@ -1928,6 +2000,8 @@ export const stateSnapshotSchema = z.strictObject({
   deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedValidationIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedCartTransformIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),

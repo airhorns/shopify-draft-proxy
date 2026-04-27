@@ -34,6 +34,7 @@ import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
+import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
@@ -122,6 +123,7 @@ import type {
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
+  StoreCreditAccountRecord,
   MoneyV2Record,
 } from '../src/state/types.js';
 
@@ -895,6 +897,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleFunctionMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1215,6 +1236,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleGiftCardQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'functions') {
+    return {
+      status: 200,
+      body: handleFunctionQuery(document, variables),
     };
   }
 
@@ -2137,6 +2165,66 @@ function seedCustomerMutationPreconditions(
   if (seedCustomers.length > 0) {
     store.upsertBaseCustomers(seedCustomers);
   }
+
+  return true;
+}
+
+function readStoreCreditMoney(
+  value: Record<string, unknown> | null | undefined,
+): StoreCreditAccountRecord['balance'] | null {
+  const amount = readStringField(value, 'amount');
+  const currencyCode = readStringField(value, 'currencyCode');
+  if (!amount || !currencyCode) {
+    return null;
+  }
+
+  return {
+    amount,
+    currencyCode,
+  };
+}
+
+function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture)) {
+    return false;
+  }
+
+  const setupCreditPayload = readRecordField(
+    readRecordField(readRecordField(readRecordField(capture, 'setup'), 'createAccountCredit'), 'response'),
+    'data',
+  );
+  const setupTransaction = readRecordField(
+    readRecordField(setupCreditPayload, 'storeCreditAccountCredit'),
+    'storeCreditAccountTransaction',
+  );
+  const accountPayload = readRecordField(setupTransaction, 'account');
+  const accountId = readStringField(accountPayload, 'id');
+  const createdCustomerPayload = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(capture, 'setup'), 'createCustomer'), 'response'),
+      'data',
+    ),
+    'customerCreate',
+  );
+  const createdCustomer = readRecordField(createdCustomerPayload, 'customer');
+  const customerId =
+    readStringField(readRecordField(accountPayload, 'owner'), 'id') ?? readStringField(createdCustomer, 'id');
+  const balance = readStoreCreditMoney(readRecordField(accountPayload, 'balance'));
+
+  if (!accountId || !customerId || !balance) {
+    return false;
+  }
+
+  const customerPayload = createdCustomer ?? readRecordField(accountPayload, 'owner');
+  store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
+  store.upsertBaseStoreCreditAccounts([
+    {
+      id: accountId,
+      customerId,
+      cursor: null,
+      balance,
+    },
+  ]);
 
   return true;
 }
@@ -6021,6 +6109,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedCustomerInputValidationPreconditions(capture)) {
+    return;
+  }
+
+  if (seedStoreCreditAccountPreconditions(capture)) {
     return;
   }
 
