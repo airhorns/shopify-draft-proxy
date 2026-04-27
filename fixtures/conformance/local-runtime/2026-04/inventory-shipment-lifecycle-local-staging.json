@@ -1,0 +1,235 @@
+{
+  "capturedAt": "2026-04-27T16:55:00.000Z",
+  "source": "local-runtime-vitest-plus-live-schema-introspection",
+  "apiVersion": "2025-01",
+  "scenarioId": "inventory-shipment-lifecycle-local-staging",
+  "issue": "HAR-306",
+  "runtimeTest": "tests/integration/inventory-shipment-flow.test.ts",
+  "operationNames": [
+    "inventoryShipment",
+    "inventoryShipmentCreate",
+    "inventoryShipmentCreateInTransit",
+    "inventoryShipmentAddItems",
+    "inventoryShipmentRemoveItems",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentSetTracking",
+    "inventoryShipmentMarkInTransit",
+    "inventoryShipmentReceive",
+    "inventoryShipmentDelete"
+  ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9405",
+      "title": "Shipment Hoodie",
+      "handle": "shipment-hoodie",
+      "status": "ACTIVE",
+      "totalInventory": 1,
+      "tracksInventory": true,
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/94051",
+            "title": "Default Title",
+            "sku": "SHIP-ROOT",
+            "inventoryQuantity": 1,
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/94051",
+              "tracked": true,
+              "requiresShipping": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "workflow": {
+    "createInTransit": {
+      "variables": {
+        "input": {
+          "movementId": "gid://shopify/InventoryTransfer/7001",
+          "trackingInput": {
+            "trackingNumber": "1Z999",
+            "company": "UPS",
+            "trackingUrl": "https://example.test/track/1Z999",
+            "arrivesAt": "2026-04-30T00:00:00.000Z"
+          },
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/94051",
+              "quantity": 5
+            }
+          ]
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreateInTransit": {
+              "inventoryShipment": {
+                "id": "gid://shopify/InventoryShipment/9001",
+                "name": "#S1",
+                "status": "IN_TRANSIT",
+                "lineItemTotalQuantity": 5,
+                "totalAcceptedQuantity": 0,
+                "totalReceivedQuantity": 0,
+                "totalRejectedQuantity": 0,
+                "tracking": {
+                  "trackingNumber": "1Z999",
+                  "company": "UPS",
+                  "trackingUrl": "https://example.test/track/1Z999",
+                  "arrivesAt": "2026-04-30T00:00:00.000Z"
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryShipmentLineItem/9002",
+                      "quantity": 5,
+                      "acceptedQuantity": 0,
+                      "rejectedQuantity": 0,
+                      "unreceivedQuantity": 5,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/94051",
+                        "sku": "SHIP-ROOT",
+                        "tracked": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "afterCreateDetailRead": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipment": {
+              "id": "gid://shopify/InventoryShipment/9001",
+              "name": "#S1",
+              "status": "IN_TRANSIT",
+              "lineItemTotalQuantity": 5,
+              "totalAcceptedQuantity": 0,
+              "totalReceivedQuantity": 0,
+              "totalRejectedQuantity": 0,
+              "tracking": {
+                "trackingNumber": "1Z999",
+                "company": "UPS",
+                "trackingUrl": "https://example.test/track/1Z999",
+                "arrivesAt": "2026-04-30T00:00:00.000Z"
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryShipmentLineItem/9002",
+                    "quantity": 5,
+                    "acceptedQuantity": 0,
+                    "rejectedQuantity": 0,
+                    "unreceivedQuantity": 5,
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/94051",
+                      "sku": "SHIP-ROOT",
+                      "tracked": true
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterCreateInventoryRead": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/94051"
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "variant": {
+                "id": "gid://shopify/ProductVariant/94051",
+                "inventoryQuantity": 1
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 1
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 1
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 5
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemaEvidence": {
+    "store": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "queryRoot": "inventoryShipment(id: ID!): InventoryShipment",
+    "mutationArgs": {
+      "inventoryShipmentCreate": ["input"],
+      "inventoryShipmentCreateInTransit": ["input"],
+      "inventoryShipmentAddItems": ["id", "lineItems"],
+      "inventoryShipmentRemoveItems": ["id", "lineItems"],
+      "inventoryShipmentUpdateItemQuantities": ["id", "items"],
+      "inventoryShipmentSetTracking": ["id", "tracking"],
+      "inventoryShipmentMarkInTransit": ["id"],
+      "inventoryShipmentReceive": ["id", "lineItems", "bulkReceiveAction"],
+      "inventoryShipmentDelete": ["id"]
+    },
+    "shipmentFields": [
+      "id",
+      "lineItemTotalQuantity",
+      "lineItems",
+      "lineItemsCount",
+      "name",
+      "status",
+      "totalAcceptedQuantity",
+      "totalReceivedQuantity",
+      "totalRejectedQuantity",
+      "tracking"
+    ],
+    "statusValues": ["DRAFT", "IN_TRANSIT", "PARTIALLY_RECEIVED", "RECEIVED", "OTHER"]
+  },
+  "liveShopifyCaptureBlocker": {
+    "kind": "missing_access_scope",
+    "probeStore": "harry-test-heelo.myshopify.com",
+    "probeApiVersion": "2025-01",
+    "capturedAt": "2026-04-27T16:52:00.000Z",
+    "readRootMessage": "Access denied for inventoryShipment field. Required access: `read_inventory_shipments` access scope. Also: The user must have permission to view products.",
+    "writeRootMessage": "Access denied for inventoryShipmentCreate field. Required access: `write_inventory_shipments` access scope. Also: The user must have permission to manage inventory.",
+    "requiredScopes": ["read_inventory_shipments", "write_inventory_shipments"]
+  },
+  "runtimeEvidence": [
+    "Snapshot-mode inventoryShipmentCreate stages a draft shipment over existing product-backed inventory items and records the raw mutation for commit replay.",
+    "inventoryShipmentCreateInTransit and inventoryShipmentMarkInTransit increase the first effective inventory level's incoming quantity for unreceived shipment quantities.",
+    "inventoryShipmentAddItems, inventoryShipmentRemoveItems, and inventoryShipmentUpdateItemQuantities update shipment line totals and adjust incoming inventory atomically for in-transit shipments.",
+    "inventoryShipmentSetTracking stages trackingNumber, company, trackingUrl, and arrivesAt without upstream writes.",
+    "inventoryShipmentReceive moves accepted quantities from incoming to available and on_hand, reduces incoming for rejected quantities, and updates shipment status to PARTIALLY_RECEIVED or RECEIVED.",
+    "inventoryShipmentDelete tombstones local draft/in-transit shipments, reverses remaining incoming inventory, and makes inventoryShipment(id:) return null.",
+    "Invalid inventory item ids, unknown shipment ids, invalid quantities, and invalid status transitions return local userErrors without contacting Shopify."
+  ],
+  "documentedBlockers": [
+    "Direct live Shopify shipment payload recording is blocked until the conformance app grant includes read_inventory_shipments and write_inventory_shipments.",
+    "movementId is preserved as shipment metadata only; transfer/movement routing, origin/destination topology, and shipment name allocation are not modeled until a dedicated inventory transfer state model exists.",
+    "Support is intentionally scoped to product-backed inventory items and the first effective inventory level. Multi-location routing and non-product inventory owners need separate conformance evidence before broadening."
+  ],
+  "commitReplayEvidence": "The runtime tests assert staged shipment mutations are appended to the meta mutation log in original request order with original raw GraphQL bodies."
+}
