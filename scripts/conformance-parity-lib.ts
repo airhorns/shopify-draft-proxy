@@ -84,6 +84,11 @@ import {
   hydrateSegmentsFromUpstreamResponse,
 } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
+import {
+  handleWebhookSubscriptionMutation,
+  handleWebhookSubscriptionQuery,
+  hydrateWebhookSubscriptionsFromUpstreamResponse,
+} from '../src/proxy/webhooks.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
@@ -1111,6 +1116,33 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'webhooks') {
+    const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(document, variables);
+    if (!webhookSubscriptionMutation) {
+      throw new Error(`Webhook-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (webhookSubscriptionMutation.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
+        notes: webhookSubscriptionMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: webhookSubscriptionMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1511,6 +1543,23 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
+    if (upstreamPayload !== undefined) {
+      hydrateWebhookSubscriptionsFromUpstreamResponse(document, variables, upstreamPayload);
+      if (!hasStagedState()) {
+        return {
+          status: 200,
+          body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+        };
+      }
+    }
+
+    return {
+      status: 200,
+      body: handleWebhookSubscriptionQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1541,7 +1590,9 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.draftOrders).length > 0 ||
     Object.keys(stagedState.calculatedOrders).length > 0 ||
     Object.keys(stagedState.giftCards).length > 0 ||
-    Object.keys(stagedState.deletedGiftCardIds).length > 0
+    Object.keys(stagedState.deletedGiftCardIds).length > 0 ||
+    Object.keys(stagedState.webhookSubscriptions).length > 0 ||
+    Object.keys(stagedState.deletedWebhookSubscriptionIds).length > 0
   );
 }
 
