@@ -1,0 +1,23 @@
+mutation InventoryTransferCreateParity($input: InventoryTransferCreateInput!) {
+  inventoryTransferCreate(input: $input) {
+    inventoryTransfer {
+      id
+      name
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
