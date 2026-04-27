@@ -147,6 +147,26 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "sellingPlanGroup",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroup", "SellingPlanGroup"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local detail reads for staged selling-plan groups, including unknown-id null behavior and product/product-variant membership connections."
+  },
+  {
+    "name": "sellingPlanGroups",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroups", "SellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local catalog reads for staged selling-plan groups with connection pagination and downstream product/variant membership visibility."
+  },
+  {
     "name": "publicApiVersions",
     "type": "query",
     "domain": "admin-platform",
@@ -1514,6 +1534,76 @@
     "implemented": true,
     "matchNames": ["customerMerge", "CustomerMerge"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "sellingPlanGroupCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupCreate", "SellingPlanGroupCreate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages selling-plan group create locally, including nested sellingPlansToCreate and initial product/product-variant resources, without runtime Shopify writes."
+  },
+  {
+    "name": "sellingPlanGroupUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupUpdate", "SellingPlanGroupUpdate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group scalar updates, selling plan updates/creates/deletes, and unknown-id GROUP_DOES_NOT_EXIST userErrors locally."
+  },
+  {
+    "name": "sellingPlanGroupDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupDelete", "SellingPlanGroupDelete"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group deletion locally; downstream detail/catalog/product/variant reads omit deleted groups and unknown deletes return Shopify-like GROUP_DOES_NOT_EXIST userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProducts", "SellingPlanGroupAddProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership locally and makes product.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProducts", "SellingPlanGroupRemoveProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership removal locally and returns removedProductIds with Shopify-like unknown-id userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProductVariants", "SellingPlanGroupAddProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership locally and makes ProductVariant.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProductVariants", "SellingPlanGroupRemoveProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors."
   },
   {
     "name": "tagsAdd",

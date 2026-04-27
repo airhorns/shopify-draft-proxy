@@ -315,6 +315,20 @@ export function validateComparisonContract(comparison: unknown): string[] {
             }
           }
         }
+        if ('excludedPaths' in target) {
+          if (!Array.isArray(target['excludedPaths']) || target['excludedPaths'].length === 0) {
+            errors.push(`${label} excludedPaths, when declared, must be a non-empty array.`);
+          } else {
+            for (const [pathIndex, rawPath] of target['excludedPaths'].entries()) {
+              if (typeof rawPath !== 'string' || rawPath.length === 0) {
+                errors.push(`${label}.excludedPaths[${pathIndex}] must be a non-empty JSON path.`);
+              }
+            }
+          }
+        }
+        if ('selectedPaths' in target && 'excludedPaths' in target) {
+          errors.push(`${label} must not declare both selectedPaths and excludedPaths.`);
+        }
         if ('expectedDifferences' in target) {
           errors.push(...validateExpectedDifferences(target['expectedDifferences'], `${label}.expectedDifferences`));
         }
@@ -6118,6 +6132,17 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (seedChannels.length > 0) {
     store.upsertBaseChannels(seedChannels);
   }
+  const sellingPlanInput = readRecordField(variables, 'input');
+  const sellingPlanResources = readRecordField(variables, 'resources');
+  const isSellingPlanGroupLifecycleSeed =
+    seedProducts.length > 0 &&
+    (readArrayField(sellingPlanInput, 'sellingPlansToCreate').length > 0 ||
+      readArrayField(sellingPlanInput, 'sellingPlansToUpdate').length > 0 ||
+      readArrayField(sellingPlanResources, 'productIds').length > 0 ||
+      readArrayField(sellingPlanResources, 'productVariantIds').length > 0);
+  if (isSellingPlanGroupLifecycleSeed) {
+    return;
+  }
   seedExplicitProductMediaPreconditions(capture);
   seedLocalizationPreconditions(capture);
 
@@ -6152,6 +6177,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (mutationName?.startsWith('sellingPlanGroup') && seedProducts.length > 0) {
+    return;
+  }
+
   if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
     return;
   }
@@ -6736,6 +6765,62 @@ function selectComparisonPaths(value: unknown, selectedPaths: string[] | undefin
   return Object.fromEntries(selectedPaths.map((selectedPath) => [selectedPath, readJsonPath(value, selectedPath)]));
 }
 
+function cloneJsonLikeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(cloneJsonLikeValue);
+  }
+
+  if (isPlainObject(value)) {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, cloneJsonLikeValue(child)]));
+  }
+
+  return value;
+}
+
+function deleteJsonPath(value: unknown, segments: PathSegment[]): void {
+  if (segments.length === 0 || value === null || typeof value !== 'object') {
+    return;
+  }
+
+  const segment = segments[0]!;
+  const rest = segments.slice(1);
+  if (segment === '*') {
+    const children = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>);
+    for (const child of children) {
+      deleteJsonPath(child, rest);
+    }
+    return;
+  }
+
+  if (rest.length === 0) {
+    if (Array.isArray(value) && typeof segment === 'number') {
+      value.splice(segment, 1);
+      return;
+    }
+
+    delete (value as Record<string | number, unknown>)[segment];
+    return;
+  }
+
+  deleteJsonPath((value as Record<string | number, unknown>)[segment], rest);
+}
+
+export function excludeComparisonPaths(value: unknown, excludedPaths: string[] | undefined): unknown {
+  if (!excludedPaths) {
+    return value;
+  }
+
+  const clone = cloneJsonLikeValue(value);
+  for (const excludedPath of excludedPaths) {
+    deleteJsonPath(clone, parsePath(excludedPath));
+  }
+  return clone;
+}
+
+function prepareComparisonValue(value: unknown, target: ComparisonTarget): unknown {
+  return excludeComparisonPaths(selectComparisonPaths(value, target.selectedPaths), target.excludedPaths);
+}
+
 function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
@@ -6849,8 +6934,8 @@ export async function executeParityScenario({
       ...(target.expectedDifferences ?? []),
     ];
     const comparison = compareJsonPayloads(
-      selectComparisonPaths(expected, target.selectedPaths),
-      selectComparisonPaths(actual, target.selectedPaths),
+      prepareComparisonValue(expected, target),
+      prepareComparisonValue(actual, target),
       { expectedDifferences },
     );
     comparisons.push({

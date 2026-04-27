@@ -722,7 +722,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts()
+        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
