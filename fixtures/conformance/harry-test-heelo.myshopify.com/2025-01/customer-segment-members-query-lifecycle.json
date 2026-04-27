@@ -1,0 +1,138 @@
+{
+  "capturedAt": "2026-04-27T00:45:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "customerSegmentMembersQueryCreateInvalidQuery",
+      "request": {
+        "query": "mutation CreateMemberQuery($input: CustomerSegmentMembersQueryInput!) { customerSegmentMembersQueryCreate(input: $input) { customerSegmentMembersQuery { id currentCount done } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "query": "not a valid segment query ???"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Line 1 Column 6: 'valid' is unexpected."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerSegmentMembersQueryCreateEmptyNumeric",
+      "request": {
+        "query": "mutation CreateMemberQuery($input: CustomerSegmentMembersQueryInput!) { customerSegmentMembersQueryCreate(input: $input) { customerSegmentMembersQuery { id currentCount done } userErrors { field message } } }",
+        "variables": {
+          "input": {
+            "query": "number_of_orders = 999999"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/91e8c96a-41d1-11f1-a5b0-f6c00c588c59",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerSegmentMembersQueryLookupCreated",
+      "request": {
+        "query": "query Lookup($id: ID!) { customerSegmentMembersQuery(id: $id) { id currentCount done } }",
+        "variables": {
+          "id": "gid://shopify/CustomerSegmentMembersQuery/91e8c96a-41d1-11f1-a5b0-f6c00c588c59"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQuery": {
+              "id": "gid://shopify/CustomerSegmentMembersQuery/91e8c96a-41d1-11f1-a5b0-f6c00c588c59",
+              "currentCount": 0,
+              "done": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerSegmentMembersByQueryIdEmpty",
+      "request": {
+        "query": "query Members($queryId: ID!, $first: Int) { customerSegmentMembers(queryId: $queryId, first: $first) { totalCount statistics { amountSpent: attributeStatistics(attributeName: \"amount_spent\") { average sum } } edges { cursor node { id } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
+        "variables": {
+          "queryId": "gid://shopify/CustomerSegmentMembersQuery/91e8c96a-41d1-11f1-a5b0-f6c00c588c59",
+          "first": 2
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembers": {
+              "totalCount": 0,
+              "statistics": {
+                "amountSpent": {
+                  "average": 0,
+                  "sum": 0
+                }
+              },
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerSegmentMembershipUnknowns",
+      "request": {
+        "query": "query Membership($customerId: ID!, $segmentIds: [ID!]!) { customerSegmentMembership(customerId: $customerId, segmentIds: $segmentIds) { memberships { segmentId isMember } } }",
+        "variables": {
+          "customerId": "gid://shopify/Customer/999999999999",
+          "segmentIds": ["gid://shopify/Segment/999999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembership": {
+              "memberships": []
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "A separate live setup/cleanup run created three disposable tagged customers and a segment on harry-test-heelo.myshopify.com, captured query-job polling to done=true, two-page member pagination with totalCount=3, segmentId member reads, membership isMember=true, then deleted the segment and customers.",
+    "Local parity keeps the executable generic scenario to the empty numeric query branch; runtime integration tests cover staged positive pagination and membership with deterministic local IDs."
+  ]
+}

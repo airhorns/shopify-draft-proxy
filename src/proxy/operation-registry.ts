@@ -3,12 +3,14 @@ import { operationRegistrySchema, type OperationRegistryEntry } from '../json-sc
 
 export type CapabilityDomain =
   | 'products'
+  | 'apps'
   | 'media'
   | 'bulk-operations'
   | 'customers'
   | 'orders'
   | 'store-properties'
   | 'discounts'
+  | 'events'
   | 'payments'
   | 'marketing'
   | 'online-store'

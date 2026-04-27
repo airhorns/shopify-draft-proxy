@@ -629,6 +629,15 @@ export const segmentRecordSchema = z.strictObject({
 });
 export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
 
+export const customerSegmentMembersQueryRecordSchema = z.strictObject({
+  id: z.string(),
+  query: nullableStringSchema,
+  segmentId: nullableStringSchema,
+  currentCount: z.number(),
+  done: z.boolean(),
+});
+export type CustomerSegmentMembersQueryRecord = z.infer<typeof customerSegmentMembersQueryRecordSchema>;
+
 export const webhookSubscriptionEndpointRecordSchema = z.strictObject({
   __typename: z.enum(['WebhookHttpEndpoint', 'WebhookEventBridgeEndpoint', 'WebhookPubSubEndpoint']),
   callbackUrl: nullableStringSchema.optional(),
@@ -657,6 +666,30 @@ export const marketingRecordSchema = z.strictObject({
   data: z.record(z.string(), jsonValueSchema),
 });
 export type MarketingRecord = z.infer<typeof marketingRecordSchema>;
+
+export const marketingEngagementRecordSchema = z.strictObject({
+  id: z.string(),
+  marketingActivityId: nullableStringSchema.optional(),
+  remoteId: nullableStringSchema.optional(),
+  channelHandle: nullableStringSchema.optional(),
+  occurredOn: z.string(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type MarketingEngagementRecord = z.infer<typeof marketingEngagementRecordSchema>;
+
+export const onlineStoreContentKindSchema = z.enum(['article', 'blog', 'page', 'comment']);
+export type OnlineStoreContentKind = z.infer<typeof onlineStoreContentKindSchema>;
+
+export const onlineStoreContentRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: onlineStoreContentKindSchema,
+  cursor: nullableStringSchema.optional(),
+  parentId: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type OnlineStoreContentRecord = z.infer<typeof onlineStoreContentRecordSchema>;
 
 export const businessEntityAddressRecordSchema = z.strictObject({
   address1: nullableStringSchema,
@@ -1157,6 +1190,7 @@ export type OrderFulfillmentRecord = z.infer<typeof orderFulfillmentRecordSchema
 
 export const orderFulfillmentOrderAssignedLocationRecordSchema = z.strictObject({
   name: nullableStringSchema,
+  locationId: nullableStringSchema.optional(),
 });
 export type OrderFulfillmentOrderAssignedLocationRecord = z.infer<
   typeof orderFulfillmentOrderAssignedLocationRecordSchema
@@ -1166,10 +1200,24 @@ export const orderFulfillmentOrderLineItemRecordSchema = z.strictObject({
   id: z.string(),
   lineItemId: nullableStringSchema,
   title: nullableStringSchema,
+  lineItemQuantity: z.number().nullable().optional(),
+  lineItemFulfillableQuantity: z.number().nullable().optional(),
   totalQuantity: z.number(),
   remainingQuantity: z.number(),
 });
 export type OrderFulfillmentOrderLineItemRecord = z.infer<typeof orderFulfillmentOrderLineItemRecordSchema>;
+
+export const orderFulfillmentOrderMerchantRequestRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: z.string(),
+  message: nullableStringSchema.optional(),
+  requestOptions: z.record(z.string(), z.unknown()).optional(),
+  responseData: z.record(z.string(), z.unknown()).nullable().optional(),
+  sentAt: z.string(),
+});
+export type OrderFulfillmentOrderMerchantRequestRecord = z.infer<
+  typeof orderFulfillmentOrderMerchantRequestRecordSchema
+>;
 
 export const orderFulfillmentOrderDeliveryMethodRecordSchema = z.strictObject({
   id: z.string(),
@@ -1186,8 +1234,25 @@ export const orderFulfillmentOrderRecordSchema = z.strictObject({
   id: z.string(),
   status: nullableStringSchema,
   requestStatus: nullableStringSchema.optional(),
+  fulfillAt: nullableStringSchema.optional(),
+  fulfillBy: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  supportedActions: z.array(z.string()).optional(),
+  fulfillmentHolds: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        handle: nullableStringSchema.optional(),
+        reason: nullableStringSchema.optional(),
+        reasonNotes: nullableStringSchema.optional(),
+        displayReason: nullableStringSchema.optional(),
+        heldByRequestingApp: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   assignedLocation: orderFulfillmentOrderAssignedLocationRecordSchema.nullable().optional(),
   deliveryMethod: orderFulfillmentOrderDeliveryMethodRecordSchema.nullable().optional(),
+  merchantRequests: z.array(orderFulfillmentOrderMerchantRequestRecordSchema).optional(),
   lineItems: z.array(orderFulfillmentOrderLineItemRecordSchema).optional(),
 });
 export type OrderFulfillmentOrderRecord = z.infer<typeof orderFulfillmentOrderRecordSchema>;
@@ -1601,12 +1666,26 @@ export const stateSnapshotSchema = z.strictObject({
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
+  customerSegmentMembersQueries: z.record(z.string(), customerSegmentMembersQueryRecordSchema).default({}),
   webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
   webhookSubscriptionOrder: z.array(z.string()).default([]),
   marketingActivities: z.record(z.string(), marketingRecordSchema).default({}),
   marketingActivityOrder: z.array(z.string()).default([]),
   marketingEvents: z.record(z.string(), marketingRecordSchema).default({}),
   marketingEventOrder: z.array(z.string()).default([]),
+  marketingEngagements: z.record(z.string(), marketingEngagementRecordSchema).default({}),
+  marketingEngagementOrder: z.array(z.string()).default([]),
+  deletedMarketingActivityIds: z.record(z.string(), z.boolean()).default({}),
+  deletedMarketingEventIds: z.record(z.string(), z.boolean()).default({}),
+  deletedMarketingEngagementIds: z.record(z.string(), z.boolean()).default({}),
+  onlineStoreArticles: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreArticleOrder: z.array(z.string()).default([]),
+  onlineStoreBlogs: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreBlogOrder: z.array(z.string()).default([]),
+  onlineStorePages: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStorePageOrder: z.array(z.string()).default([]),
+  onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
+  onlineStoreCommentOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
@@ -1643,6 +1722,10 @@ export const stateSnapshotSchema = z.strictObject({
   deletedCustomerPaymentMethodIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSegmentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebhookSubscriptionIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreArticleIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreBlogIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStorePageIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
@@ -1650,6 +1733,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

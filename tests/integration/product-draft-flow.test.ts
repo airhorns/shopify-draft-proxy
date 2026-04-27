@@ -3996,6 +3996,358 @@ describe('product draft flow', () => {
     });
   });
 
+  it('matches captured empty-batch behavior for bulk variant mutations without changing product state', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Empty Bulk Batch Hat" }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+    const stateQuery =
+      'query ProductBulkState($id: ID!) { product(id: $id) { id totalInventory tracksInventory options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id title sku inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } }';
+    const readProductState = async () => {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({ query: stateQuery, variables: { id: productId } });
+      expect(response.status).toBe(200);
+      return response.body.data.product;
+    };
+
+    const initialState = await readProductState();
+
+    const createEmptyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateEmpty($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: { productId, variants: [] },
+      });
+
+    expect(createEmptyResponse.status).toBe(200);
+    expect(createEmptyResponse.body.data.productVariantsBulkCreate).toEqual({
+      product: { id: productId },
+      productVariants: [],
+      userErrors: [],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const updateEmptyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation UpdateEmpty($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: { productId, variants: [] },
+      });
+
+    expect(updateEmptyResponse.status).toBe(200);
+    expect(updateEmptyResponse.body.data.productVariantsBulkUpdate).toEqual({
+      product: null,
+      productVariants: null,
+      userErrors: [{ field: null, message: 'Something went wrong, please try again.' }],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const deleteEmptyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DeleteEmpty($productId: ID!, $variantsIds: [ID!]!) { productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) { product { id } userErrors { field message } } }',
+        variables: { productId, variantsIds: [] },
+      });
+
+    expect(deleteEmptyResponse.status).toBe(200);
+    expect(deleteEmptyResponse.body.data.productVariantsBulkDelete).toEqual({
+      product: { id: productId },
+      userErrors: [],
+    });
+    expect(await readProductState()).toEqual(initialState);
+  });
+
+  it('rejects invalid bulk variant batches atomically across options, variants, and inventory state', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Atomic Bulk Variant Hat" }) { product { id } userErrors { field message } } }',
+    });
+
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const createOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOptions($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { product { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: [
+            { name: 'Color', values: [{ name: 'Red' }, { name: 'Blue' }] },
+            { name: 'Size', values: [{ name: 'Small' }, { name: 'Large' }] },
+          ],
+        },
+      });
+
+    expect(createOptionsResponse.status).toBe(200);
+    expect(createOptionsResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+
+    const stateQuery =
+      'query ProductBulkAtomicState($id: ID!) { product(id: $id) { id totalInventory tracksInventory options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { id title sku inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } }';
+    const readProductState = async () => {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({ query: stateQuery, variables: { id: productId } });
+      expect(response.status).toBe(200);
+      return response.body.data.product;
+    };
+
+    const initialState = await readProductState();
+    const defaultVariantId = initialState.variants.nodes[0].id as string;
+    const unknownVariantId = 'gid://shopify/ProductVariant/999999999999999999';
+
+    const duplicateCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DuplicateCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [
+            {
+              optionValues: [
+                { optionName: 'Color', name: 'Blue' },
+                { optionName: 'Color', name: 'Red' },
+              ],
+              inventoryItem: { sku: 'SHOULD-NOT-CREATE-DUPLICATE' },
+            },
+          ],
+        },
+      });
+
+    expect(duplicateCreateResponse.status).toBe(200);
+    expect(duplicateCreateResponse.body.data.productVariantsBulkCreate).toEqual({
+      product: null,
+      productVariants: [],
+      userErrors: [
+        {
+          field: ['variants', '0', 'optionValues'],
+          message: "Duplicated option name 'Color'",
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const mixedCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MixedCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [
+            {
+              optionValues: [
+                { optionName: 'Color', name: 'Blue' },
+                { optionName: 'Size', name: 'Large' },
+              ],
+              inventoryQuantities: [{ availableQuantity: 5, locationId: 'gid://shopify/Location/1' }],
+              inventoryItem: { sku: 'SHOULD-NOT-CREATE-VALID' },
+            },
+            {
+              optionValues: [{ optionName: 'Material', name: 'Cotton' }],
+              inventoryItem: { sku: 'SHOULD-NOT-CREATE-INVALID' },
+            },
+          ],
+        },
+      });
+
+    expect(mixedCreateResponse.status).toBe(200);
+    expect(mixedCreateResponse.body.data.productVariantsBulkCreate).toEqual({
+      product: null,
+      productVariants: [],
+      userErrors: [
+        {
+          field: ['variants', '1', 'optionValues', '0'],
+          message: 'Option does not exist',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const invalidInventoryCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation InvalidInventoryCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [
+            {
+              optionValues: [
+                { optionName: 'Color', name: 'Blue' },
+                { optionName: 'Size', name: 'Large' },
+              ],
+              inventoryQuantities: [{ availableQuantity: 5, locationId: 'gid://shopify/Location/999999999999999999' }],
+              inventoryItem: { sku: 'SHOULD-NOT-CREATE-INVENTORY' },
+            },
+          ],
+        },
+      });
+
+    expect(invalidInventoryCreateResponse.status).toBe(200);
+    expect(invalidInventoryCreateResponse.body.data.productVariantsBulkCreate).toEqual({
+      product: null,
+      productVariants: [],
+      userErrors: [
+        {
+          field: ['variants', '0', 'inventoryQuantities'],
+          message: "Quantity for Blue / Large couldn't be set because the location was deleted.",
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const missingIdUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MissingIdUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [{ inventoryItem: { sku: 'SHOULD-NOT-UPDATE-MISSING-ID' } }],
+        },
+      });
+
+    expect(missingIdUpdateResponse.status).toBe(200);
+    expect(missingIdUpdateResponse.body.data.productVariantsBulkUpdate).toEqual({
+      product: { id: productId },
+      productVariants: null,
+      userErrors: [
+        {
+          field: ['variants', '0', 'id'],
+          message: 'Product variant is missing ID attribute',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const mixedUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MixedUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [
+            { id: defaultVariantId, inventoryItem: { sku: 'SHOULD-NOT-UPDATE-VALID', tracked: true } },
+            { id: unknownVariantId, inventoryItem: { sku: 'SHOULD-NOT-UPDATE-UNKNOWN' } },
+          ],
+        },
+      });
+
+    expect(mixedUpdateResponse.status).toBe(200);
+    expect(mixedUpdateResponse.body.data.productVariantsBulkUpdate).toEqual({
+      product: { id: productId },
+      productVariants: null,
+      userErrors: [
+        {
+          field: ['variants', '1', 'id'],
+          message: 'Product variant does not exist',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const invalidOptionUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation InvalidOptionUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [{ id: defaultVariantId, optionValues: [{ optionName: 'Material', name: 'Cotton' }] }],
+        },
+      });
+
+    expect(invalidOptionUpdateResponse.status).toBe(200);
+    expect(invalidOptionUpdateResponse.body.data.productVariantsBulkUpdate).toEqual({
+      product: { id: productId },
+      productVariants: null,
+      userErrors: [
+        {
+          field: ['variants', '0', 'optionValues', '0'],
+          message: 'Option does not exist',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const invalidInventoryUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation InvalidInventoryUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          variants: [
+            {
+              id: defaultVariantId,
+              inventoryQuantities: [{ availableQuantity: 4, locationId: 'gid://shopify/Location/1' }],
+            },
+          ],
+        },
+      });
+
+    expect(invalidInventoryUpdateResponse.status).toBe(200);
+    expect(invalidInventoryUpdateResponse.body.data.productVariantsBulkUpdate).toEqual({
+      product: { id: productId },
+      productVariants: null,
+      userErrors: [
+        {
+          field: ['variants', '0', 'inventoryQuantities'],
+          message:
+            'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+
+    const mixedDeleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MixedDelete($productId: ID!, $variantsIds: [ID!]!) { productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) { product { id } userErrors { field message } } }',
+        variables: { productId, variantsIds: [defaultVariantId, unknownVariantId] },
+      });
+
+    expect(mixedDeleteResponse.status).toBe(200);
+    expect(mixedDeleteResponse.body.data.productVariantsBulkDelete).toEqual({
+      product: null,
+      userErrors: [
+        {
+          field: ['variantsIds', '1'],
+          message: 'At least one variant does not belong to the product',
+        },
+      ],
+    });
+    expect(await readProductState()).toEqual(initialState);
+  });
+
   it('adds missing option values and updates hasVariants during bulk variant mutations', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(JSON.stringify({ data: { product: null } }), {

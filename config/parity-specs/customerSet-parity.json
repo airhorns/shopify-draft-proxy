@@ -1,15 +1,15 @@
 {
   "scenarioId": "customer-set-live-parity",
-  "operationNames": ["customerSet"],
+  "operationNames": ["customerSet", "customer", "customerByIdentifier", "customers", "customersCount"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customer-set-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customerSet-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers the first local customerSet create branch. The same fixture records id update, email upsert/update, address-list replacement, empty-address replacement, missing-identity validation, unknown-id validation, and custom-id top-level error evidence; those multi-step branches are covered by integration tests because the parity runner currently compares one primary mutation request per scenario.",
+  "notes": "Strict comparison covers the first local customerSet create branch. The same fixture records id update, email and phone upsert/update, multi-address replacement, empty/null address replacement behavior, duplicate email/phone validation, identifier/input alignment validation, nullable taxExempt validation, deleted-id validation, downstream customer/customerByIdentifier/customers/customersCount visibility, and custom-id no-definition top-level error evidence; those multi-step branches are covered by integration tests because the parity runner currently compares one primary mutation request per scenario. Positive identifier.customId remains unsupported until customer unique-metafield definitions and values are modeled locally.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

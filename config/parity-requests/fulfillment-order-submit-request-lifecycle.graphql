@@ -1,0 +1,61 @@
+mutation FulfillmentOrderSubmitFulfillmentRequestLifecycle(
+  $id: ID!
+  $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]
+  $message: String
+  $notifyCustomer: Boolean
+) {
+  fulfillmentOrderSubmitFulfillmentRequest(
+    id: $id
+    fulfillmentOrderLineItems: $fulfillmentOrderLineItems
+    message: $message
+    notifyCustomer: $notifyCustomer
+  ) {
+    originalFulfillmentOrder {
+      id
+      status
+      requestStatus
+      merchantRequests(first: 10) {
+        nodes {
+          kind
+          message
+          requestOptions
+          responseData
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    submittedFulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    unsubmittedFulfillmentOrder {
+      status
+      requestStatus
+      lineItems(first: 5) {
+        nodes {
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
