@@ -2448,10 +2448,10 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderCancel", "FulfillmentOrderCancel"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires replacement fulfillment-order creation, partial remaining-work semantics, and status transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 lifecycle support for locally cancelling an open fulfillment order: the original closes with empty line items, a replacement OPEN fulfillment order carries remaining line items, downstream order/top-level reads observe both records, and runtime handling does not proxy upstream."
   },
   {
     "name": "fulfillmentOrderClose",
@@ -2461,17 +2461,17 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderClose", "FulfillmentOrderClose"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires accepted fulfillment-service request semantics, in-progress constraints, and control handoff back to merchant-managed fulfillment before support."
+    "supportNotes": "HAR-234 captured the merchant-managed guardrail `The fulfillment order's assigned fulfillment service must be of api type`; this root remains unimplemented for full lifecycle support because no success path was captured for API fulfillment-service orders."
   },
   {
     "name": "fulfillmentOrderHold",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderHold", "FulfillmentOrderHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold handle/id behavior, multiple active holds per app, limit userErrors, and downstream fulfillmentHolds reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial hold support with fulfillmentHold metadata, ON_HOLD status, held line-item quantities, remaining OPEN fulfillment-order creation, manualHoldsFulfillmentOrders visibility, and release read-after-write behavior."
   },
   {
     "name": "fulfillmentOrderLineItemsPreparedForPickup",
@@ -2498,20 +2498,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderMove", "FulfillmentOrderMove"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires inventory/location eligibility, partial move split behavior, requestStatus restrictions, and replacement order reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 partial move support with moved/original/remaining fulfillment-order payloads, assigned-location changes, line-item quantity splitting, and downstream order/top-level reads."
   },
   {
     "name": "fulfillmentOrderOpen",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderOpen", "FulfillmentOrderOpen"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled and progress-reported state transitions plus downstream status/requestStatus reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 MARK_AS_OPEN behavior after report-progress state: local staging returns OPEN status and restores open supported actions for downstream reads."
   },
   {
     "name": "fulfillmentOrderRejectCancellationRequest",
@@ -2538,20 +2538,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReleaseHold", "FulfillmentOrderReleaseHold"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires hold id filtering, release-all behavior, externalId tracking, and downstream fulfillmentHolds/status changes before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 release-hold support for app-created holds: local staging clears fulfillmentHolds, restores OPEN status/actions, and updates manualHoldsFulfillmentOrders/downstream fulfillment-order reads."
   },
   {
     "name": "fulfillmentOrderReportProgress",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderReportProgress", "FulfillmentOrderReportProgress"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires progress report state, status transitions, and interaction with move/open restrictions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-234 captured 2026-04 report-progress support for OPEN merchant-managed fulfillment orders: local staging moves status to IN_PROGRESS and exposes MARK_AS_OPEN in downstream reads."
   },
   {
     "name": "fulfillmentOrderReschedule",
@@ -2561,7 +2561,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrderReschedule", "FulfillmentOrderReschedule"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires scheduled fulfillment-order semantics, future fulfillAt validation, and downstream fulfillAt/status visibility before support."
+    "supportNotes": "HAR-234 captured the open-order guardrail `Fulfillment order must be scheduled.`; this root remains unimplemented for full lifecycle support until scheduled fulfillment-order setup and success read-after-write behavior are captured."
   },
   {
     "name": "fulfillmentOrdersReroute",
@@ -2571,7 +2571,7 @@
     "implemented": false,
     "matchNames": ["fulfillmentOrdersReroute", "FulfillmentOrdersReroute"],
     "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires order-routing location selection, included/excluded location semantics, and assignedLocation updates before support."
+    "supportNotes": "HAR-234 captured unknown-id RESOURCE_NOT_FOUND and a live included-location branch returning Shopify INTERNAL_SERVER_ERROR for the current disposable setup; this root remains unimplemented until a successful reroute scenario is captured."
   },
   {
     "name": "fulfillmentOrdersSetFulfillmentDeadline",

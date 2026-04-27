@@ -10,6 +10,12 @@ Local staged mutations currently live under the orders group because they operat
 - `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderOpen`
+- `fulfillmentOrderCancel`
 - `fulfillmentOrderSubmitFulfillmentRequest`
 - `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderRejectFulfillmentRequest`
@@ -33,7 +39,17 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 
 `FulfillmentOrder.deliveryMethod` is an optional local fixture field. When a normalized fulfillment-order record carries delivery-method data, the serializer returns the stored `DeliveryMethod` scalar fields selected by the query; when the record lacks delivery-method data, the field returns `null`. The proxy still does not generate delivery methods from order shipping lines, delivery profiles, or fulfillment-order lifecycle mutations without a captured scenario.
 
-`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `assignedFulfillmentOrders` exposes the same local order-backed records for staged request/cancellation workflows so tests can observe request-status transitions without an upstream fulfillment-service callback. `manualHoldsFulfillmentOrders` currently returns the captured no-hold empty connection because the local model does not store fulfillment holds yet. The HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for live `assignedFulfillmentOrders`, so broader assignment-status and fulfillment-service scope filtering remains an explicit access-scoped gap rather than guessed behavior.
+`fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` returns held local fulfillment orders after staged `fulfillmentOrderHold` calls and otherwise returns the captured no-hold empty connection. `assignedFulfillmentOrders` exposes local order-backed records for staged request/cancellation workflows so tests can observe request-status transitions without an upstream fulfillment-service callback. The HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for live `assignedFulfillmentOrders`, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
+
+HAR-234 adds fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
+
+- `fulfillmentOrderHold` records app-created hold metadata, moves the selected work to `ON_HOLD`, exposes it through `fulfillmentHolds` and `manualHoldsFulfillmentOrders`, and creates an `OPEN` remaining fulfillment order for partial holds.
+- `fulfillmentOrderReleaseHold` clears local holds, restores `OPEN` status/actions for the held fulfillment order, re-expands the released line items to include the split remainder, and marks the partial-hold remainder order `CLOSED` with zero remaining quantity.
+- `fulfillmentOrderMove` stages full or partial line-item moves by assigning selected work to a replacement fulfillment order at the requested location and leaving remaining quantities on the original order.
+- `fulfillmentOrderReportProgress` changes local status to `IN_PROGRESS`; `fulfillmentOrderOpen` changes it back to `OPEN`.
+- `fulfillmentOrderCancel` closes the original fulfillment order, clears its line items, and creates an `OPEN` replacement fulfillment order carrying the remaining work.
+
+HAR-234 captured but does not mark full support for `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, or `fulfillmentOrdersReroute`. The current disposable merchant-managed setup returns `Fulfillment order must be scheduled.` for reschedule, `The fulfillment order's assigned fulfillment service must be of api type` for close, and a Shopify internal error for the attempted included-location reroute success branch. The proxy mirrors the captured guardrails locally where modeled, but these roots remain registry-unimplemented until success-path setup and downstream read behavior are captured.
 
 `fulfillmentOrderSubmitFulfillmentRequest` records a `FULFILLMENT_REQUEST` merchant request with message and `notify_customer` request options, transitions the submitted fulfillment order to `requestStatus: SUBMITTED`, and mirrors Shopify's partial-request split by shrinking the submitted line-item quantities and creating an unsubmitted replacement fulfillment order for remaining quantities. `fulfillmentOrderAcceptFulfillmentRequest` moves a submitted request to `status: IN_PROGRESS` / `requestStatus: ACCEPTED`. `fulfillmentOrderRejectFulfillmentRequest` moves it to `requestStatus: REJECTED` while preserving requested quantities.
 
@@ -102,15 +118,13 @@ These roots are known Admin GraphQL shipping/fulfillment surface area, but they 
 
 Fulfillment-order mutations:
 
-- `fulfillmentOrderCancel`
+- `fulfillmentOrderAcceptCancellationRequest`
+- `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderClose`
-- `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMerge`
-- `fulfillmentOrderMove`
-- `fulfillmentOrderOpen`
-- `fulfillmentOrderReleaseHold`
-- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderRejectCancellationRequest`
+- `fulfillmentOrderRejectFulfillmentRequest`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
