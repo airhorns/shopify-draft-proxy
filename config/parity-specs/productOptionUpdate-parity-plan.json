@@ -1,6 +1,6 @@
 {
   "scenarioId": "product-option-update-live-parity",
-  "operationNames": ["productOptionUpdate"],
+  "operationNames": ["productOptionUpdate", "productOptionsReorder"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-option-update-parity.json"],
@@ -10,7 +10,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario verifies option rename/reposition, option value add/update/delete, and the immediate downstream option and variant graph.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario verifies option rename/reposition, option value add/update/delete, and the immediate downstream option and variant graph. HAR-299 productOptionsReorder uses the same option/value ordering model and is enforced by `tests/integration/product-draft-flow.test.ts` for option-value order plus derived variant order.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [

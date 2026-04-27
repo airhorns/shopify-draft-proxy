@@ -60,8 +60,10 @@ import {
   makeCreatedOptionRecord,
   makeDefaultOptionRecord,
   makeDefaultVariantRecord,
+  normalizeOptionPositions,
   productUsesOnlyDefaultOptionState,
   remapDefaultVariantToCreatedOptions,
+  reorderVariantSelectionsForOptions,
   restoreDefaultOptionState,
   updateOptionRecords,
 } from './product-runtime/options.js';
@@ -1848,6 +1850,138 @@ function syncProductOptionsWithVariants(
         (hasDefaultTitleVariant && option.name === 'Title' && optionValue.name === 'Default Title'),
     })),
   }));
+}
+
+function reorderOptionValues(
+  option: ProductOptionRecord,
+  rawValues: unknown,
+): { option: ProductOptionRecord; userErrors: Array<{ field: string[]; message: string }> } {
+  if (!Array.isArray(rawValues)) {
+    return { option: structuredClone(option), userErrors: [] };
+  }
+
+  const remainingValues = option.optionValues.map((value) => structuredClone(value));
+  const reorderedValues: ProductOptionRecord['optionValues'] = [];
+  const userErrors: Array<{ field: string[]; message: string }> = [];
+
+  rawValues.forEach((rawValue, index) => {
+    if (!isObject(rawValue)) {
+      return;
+    }
+
+    const rawId = rawValue['id'];
+    const rawName = rawValue['name'];
+    const valueIndex = remainingValues.findIndex(
+      (value) =>
+        (typeof rawId === 'string' && value.id === rawId) || (typeof rawName === 'string' && value.name === rawName),
+    );
+    if (valueIndex < 0) {
+      userErrors.push({ field: ['options', 'values', String(index)], message: 'Option value does not exist' });
+      return;
+    }
+
+    const [value] = remainingValues.splice(valueIndex, 1);
+    if (value) {
+      reorderedValues.push(value);
+    }
+  });
+
+  return {
+    option: {
+      ...structuredClone(option),
+      optionValues: [...reorderedValues, ...remainingValues],
+    },
+    userErrors,
+  };
+}
+
+function reorderProductOptionsAndVariants(
+  productId: string,
+  rawOptions: unknown,
+): {
+  options: ProductOptionRecord[];
+  variants: ProductVariantRecord[];
+  userErrors: Array<{ field: string[]; message: string }>;
+} {
+  const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
+  const remainingOptions = effectiveOptions.map((option) => structuredClone(option));
+  const reorderedOptions: ProductOptionRecord[] = [];
+  const userErrors: Array<{ field: string[]; message: string }> = [];
+
+  if (!Array.isArray(rawOptions)) {
+    return {
+      options: effectiveOptions,
+      variants: store.getEffectiveVariantsByProductId(productId),
+      userErrors: [{ field: ['options'], message: 'Options are required' }],
+    };
+  }
+
+  rawOptions.forEach((rawOption, index) => {
+    if (!isObject(rawOption)) {
+      return;
+    }
+
+    const rawId = rawOption['id'];
+    const rawName = rawOption['name'];
+    const optionIndex = remainingOptions.findIndex(
+      (option) =>
+        (typeof rawId === 'string' && option.id === rawId) || (typeof rawName === 'string' && option.name === rawName),
+    );
+    if (optionIndex < 0) {
+      userErrors.push({ field: ['options', String(index)], message: 'Option does not exist' });
+      return;
+    }
+
+    const [option] = remainingOptions.splice(optionIndex, 1);
+    if (!option) {
+      return;
+    }
+
+    const valueResult = reorderOptionValues(option, rawOption['values']);
+    userErrors.push(...valueResult.userErrors);
+    reorderedOptions.push(valueResult.option);
+  });
+
+  const nextOptions = normalizeOptionPositions([...reorderedOptions, ...remainingOptions]);
+  const valueOrderByOptionName = new Map(
+    nextOptions.map((option) => [
+      option.name,
+      new Map(option.optionValues.map((optionValue, valueIndex) => [optionValue.name, valueIndex])),
+    ]),
+  );
+  const remappedVariants = reorderVariantSelectionsForOptions(
+    store.getEffectiveVariantsByProductId(productId),
+    nextOptions,
+  );
+  const nextVariants = remappedVariants
+    .map((variant) => ({
+      ...variant,
+      title: deriveVariantTitle(null, variant.selectedOptions, variant.title),
+    }))
+    .sort((left, right) => {
+      for (const option of nextOptions) {
+        const valueOrder = valueOrderByOptionName.get(option.name);
+        const leftValue = left.selectedOptions.find((selectedOption) => selectedOption.name === option.name)?.value;
+        const rightValue = right.selectedOptions.find((selectedOption) => selectedOption.name === option.name)?.value;
+        const leftIndex =
+          leftValue && valueOrder ? (valueOrder.get(leftValue) ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+        const rightIndex =
+          rightValue && valueOrder
+            ? (valueOrder.get(rightValue) ?? Number.POSITIVE_INFINITY)
+            : Number.POSITIVE_INFINITY;
+        if (leftIndex !== rightIndex) {
+          return leftIndex - rightIndex;
+        }
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+
+  return {
+    options: nextOptions,
+    variants: nextVariants,
+    userErrors,
+  };
 }
 
 function syncProductInventorySummary(productId: string): ProductRecord | null {
@@ -5283,6 +5417,22 @@ function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)];
 }
 
+function readVariantMediaInputs(value: unknown): Array<{ variantId: string; mediaIds: string[] }> {
+  return readPlainObjectArray(value)
+    .map((input) => {
+      const variantId = input['variantId'];
+      if (typeof variantId !== 'string') {
+        return null;
+      }
+
+      return {
+        variantId,
+        mediaIds: readStringArray(input['mediaIds']),
+      };
+    })
+    .filter((input): input is { variantId: string; mediaIds: string[] } => input !== null);
+}
+
 type SellingPlanGroupUserError = {
   field: string[];
   message: string;
@@ -5624,6 +5774,9 @@ function serializeVariantSelectionSet(
           selection,
           variables,
         );
+        break;
+      case 'media':
+        result[key] = serializeVariantMediaConnection(variant, selection, variables);
         break;
       case 'sellingPlanGroups':
         result[key] = serializeSellingPlanGroupConnection(
@@ -6603,6 +6756,36 @@ function serializeMediaConnection(
 
   promoteProcessingMediaAfterRead(productId, allMediaRecords);
   return result;
+}
+
+function serializeVariantMediaConnection(
+  variant: ProductVariantRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const productMediaById = new Map(
+    store
+      .getEffectiveMediaByProductId(variant.productId)
+      .filter((mediaRecord) => typeof mediaRecord.id === 'string')
+      .map((mediaRecord) => [mediaRecord.id as string, mediaRecord]),
+  );
+  const allMediaRecords = (variant.mediaIds ?? [])
+    .map((mediaId) => productMediaById.get(mediaId) ?? null)
+    .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
+  const {
+    items: mediaRecords,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(allMediaRecords, field, variables, (mediaRecord) => mediaRecord.id ?? mediaRecord.key);
+
+  return serializeConnection(field, {
+    items: mediaRecords,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (mediaRecord) => mediaRecord.id ?? mediaRecord.key,
+    serializeNode: (mediaRecord, selection) =>
+      serializeMediaSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
+  });
 }
 
 function productImageInlineFragmentApplies(typeName: string): boolean {
@@ -8545,6 +8728,94 @@ function serializeSellingPlanGroupMutationPayload(
   return result;
 }
 
+function serializeProductSellingPlanGroupMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    product?: ProductRecord | null;
+    productVariant?: ProductVariantRecord | null;
+    userErrors: SellingPlanGroupUserError[];
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'product':
+        result[key] = serializeProduct(payload.product ?? null, selection, variables);
+        break;
+      case 'productVariant':
+        result[key] = payload.productVariant
+          ? serializeVariantSelectionSet(payload.productVariant, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeSellingPlanGroupUserErrors(payload.userErrors, selection);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeVariantMediaMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    product: ProductRecord | null;
+    productVariants: ProductVariantRecord[];
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'product':
+        result[key] = serializeProduct(payload.product, selection, variables);
+        break;
+      case 'productVariants':
+        result[key] = serializeVariantPayload(payload.productVariants, selection);
+        break;
+      case 'userErrors':
+        result[key] = payload.userErrors.map((error) => {
+          const errorResult: Record<string, unknown> = {};
+          for (const errorSelection of selection.selectionSet?.selections ?? []) {
+            if (errorSelection.kind !== Kind.FIELD) {
+              continue;
+            }
+
+            const errorKey = errorSelection.alias?.value ?? errorSelection.name.value;
+            switch (errorSelection.name.value) {
+              case 'field':
+                errorResult[errorKey] = error.field;
+                break;
+              case 'message':
+                errorResult[errorKey] = error.message;
+                break;
+              default:
+                errorResult[errorKey] = null;
+            }
+          }
+          return errorResult;
+        });
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
 export function handleProductMutation(
   document: string,
   variables: Record<string, unknown>,
@@ -8734,6 +9005,94 @@ export function handleProductMutation(
           [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
             removedProductVariantIds,
             userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'productJoinSellingPlanGroups':
+    case 'productLeaveSellingPlanGroups': {
+      const productId = typeof args['id'] === 'string' ? args['id'] : null;
+      const product = productId ? store.getEffectiveProductById(productId) : null;
+      if (!productId || !product) {
+        return {
+          data: {
+            [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+              product: null,
+              userErrors: [{ field: ['id'], message: 'Product does not exist.', code: 'PRODUCT_DOES_NOT_EXIST' }],
+            }),
+          },
+        };
+      }
+
+      const isJoin = field.name.value === 'productJoinSellingPlanGroups';
+      const userErrors: SellingPlanGroupUserError[] = [];
+      for (const groupId of readStringArray(args['sellingPlanGroupIds'])) {
+        const group = store.getEffectiveSellingPlanGroupById(groupId);
+        if (!group) {
+          userErrors.push(sellingPlanGroupDoesNotExistError());
+          continue;
+        }
+
+        store.upsertStagedSellingPlanGroup({
+          ...group,
+          productIds: isJoin
+            ? uniqueStrings([...group.productIds, productId])
+            : group.productIds.filter((existingProductId) => existingProductId !== productId),
+        });
+      }
+
+      return {
+        data: {
+          [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+            product: store.getEffectiveProductById(productId),
+            userErrors,
+          }),
+        },
+      };
+    }
+    case 'productVariantJoinSellingPlanGroups':
+    case 'productVariantLeaveSellingPlanGroups': {
+      const variantId = typeof args['id'] === 'string' ? args['id'] : null;
+      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
+      if (!variantId || !variant) {
+        return {
+          data: {
+            [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+              productVariant: null,
+              userErrors: [
+                {
+                  field: ['id'],
+                  message: 'Product variant does not exist.',
+                  code: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+                },
+              ],
+            }),
+          },
+        };
+      }
+
+      const isJoin = field.name.value === 'productVariantJoinSellingPlanGroups';
+      const userErrors: SellingPlanGroupUserError[] = [];
+      for (const groupId of readStringArray(args['sellingPlanGroupIds'])) {
+        const group = store.getEffectiveSellingPlanGroupById(groupId);
+        if (!group) {
+          userErrors.push(sellingPlanGroupDoesNotExistError());
+          continue;
+        }
+
+        store.upsertStagedSellingPlanGroup({
+          ...group,
+          productVariantIds: isJoin
+            ? uniqueStrings([...group.productVariantIds, variantId])
+            : group.productVariantIds.filter((existingVariantId) => existingVariantId !== variantId),
+        });
+      }
+
+      return {
+        data: {
+          [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+            productVariant: store.getEffectiveVariantById(variantId),
+            userErrors,
           }),
         },
       };
@@ -9877,6 +10236,59 @@ export function handleProductMutation(
         },
       };
     }
+    case 'productOptionsReorder': {
+      const rawProductId = args['productId'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+            },
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: {
+              product: null,
+              userErrors: [{ field: ['productId'], message: 'Product not found' }],
+            },
+          },
+        };
+      }
+
+      const reorderResult = reorderProductOptionsAndVariants(productId, args['options']);
+      if (reorderResult.userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              userErrors: reorderResult.userErrors,
+            },
+          },
+        };
+      }
+
+      store.replaceStagedOptionsForProduct(productId, reorderResult.options);
+      store.replaceStagedVariantsForProduct(productId, reorderResult.variants);
+      return {
+        data: {
+          [responseKey]: {
+            product: serializeProduct(
+              store.getEffectiveProductById(productId),
+              getChildField(field, 'product'),
+              variables,
+            ),
+            userErrors: [],
+          },
+        },
+      };
+    }
     case 'collectionCreate': {
       const input = readProductInput(args['input']);
       const rawTitle = input['title'];
@@ -10029,6 +10441,48 @@ export function handleProductMutation(
         },
       };
     }
+    case 'collectionAddProductsV2': {
+      const rawCollectionId = args['id'];
+      const collectionId = typeof rawCollectionId === 'string' ? rawCollectionId : null;
+      if (!collectionId) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection id is required' }],
+            },
+          },
+        };
+      }
+
+      const existing = findEffectiveCollectionById(collectionId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: {
+              job: null,
+              userErrors: [{ field: ['id'], message: 'Collection does not exist' }],
+            },
+          },
+        };
+      }
+
+      const productIds = Array.isArray(args['productIds'])
+        ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
+        : [];
+      const result = addProductsToCollection(existing, productIds);
+      const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
+      return {
+        data: {
+          [responseKey]: {
+            job: job
+              ? serializeJobSelectionSet(job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
+              : null,
+            userErrors: result.userErrors,
+          },
+        },
+      };
+    }
     case 'collectionRemoveProducts': {
       const rawCollectionId = args['id'];
       const collectionId = typeof rawCollectionId === 'string' ? rawCollectionId : null;
@@ -10142,6 +10596,91 @@ export function handleProductMutation(
               : null,
             mediaUserErrors: result.userErrors,
           },
+        },
+      };
+    }
+    case 'productVariantAppendMedia':
+    case 'productVariantDetachMedia': {
+      const rawProductId = args['productId'];
+      const productId = typeof rawProductId === 'string' ? rawProductId : null;
+      if (!productId) {
+        return {
+          data: {
+            [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+              product: null,
+              productVariants: [],
+              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+            }),
+          },
+        };
+      }
+
+      const existingProduct = store.getEffectiveProductById(productId);
+      if (!existingProduct) {
+        return {
+          data: {
+            [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+              product: null,
+              productVariants: [],
+              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+            }),
+          },
+        };
+      }
+
+      const isAppend = field.name.value === 'productVariantAppendMedia';
+      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, structuredClone(variant)]));
+      const productMediaIds = new Set(
+        store
+          .getEffectiveMediaByProductId(productId)
+          .map((mediaRecord) => mediaRecord.id)
+          .filter((mediaId): mediaId is string => typeof mediaId === 'string'),
+      );
+      const updatedVariantIds: string[] = [];
+      const userErrors: Array<{ field: string[]; message: string }> = [];
+
+      readVariantMediaInputs(args['variantMedia']).forEach((input, index) => {
+        const variant = variantsById.get(input.variantId);
+        if (!variant) {
+          userErrors.push({ field: ['variantMedia', String(index), 'variantId'], message: 'Variant does not exist' });
+          return;
+        }
+
+        const unknownMediaIndex = input.mediaIds.findIndex((mediaId) => !productMediaIds.has(mediaId));
+        if (unknownMediaIndex >= 0) {
+          userErrors.push({
+            field: ['variantMedia', String(index), 'mediaIds', String(unknownMediaIndex)],
+            message: 'Media does not exist',
+          });
+          return;
+        }
+
+        const currentMediaIds = variant.mediaIds ?? [];
+        variant.mediaIds = isAppend
+          ? uniqueStrings([...currentMediaIds, ...input.mediaIds])
+          : currentMediaIds.filter((mediaId) => !input.mediaIds.includes(mediaId));
+        variantsById.set(variant.id, variant);
+        updatedVariantIds.push(variant.id);
+      });
+
+      if (userErrors.length === 0) {
+        store.replaceStagedVariantsForProduct(
+          productId,
+          effectiveVariants.map((variant) => variantsById.get(variant.id) ?? variant),
+        );
+      }
+
+      const updatedVariants = uniqueStrings(updatedVariantIds)
+        .map((variantId) => store.getEffectiveVariantById(variantId))
+        .filter((variant): variant is ProductVariantRecord => variant !== null);
+      return {
+        data: {
+          [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+            product: existingProduct,
+            productVariants: updatedVariants,
+            userErrors,
+          }),
         },
       };
     }

@@ -9,7 +9,11 @@
     "sellingPlanGroupAddProducts",
     "sellingPlanGroupRemoveProducts",
     "sellingPlanGroupAddProductVariants",
-    "sellingPlanGroupRemoveProductVariants"
+    "sellingPlanGroupRemoveProductVariants",
+    "productJoinSellingPlanGroups",
+    "productLeaveSellingPlanGroups",
+    "productVariantJoinSellingPlanGroups",
+    "productVariantLeaveSellingPlanGroups"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "read-after-write"],
@@ -317,5 +321,5 @@
       }
     ]
   },
-  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors."
+  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors. HAR-299 product/productVariant join and leave roots share the same normalized membership model and are enforced by `tests/integration/selling-plan-group-flow.test.ts` for root-specific payloads plus downstream membership counts."
 }

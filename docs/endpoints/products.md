@@ -56,6 +56,7 @@ Local staged mutations:
 - `productOptionsCreate`
 - `productOptionUpdate`
 - `productOptionsDelete`
+- `productOptionsReorder`
 - `productVariantsBulkCreate`
 - `productVariantsBulkUpdate`
 - `productVariantsBulkDelete`
@@ -67,6 +68,8 @@ Local staged mutations:
 - `productUpdateMedia`
 - `productDeleteMedia`
 - `productReorderMedia`
+- `productVariantAppendMedia`
+- `productVariantDetachMedia`
 - `inventoryItemUpdate`
 - `inventoryAdjustQuantities`
 - `inventorySetQuantities`
@@ -81,6 +84,7 @@ Local staged mutations:
 - `collectionUpdate`
 - `collectionDelete`
 - `collectionAddProducts`
+- `collectionAddProductsV2`
 - `collectionRemoveProducts`
 - `collectionReorderProducts`
 - `sellingPlanGroupCreate`
@@ -90,6 +94,10 @@ Local staged mutations:
 - `sellingPlanGroupRemoveProducts`
 - `sellingPlanGroupAddProductVariants`
 - `sellingPlanGroupRemoveProductVariants`
+- `productJoinSellingPlanGroups`
+- `productLeaveSellingPlanGroups`
+- `productVariantJoinSellingPlanGroups`
+- `productVariantLeaveSellingPlanGroups`
 - `publicationCreate`
 - `publicationUpdate`
 - `publicationDelete`
@@ -105,6 +113,7 @@ These product-adjacent roots are registered in the operation registry as product
 - `productFullSync`
 - `productBundleCreate`
 - `productBundleUpdate`
+- `productVariantRelationshipBulkUpdate`
 - `combinedListingUpdate`
 
 ## Behavior notes
@@ -113,14 +122,16 @@ These product-adjacent roots are registered in the operation registry as product
 - Product feed mutations remain unsupported. The 2025-01 `harry-test-heelo` probe for `productFeedCreate(country: US, language: EN)` returned a top-level `NOT_FOUND` error, `Unable to find channel for product feed`; `productFeedDelete` and `productFullSync` unknown feed ids returned payload userErrors with `field: ["id"]` and `ProductFeed does not exist`. Local staging needs channel-backed success evidence and downstream feed read effects before these roots can become supported.
 - Selling-plan group lifecycle and membership details are documented in `docs/endpoints/selling-plans.md`.
 - `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`, `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount` resolve from the staged selling-plan group membership model. Product and variant memberships are tracked separately, matching captured 2026-04 behavior where a group created with `resources.productIds` applies to the product but not automatically to the product variant.
-- Product bundle and combined-listing mutations remain unsupported. Captured guardrails cover `productBundleCreate` with empty components (`productBundleOperation: null`, user error `At least one component is required.`), `productBundleUpdate` with an unknown product (`productBundleOperation: null`, user error `Product does not exist`), and `combinedListingUpdate` with an unknown parent product (`product: null`, code `PARENT_PRODUCT_NOT_FOUND`). Local staging needs component-backed bundle success evidence, `ProductBundleOperation` lifecycle/status behavior, combined-listing child relationship evidence, and downstream product reads before these roots can become supported.
+- Product bundle, product variant relationship, and combined-listing mutations remain unsupported. Captured guardrails cover `productBundleCreate` with empty components (`productBundleOperation: null`, user error `At least one component is required.`), `productBundleUpdate` with an unknown product (`productBundleOperation: null`, user error `Product does not exist`), and `combinedListingUpdate` with an unknown parent product (`product: null`, code `PARENT_PRODUCT_NOT_FOUND`). `productVariantRelationshipBulkUpdate` is registered as a HAR-299 gap, but it is not implemented because full support requires normalized `ProductVariantComponent` state, bundle-specific validation, and downstream `productVariantComponents` reads. Local staging needs component-backed bundle success evidence, `ProductBundleOperation` lifecycle/status behavior, combined-listing child relationship evidence, and downstream product reads before these roots can become supported.
 - Product-domain metafields are normalized as owner-scoped records for `Product`, `ProductVariant`, and `Collection` owners. Besides `id`, `namespace`, `key`, `type`, and `value`, hydrated and staged records carry `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType` for owner-scoped parity. Metafield `definition` still serializes as `null` for product metafield node selections until a product-owned fixture returns nested definition data; definition records themselves are modeled through the metafields endpoint group.
 - Local `metafieldsSet` support covers product, product variant, and collection owners only. It validates the full input batch before replacing each affected owner metafield set, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned. For matching staged/effective metafield definitions, it infers omitted input `type`, rejects explicit type mismatches, and applies the fixture-backed `max` and `regex` validations represented in the local definition model. Customer, order, draft-order, shop, discount, and other owner families remain scoped to their own endpoint groups or future issues.
 - `metafieldsDelete` uses the same product-domain owner scope and returns ordered `deletedMetafields` entries, including `null` for missing namespace/key rows. Downstream `product(id:)`, `productVariant(id:)`, and `collection(id:)` reads expose staged owner-specific singular `metafield(namespace:, key:)` and `metafields` connection results without live writes.
 - Product search uses the shared Shopify-style search parser. Endpoint-specific product behavior includes boolean grouping, quoted values, field comparators, simple term-list searches, variant search terms, sort keys, and captured connection cursor/pageInfo baselines.
-- Live schema introspection confirms product reorder roots for variant order (`productVariantsBulkReorder`), media order (`productReorderMedia`), option/value order (`productOptionsReorder`), and collection product order (`collectionReorderProducts`). Local support currently covers variant list reordering and media list reordering because the normalized state already has ordered variant/media connections; `productOptionsReorder` remains registry-only until option/value reorder semantics and Shopify's resulting variant order recalculation are backed by conformance evidence.
+- Live schema introspection confirms product reorder roots for variant order (`productVariantsBulkReorder`), media order (`productReorderMedia`), option/value order (`productOptionsReorder`), and collection product order (`collectionReorderProducts`). Local support covers all four reorder roots with ordered normalized variants, media, options, option values, and collection membership rows.
 - `productVariantsBulkReorder` stages an ordered effective variant list from `ProductVariantPositionInput.position` and exposes that ordering through downstream `product.variants(...)` and `productVariant(id:)` reads without runtime Shopify writes.
+- `productOptionsReorder` stages the submitted option order and optional option-value order. It remaps variant `selectedOptions`, derives variant titles from the reordered selected-option tuple, and sorts downstream `product.variants(...)` by the reordered option/value sequence.
 - `productReorderMedia` stages `MoveInput` media moves, returns an async-style `Job`, and exposes reordered `product.media(...)` and `product.images(...)` connections without runtime Shopify writes.
+- `productVariantAppendMedia` and `productVariantDetachMedia` stage variant-specific media ID associations without duplicating or deleting product-level media. Downstream `productVariant.media(...)` resolves from the variant's ordered media IDs against the effective product media set.
 - `productByIdentifier` supports `identifier.id` and `identifier.handle` against effective local product state. `identifier.customId` returns `null` until unique product metafield identifier evidence and indexing are modeled.
 - `productVariantByIdentifier` supports `identifier.id` against effective local variant state. `identifier.customId` returns `null` until unique variant metafield identifier evidence and indexing are modeled.
 - Top-level `productVariants` and `productVariantsCount` resolve from effective local product variants. Supported local query terms are `id`, `product_id`, `title`, `sku`, `barcode`, `vendor`, `product_type`, and `tag`, with the shared Shopify-style boolean parser. Local sorting supports the common `ID`, `TITLE`, `SKU`, `POSITION`, and `INVENTORY_QUANTITY` paths, with connection serialization delegated to `src/proxy/graphql-helpers.ts`.
@@ -140,7 +151,7 @@ These product-adjacent roots are registered in the operation registry as product
 - Captured option lifecycle validation branches include `productOptionsCreate` with an unknown product (`field: ["productId"]`, `Product does not exist`), `productOptionUpdate` with an unknown option (`field: ["option"]`, `Option does not exist`), and `productOptionsDelete` with an unknown option id (`field: ["options", "0"]`, `Option does not exist`). These branches stage no upstream Shopify writes.
 - Top-level `products(query: "published_status:...")` and `productsCount(query: "published_status:...")` apply locally modeled aggregate product publication visibility. A product is treated as published for this filter only when it is `ACTIVE` and has at least one staged or hydrated publication target; `DRAFT` and `ARCHIVED` products remain unpublished even when publication targets are staged. Richer publication graph/detail parity remains limited to the aggregate product fields listed in the validation fixtures.
 - Top-level `collections(query: "published_status:...")` applies locally modeled aggregate collection publication state for staged and snapshot reads.
-- Product-side collection membership effects are modeled as normalized product collection rows. `productSet(input.collections)` replaces the product's effective memberships, while `productDuplicate` copies the source product's effective memberships onto the staged duplicate; downstream `product.collections`, `collection(id:)`, collection `products`, `productsCount`, `hasProduct`, and top-level `collections(query: "product_id:...")` reads resolve from the same staged membership rows.
+- Product-side collection membership effects are modeled as normalized product collection rows. `collectionAddProducts` and `collectionAddProductsV2` append memberships in submitted product order; V2 returns an async-style `Job` while exposing the same immediate local read-after-write effects. `productSet(input.collections)` replaces the product's effective memberships, while `productDuplicate` copies the source product's effective memberships onto the staged duplicate; downstream `product.collections`, `collection(id:)`, collection `products`, `productsCount`, `hasProduct`, and top-level `collections(query: "product_id:...")` reads resolve from the same staged membership rows.
 - `productSet(input.variants[].inventoryQuantities[])` accepts the live Shopify shape with `locationId`, `name`, and `quantity`. Staged create and update flows store those entries as inventory item `inventoryLevels` rows instead of only collapsing them onto the variant. Downstream `product`, `productVariant`, and `inventoryItem` reads expose the location-level `inventoryLevels`, selected `quantities(names: ...)`, aggregate variant `inventoryQuantity`, and product `totalInventory` from the staged graph. Current live evidence uses `name: "available"`; the local row mirrors that quantity into `on_hand` for read parity and leaves `incoming` at `0` unless separately hydrated.
 - Product-level `totalInventory` intentionally follows the captured `productSet` timing rather than the generic variant mutation summary path: synchronous create counted the tracked variant's available quantity, while a follow-up `productSet` variant inventory update changed variant and inventory-item quantities immediately but left `product.totalInventory` at the prior aggregate in both the mutation payload and immediate downstream reads.
 - `inventoryItems(...)` lists inventory items from the same product-variant-backed inventory graph as `inventoryItem(id:)`; snapshot no-data reads return an empty connection with false page booleans and null cursors. The local search slice covers captured-safe `id`, `sku`, and `tracked` terms and otherwise stays permissive like other early product search slices.

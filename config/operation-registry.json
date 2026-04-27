@@ -1606,6 +1606,46 @@
     "supportNotes": "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors."
   },
   {
+    "name": "productJoinSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productJoinSellingPlanGroups", "ProductJoinSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages product-to-selling-plan-group membership locally and exposes product.sellingPlanGroups / counts without runtime Shopify writes."
+  },
+  {
+    "name": "productLeaveSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productLeaveSellingPlanGroups", "ProductLeaveSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages product selling-plan-group membership removal locally and refreshes downstream product membership reads."
+  },
+  {
+    "name": "productVariantJoinSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantJoinSellingPlanGroups", "ProductVariantJoinSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-to-selling-plan-group membership locally and exposes ProductVariant.sellingPlanGroups / direct counts without runtime Shopify writes."
+  },
+  {
+    "name": "productVariantLeaveSellingPlanGroups",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantLeaveSellingPlanGroups", "ProductVariantLeaveSellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant selling-plan-group membership removal locally and refreshes downstream ProductVariant membership reads."
+  },
+  {
     "name": "tagsAdd",
     "type": "mutation",
     "domain": "products",
@@ -2655,10 +2695,10 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productOptionsReorder", "ProductOptionsReorder"],
-    "runtimeTests": [],
-    "supportNotes": "Live schema introspection confirms `productOptionsReorder(productId: ID!, options: [OptionReorderInput!]!)` returns `product` plus `userErrors`. Keep unimplemented until option/value reorder semantics and the resulting variant order recalculation are backed by conformance evidence; registry presence must not make this a supported passthrough."
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages option and option-value reorder locally, remaps variant selectedOptions/title order, and sorts the variant connection from the reordered option/value sequence without runtime Shopify writes."
   },
   {
     "name": "productVariantsBulkCreate",
@@ -2760,6 +2800,36 @@
     "matchNames": ["productReorderMedia", "ProductReorderMedia"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
     "supportNotes": "Local staging applies `MoveInput` media moves to the effective product media order, returns an async-style `Job`, and exposes the reordered media/image connections without runtime Shopify writes."
+  },
+  {
+    "name": "productVariantAppendMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantAppendMedia", "ProductVariantAppendMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-specific media attachments as ordered media IDs on ProductVariant and exposes ProductVariant.media without runtime Shopify writes."
+  },
+  {
+    "name": "productVariantDetachMedia",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["productVariantDetachMedia", "ProductVariantDetachMedia"],
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages variant-specific media detaches locally and updates ProductVariant.media reads without removing product-level media."
+  },
+  {
+    "name": "productVariantRelationshipBulkUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["productVariantRelationshipBulkUpdate", "ProductVariantRelationshipBulkUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-299 registers the bundle relationship root as an explicit gap. Full support requires normalized ProductVariantComponent state, bundle-specific validation, and downstream productVariantComponents reads; do not mark validation-only or branch-only handling as implemented."
   },
   {
     "name": "inventoryItemUpdate",
@@ -3134,6 +3204,16 @@
     "implemented": true,
     "matchNames": ["collectionAddProducts", "CollectionAddProducts"],
     "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"]
+  },
+  {
+    "name": "collectionAddProductsV2",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["collectionAddProductsV2", "CollectionAddProductsV2"],
+    "runtimeTests": ["tests/integration/collection-draft-flow.test.ts"],
+    "supportNotes": "HAR-299 stages the V2 async-shaped collection add locally, returning a Job payload while making downstream collection/product membership reads observe the new manual-order memberships."
   },
   {
     "name": "collectionRemoveProducts",

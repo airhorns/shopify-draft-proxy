@@ -1,6 +1,12 @@
 {
   "scenarioId": "product-media-validation-branches",
-  "operationNames": ["productCreateMedia", "productUpdateMedia", "productDeleteMedia"],
+  "operationNames": [
+    "productCreateMedia",
+    "productUpdateMedia",
+    "productDeleteMedia",
+    "productVariantAppendMedia",
+    "productVariantDetachMedia"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "mutation-no-write-parity", "payload-shape"],
   "liveCaptureFiles": [
@@ -286,5 +292,5 @@
       }
     ]
   },
-  "notes": "Executable multi-step validation fixture covering missing/unknown product ids, empty media/id inputs, invalid image source, invalid mediaContentType variable coercion, unknown media ids, and mixed valid/invalid batches. The parity runner seeds the captured product plus one ready seed media item, stages the mixed create branch locally, then compares rejected update/delete no-write downstream media reads against the captured fixture."
+  "notes": "Executable multi-step validation fixture covering missing/unknown product ids, empty media/id inputs, invalid image source, invalid mediaContentType variable coercion, unknown media ids, and mixed valid/invalid batches. The parity runner seeds the captured product plus one ready seed media item, stages the mixed create branch locally, then compares rejected update/delete no-write downstream media reads against the captured fixture. HAR-299 variant append/detach roots share the product media validation surface and are additionally enforced by `tests/integration/product-draft-flow.test.ts` for variant-specific read-after-write behavior."
 }

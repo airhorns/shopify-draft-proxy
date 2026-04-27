@@ -235,6 +235,7 @@ export const productVariantRecordSchema = z.strictObject({
   inventoryQuantity: nullableNumberSchema,
   selectedOptions: z.array(productVariantSelectedOptionRecordSchema),
   inventoryItem: inventoryItemRecordSchema.nullable(),
+  mediaIds: z.array(z.string()).optional(),
 });
 export type ProductVariantRecord = z.infer<typeof productVariantRecordSchema>;
 
