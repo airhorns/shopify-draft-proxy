@@ -1,0 +1,29 @@
+query Har299ProductOptionsRead($productId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    handle
+    status
+    options {
+      id
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    variants(first: 10) {
+      nodes {
+        id
+        title
+        selectedOptions {
+          name
+          value
+        }
+      }
+    }
+  }
+}

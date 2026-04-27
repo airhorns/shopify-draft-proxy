@@ -1,0 +1,23 @@
+mutation Har299ProductVariantJoinSellingPlanGroups($id: ID!, $sellingPlanGroupIds: [ID!]!) {
+  productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) {
+    productVariant {
+      id
+      sellingPlanGroups(first: 5) {
+        nodes {
+          id
+          name
+          merchantCode
+        }
+      }
+      sellingPlanGroupsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

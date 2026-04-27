@@ -1075,8 +1075,8 @@ describe('collection draft flow', () => {
           id: 'gid://shopify/Collection/9432',
           products: {
             nodes: [
-              { id: 'gid://shopify/Product/4320', title: 'V2 Green Hat', handle: 'v2-green-hat' },
               { id: 'gid://shopify/Product/4321', title: 'V2 Blue Hat', handle: 'v2-blue-hat' },
+              { id: 'gid://shopify/Product/4320', title: 'V2 Green Hat', handle: 'v2-green-hat' },
             ],
           },
           hasProduct: true,

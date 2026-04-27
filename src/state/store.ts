@@ -892,6 +892,14 @@ export class InMemoryStore {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productIds.includes(productId));
   }
 
+  listEffectiveSellingPlanGroupsVisibleForProduct(productId: string): SellingPlanGroupRecord[] {
+    const variantIds = new Set(this.getEffectiveVariantsByProductId(productId).map((variant) => variant.id));
+    return this.listEffectiveSellingPlanGroups().filter(
+      (group) =>
+        group.productIds.includes(productId) || group.productVariantIds.some((variantId) => variantIds.has(variantId)),
+    );
+  }
+
   listEffectiveSellingPlanGroupsForProductVariant(variantId: string): SellingPlanGroupRecord[] {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productVariantIds.includes(variantId));
   }

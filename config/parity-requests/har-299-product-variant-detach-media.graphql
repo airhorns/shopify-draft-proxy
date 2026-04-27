@@ -1,0 +1,17 @@
+mutation Har299ProductVariantDetachMedia($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+  productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+    productVariants {
+      id
+      media(first: 10) {
+        nodes {
+          id
+          alt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -513,7 +513,7 @@ describe('selling plan group flow', () => {
     expect(leaveProductResponse.body.data.productLeaveSellingPlanGroups).toEqual({
       product: {
         id: productId,
-        sellingPlanGroups: { nodes: [] },
+        sellingPlanGroups: { nodes: [{ id: groupId }] },
         sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
       },
       userErrors: [],

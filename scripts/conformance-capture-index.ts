@@ -237,6 +237,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    packageScript: 'conformance:capture-product-relationship-roots',
+    scriptPath: 'scripts/capture-product-relationship-roots-conformance.ts',
+    purpose:
+      'Product/variant relationship roots for option ordering, collection V2 membership, media attachment, and selling-plan membership.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}har-299-product-relationship-roots.json`,
+      'config/parity-specs/har-299-product-relationship-roots-live-parity.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     packageScript: 'conformance:capture-selling-plan-groups',
     scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
     purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',

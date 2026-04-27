@@ -520,6 +520,7 @@ function reorderProductVariants(
 function addProductsToCollection(
   collection: CollectionRecord,
   productIds: string[],
+  options: { placement?: 'append' | 'prepend-reverse' } = {},
 ): { collection: CollectionRecord | null; userErrors: Array<{ field: string[]; message: string }> } {
   const normalizedProductIds = productIds.filter((productId, index) => productIds.indexOf(productId) === index);
   if (normalizedProductIds.length === 0) {
@@ -560,9 +561,18 @@ function addProductsToCollection(
     .filter((candidate) => candidate.id === collection.id)
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
-  const firstPosition = existingPositions.length > 0 ? Math.max(...existingPositions) + 1 : 0;
+  const placement = options.placement ?? 'append';
+  const firstPosition =
+    placement === 'prepend-reverse'
+      ? existingPositions.length > 0
+        ? Math.min(...existingPositions) - existingProductIds.length
+        : 0
+      : existingPositions.length > 0
+        ? Math.max(...existingPositions) + 1
+        : 0;
+  const positionedProductIds = placement === 'prepend-reverse' ? [...existingProductIds].reverse() : existingProductIds;
 
-  for (const [index, productId] of existingProductIds.entries()) {
+  for (const [index, productId] of positionedProductIds.entries()) {
     const nextCollections = [
       ...store.getEffectiveCollectionsByProductId(productId),
       makeProductCollectionRecord(productId, collection, firstPosition + index),
@@ -1855,13 +1865,17 @@ function syncProductOptionsWithVariants(
 function reorderOptionValues(
   option: ProductOptionRecord,
   rawValues: unknown,
-): { option: ProductOptionRecord; userErrors: Array<{ field: string[]; message: string }> } {
+): {
+  option: ProductOptionRecord;
+  requestedValueNames: string[];
+  userErrors: Array<{ field: string[]; message: string }>;
+} {
   if (!Array.isArray(rawValues)) {
-    return { option: structuredClone(option), userErrors: [] };
+    return { option: structuredClone(option), requestedValueNames: [], userErrors: [] };
   }
 
-  const remainingValues = option.optionValues.map((value) => structuredClone(value));
-  const reorderedValues: ProductOptionRecord['optionValues'] = [];
+  const optionValues = option.optionValues.map((value) => structuredClone(value));
+  const requestedValueNames: string[] = [];
   const userErrors: Array<{ field: string[]; message: string }> = [];
 
   rawValues.forEach((rawValue, index) => {
@@ -1871,26 +1885,21 @@ function reorderOptionValues(
 
     const rawId = rawValue['id'];
     const rawName = rawValue['name'];
-    const valueIndex = remainingValues.findIndex(
+    const value = optionValues.find(
       (value) =>
         (typeof rawId === 'string' && value.id === rawId) || (typeof rawName === 'string' && value.name === rawName),
     );
-    if (valueIndex < 0) {
+    if (!value) {
       userErrors.push({ field: ['options', 'values', String(index)], message: 'Option value does not exist' });
       return;
     }
 
-    const [value] = remainingValues.splice(valueIndex, 1);
-    if (value) {
-      reorderedValues.push(value);
-    }
+    requestedValueNames.push(value.name);
   });
 
   return {
-    option: {
-      ...structuredClone(option),
-      optionValues: [...reorderedValues, ...remainingValues],
-    },
+    option: structuredClone(option),
+    requestedValueNames,
     userErrors,
   };
 }
@@ -1906,6 +1915,7 @@ function reorderProductOptionsAndVariants(
   const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
   const remainingOptions = effectiveOptions.map((option) => structuredClone(option));
   const reorderedOptions: ProductOptionRecord[] = [];
+  const requestedValueOrderByOptionName = new Map<string, Map<string, number>>();
   const userErrors: Array<{ field: string[]; message: string }> = [];
 
   if (!Array.isArray(rawOptions)) {
@@ -1939,6 +1949,12 @@ function reorderProductOptionsAndVariants(
 
     const valueResult = reorderOptionValues(option, rawOption['values']);
     userErrors.push(...valueResult.userErrors);
+    if (valueResult.requestedValueNames.length > 0) {
+      requestedValueOrderByOptionName.set(
+        option.name,
+        new Map(valueResult.requestedValueNames.map((valueName, valueIndex) => [valueName, valueIndex])),
+      );
+    }
     reorderedOptions.push(valueResult.option);
   });
 
@@ -1946,7 +1962,8 @@ function reorderProductOptionsAndVariants(
   const valueOrderByOptionName = new Map(
     nextOptions.map((option) => [
       option.name,
-      new Map(option.optionValues.map((optionValue, valueIndex) => [optionValue.name, valueIndex])),
+      requestedValueOrderByOptionName.get(option.name) ??
+        new Map(option.optionValues.map((optionValue, valueIndex) => [optionValue.name, valueIndex])),
     ]),
   );
   const remappedVariants = reorderVariantSelectionsForOptions(
@@ -7006,7 +7023,7 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
     case 'sellingPlanGroups':
       return serializeSellingPlanGroupConnection(
-        store.listEffectiveSellingPlanGroupsForProduct(product.id),
+        store.listEffectiveSellingPlanGroupsVisibleForProduct(product.id),
         field,
         variables,
       );
@@ -10474,7 +10491,7 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds);
+      const result = addProductsToCollection(existing, productIds, { placement: 'prepend-reverse' });
       const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
       return {
         data: {

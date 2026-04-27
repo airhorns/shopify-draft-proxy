@@ -1,0 +1,30 @@
+query Har299SellingPlanMembershipRead($productId: ID!, $variantId: ID!) {
+  product(id: $productId) {
+    id
+    sellingPlanGroups(first: 5) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+    }
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    sellingPlanGroups(first: 5) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+    }
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+  }
+}
