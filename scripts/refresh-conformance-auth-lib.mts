@@ -1,7 +1,17 @@
-// @ts-nocheck
+type RefreshClientIdSource = {
+  payload?: unknown;
+  sourceName?: string;
+};
+
+type RefreshFailureClassification = {
+  kind: string;
+  recommendedNextStep: string;
+  summary: string;
+};
+
 export function resolveRefreshClientId(
-  manualStoreAuthPayload: any,
-  fallbackSources: Array<{ payload?: any; sourceName?: string }> = [],
+  manualStoreAuthPayload: unknown,
+  fallbackSources: RefreshClientIdSource[] = [],
 ): { clientId: string; sourceName: string } {
   const directClientId = pickClientId(manualStoreAuthPayload);
   if (directClientId) {
@@ -24,11 +34,9 @@ export function resolveRefreshClientId(
   throw new Error('.manual-store-auth-token.json is missing required string field client_id.');
 }
 
-export function classifyRefreshFailure(
-  payload: any,
-): { kind: string; recommendedNextStep: string; summary: string } | null {
-  const error = typeof payload?.error === 'string' ? payload.error.toLowerCase() : '';
-  const description = typeof payload?.error_description === 'string' ? payload.error_description.toLowerCase() : '';
+export function classifyRefreshFailure(payload: unknown): RefreshFailureClassification | null {
+  const error = readStringProperty(payload, 'error')?.toLowerCase() ?? '';
+  const description = readStringProperty(payload, 'error_description')?.toLowerCase() ?? '';
 
   if (error === 'invalid_request' && description.includes('active refresh_token')) {
     return {
@@ -41,16 +49,25 @@ export function classifyRefreshFailure(
   return null;
 }
 
-function pickClientId(payload: any): string | null {
-  const clientId = payload?.['client_id'];
+function pickClientId(payload: unknown): string | null {
+  const clientId = readStringProperty(payload, 'client_id');
   if (typeof clientId === 'string' && clientId.length > 0) {
     return clientId;
   }
 
-  const legacyClientId = payload?.['clientId'];
+  const legacyClientId = readStringProperty(payload, 'clientId');
   if (typeof legacyClientId === 'string' && legacyClientId.length > 0) {
     return legacyClientId;
   }
 
   return null;
+}
+
+function readStringProperty(value: unknown, key: string): string | null {
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+
+  const candidate = (value as Record<string, unknown>)[key];
+  return typeof candidate === 'string' ? candidate : null;
 }
