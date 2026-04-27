@@ -10,6 +10,10 @@ Overlay reads:
 - `return`
 - `orders`
 - `ordersCount`
+- `abandonedCheckouts`
+- `abandonedCheckoutsCount`
+- `abandonment`
+- `abandonmentByAbandonedCheckoutId`
 - `draftOrder`
 - `draftOrders`
 - `draftOrdersCount`
@@ -45,6 +49,7 @@ Local staged mutations:
 - `returnCancel`
 - `returnClose`
 - `returnReopen`
+- `abandonmentUpdateActivitiesDeliveryStatuses`
 - `draftOrderCreate`
 - `draftOrderComplete`
 - `draftOrderUpdate`
@@ -64,6 +69,9 @@ Local staged mutations:
 - Nested `Order.fulfillments` and `Order.fulfillmentOrders` remain the order-owned source for top-level fulfillment reads. The shipping/fulfillments endpoint docs describe the top-level `fulfillment(id:)`, `fulfillmentOrder(id:)`, and fulfillment-order catalog roots that now serialize from the same local order graph.
 - Fulfillment flows return Shopify-shaped `userErrors` and expose staged state through immediate downstream order fulfillment reads without sending supported mutations to Shopify at runtime. Staged fulfillment events are visible through both top-level `fulfillment(id:)` and nested `Order.fulfillments.events`, and tracking/cancel updates preserve event history and shipment milestone fields. Staged fulfillment-order request statuses and merchant request messages are visible through `fulfillmentOrder`, `fulfillmentOrders`, `assignedFulfillmentOrders`, and nested `Order.fulfillmentOrders`; no fulfillment-service notification callbacks are invoked. Broader shipping/fulfillment roots and coverage boundaries are tracked in `docs/endpoints/shipping-fulfillments.md`.
 - Draft-order create/complete/update/duplicate/delete/invoice/create-from-order flows preserve staged state for downstream reads and commit replay.
+- Abandoned checkout reads are modeled for snapshot/local state. Empty `abandonedCheckouts` returns an empty connection with false/null `pageInfo`, `abandonedCheckoutsCount` returns `{ count: 0, precision: "EXACT" }`, and missing `abandonment` / `abandonmentByAbandonedCheckoutId` lookups return `null`, matching the 2026-04-27 live capture against `harry-test-heelo.myshopify.com` on Admin GraphQL `2025-01`.
+- Representative non-empty abandoned checkout and abandonment reads serialize from seeded normalized records. The live conformance store had no abandoned checkout records during HAR-300, so non-empty runtime coverage is schema/introspection-backed rather than a live non-empty fixture. Future work should replace or supplement that seeded proof when a disposable store can produce real abandoned checkout data.
+- `abandonmentUpdateActivitiesDeliveryStatuses` is local-only for seeded/snapshot abandonment records. Unknown IDs mirror the captured safe payload `abandonment: null` plus `userErrors[{ field: ["abandonmentId"], message: "abandonment_not_found" }]`. Known local records update the in-memory delivery activity map, surface `emailState` / `emailSentAt` changes on downstream local reads, append the original raw mutation to the meta log, and never send the runtime mutation to Shopify.
 - `draftOrderInvoiceSend` is treated as an outbound email side-effect root. Runtime support never sends the mutation upstream or emails a customer; it appends the original raw mutation to the meta log for explicit commit replay. Safe captured 2026-04 branches are mirrored locally for missing/unknown/deleted draft IDs, no-recipient drafts (`To can't be blank`), and completed no-recipient drafts (`To can't be blank` plus the already-paid error). For open local drafts with a recipient, the proxy returns an explicit local userError instead of pretending the invoice email was delivered.
 - `draftOrder(id:)` returns `null` for absent IDs. The `draft-order-by-id-not-found-read` parity scenario captures this missing-id behavior without relying on live upstream passthrough.
 - Draft-order detail parity now compares the captured `draftOrder(id:)` payload as a strict object for the selected phone, timestamp, subtotal/total, line-item unit-price, SKU/nullability, address, shipping-line, custom-attribute, discount, tax-exemption, and payment-terms fields. The current live detail capture returns `paymentTerms: null` for the merchant-realistic draft without terms and preserves empty line-item structures such as `customAttributes: []`, `appliedDiscount: null`, and variant-backed SKU/title nullability.
@@ -94,6 +102,7 @@ Local staged mutations:
 ## Validation anchors
 
 - Order reads: `tests/integration/order-query-shapes.test.ts`
+- Abandoned checkouts and abandonments: `tests/integration/abandoned-checkout-query-shapes.test.ts`
 - Order lifecycle, payment, and customer changes: `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
 - Order payment transaction changes: `tests/integration/order-payment-transaction-flow.test.ts`
 - Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
