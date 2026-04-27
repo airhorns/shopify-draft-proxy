@@ -1,0 +1,10 @@
+query ShippingLocalPickupRead($locationId: ID!) {
+  location(id: $locationId) {
+    id
+    name
+    localPickupSettingsV2 {
+      pickupTime
+      instructions
+    }
+  }
+}
