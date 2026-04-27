@@ -5546,6 +5546,42 @@ function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId
   return true;
 }
 
+function seedProductReorderMediaPreconditions(capture: unknown, productId: string): boolean {
+  if (mutationNameFromCapture(capture) !== 'productReorderMedia') {
+    return false;
+  }
+
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const setupCreatedProduct = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreate'), 'data'),
+    'productCreate',
+  );
+  const setupProduct = readRecordField(setupCreatedProduct, 'product');
+  const setupCreateMedia = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreateMedia'), 'response'),
+    'data',
+  );
+  const createMediaPayload = readRecordField(setupCreateMedia, 'productCreateMedia');
+  const mediaProduct = readRecordField(createMediaPayload, 'product');
+  const productSource =
+    readStringField(setupProduct, 'id') === productId
+      ? setupProduct
+      : readStringField(mediaProduct, 'id') === productId
+        ? mediaProduct
+        : null;
+
+  if (!productSource) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource, 'Product media reorder conformance seed')]);
+  const capturedMedia = readCapturedProductMedia(productId, mediaProduct);
+  if (capturedMedia.length > 0) {
+    store.replaceBaseMediaForProduct(productId, capturedMedia);
+  }
+  return true;
+}
+
 function readTagQueryValue(query: string | null): string | null {
   if (!query) {
     return null;
@@ -7110,6 +7146,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       mutationName === 'productVariantsBulkReorder' &&
       seedProductVariantsBulkReorderPreconditions(capture, productId)
     ) {
+      return;
+    }
+
+    if (mutationName === 'productReorderMedia' && seedProductReorderMediaPreconditions(capture, productId)) {
       return;
     }
 

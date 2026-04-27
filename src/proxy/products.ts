@@ -6672,7 +6672,11 @@ function serializeProductImagesConnection(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const allMediaRecords = store.getEffectiveMediaByProductId(productId);
-  const allImageRecords = allMediaRecords.filter((mediaRecord) => mediaRecord.mediaContentType === 'IMAGE');
+  const allImageRecords = allMediaRecords.filter(
+    (mediaRecord) =>
+      mediaRecord.mediaContentType === 'IMAGE' &&
+      (mediaRecord.productImageId !== null || getProductImageUrl(mediaRecord) !== null),
+  );
   const {
     items: imageRecords,
     hasNextPage,

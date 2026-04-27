@@ -10,8 +10,8 @@
     "documentPath": "config/parity-requests/productVariantDelete-parity-plan.graphql",
     "variablesPath": "config/parity-requests/productVariantDelete-parity-plan.variables.json"
   },
-  "comparisonMode": "captured-compatibility-wrapper",
-  "notes": "Executed compatibility-wrapper coverage for `productVariantDelete`: compare the checked-in single-variant delete wrapper against the live-supported bulk-delete parity slice it reuses locally. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas, while the downstream read target asserts immediate product.variants removal, product inventory summaries, and captured sku-filtered products/productsCount search lag.",
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable compatibility parity for `productVariantDelete`: the generic parity runner compares the checked-in single-variant delete proxy request against the equivalent live-supported `productVariantsBulkDelete` capture with explicit strict-json targets for the deleted variant id, user errors, and downstream product.variants/search-lag reads. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; this spec is no longer capture-only or pending Markdown evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
