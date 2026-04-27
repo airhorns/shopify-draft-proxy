@@ -171,6 +171,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       onlineStorePageOrder: [],
       onlineStoreComments: {},
       onlineStoreCommentOrder: [],
+      bulkOperations: {},
+      bulkOperationOrder: [],
       discounts: {},
       discountBulkOperations: {},
       paymentCustomizations: {},
