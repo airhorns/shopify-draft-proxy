@@ -8,6 +8,7 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation } from './media.js';
@@ -960,6 +961,27 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
         ctx.body = handleEventsQuery(body.query);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleB2BQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
     }

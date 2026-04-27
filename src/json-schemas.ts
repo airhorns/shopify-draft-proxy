@@ -39,6 +39,7 @@ export const operationRegistryEntrySchema = z.strictObject({
   type: z.enum(['query', 'mutation']),
   domain: z.enum([
     'products',
+    'b2b',
     'media',
     'bulk-operations',
     'customers',

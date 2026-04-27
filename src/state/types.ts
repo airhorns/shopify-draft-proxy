@@ -667,6 +667,40 @@ export const businessEntityRecordSchema = z.strictObject({
 });
 export type BusinessEntityRecord = z.infer<typeof businessEntityRecordSchema>;
 
+export const b2bCompanyContactRoleRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyContactRoleRecord = z.infer<typeof b2bCompanyContactRoleRecordSchema>;
+
+export const b2bCompanyContactRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyContactRecord = z.infer<typeof b2bCompanyContactRecordSchema>;
+
+export const b2bCompanyLocationRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyLocationRecord = z.infer<typeof b2bCompanyLocationRecordSchema>;
+
+export const b2bCompanyRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+  contactIds: z.array(z.string()).default([]),
+  locationIds: z.array(z.string()).default([]),
+  contactRoleIds: z.array(z.string()).default([]),
+});
+export type B2BCompanyRecord = z.infer<typeof b2bCompanyRecordSchema>;
+
 export const productCatalogPageInfoRecordSchema = z.strictObject({
   hasNextPage: z.boolean(),
   hasPreviousPage: z.boolean(),
@@ -1610,6 +1644,14 @@ export const stateSnapshotSchema = z.strictObject({
   paymentCustomizationOrder: z.array(z.string()).default([]),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
+  b2bCompanies: z.record(z.string(), b2bCompanyRecordSchema).default({}),
+  b2bCompanyOrder: z.array(z.string()).default([]),
+  b2bCompanyContacts: z.record(z.string(), b2bCompanyContactRecordSchema).default({}),
+  b2bCompanyContactOrder: z.array(z.string()).default([]),
+  b2bCompanyContactRoles: z.record(z.string(), b2bCompanyContactRoleRecordSchema).default({}),
+  b2bCompanyContactRoleOrder: z.array(z.string()).default([]),
+  b2bCompanyLocations: z.record(z.string(), b2bCompanyLocationRecordSchema).default({}),
+  b2bCompanyLocationOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
   marketOrder: z.array(z.string()).default([]),
   webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
