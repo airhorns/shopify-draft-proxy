@@ -8,6 +8,7 @@ import {
   defaultGraphqlTypeConditionApplies,
   getDocumentFragments,
   getFieldResponseKey,
+  getNodeLocation,
   isPlainObject,
   paginateConnectionItems,
   projectGraphqlValue,
@@ -797,10 +798,7 @@ function buildMissingRequiredArgumentsError(
   const operationLabel = operation?.name?.value
     ? `${operation.operation} ${operation.name.value}`
     : (operation?.operation ?? 'mutation');
-  const location =
-    field.loc?.startToken.line && field.loc.startToken.column
-      ? [{ line: field.loc.startToken.line, column: field.loc.startToken.column }]
-      : [];
+  const location = getNodeLocation(field);
   const argumentsText = missingArguments.join(', ');
 
   return {
@@ -817,10 +815,7 @@ function buildMissingRequiredArgumentsError(
 }
 
 function buildSegmentNotFoundError(field: FieldNode): Record<string, unknown> {
-  const location =
-    field.loc?.startToken.line && field.loc.startToken.column
-      ? [{ line: field.loc.startToken.line, column: field.loc.startToken.column }]
-      : [];
+  const location = getNodeLocation(field);
 
   return {
     message: 'Segment does not exist',
@@ -1009,10 +1004,7 @@ function handleCustomerSegmentMembersQueryCreate(
 }
 
 function buildCustomerSegmentMembersError(field: FieldNode, message: string): Record<string, unknown> {
-  const location =
-    field.loc?.startToken.line && field.loc.startToken.column
-      ? [{ line: field.loc.startToken.line, column: field.loc.startToken.column }]
-      : [];
+  const location = getNodeLocation(field);
 
   return {
     message,
@@ -1022,10 +1014,7 @@ function buildCustomerSegmentMembersError(field: FieldNode, message: string): Re
 }
 
 function buildCustomerSegmentMembersQueryNotFoundError(field: FieldNode): Record<string, unknown> {
-  const location =
-    field.loc?.startToken.line && field.loc.startToken.column
-      ? [{ line: field.loc.startToken.line, column: field.loc.startToken.column }]
-      : [];
+  const location = getNodeLocation(field);
 
   return {
     message: 'Something went wrong',

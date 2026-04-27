@@ -5,12 +5,62 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
+import type { CustomerRecord } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
   shopifyAdminOrigin: 'https://example.myshopify.com',
   readMode: 'snapshot',
 };
+
+function makeConsentCustomer(overrides: Partial<CustomerRecord> = {}): CustomerRecord {
+  const base: CustomerRecord = {
+    id: 'gid://shopify/Customer/403',
+    firstName: 'Katherine',
+    lastName: 'Johnson',
+    displayName: 'Katherine Johnson',
+    email: 'katherine@example.com',
+    legacyResourceId: '403',
+    locale: 'en',
+    note: null,
+    canDelete: true,
+    verifiedEmail: true,
+    taxExempt: false,
+    state: 'DISABLED',
+    tags: ['newsletter'],
+    numberOfOrders: '2',
+    amountSpent: null,
+    defaultEmailAddress: {
+      emailAddress: 'katherine@example.com',
+      marketingState: 'NOT_SUBSCRIBED',
+      marketingOptInLevel: 'SINGLE_OPT_IN',
+      marketingUpdatedAt: null,
+    },
+    defaultPhoneNumber: {
+      phoneNumber: '+14155550124',
+      marketingState: 'NOT_SUBSCRIBED',
+      marketingOptInLevel: 'SINGLE_OPT_IN',
+      marketingUpdatedAt: null,
+      marketingCollectedFrom: null,
+    },
+    emailMarketingConsent: {
+      marketingState: 'NOT_SUBSCRIBED',
+      marketingOptInLevel: 'SINGLE_OPT_IN',
+      consentUpdatedAt: null,
+    },
+    smsMarketingConsent: {
+      marketingState: 'NOT_SUBSCRIBED',
+      marketingOptInLevel: 'SINGLE_OPT_IN',
+      consentUpdatedAt: null,
+      consentCollectedFrom: null,
+    },
+    defaultAddress: null,
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+  };
+
+  return { ...base, ...overrides };
+}
 
 describe('customer draft flow', () => {
   beforeEach(() => {
@@ -3672,6 +3722,435 @@ describe('customer draft flow', () => {
         status: 'staged',
       },
     ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors captured consent input variable validation without mutating customer state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid consent inputs should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([makeConsentCustomer()]);
+    const app = createApp(snapshotConfig).callback();
+    const cases = [
+      {
+        name: 'missing email consent payload',
+        query: `mutation EmailConsent($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { input: { customerId: 'gid://shopify/Customer/403' } },
+        message:
+          'Variable $input of type CustomerEmailMarketingConsentUpdateInput! was provided invalid value for emailMarketingConsent (Expected value to not be null)',
+        path: ['emailMarketingConsent'],
+        explanation: 'Expected value to not be null',
+      },
+      {
+        name: 'null SMS marketing state',
+        query: `mutation SmsConsent($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: null,
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+            },
+          },
+        },
+        message:
+          'Variable $input of type CustomerSmsMarketingConsentUpdateInput! was provided invalid value for smsMarketingConsent.marketingState (Expected value to not be null)',
+        path: ['smsMarketingConsent', 'marketingState'],
+        explanation: 'Expected value to not be null',
+      },
+      {
+        name: 'invalid email opt-in enum',
+        query: `mutation EmailConsent($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            emailMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'BOGUS',
+            },
+          },
+        },
+        message:
+          'Variable $input of type CustomerEmailMarketingConsentUpdateInput! was provided invalid value for emailMarketingConsent.marketingOptInLevel (Expected "BOGUS" to be one of: SINGLE_OPT_IN, CONFIRMED_OPT_IN, UNKNOWN)',
+        path: ['emailMarketingConsent', 'marketingOptInLevel'],
+        explanation: 'Expected "BOGUS" to be one of: SINGLE_OPT_IN, CONFIRMED_OPT_IN, UNKNOWN',
+      },
+      {
+        name: 'invalid SMS timestamp',
+        query: `mutation SmsConsent($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: 'not-a-date',
+            },
+          },
+        },
+        message:
+          "Variable $input of type CustomerSmsMarketingConsentUpdateInput! was provided invalid value for smsMarketingConsent.consentUpdatedAt (invalid DateTime 'not-a-date')",
+        path: ['smsMarketingConsent', 'consentUpdatedAt'],
+        explanation: "invalid DateTime 'not-a-date'",
+      },
+      {
+        name: 'unsupported consentCollectedFrom input field',
+        query: `mutation SmsConsent($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentCollectedFrom: 'SHOPIFY',
+            },
+          },
+        },
+        message:
+          'Variable $input of type CustomerSmsMarketingConsentUpdateInput! was provided invalid value for smsMarketingConsent.consentCollectedFrom (Field is not defined on CustomerSmsMarketingConsentInput)',
+        path: ['smsMarketingConsent', 'consentCollectedFrom'],
+        explanation: 'Field is not defined on CustomerSmsMarketingConsentInput',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const response = await request(app)
+        .post('/admin/api/2026-04/graphql.json')
+        .send({ query: testCase.query, variables: testCase.variables });
+
+      expect(response.status, testCase.name).toBe(200);
+      expect(response.body.data, testCase.name).toBeUndefined();
+      expect(response.body.errors, testCase.name).toMatchObject([
+        {
+          message: testCase.message,
+          extensions: {
+            code: 'INVALID_VARIABLE',
+            problems: [
+              {
+                path: testCase.path,
+                explanation: testCase.explanation,
+              },
+            ],
+          },
+        },
+      ]);
+    }
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ConsentReadback($id: ID!) {
+          customer(id: $id) {
+            id
+            defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/403' },
+      });
+
+    expect(readResponse.body.data.customer).toEqual({
+      id: 'gid://shopify/Customer/403',
+      defaultEmailAddress: {
+        marketingState: 'NOT_SUBSCRIBED',
+        marketingOptInLevel: 'SINGLE_OPT_IN',
+        marketingUpdatedAt: null,
+      },
+      defaultPhoneNumber: {
+        marketingState: 'NOT_SUBSCRIBED',
+        marketingOptInLevel: 'SINGLE_OPT_IN',
+        marketingUpdatedAt: null,
+        marketingCollectedFrom: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors captured consent validation guardrails and pending transitions', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer consent validation should stay local');
+    });
+
+    store.upsertBaseCustomers([
+      makeConsentCustomer(),
+      makeConsentCustomer({
+        id: 'gid://shopify/Customer/404',
+        email: 'no-phone@example.com',
+        defaultEmailAddress: {
+          emailAddress: 'no-phone@example.com',
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+        },
+        defaultPhoneNumber: null,
+        smsMarketingConsent: null,
+      }),
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const pendingSingleResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation EmailPendingSingle($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            emailMarketingConsent: {
+              marketingState: 'PENDING',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T04:00:00Z',
+            },
+          },
+        },
+      });
+
+    expect(pendingSingleResponse.status).toBe(200);
+    expect(pendingSingleResponse.body.data.customerEmailMarketingConsentUpdate).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/403',
+        defaultEmailAddress: {
+          marketingState: 'NOT_SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: null,
+        },
+      },
+      userErrors: [
+        {
+          field: ['input', 'emailMarketingConsent', 'marketingOptInLevel'],
+          message: 'Marketing opt in level must be confirmed opt-in for pending consent state',
+          code: 'INVALID',
+        },
+      ],
+    });
+
+    const emailPendingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation EmailPendingConfirmed($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            emailMarketingConsent: {
+              marketingState: 'PENDING',
+              marketingOptInLevel: 'CONFIRMED_OPT_IN',
+              consentUpdatedAt: '2026-04-25T04:01:00Z',
+            },
+          },
+        },
+      });
+
+    expect(emailPendingResponse.body.data.customerEmailMarketingConsentUpdate).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/403',
+        defaultEmailAddress: {
+          marketingState: 'PENDING',
+          marketingOptInLevel: 'CONFIRMED_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T04:01:00Z',
+        },
+      },
+      userErrors: [],
+    });
+
+    const smsFutureResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SmsFuture($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2999-01-01T00:00:00Z',
+            },
+          },
+        },
+      });
+
+    expect(smsFutureResponse.body.data.customerSmsMarketingConsentUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['input', 'smsMarketingConsent', 'consentUpdatedAt'],
+          message: 'Consent updated at must not be in the future',
+          code: 'INVALID',
+        },
+      ],
+    });
+
+    const smsNoPhoneResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SmsNoPhone($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/404',
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T04:02:00Z',
+            },
+          },
+        },
+      });
+
+    expect(smsNoPhoneResponse.body.data.customerSmsMarketingConsentUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['input', 'smsMarketingConsent'],
+          message: 'A phone number is required to set the SMS consent state.',
+          code: 'INVALID',
+        },
+      ],
+    });
+
+    const smsPendingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SmsPendingConfirmed($input: CustomerSmsMarketingConsentUpdateInput!) {
+          customerSmsMarketingConsentUpdate(input: $input) {
+            customer {
+              id
+              defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            smsMarketingConsent: {
+              marketingState: 'PENDING',
+              marketingOptInLevel: 'CONFIRMED_OPT_IN',
+              consentUpdatedAt: '2026-04-25T04:03:00Z',
+            },
+          },
+        },
+      });
+
+    expect(smsPendingResponse.body.data.customerSmsMarketingConsentUpdate).toEqual({
+      customer: {
+        id: 'gid://shopify/Customer/403',
+        defaultPhoneNumber: {
+          marketingState: 'PENDING',
+          marketingOptInLevel: 'CONFIRMED_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T04:03:00Z',
+          marketingCollectedFrom: 'OTHER',
+        },
+      },
+      userErrors: [],
+    });
+
+    const notSubscribedResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation EmailNotSubscribed($input: CustomerEmailMarketingConsentUpdateInput!) {
+          customerEmailMarketingConsentUpdate(input: $input) {
+            customer { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            customerId: 'gid://shopify/Customer/403',
+            emailMarketingConsent: {
+              marketingState: 'NOT_SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T04:04:00Z',
+            },
+          },
+        },
+      });
+
+    expect(notSubscribedResponse.body.data).toEqual({ customerEmailMarketingConsentUpdate: null });
+    expect(notSubscribedResponse.body.errors).toMatchObject([
+      {
+        message: 'Cannot specify NOT_SUBSCRIBED as a marketing state input',
+        extensions: { code: 'INVALID' },
+        path: ['customerEmailMarketingConsentUpdate'],
+      },
+    ]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ConsentReadback($id: ID!) {
+          customer(id: $id) {
+            id
+            defaultEmailAddress { marketingState marketingOptInLevel marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }
+          }
+        }`,
+        variables: { id: 'gid://shopify/Customer/403' },
+      });
+
+    expect(readResponse.body.data.customer).toEqual({
+      id: 'gid://shopify/Customer/403',
+      defaultEmailAddress: {
+        marketingState: 'PENDING',
+        marketingOptInLevel: 'CONFIRMED_OPT_IN',
+        marketingUpdatedAt: '2026-04-25T04:01:00Z',
+      },
+      defaultPhoneNumber: {
+        marketingState: 'PENDING',
+        marketingOptInLevel: 'CONFIRMED_OPT_IN',
+        marketingUpdatedAt: '2026-04-25T04:03:00Z',
+        marketingCollectedFrom: 'OTHER',
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
