@@ -1,0 +1,18 @@
+query PaymentTermsTemplatesRead($type: PaymentTermsType) {
+  all: paymentTermsTemplates {
+    id
+    name
+    description
+    dueInDays
+    paymentTermsType
+    translatedName
+  }
+  filtered: paymentTermsTemplates(paymentTermsType: $type) {
+    id
+    name
+    description
+    dueInDays
+    paymentTermsType
+    translatedName
+  }
+}

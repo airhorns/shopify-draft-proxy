@@ -4,6 +4,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
+import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -52,6 +53,8 @@ const emptySnapshot = {
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  paymentTermsTemplates: defaultPaymentTermsTemplateRecordMap,
+  paymentTermsTemplateOrder: defaultPaymentTermsTemplateOrder,
   deletedPaymentCustomizationIds: {},
   customerMetafields: {},
   businessEntities: {},
