@@ -2508,10 +2508,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationRunQuery", "BulkOperationRunQuery"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations export mutation gap. Future support must stage a local asynchronous query-export job, preserve the original raw mutation for commit, and emulate payload/userErrors/status/read-after-write effects without sending supported runtime requests to Shopify."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, groupObjects, and unsupported nested connection shapes without runtime Shopify passthrough."
   },
   {
     "name": "bulkOperationRunMutation",

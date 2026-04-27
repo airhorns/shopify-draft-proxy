@@ -2,7 +2,7 @@
 
 The Bulk Operations group covers Shopify Admin GraphQL's root-level asynchronous export/import API. These roots create, inspect, list, and cancel `BulkOperation` jobs; they are not product variant bulk mutations, inventory bulk toggles, discount bulk roots, or metaobject bulk delete.
 
-HAR-263 adds the shared in-memory `BulkOperation` job model plus local read/list/current/cancel handling. It does not execute query exports, mutation imports, JSONL result generation, or staged upload processing.
+HAR-263 adds the shared in-memory `BulkOperation` job model plus local read/list/current/cancel handling. HAR-264 adds local product-first `bulkOperationRunQuery` export staging with generated JSONL result records. The proxy still does not execute mutation imports or staged upload processing.
 
 ## Supported roots
 
@@ -15,17 +15,17 @@ Local overlay reads:
 Local-staging mutations:
 
 - `bulkOperationCancel`
+- `bulkOperationRunQuery` for supported `products` and `productVariants` query exports
 
 Unsupported execution roots:
 
-- `bulkOperationRunQuery`
 - `bulkOperationRunMutation`
 
-The run roots remain `implemented: false`; they may proxy through as unsupported mutations, but they must not be treated as permanent passthrough support.
+`bulkOperationRunMutation` remains `implemented: false`; it may proxy through as an unsupported mutation, but it must not be treated as permanent passthrough support.
 
 ## Current 2026-04 behavior and local coverage
 
-`BulkOperation` represents an asynchronous query export or mutation import job. Current documented fields are `id`, `completedAt`, `createdAt`, `errorCode`, `fileSize`, `objectCount`, `partialDataUrl`, `query`, `rootObjectCount`, `status`, `type`, and `url`.
+`BulkOperation` represents an asynchronous query export or mutation import job. Current documented fields are `id`, `completedAt`, `createdAt`, `errorCode`, `fileSize`, `objectCount`, `partialDataUrl`, `query`, `rootObjectCount`, `status`, `type`, and `url`. Current Shopify bulk-operation docs also note that API versions `2026-01` and higher can run up to five bulk query operations at a time per shop; older versions allowed one query and one mutation operation at a time.
 
 Current enum inventory:
 
@@ -38,7 +38,7 @@ Current root behavior:
 - `bulkOperation(id: ID!)` returns one job by ID. Locally, unknown valid BulkOperation GIDs return `null`; malformed non-BulkOperation IDs return a top-level invalid-id error.
 - `bulkOperations` returns the app's jobs as a connection, newest first by default, with pagination, `reverse`, `sortKey`, and search filters for `created_at`, `id`, `operation_type`, and `status`. Locally, the endpoint uses shared connection helpers for cursor windows, `nodes`/`edges`, and selected `pageInfo`.
 - `currentBulkOperation(type: BulkOperationType = QUERY)` is deprecated but still documents the app's most recent query or mutation job. Locally, it selects the newest effective job for the requested type and defaults to `QUERY`.
-- `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Shopify documents one bulk query operation and one bulk mutation operation at a time per shop.
+- `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, and never proxy supported export requests upstream at runtime.
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated.
 - `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, staged non-terminal jobs transition to `CANCELING`; terminal and unknown jobs return captured userErrors without upstream access.
 
@@ -67,6 +67,26 @@ Local `bulkOperations` supports:
 - selected `nodes`, `edges`, and `pageInfo` serialization through `serializeConnection(...)`
 - default newest-first `CREATED_AT` ordering, `sortKey: ID`, `reverse`, and search filters for `created_at`, `id`, `operation_type`, and `status`
 
+Local `bulkOperationRunQuery` supports:
+
+- one top-level connection rooted at `products` or `productVariants`
+- product scalar selections already supported by local product reads
+- nested `products { ... variants { ... } }` exports with flat JSONL output where each variant line receives `__parentId`
+- root `productVariants` exports with product-variant scalar selections already supported by local product variant reads
+- effective local/snapshot state as the export source, including staged products and variants
+- completed staged `BulkOperation` rows with `status: COMPLETED`, `type: QUERY`, `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, `partialDataUrl: null`, and original `query`
+- local result URLs at `https://shopify-draft-proxy.local/__bulk_operations/<id>/result.jsonl`; the Koa app serves the matching path as `application/jsonl` from memory until reset
+- original raw mutation bodies in the meta mutation log for commit/replay observability
+
+Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` and no upstream runtime request:
+
+- missing `query`, matching the captured top-level `missingRequiredArguments` shape
+- malformed submitted bulk query strings
+- no connection, using the captured message `Bulk queries must contain at least one connection.`
+- multiple top-level fields, top-level `node`/`nodes`, unsupported roots, more than five detected connections, and connections deeper than two levels
+- unsupported nested connections other than product `variants`
+- `groupObjects: true`; grouped JSONL output is an explicit unsupported boundary for now
+
 Local `bulkOperationCancel` supports:
 
 - `RUNNING`/`CREATED`/`CANCELING` staged jobs returning a selected `bulkOperation` payload and empty `userErrors`, with non-terminal staged jobs stored as `CANCELING`
@@ -74,11 +94,12 @@ Local `bulkOperationCancel` supports:
 - terminal jobs returning the selected existing job plus a `field: null` userError such as `A bulk operation cannot be canceled when it is completed`
 - meta log entries with original raw mutation bodies and staged BulkOperation IDs for observability
 
-## Conformance evidence still needed before run support
+## Conformance evidence still needed
 
 - Validation/userErrors for malformed export queries, unsupported connections, nesting limits, overlapping active jobs, missing staged upload paths, and invalid mutation documents.
 - Full status transition behavior across `CREATED`, `RUNNING`, `CANCELING`, `CANCELED`, `COMPLETED`, `EXPIRED`, and `FAILED`, including result URL/partial-data URL expiry, counters, file sizes, and error codes.
-- Read-after-write behavior from locally staged `bulkOperationRunQuery` and `bulkOperationRunMutation` through `bulkOperation`, `bulkOperations`, and `currentBulkOperation`.
+- Import read-after-write behavior from locally staged `bulkOperationRunMutation` through `bulkOperation`, `bulkOperations`, and `currentBulkOperation`.
+- `bulkOperationRunQuery` parity for non-product roots, grouped output, active-job limits, failure/partial-data branches, and exact Shopify result URL expiry semantics.
 
 ## Captured 2026-04 evidence
 

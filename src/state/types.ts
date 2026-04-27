@@ -2074,6 +2074,7 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStoreCommentOrder: z.array(z.string()).default([]),
   bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
   bulkOperationOrder: z.array(z.string()).default([]),
+  bulkOperationResults: z.record(z.string(), z.string()).default({}),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),

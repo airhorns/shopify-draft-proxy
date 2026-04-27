@@ -14,7 +14,7 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 import { findOperationRegistryEntry } from '../../src/proxy/operation-registry.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
-import type { BulkOperationRecord } from '../../src/state/types.js';
+import type { BulkOperationRecord, ProductRecord, ProductVariantRecord } from '../../src/state/types.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const fixturePath =
@@ -76,6 +76,46 @@ function makeBulkOperation(id: string, overrides: Partial<BulkOperationRecord> =
     partialDataUrl: null,
     query: '#graphql\n{ products { edges { node { id title } } } }',
     ...overrides,
+  };
+}
+
+function makeBaseProduct(id: string, title: string, handle: string): ProductRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? id,
+    title,
+    handle,
+    status: 'ACTIVE',
+    publicationIds: [],
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: null,
+    tracksInventory: null,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: { title: null, description: null },
+    category: null,
+  };
+}
+
+function makeBaseVariant(productId: string, id: string, title: string, sku: string): ProductVariantRecord {
+  return {
+    id,
+    productId,
+    title,
+    sku,
+    barcode: null,
+    price: null,
+    compareAtPrice: null,
+    taxable: null,
+    inventoryPolicy: null,
+    inventoryQuantity: 0,
+    selectedOptions: [{ name: 'Title', value: title }],
+    inventoryItem: null,
   };
 }
 
@@ -164,7 +204,7 @@ describe('BulkOperation conformance fixture and local model', () => {
       ['query', 'bulkOperation', true],
       ['query', 'bulkOperations', true],
       ['query', 'currentBulkOperation', true],
-      ['mutation', 'bulkOperationRunQuery', false],
+      ['mutation', 'bulkOperationRunQuery', true],
       ['mutation', 'bulkOperationCancel', true],
     ] as const) {
       expect(findOperationRegistryEntry(operationType, [rootField])).toMatchObject({
@@ -189,6 +229,225 @@ describe('BulkOperation conformance fixture and local model', () => {
       domain: 'bulk-operations',
       execution: 'stage-locally',
     });
+  });
+
+  it('stages supported product bulk query exports locally and serves JSONL result records', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunQuery should stay local'));
+    const app = createApp(config).callback();
+    const productOne = makeBaseProduct('gid://shopify/Product/1001', 'Alpha Hat', 'alpha-hat');
+    const productTwo = makeBaseProduct('gid://shopify/Product/1002', 'Beta Hat', 'beta-hat');
+    store.upsertBaseProducts([productOne, productTwo]);
+    store.replaceBaseVariantsForProduct(productOne.id, [
+      makeBaseVariant(productOne.id, 'gid://shopify/ProductVariant/2001', 'Small', 'ALPHA-S'),
+      makeBaseVariant(productOne.id, 'gid://shopify/ProductVariant/2002', 'Large', 'ALPHA-L'),
+    ]);
+    store.replaceBaseVariantsForProduct(productTwo.id, [
+      makeBaseVariant(productTwo.id, 'gid://shopify/ProductVariant/2003', 'One Size', 'BETA-OS'),
+    ]);
+
+    const bulkQuery = `#graphql
+      {
+        products(sortKey: TITLE) {
+          edges {
+            node {
+              id
+              title
+              handle
+              variants {
+                edges {
+                  node {
+                    id
+                    title
+                    sku
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const runResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation RunBulkProductExport($query: String!, $groupObjects: Boolean!) {
+            bulkOperationRunQuery(query: $query, groupObjects: $groupObjects) {
+              bulkOperation {
+                id
+                status
+                type
+                errorCode
+                createdAt
+                completedAt
+                objectCount
+                rootObjectCount
+                fileSize
+                url
+                partialDataUrl
+                query
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { query: bulkQuery, groupObjects: false },
+      });
+
+    expect(runResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const payload = runResponse.body.data.bulkOperationRunQuery;
+    expect(payload.userErrors).toEqual([]);
+    expect(payload.bulkOperation).toMatchObject({
+      id: 'gid://shopify/BulkOperation/1',
+      status: 'COMPLETED',
+      type: 'QUERY',
+      errorCode: null,
+      objectCount: '5',
+      rootObjectCount: '2',
+      partialDataUrl: null,
+      query: bulkQuery,
+    });
+    expect(payload.bulkOperation.url).toBe('https://shopify-draft-proxy.local/__bulk_operations/1/result.jsonl');
+    expect(payload.bulkOperation.fileSize).toEqual(expect.stringMatching(/^\d+$/));
+
+    const resultResponse = await request(app).get(new URL(payload.bulkOperation.url).pathname);
+    expect(resultResponse.status).toBe(200);
+    expect(resultResponse.headers['content-type']).toContain('application/jsonl');
+    const records = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(records).toEqual([
+      { id: productOne.id, title: 'Alpha Hat', handle: 'alpha-hat' },
+      { id: 'gid://shopify/ProductVariant/2001', title: 'Small', sku: 'ALPHA-S', __parentId: productOne.id },
+      { id: 'gid://shopify/ProductVariant/2002', title: 'Large', sku: 'ALPHA-L', __parentId: productOne.id },
+      { id: productTwo.id, title: 'Beta Hat', handle: 'beta-hat' },
+      { id: 'gid://shopify/ProductVariant/2003', title: 'One Size', sku: 'BETA-OS', __parentId: productTwo.id },
+    ]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadBulkOperation($id: ID!) {
+            bulkOperation(id: $id) {
+              id
+              status
+              objectCount
+              rootObjectCount
+              url
+            }
+            bulkOperations(first: 5) {
+              nodes {
+                id
+                status
+                url
+              }
+            }
+          }
+        `,
+        variables: { id: payload.bulkOperation.id },
+      });
+    expect(readResponse.body.data.bulkOperation).toMatchObject({
+      id: payload.bulkOperation.id,
+      status: 'COMPLETED',
+      objectCount: '5',
+      rootObjectCount: '2',
+      url: payload.bulkOperation.url,
+    });
+    expect(readResponse.body.data.bulkOperations.nodes).toEqual([
+      { id: payload.bulkOperation.id, status: 'COMPLETED', url: payload.bulkOperation.url },
+    ]);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'bulkOperationRunQuery',
+      path: '/admin/api/2026-04/graphql.json',
+      stagedResourceIds: [payload.bulkOperation.id],
+      requestBody: {
+        variables: { query: bulkQuery, groupObjects: false },
+      },
+    });
+    expect(logResponse.body.entries[0].requestBody.query).toContain('bulkOperationRunQuery');
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.bulkOperations[payload.bulkOperation.id]).toMatchObject({
+      status: 'COMPLETED',
+      url: payload.bulkOperation.url,
+    });
+    expect(stateResponse.body.stagedState.bulkOperationResults[payload.bulkOperation.id]).toBe(resultResponse.text);
+  });
+
+  it('returns local userErrors for malformed, unsupported, and unsupported-shape bulk query exports', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulk query validations should stay local'));
+    const app = createApp(config).callback();
+
+    async function runBulkQuery(query: string, groupObjects = false) {
+      const response = await request(app)
+        .post('/admin/api/2026-04/graphql.json')
+        .send({
+          query: `#graphql
+            mutation RunBulkProductExport($query: String!, $groupObjects: Boolean!) {
+              bulkOperationRunQuery(query: $query, groupObjects: $groupObjects) {
+                bulkOperation { id }
+                userErrors { field message }
+              }
+            }
+          `,
+          variables: { query, groupObjects },
+        });
+      expect(response.status).toBe(200);
+      return response.body.data.bulkOperationRunQuery;
+    }
+
+    await expect(runBulkQuery('#graphql\n{ shop { id } }')).resolves.toEqual({
+      bulkOperation: null,
+      userErrors: [{ field: ['query'], message: 'Bulk queries must contain at least one connection.' }],
+    });
+    await expect(runBulkQuery('#graphql\n{ orders { edges { node { id } } } }')).resolves.toEqual({
+      bulkOperation: null,
+      userErrors: [{ field: ['query'], message: "Bulk query root 'orders' is not supported locally." }],
+    });
+    await expect(
+      runBulkQuery('#graphql\n{ products { edges { node { id media { edges { node { id } } } } } } }'),
+    ).resolves.toEqual({
+      bulkOperation: null,
+      userErrors: [
+        {
+          field: ['query'],
+          message: "Nested connection 'media' is not supported by the local bulk query executor.",
+        },
+      ],
+    });
+    await expect(runBulkQuery('#graphql\n{ products { edges { node { id } } }', false)).resolves.toEqual({
+      bulkOperation: null,
+      userErrors: [
+        {
+          field: ['query'],
+          message: expect.stringContaining('Invalid bulk query: Syntax Error:'),
+        },
+      ],
+    });
+    await expect(runBulkQuery('#graphql\n{ products { edges { node { id } } } }', true)).resolves.toEqual({
+      bulkOperation: null,
+      userErrors: [
+        {
+          field: ['groupObjects'],
+          message: 'groupObjects is not supported by the local bulk query executor.',
+        },
+      ],
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('serves missing reads and empty listings in snapshot mode without upstream access', async () => {

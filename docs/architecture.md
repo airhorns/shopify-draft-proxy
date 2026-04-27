@@ -188,7 +188,7 @@ Bulk Operations state is normalized as a shared job foundation rather than as pr
 - snapshot reads for `bulkOperation`, `bulkOperations`, and deprecated `currentBulkOperation` resolve from effective local state and return Shopify-like null/empty structures when no job exists
 - `bulkOperations` uses the shared connection helpers for cursor windowing, `nodes`/`edges`, and selected `pageInfo`, while keeping BulkOperation-specific sort/filter decisions in the endpoint module
 - `bulkOperationCancel` mutates only staged jobs, records the local cancel attempt in the mutation log, and returns captured userErrors for unknown or terminal operations without proxying supported cancel attempts upstream
-- `bulkOperationRunQuery` and `bulkOperationRunMutation` are still unsupported execution roots; the local job model is only the read/cancel foundation until export/import lifecycle staging is implemented
+- `bulkOperationRunQuery` stages supported product/product-variant query exports locally by parsing the submitted bulk query, validating documented bulk-query boundaries, writing a completed staged query job, and serving generated JSONL from an in-memory result URL; `bulkOperationRunMutation` is still unsupported until import lifecycle staging exists
 
 ## Mutation handling strategy
 
