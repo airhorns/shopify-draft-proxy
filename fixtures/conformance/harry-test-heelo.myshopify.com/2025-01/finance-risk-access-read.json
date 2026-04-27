@@ -1,0 +1,857 @@
+{
+  "capturedAt": "2026-04-27T15:22:08.954Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-316 finance/risk/POS safe capture. No real financial, dispute, POS cash, Shop Pay receipt, tender transaction, payout, or order-risk records are created.",
+    "Read probes use unknown ids/tokens or type-only connection nodes to avoid inventing or exposing sensitive records. Non-empty future captures must use disposable stores and scrub/limit sensitive payment and KYC details.",
+    "The payout alternate-currency mutation capture intentionally omits the required currency argument, so Shopify returns GraphQL validation without executing a money-movement resolver."
+  ],
+  "rootIntrospection": {
+    "query": "#graphql\n  query FinanceRiskRootIntrospection {\n    queryRoot: __type(name: \"QueryRoot\") {\n      fields {\n        name\n        args {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n    mutationRoot: __type(name: \"Mutation\") {\n      fields {\n        name\n        args {\n          name\n          type {\n            kind\n            name\n            ofType {\n              kind\n              name\n              ofType {\n                kind\n                name\n              }\n            }\n          }\n        }\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n            ofType {\n              kind\n              name\n            }\n          }\n        }\n      }\n    }\n  }\n",
+    "status": 200,
+    "errors": null,
+    "relevantRoots": {
+      "queryRoots": [
+        {
+          "name": "cashTrackingSession",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "CashTrackingSession",
+            "ofType": null
+          }
+        },
+        {
+          "name": "cashTrackingSessions",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "CashTrackingSessionsSortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "CashTrackingSessionConnection",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "dispute",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopifyPaymentsDispute",
+            "ofType": null
+          }
+        },
+        {
+          "name": "disputeEvidence",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopifyPaymentsDisputeEvidence",
+            "ofType": null
+          }
+        },
+        {
+          "name": "disputes",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "ShopifyPaymentsDisputeConnection",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "financeAppAccessPolicy",
+          "args": [],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "FinanceAppAccessPolicy",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "financeKycInformation",
+          "args": [],
+          "type": {
+            "kind": "OBJECT",
+            "name": "FinanceKycInformation",
+            "ofType": null
+          }
+        },
+        {
+          "name": "pointOfSaleDevice",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "PointOfSaleDevice",
+            "ofType": null
+          }
+        },
+        {
+          "name": "shopPayPaymentRequestReceipt",
+          "args": [
+            {
+              "name": "token",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopPayPaymentRequestReceipt",
+            "ofType": null
+          }
+        },
+        {
+          "name": "shopPayPaymentRequestReceipts",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "ShopPayPaymentRequestReceiptsSortKeys",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopPayPaymentRequestReceiptConnection",
+            "ofType": null
+          }
+        },
+        {
+          "name": "tenderTransactions",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              }
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "TenderTransactionConnection",
+              "ofType": null
+            }
+          }
+        }
+      ],
+      "mutationRoots": [
+        {
+          "name": "disputeEvidenceUpdate",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              }
+            },
+            {
+              "name": "input",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "ShopifyPaymentsDisputeEvidenceUpdateInput",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "DisputeEvidenceUpdatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "orderRiskAssessmentCreate",
+          "args": [
+            {
+              "name": "orderRiskAssessmentInput",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "OrderRiskAssessmentCreateInput",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "OrderRiskAssessmentCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "shopifyPaymentsPayoutAlternateCurrencyCreate",
+          "args": [
+            {
+              "name": "accountId",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            },
+            {
+              "name": "currency",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "CurrencyCode",
+                  "ofType": null
+                }
+              }
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopifyPaymentsPayoutAlternateCurrencyCreatePayload",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  },
+  "safeReads": {
+    "financeAppAccessPolicy": {
+      "query": "#graphql\n  query FinanceAppAccessPolicyProbe {\n    financeAppAccessPolicy {\n      access\n    }\n  }\n",
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for financeAppAccessPolicy field. Required access: User session and api client must be valid.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "User session and api client must be valid."
+            },
+            "path": ["financeAppAccessPolicy"]
+          }
+        ],
+        "data": null,
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "financeKycInformation": {
+      "query": "#graphql\n  query FinanceKycInformationAccessProbe {\n    financeKycInformation {\n      __typename\n    }\n  }\n",
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for financeKycInformation field. Required access: `read_financial_kyc_information` access scope. Also: The user must have app permission for finance apps.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_financial_kyc_information` access scope. Also: The user must have app permission for finance apps."
+            },
+            "path": ["financeKycInformation"]
+          }
+        ],
+        "data": {
+          "financeKycInformation": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cashTracking": {
+      "query": "#graphql\n  query CashTrackingSafeRead($id: ID!, $first: Int!) {\n    cashTrackingSession(id: $id) {\n      __typename\n    }\n    cashTrackingSessions(first: $first) {\n      nodes {\n        __typename\n      }\n      edges {\n        node {\n          __typename\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/CashTrackingSession/0",
+        "first": 1
+      },
+      "status": 200,
+      "payload": {
+        "data": {
+          "cashTrackingSession": null,
+          "cashTrackingSessions": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "pointOfSaleDevice": {
+      "query": "#graphql\n  query PointOfSaleDeviceSafeRead($id: ID!) {\n    pointOfSaleDevice(id: $id) {\n      __typename\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PointOfSaleDevice/0"
+      },
+      "status": 200,
+      "payload": {
+        "data": {
+          "pointOfSaleDevice": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disputes": {
+      "query": "#graphql\n  query DisputeSafeRead($disputeId: ID!, $evidenceId: ID!, $first: Int!) {\n    dispute(id: $disputeId) {\n      __typename\n    }\n    disputeEvidence(id: $evidenceId) {\n      __typename\n    }\n    disputes(first: $first) {\n      nodes {\n        __typename\n      }\n      edges {\n        node {\n          __typename\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+        "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+        "first": 1
+      },
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for disputeEvidence field. Required access: `read_shopify_payments_dispute_evidences` access scope.",
+            "locations": [
+              {
+                "line": 6,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`read_shopify_payments_dispute_evidences` access scope."
+            },
+            "path": ["disputeEvidence"]
+          }
+        ],
+        "data": {
+          "dispute": null,
+          "disputeEvidence": null,
+          "disputes": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "shopPayPaymentRequestReceipts": {
+      "query": "#graphql\n  query ShopPayPaymentRequestReceiptSafeRead($token: String!, $first: Int!) {\n    shopPayPaymentRequestReceipt(token: $token) {\n      __typename\n    }\n    shopPayPaymentRequestReceipts(first: $first) {\n      nodes {\n        __typename\n      }\n      edges {\n        node {\n          __typename\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "token": "codex-missing-shop-pay-payment-request-receipt-token",
+        "first": 1
+      },
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopPayPaymentRequestReceipt": null,
+          "shopPayPaymentRequestReceipts": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tenderTransactions": {
+      "query": "#graphql\n  query TenderTransactionsSafeRead($first: Int!) {\n    tenderTransactions(first: $first) {\n      nodes {\n        __typename\n      }\n      edges {\n        node {\n          __typename\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "first": 1
+      },
+      "status": 200,
+      "payload": {
+        "data": {
+          "tenderTransactions": {
+            "nodes": [
+              {
+                "__typename": "TenderTransaction"
+              }
+            ],
+            "edges": [
+              {
+                "node": {
+                  "__typename": "TenderTransaction"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "safeMutationProbes": {
+    "disputeEvidenceUpdateUnknownId": {
+      "query": "#graphql\n  mutation DisputeEvidenceUpdateUnknownId($id: ID!, $input: ShopifyPaymentsDisputeEvidenceUpdateInput!) {\n    disputeEvidenceUpdate(id: $id, input: $input) {\n      disputeEvidence {\n        __typename\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+        "input": {}
+      },
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for disputeEvidenceUpdate field. Required access: `write_shopify_payments_dispute_evidences` access scope. Also: The user must have `manage_orders_information` permission or the `manage_disputes` permission.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`write_shopify_payments_dispute_evidences` access scope. Also: The user must have `manage_orders_information` permission or the `manage_disputes` permission."
+            },
+            "path": ["disputeEvidenceUpdate"]
+          }
+        ],
+        "data": {
+          "disputeEvidenceUpdate": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "orderRiskAssessmentCreateUnknownOrder": {
+      "query": "#graphql\n  mutation OrderRiskAssessmentCreateUnknownOrder($input: OrderRiskAssessmentCreateInput!) {\n    orderRiskAssessmentCreate(orderRiskAssessmentInput: $input) {\n      orderRiskAssessment {\n        __typename\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "orderId": "gid://shopify/Order/0",
+          "riskLevel": "HIGH",
+          "facts": []
+        }
+      },
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderRiskAssessmentCreate": {
+            "orderRiskAssessment": null,
+            "userErrors": [
+              {
+                "field": ["orderRiskAssessmentInput", "orderId"],
+                "message": "The record with the ID used as the input value couldn't be found.",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "payoutAlternateCurrencyMissingCurrency": {
+      "query": "#graphql\n  mutation ShopifyPaymentsPayoutAlternateCurrencyCreateMissingCurrency {\n    shopifyPaymentsPayoutAlternateCurrencyCreate {\n      success\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Field 'shopifyPaymentsPayoutAlternateCurrencyCreate' is missing required arguments: currency",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": [
+              "mutation ShopifyPaymentsPayoutAlternateCurrencyCreateMissingCurrency",
+              "shopifyPaymentsPayoutAlternateCurrencyCreate"
+            ],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "shopifyPaymentsPayoutAlternateCurrencyCreate",
+              "arguments": "currency"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

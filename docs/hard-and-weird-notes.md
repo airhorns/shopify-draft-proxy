@@ -2777,3 +2777,42 @@ Practical rule:
 - model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
 - keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
 - do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence
+
+## 71. Gift-card search accepts id, but not obvious scalar display fields
+
+HAR-310 re-captured gift-card evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` after the conformance grant gained `read_gift_cards` and `write_gift_cards`.
+
+Captured facts:
+
+- `giftCards(query: "id:999999999999")` and `giftCardsCount(query: "id:999999999999")` returned an empty connection/count with no search warnings
+- `giftCards(query: "last_characters:...")`, `giftCards(query: "enabled:false")`, and `giftCards(query: "active:false")` returned unfiltered results plus invalid-search-field warnings
+- `giftCardCredit` and `giftCardDebit` require `write_gift_card_transactions`, which is separate from `write_gift_cards`
+- selecting `giftCard.transactions.nodes` requires `read_gift_card_transactions`, which is separate from `read_gift_cards`
+
+Practical rule:
+
+- keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
+- treat credit/debit transaction support as locally staged runtime behavior backed by current integration tests until live transaction scopes are added and successful payloads can be captured
+
+## 72. Finance/risk/POS roots need strong data minimization
+
+HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json`.
+
+Captured facts:
+
+- `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` returned `null` for unknown identifiers
+- `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` returned empty connections with false `pageInfo` flags
+- `disputes(first: 1)` returned an empty connection, but `disputeEvidence(id:)` returned ACCESS_DENIED without `read_shopify_payments_dispute_evidences`
+- `financeAppAccessPolicy` returned ACCESS_DENIED requiring a valid finance app user session/client
+- `financeKycInformation` returned ACCESS_DENIED without `read_financial_kyc_information` plus finance-app permission
+- `disputeEvidenceUpdate` returned ACCESS_DENIED without write dispute-evidence scope plus staff dispute/order permission
+- `orderRiskAssessmentCreate` against an unknown order returned a mutation-scoped NOT_FOUND userError for `orderRiskAssessmentInput.orderId`
+- `shopifyPaymentsPayoutAlternateCurrencyCreate` was captured only through missing-required-argument GraphQL validation so the payout resolver did not execute
+- `tenderTransactions(first: 1)` can expose live tender rows on this store, so the fixture intentionally selects only `__typename` and page flags
+
+Practical rule:
+
+- captured no-data reads for `cashTrackingSession(s)`, `pointOfSaleDevice`, `dispute(s)`, and Shop Pay payment request receipt roots are safe to model as local empty/null overlay behavior and are enforced by `finance-risk-no-data-read`
+- do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
+- do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
+- keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes
