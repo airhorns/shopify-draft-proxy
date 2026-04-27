@@ -807,9 +807,7 @@
             "metaobject": null,
             "userErrors": [
               {
-                "field": [
-                  "metaobject"
-                ],
+                "field": ["metaobject"],
                 "message": "Summary can't be blank",
                 "code": "OBJECT_FIELD_REQUIRED",
                 "elementKey": "summary",
@@ -854,20 +852,14 @@
             "metaobject": null,
             "userErrors": [
               {
-                "field": [
-                  "metaobject",
-                  "fields",
-                  "0"
-                ],
+                "field": ["metaobject", "fields", "0"],
                 "message": "Field definition \"legacy\" does not exist",
                 "code": "UNDEFINED_OBJECT_FIELD",
                 "elementKey": "legacy",
                 "elementIndex": null
               },
               {
-                "field": [
-                  "metaobject"
-                ],
+                "field": ["metaobject"],
                 "message": "Summary can't be blank",
                 "code": "OBJECT_FIELD_REQUIRED",
                 "elementKey": "summary",
@@ -2533,9 +2525,7 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
@@ -2572,9 +2562,7 @@
             "deletedId": null,
             "userErrors": [
               {
-                "field": [
-                  "id"
-                ],
+                "field": ["id"],
                 "message": "Record not found",
                 "code": "RECORD_NOT_FOUND",
                 "elementKey": null,
