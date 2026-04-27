@@ -1,0 +1,91 @@
+{
+  "capturedAt": "2026-04-27T16:05:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "reads": {
+    "customerAccountPages": {
+      "operationName": "CustomerAccountPages",
+      "variables": {
+        "unknownId": "gid://shopify/CustomerAccountPage/999999999999999"
+      },
+      "response": {
+        "data": {
+          "customerAccountPages": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353705778",
+                "title": "Orders",
+                "handle": "orders",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOjIyMTM1MzcwNTc3OCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              },
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353738546",
+                "title": "Profile",
+                "handle": "profile",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3Mzg1NDYsImxhc3RfdmFsdWUiOjIyMTM1MzczODU0NiwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              },
+              {
+                "id": "gid://shopify/CustomerAccountPage/221353771314",
+                "title": "Settings",
+                "handle": "settings",
+                "defaultCursor": "eyJsaW1pdCI6MSwib3JkZXIiOiJpZCBhc2MiLCJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOjIyMTM1Mzc3MTMxNCwiZGlyZWN0aW9uIjoibmV4dCJ9"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjoyMjEzNTM3MDU3NzgsImxhc3RfdmFsdWUiOiIyMjEzNTM3MDU3NzgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjoyMjEzNTM3NzEzMTQsImxhc3RfdmFsdWUiOiIyMjEzNTM3NzEzMTQifQ=="
+            }
+          },
+          "missing": null
+        }
+      }
+    }
+  },
+  "mutations": {
+    "customerDataErasureAccessDenied": {
+      "operationName": "DataErasureValidation",
+      "variables": {
+        "customerId": "gid://shopify/Customer/999999999999999"
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Access denied for customerRequestDataErasure field. Required access: `write_customer_data_erasure` access scope. Also: The user must have access to erase customer data.",
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "requiredAccess": "`write_customer_data_erasure` access scope. Also: The user must have access to erase customer data."
+            },
+            "path": ["request"]
+          },
+          {
+            "message": "Access denied for customerCancelDataErasure field. Required access: `write_customer_data_erasure` access scope. Also: The user must have access to erase customer data.",
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "requiredAccess": "`write_customer_data_erasure` access scope. Also: The user must have access to erase customer data."
+            },
+            "path": ["cancel"]
+          }
+        ],
+        "data": {
+          "request": null,
+          "cancel": null
+        }
+      }
+    }
+  },
+  "schemaEvidence": {
+    "customerRequestDataErasure": {
+      "args": ["customerId: ID!"],
+      "payloadFields": ["customerId: ID", "userErrors: [CustomerRequestDataErasureUserError!]!"]
+    },
+    "customerCancelDataErasure": {
+      "args": ["customerId: ID!"],
+      "payloadFields": ["customerId: ID", "userErrors: [CustomerCancelDataErasureUserError!]!"]
+    }
+  },
+  "blockers": [
+    "Live success-path data erasure capture is blocked by missing `write_customer_data_erasure` access scope and a Shopify user permission to erase customer data."
+  ]
+}

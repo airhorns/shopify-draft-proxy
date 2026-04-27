@@ -1065,9 +1065,15 @@ export function createProxyRouter(config: AppConfig): Router {
         const upstreamBody = await response.json();
         hydrateCustomersFromUpstreamResponse(body.query, variables, upstreamBody);
 
+        if (primaryRootField === 'customerAccountPage' || primaryRootField === 'customerAccountPages') {
+          ctx.status = response.status;
+          ctx.body = upstreamBody;
+          return;
+        }
+
         ctx.status = response.status;
         ctx.body =
-          store.hasBaseCustomers() || store.hasStagedCustomers()
+          store.hasBaseCustomers() || store.hasStagedCustomers() || store.hasCustomerAccountPages()
             ? handleCustomerQuery(body.query, variables)
             : upstreamBody;
         return;

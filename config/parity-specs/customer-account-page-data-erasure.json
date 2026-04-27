@@ -1,0 +1,24 @@
+{
+  "scenarioId": "customer-account-page-data-erasure",
+  "operationNames": [
+    "customerAccountPage",
+    "customerAccountPages",
+    "customerRequestDataErasure",
+    "customerCancelDataErasure"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity", "runtime-staging", "side-effect-boundary", "access-denied"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-account-page-data-erasure.json"
+  ],
+  "comparisonMode": "captured-fixture",
+  "runtimeTestFiles": [
+    "tests/integration/customer-query-shapes.test.ts",
+    "tests/integration/customer-draft-flow.test.ts"
+  ],
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-322 captures customer account page read shapes and the live data-erasure access blocker. Runtime tests enforce snapshot account-page null/empty behavior, seeded account-page serialization, and local no-upstream data-erasure request/cancel staging with meta audit state and raw mutation replay order."
+}

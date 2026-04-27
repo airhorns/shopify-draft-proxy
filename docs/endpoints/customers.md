@@ -7,6 +7,8 @@ The customers group has implemented local slices, but the whole registry domain 
 Overlay reads:
 
 - `customer`
+- `customerAccountPage`
+- `customerAccountPages`
 - `customers`
 - `customersCount`
 - `customerByIdentifier`
@@ -28,6 +30,8 @@ Local staged mutations:
 - `customerGenerateAccountActivationUrl`
 - `customerSendAccountInviteEmail`
 - `customerPaymentMethodSendUpdateEmail`
+- `customerRequestDataErasure`
+- `customerCancelDataErasure`
 - `customerSet`
 - `customerMerge`
 - `customerAddTaxExemptions`
@@ -72,6 +76,8 @@ Local staged mutations:
 - Draft-order setup is present in the HAR-291 capture, but downstream draft-order transfer was not captured through a customer/draft-order read. Local `customerMerge` therefore deliberately does not claim draft-order transfer support yet; keep draft orders, gift cards, discounts, and other unmodeled attached resources deferred until a fixture captures their non-empty downstream behavior.
 - Captured Admin GraphQL 2025-01 evidence for `customerAddTaxExemptions`, `customerRemoveTaxExemptions`, and `customerReplaceTaxExemptions` stages against `Customer.taxExemptions` only; it does not flip the separate `taxExempt` boolean. Add/remove preserve the existing exemption order and de-duplicate inputs; empty add/remove lists are no-ops; replace de-duplicates inputs and an empty replace clears the list. Unknown customers return payload `userErrors` at `["customerId"]` with `Customer does not exist.` Invalid enum variables are top-level `INVALID_VARIABLE` GraphQL errors before payload execution.
 - The `dataSaleOptOut` root remains documented under the privacy endpoint group, but its local read-after-write state is stored on `CustomerRecord`. Existing-email opt-out flips `Customer.dataSaleOptOut` to `true`; unknown valid emails create a local opted-out customer; invalid email strings return the captured `FAILED` userError shape.
+- `customerAccountPage(id:)` and `customerAccountPages` are read-only Customer Account system-page roots. Live 2025-01 capture on `harry-test-heelo.myshopify.com` returned the built-in Orders, Profile, and Settings pages with `id`, `title`, `handle`, `defaultCursor`, opaque edge cursors, and `customerAccountPage` returning `null` for an unknown page ID. Snapshot mode resolves these roots only from normalized local account-page state and otherwise returns `null` / empty connections instead of inventing pages.
+- `customerRequestDataErasure` and `customerCancelDataErasure` are treated as sensitive customer privacy side effects. Runtime support stages only a local request/cancel intent for customers already present in normalized state, records that intent in meta state/logs, returns `customerId` plus selected `userErrors`, and preserves the original raw mutation request for commit replay. Live success capture is currently blocked: the conformance app probe succeeds, but Shopify returns `ACCESS_DENIED` requiring `write_customer_data_erasure` plus a user permission to erase customer data, so success-path payload semantics remain schema-backed rather than live-success-fixture-backed.
 
 ## Outbound email and activation buffering
 
