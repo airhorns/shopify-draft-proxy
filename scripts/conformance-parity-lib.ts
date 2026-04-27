@@ -1303,6 +1303,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
+    Object.keys(stagedState.inventoryShipments).length > 0 ||
+    Object.keys(stagedState.deletedInventoryShipmentIds).length > 0 ||
     Object.keys(stagedState.metafieldDefinitions).length > 0 ||
     Object.keys(stagedState.metaobjectDefinitions).length > 0 ||
     Object.keys(stagedState.deletedMetaobjectDefinitionIds).length > 0 ||

@@ -1,0 +1,31 @@
+{
+  "scenarioId": "inventory-shipment-lifecycle-local-staging",
+  "operationNames": [
+    "inventoryShipment",
+    "inventoryShipmentCreate",
+    "inventoryShipmentCreateInTransit",
+    "inventoryShipmentAddItems",
+    "inventoryShipmentRemoveItems",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentSetTracking",
+    "inventoryShipmentMarkInTransit",
+    "inventoryShipmentReceive",
+    "inventoryShipmentDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/inventory-shipment-lifecycle-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/inventory-shipment-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "Runtime-test-backed HAR-306 fixture for product-backed inventory shipment staging. Live 2025-01 schema introspection confirmed the shipment root fields, mutation argument names, payload field names, and status enum; the checked-in integration test enforces local create/createInTransit, add/remove/update item, set tracking, mark in transit, receive, delete, downstream inventory quantity effects, validation guardrails, no upstream writes, and original raw mutation log order. Transfer/movement routing remains documented as an opaque blocker until a dedicated transfer state model exists."
+}

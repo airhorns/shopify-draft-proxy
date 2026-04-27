@@ -1,0 +1,63 @@
+{
+  "capturedAt": "2026-04-27T15:55:00.000Z",
+  "source": "local-runtime-vitest-plus-live-schema-introspection",
+  "apiVersion": "2025-01",
+  "scenarioId": "inventory-shipment-lifecycle-local-staging",
+  "issue": "HAR-306",
+  "runtimeTest": "tests/integration/inventory-shipment-flow.test.ts",
+  "operationNames": [
+    "inventoryShipment",
+    "inventoryShipmentCreate",
+    "inventoryShipmentCreateInTransit",
+    "inventoryShipmentAddItems",
+    "inventoryShipmentRemoveItems",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentSetTracking",
+    "inventoryShipmentMarkInTransit",
+    "inventoryShipmentReceive",
+    "inventoryShipmentDelete"
+  ],
+  "schemaEvidence": {
+    "store": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "queryRoot": "inventoryShipment(id: ID!): InventoryShipment",
+    "mutationArgs": {
+      "inventoryShipmentCreate": ["input"],
+      "inventoryShipmentCreateInTransit": ["input"],
+      "inventoryShipmentAddItems": ["id", "lineItems"],
+      "inventoryShipmentRemoveItems": ["id", "lineItems"],
+      "inventoryShipmentUpdateItemQuantities": ["id", "items"],
+      "inventoryShipmentSetTracking": ["id", "tracking"],
+      "inventoryShipmentMarkInTransit": ["id"],
+      "inventoryShipmentReceive": ["id", "lineItems", "bulkReceiveAction"],
+      "inventoryShipmentDelete": ["id"]
+    },
+    "shipmentFields": [
+      "id",
+      "lineItemTotalQuantity",
+      "lineItems",
+      "lineItemsCount",
+      "name",
+      "status",
+      "totalAcceptedQuantity",
+      "totalReceivedQuantity",
+      "totalRejectedQuantity",
+      "tracking"
+    ],
+    "statusValues": ["DRAFT", "IN_TRANSIT", "PARTIALLY_RECEIVED", "RECEIVED", "OTHER"]
+  },
+  "runtimeEvidence": [
+    "Snapshot-mode inventoryShipmentCreate stages a draft shipment over existing product-backed inventory items and records the raw mutation for commit replay.",
+    "inventoryShipmentCreateInTransit and inventoryShipmentMarkInTransit increase the first effective inventory level's incoming quantity for unreceived shipment quantities.",
+    "inventoryShipmentAddItems, inventoryShipmentRemoveItems, and inventoryShipmentUpdateItemQuantities update shipment line totals and adjust incoming inventory atomically for in-transit shipments.",
+    "inventoryShipmentSetTracking stages trackingNumber, company, trackingUrl, and arrivesAt without upstream writes.",
+    "inventoryShipmentReceive moves accepted quantities from incoming to available and on_hand, reduces incoming for rejected quantities, and updates shipment status to PARTIALLY_RECEIVED or RECEIVED.",
+    "inventoryShipmentDelete tombstones local draft/in-transit shipments, reverses remaining incoming inventory, and makes inventoryShipment(id:) return null.",
+    "Invalid inventory item ids, unknown shipment ids, invalid quantities, and invalid status transitions return local userErrors without contacting Shopify."
+  ],
+  "documentedBlockers": [
+    "movementId is preserved as shipment metadata only; transfer/movement routing, origin/destination topology, and shipment name allocation are not modeled until a dedicated inventory transfer state model exists.",
+    "Support is intentionally scoped to product-backed inventory items and the first effective inventory level. Multi-location routing and non-product inventory owners need separate conformance evidence before broadening."
+  ],
+  "commitReplayEvidence": "The runtime tests assert staged shipment mutations are appended to the meta mutation log in original request order with original raw GraphQL bodies."
+}

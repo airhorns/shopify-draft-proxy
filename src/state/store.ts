@@ -24,6 +24,7 @@ import type {
   DraftOrderRecord,
   FileRecord,
   FulfillmentServiceRecord,
+  InventoryShipmentRecord,
   LocationRecord,
   MarketLocalizationRecord,
   MarketRecord,
@@ -78,6 +79,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   fulfillmentServiceOrder: [],
   carrierServices: {},
   carrierServiceOrder: [],
+  inventoryShipments: {},
+  inventoryShipmentOrder: [],
   collections: {},
   publications: {},
   customers: {},
@@ -146,6 +149,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedLocationIds: {},
   deletedFulfillmentServiceIds: {},
   deletedCarrierServiceIds: {},
+  deletedInventoryShipmentIds: {},
   deletedCustomerIds: {},
   deletedCustomerAddressIds: {},
   deletedCustomerPaymentMethodIds: {},
@@ -1465,6 +1469,72 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.carrierServices).length > 0 ||
       Object.keys(this.stagedState.deletedCarrierServiceIds).length > 0
+    );
+  }
+
+  upsertBaseInventoryShipments(shipments: InventoryShipmentRecord[]): void {
+    for (const shipment of shipments) {
+      delete this.baseState.deletedInventoryShipmentIds[shipment.id];
+      delete this.stagedState.deletedInventoryShipmentIds[shipment.id];
+      this.baseState.inventoryShipments[shipment.id] = structuredClone(shipment);
+      if (!this.baseState.inventoryShipmentOrder.includes(shipment.id)) {
+        this.baseState.inventoryShipmentOrder.push(shipment.id);
+      }
+    }
+  }
+
+  stageInventoryShipment(shipment: InventoryShipmentRecord): InventoryShipmentRecord {
+    delete this.stagedState.deletedInventoryShipmentIds[shipment.id];
+    this.stagedState.inventoryShipments[shipment.id] = structuredClone(shipment);
+    if (
+      !this.baseState.inventoryShipmentOrder.includes(shipment.id) &&
+      !this.stagedState.inventoryShipmentOrder.includes(shipment.id)
+    ) {
+      this.stagedState.inventoryShipmentOrder.push(shipment.id);
+    }
+    return structuredClone(shipment);
+  }
+
+  stageDeleteInventoryShipment(shipmentId: string): void {
+    delete this.stagedState.inventoryShipments[shipmentId];
+    this.stagedState.deletedInventoryShipmentIds[shipmentId] = true;
+  }
+
+  getEffectiveInventoryShipmentById(shipmentId: string): InventoryShipmentRecord | null {
+    if (
+      this.stagedState.deletedInventoryShipmentIds[shipmentId] ||
+      this.baseState.deletedInventoryShipmentIds[shipmentId]
+    ) {
+      return null;
+    }
+
+    const shipment =
+      this.stagedState.inventoryShipments[shipmentId] ?? this.baseState.inventoryShipments[shipmentId] ?? null;
+    return shipment ? structuredClone(shipment) : null;
+  }
+
+  listEffectiveInventoryShipments(): InventoryShipmentRecord[] {
+    const orderedIds = new Set([...this.baseState.inventoryShipmentOrder, ...this.stagedState.inventoryShipmentOrder]);
+    const orderedShipments = [...orderedIds]
+      .map((id) => this.getEffectiveInventoryShipmentById(id))
+      .filter((shipment): shipment is InventoryShipmentRecord => shipment !== null);
+    const unorderedShipments = Object.values({
+      ...this.baseState.inventoryShipments,
+      ...this.stagedState.inventoryShipments,
+    })
+      .filter((shipment) => !orderedIds.has(shipment.id))
+      .map((shipment) => this.getEffectiveInventoryShipmentById(shipment.id))
+      .filter((shipment): shipment is InventoryShipmentRecord => shipment !== null)
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedShipments, ...unorderedShipments]);
+  }
+
+  hasInventoryShipments(): boolean {
+    return (
+      Object.keys(this.baseState.inventoryShipments).length > 0 ||
+      Object.keys(this.stagedState.inventoryShipments).length > 0 ||
+      Object.keys(this.stagedState.deletedInventoryShipmentIds).length > 0
     );
   }
 

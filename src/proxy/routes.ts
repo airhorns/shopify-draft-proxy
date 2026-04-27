@@ -22,6 +22,7 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from './inventory-shipments.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import { handleOrderMutation, handleOrderQuery, shouldServeDraftOrderCatalogLocally } from './orders.js';
 import {
@@ -138,6 +139,18 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
+
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -431,6 +444,36 @@ export function createProxyRouter(config: AppConfig): Router {
 
         ctx.status = 200;
         ctx.body = discountMutation.response;
+        return;
+      }
+    }
+
+    if (
+      capability.execution === 'stage-locally' &&
+      capability.domain === 'products' &&
+      primaryRootField &&
+      INVENTORY_SHIPMENT_MUTATION_ROOTS.has(primaryRootField)
+    ) {
+      const inventoryShipmentMutation = handleInventoryShipmentMutation(body.query, variables);
+      if (inventoryShipmentMutation) {
+        if (inventoryShipmentMutation.staged) {
+          store.appendLog({
+            id: makeSyntheticGid('MutationLogEntry'),
+            receivedAt: makeSyntheticTimestamp(),
+            operationName: capability.operationName,
+            path: ctx.path,
+            query: body.query,
+            variables,
+            requestBody,
+            stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
+            status: 'staged',
+            interpreted: interpretMutationLogEntry(parsed, capability),
+            notes: inventoryShipmentMutation.notes,
+          });
+        }
+
+        ctx.status = 200;
+        ctx.body = inventoryShipmentMutation.response;
         return;
       }
     }
@@ -992,6 +1035,20 @@ export function createProxyRouter(config: AppConfig): Router {
     }
 
     if (capability.execution === 'overlay-read' && capability.domain === 'products') {
+      if (primaryRootField === 'inventoryShipment') {
+        if (config.readMode === 'snapshot') {
+          ctx.status = 200;
+          ctx.body = handleInventoryShipmentQuery(body.query, variables);
+          return;
+        }
+
+        if (config.readMode === 'live-hybrid' && store.hasInventoryShipments()) {
+          ctx.status = 200;
+          ctx.body = handleInventoryShipmentQuery(body.query, variables);
+          return;
+        }
+      }
+
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
         ctx.body = handleProductQuery(body.query, variables, config.readMode);

@@ -235,6 +235,16 @@
     "supportNotes": "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice."
   },
   {
+    "name": "inventoryShipment",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryShipment", "InventoryShipment"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Reads locally staged inventory shipments and returns null for unknown ids in snapshot mode. Current support is scoped to product-backed inventory items and shipment line/status/tracking fields captured through 2025-01 schema introspection."
+  },
+  {
     "name": "inventoryLevel",
     "type": "query",
     "domain": "products",
@@ -2218,6 +2228,96 @@
     "implemented": true,
     "matchNames": ["inventoryBulkToggleActivation", "InventoryBulkToggleActivation"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryShipmentCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentCreate", "InventoryShipmentCreate"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages a draft shipment over existing product-backed inventory items with local line-item, tracking, and read-after-write detail support. Transfer/movement routing remains opaque until HAR-307 transfer state is available."
+  },
+  {
+    "name": "inventoryShipmentCreateInTransit",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentCreateInTransit", "InventoryShipmentCreateInTransit"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages an in-transit shipment locally and increases the destination inventory item's incoming quantity in the first known product-backed inventory level."
+  },
+  {
+    "name": "inventoryShipmentAddItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentAddItems", "InventoryShipmentAddItems"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages line-item additions for local draft/in-transit shipments and updates incoming inventory for in-transit additions."
+  },
+  {
+    "name": "inventoryShipmentRemoveItems",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentRemoveItems", "InventoryShipmentRemoveItems"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages line-item removal for local draft/in-transit shipments and reverses unreceived incoming inventory for removed in-transit items."
+  },
+  {
+    "name": "inventoryShipmentUpdateItemQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentUpdateItemQuantities", "InventoryShipmentUpdateItemQuantities"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages local shipment line quantity changes, rejecting quantities below already received amounts and updating incoming inventory deltas for in-transit shipments."
+  },
+  {
+    "name": "inventoryShipmentSetTracking",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentSetTracking", "InventoryShipmentSetTracking"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages local shipment tracking details for unreceived shipments."
+  },
+  {
+    "name": "inventoryShipmentMarkInTransit",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentMarkInTransit", "InventoryShipmentMarkInTransit"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages draft-to-in-transit transition locally and increases incoming inventory for unreceived shipment quantities."
+  },
+  {
+    "name": "inventoryShipmentReceive",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentReceive", "InventoryShipmentReceive"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Stages accepted/rejected receipt quantities locally. Accepted quantities move from incoming to available/on_hand inventory; rejected quantities only reduce incoming."
+  },
+  {
+    "name": "inventoryShipmentDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryShipmentDelete", "InventoryShipmentDelete"],
+    "runtimeTests": ["tests/integration/inventory-shipment-flow.test.ts"],
+    "supportNotes": "Deletes local draft/in-transit shipments and reverses unreceived incoming inventory for in-transit shipment lines. Received shipments return a local status userError."
   },
   {
     "name": "metafieldsSet",
