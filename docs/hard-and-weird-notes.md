@@ -1158,6 +1158,19 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 19c. Product definition lifecycle deletes make matching product metafields disappear immediately
+
+HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`.
+
+Useful behavior:
+
+- create returns a concrete `createdDefinition` with the selected identity, type, validation, pinned position, and `validationStatus`
+- update is identity-based: `ownerType`, `namespace`, and `key` identify the definition, while fields such as name and description can change
+- delete accepts the definition `id`, returns both `deletedDefinitionId` and the deleted identity payload, and `deleteAllAssociatedMetafields: true` returned no user errors in the product-owner capture
+- immediate downstream reads after delete returned `metafieldDefinition: null`, an empty matching `metafieldDefinitions` connection, and `product.metafield(namespace:, key:)`: `null`
+
+The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
