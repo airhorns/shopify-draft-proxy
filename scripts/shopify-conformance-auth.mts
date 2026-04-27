@@ -1,4 +1,3 @@
-// @ts-nocheck
 import 'dotenv/config';
 
 import { randomBytes, createHash } from 'node:crypto';
@@ -6,6 +5,8 @@ import { existsSync } from 'node:fs';
 import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+
+import { z } from 'zod';
 
 import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
@@ -32,7 +33,28 @@ const PROBE_QUERY = `#graphql
   }
 `;
 
-function tokenFamily(token) {
+const storedConformanceAuthSchema = z.record(z.string(), z.unknown());
+type StoredConformanceAuth = z.infer<typeof storedConformanceAuthSchema>;
+type JsonRecord = Record<string, unknown>;
+type ProbeAccessTokenResult = {
+  ok: boolean;
+  status: number;
+  payload: unknown;
+};
+
+const accessTokenRefreshResponseSchema = z
+  .object({
+    access_token: z.string().min(1),
+    refresh_token: z.string().min(1).optional(),
+    scope: z.string().optional(),
+    expires_in: z.number().int().optional(),
+    refresh_token_expires_in: z.number().int().optional(),
+  })
+  .catchall(z.unknown());
+
+type AccessTokenRefreshResponse = z.infer<typeof accessTokenRefreshResponseSchema>;
+
+function tokenFamily(token: unknown): string | null {
   if (typeof token !== 'string') {
     return null;
   }
@@ -57,7 +79,7 @@ export function buildAdminAuthHeaders(token: string): Record<string, string> {
   };
 }
 
-async function fileExists(filePath) {
+async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
     return true;
@@ -66,12 +88,12 @@ async function fileExists(filePath) {
   }
 }
 
-async function readJsonFile(filePath) {
-  return JSON.parse(await readFile(filePath, 'utf8'));
+async function readJsonFile(filePath: string): Promise<unknown> {
+  return JSON.parse(await readFile(filePath, 'utf8')) as unknown;
 }
 
-function parseEnvFile(content) {
-  const vars = {};
+function parseEnvFile(content: string): Record<string, string> {
+  const vars: Record<string, string> = {};
   for (const line of content.split(/\r?\n/u)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) {
@@ -88,29 +110,30 @@ function parseEnvFile(content) {
   return vars;
 }
 
-async function writeJsonAtomically(filePath, value) {
+async function writeJsonAtomically(filePath: string, value: unknown): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.tmp`;
   await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   await rename(tempPath, filePath);
 }
 
-function isLikelyAuthFailure(result) {
+function isLikelyAuthFailure(result: { status: number; payload: unknown }): boolean {
   if (result.status === 401) {
     return true;
   }
 
-  const payloadErrors = Array.isArray(result.payload?.errors) ? result.payload.errors : [];
-  return payloadErrors.some(
-    (entry) => typeof entry?.message === 'string' && /access token|authentication|invalid api key/i.test(entry.message),
-  );
+  const payloadErrors = readArrayProperty(result.payload, 'errors');
+  return payloadErrors.some((entry) => {
+    const message = readStringProperty(entry, 'message');
+    return typeof message === 'string' && /access token|authentication|invalid api key/i.test(message);
+  });
 }
 
-function normalizeErrorText(input) {
+function normalizeErrorText(input: string): string {
   return input.replace(/\s+/gu, ' ').trim();
 }
 
-function extractClearErrorMessage(payload, fallbackStatus) {
+function extractClearErrorMessage(payload: unknown, fallbackStatus: number): string {
   if (typeof payload === 'string') {
     const htmlStripped = normalizeErrorText(
       payload.replace(/<style[\s\S]*?<\/style>/giu, ' ').replace(/<[^>]+>/gu, ' '),
@@ -133,31 +156,37 @@ function extractClearErrorMessage(payload, fallbackStatus) {
     return htmlStripped.slice(0, 300);
   }
 
-  if (Array.isArray(payload?.errors)) {
-    const messages = payload.errors
-      .map((entry) => (typeof entry?.message === 'string' ? normalizeErrorText(entry.message) : null))
+  const errors = readUnknownProperty(payload, 'errors');
+  if (Array.isArray(errors)) {
+    const messages = errors
+      .map((entry) => {
+        const message = readStringProperty(entry, 'message');
+        return typeof message === 'string' ? normalizeErrorText(message) : null;
+      })
       .filter(Boolean);
     if (messages.length > 0) {
       return messages.join('; ');
     }
   }
 
-  if (typeof payload?.errors === 'string') {
-    return normalizeErrorText(payload.errors);
+  if (typeof errors === 'string') {
+    return normalizeErrorText(errors);
   }
 
-  if (typeof payload?.error_description === 'string') {
-    return normalizeErrorText(payload.error_description);
+  const errorDescription = readStringProperty(payload, 'error_description');
+  if (typeof errorDescription === 'string') {
+    return normalizeErrorText(errorDescription);
   }
 
-  if (typeof payload?.error === 'string') {
-    return normalizeErrorText(payload.error);
+  const error = readStringProperty(payload, 'error');
+  if (typeof error === 'string') {
+    return normalizeErrorText(error);
   }
 
   return `HTTP ${fallbackStatus}`;
 }
 
-async function parseResponsePayload(response) {
+async function parseResponsePayload(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     return await response.json();
@@ -165,7 +194,17 @@ async function parseResponsePayload(response) {
   return await response.text();
 }
 
-async function probeAccessToken({ adminOrigin, apiVersion = DEFAULT_API_VERSION, accessToken, fetchImpl = fetch }) {
+async function probeAccessToken({
+  adminOrigin,
+  apiVersion = DEFAULT_API_VERSION,
+  accessToken,
+  fetchImpl = fetch,
+}: {
+  adminOrigin: string;
+  apiVersion?: string;
+  accessToken: string;
+  fetchImpl?: FetchImpl;
+}): Promise<ProbeAccessTokenResult> {
   const { status, payload } = await runAdminGraphqlRequest(
     {
       adminOrigin,
@@ -176,13 +215,13 @@ async function probeAccessToken({ adminOrigin, apiVersion = DEFAULT_API_VERSION,
     PROBE_QUERY,
   );
   return {
-    ok: status >= 200 && status < 300 && !payload?.errors,
+    ok: status >= 200 && status < 300 && !hasProperty(payload, 'errors'),
     status,
     payload,
   };
 }
 
-export function resolveDefaultAppRoot({ repoRoot = process.cwd() } = {}) {
+export function resolveDefaultAppRoot({ repoRoot = process.cwd() }: { repoRoot?: string } = {}): string {
   const appHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || 'hermes-conformance-products';
   const repoLocalRoot = path.join(repoRoot, 'shopify-conformance-app', appHandle);
   if (existsSync(repoLocalRoot)) {
@@ -192,7 +231,7 @@ export function resolveDefaultAppRoot({ repoRoot = process.cwd() } = {}) {
   return path.join('/tmp/shopify-conformance-app', appHandle);
 }
 
-export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() } = {}) {
+export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() }: { repoRoot?: string } = {}): string {
   if (process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH']) {
     return process.env['SHOPIFY_CONFORMANCE_APP_ENV_PATH'];
   }
@@ -206,7 +245,7 @@ export function resolveDefaultAppEnvPath({ repoRoot = process.cwd() } = {}) {
   return path.join('/tmp/shopify-conformance-app', appHandle, '.env');
 }
 
-async function readShopifyApiSecret(appEnvPath) {
+async function readShopifyApiSecret(appEnvPath: string): Promise<string> {
   if (!(await fileExists(appEnvPath))) {
     throw new Error(
       `Shopify app env file not found at ${appEnvPath}. Set SHOPIFY_CONFORMANCE_APP_ENV_PATH or restore the linked app workspace before refreshing the token.`,
@@ -221,19 +260,19 @@ async function readShopifyApiSecret(appEnvPath) {
   return secret;
 }
 
-async function loadStoredConformanceAuth(credentialPath) {
+async function loadStoredConformanceAuth(credentialPath: string): Promise<StoredConformanceAuth> {
   if (!(await fileExists(credentialPath))) {
     throw new Error(
       `Shopify conformance credential file not found at ${credentialPath}. Run the app grant flow to create a fresh token pair.`,
     );
   }
 
-  const auth = await readJsonFile(credentialPath);
-  if (typeof auth !== 'object' || auth === null) {
+  const parsed = storedConformanceAuthSchema.safeParse(await readJsonFile(credentialPath));
+  if (!parsed.success) {
     throw new Error(`Shopify conformance credential file at ${credentialPath} does not contain a JSON object.`);
   }
 
-  return auth;
+  return parsed.data;
 }
 
 export async function refreshConformanceAccessToken({
@@ -244,7 +283,7 @@ export async function refreshConformanceAccessToken({
   credentialPath?: string;
   appEnvPath?: string;
   fetchImpl?: FetchImpl;
-} = {}): Promise<Record<string, any>> {
+} = {}): Promise<StoredConformanceAuth> {
   const storedAuth = await loadStoredConformanceAuth(credentialPath);
   const refreshToken = storedAuth['refresh_token'];
   const clientId = storedAuth['client_id'] ?? storedAuth['clientId'];
@@ -278,33 +317,38 @@ export async function refreshConformanceAccessToken({
     throw new Error(extractClearErrorMessage(payload, response.status));
   }
 
-  if (typeof payload?.access_token !== 'string' || payload.access_token.length === 0) {
+  const tokenPayload = parseAccessTokenRefreshResponse(payload);
+  if (!tokenPayload) {
     throw new Error(
       `Shopify refresh response from https://${shop}/admin/oauth/access_token did not include access_token.`,
     );
   }
 
+  const expiresIn = tokenPayload.expires_in;
+  const refreshTokenExpiresIn = tokenPayload.refresh_token_expires_in;
+  const hasExpiresIn = typeof expiresIn === 'number' && Number.isInteger(expiresIn);
+  const hasRefreshTokenExpiresIn = typeof refreshTokenExpiresIn === 'number' && Number.isInteger(refreshTokenExpiresIn);
   const obtainedAt = new Date().toISOString();
   const updatedAuth = {
     ...storedAuth,
-    access_token: payload.access_token,
+    access_token: tokenPayload.access_token,
     refresh_token:
-      typeof payload.refresh_token === 'string' && payload.refresh_token.length > 0
-        ? payload.refresh_token
+      typeof tokenPayload.refresh_token === 'string' && tokenPayload.refresh_token.length > 0
+        ? tokenPayload.refresh_token
         : refreshToken,
-    scope: typeof payload.scope === 'string' ? payload.scope : (storedAuth['scope'] ?? null),
-    expires_in: Number.isInteger(payload.expires_in) ? payload.expires_in : (storedAuth['expires_in'] ?? null),
-    expires_at: Number.isInteger(payload.expires_in)
-      ? new Date(Date.now() + payload.expires_in * 1000).toISOString()
+    scope: typeof tokenPayload.scope === 'string' ? tokenPayload.scope : (storedAuth['scope'] ?? null),
+    expires_in: hasExpiresIn ? expiresIn : (storedAuth['expires_in'] ?? null),
+    expires_at: hasExpiresIn
+      ? new Date(Date.now() + expiresIn * 1000).toISOString()
       : (storedAuth['expires_at'] ?? null),
-    refresh_token_expires_in: Number.isInteger(payload.refresh_token_expires_in)
-      ? payload.refresh_token_expires_in
+    refresh_token_expires_in: hasRefreshTokenExpiresIn
+      ? refreshTokenExpiresIn
       : (storedAuth['refresh_token_expires_in'] ?? null),
-    refresh_token_expires_at: Number.isInteger(payload.refresh_token_expires_in)
-      ? new Date(Date.now() + payload.refresh_token_expires_in * 1000).toISOString()
+    refresh_token_expires_at: hasRefreshTokenExpiresIn
+      ? new Date(Date.now() + refreshTokenExpiresIn * 1000).toISOString()
       : (storedAuth['refresh_token_expires_at'] ?? null),
     obtained_at: obtainedAt,
-    token_family: tokenFamily(payload.access_token),
+    token_family: tokenFamily(tokenPayload.access_token),
     client_id: clientId,
     shop,
     store: shop,
@@ -353,13 +397,13 @@ export async function getValidConformanceAccessToken({
     const refreshedProbe = await probeAccessToken({
       adminOrigin,
       apiVersion,
-      accessToken: refreshedAuth['access_token'],
+      accessToken: readRequiredStringProperty(refreshedAuth, 'access_token'),
       fetchImpl,
     });
     if (!refreshedProbe.ok) {
       throw new Error(extractClearErrorMessage(refreshedProbe.payload, refreshedProbe.status));
     }
-    return refreshedAuth['access_token'];
+    return readRequiredStringProperty(refreshedAuth, 'access_token');
   } catch (error) {
     throw new Error(
       `Stored Shopify conformance access token is invalid and refresh failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -367,11 +411,11 @@ export async function getValidConformanceAccessToken({
   }
 }
 
-function encodeBase64Url(buffer) {
+function encodeBase64Url(buffer: Buffer): string {
   return buffer.toString('base64url');
 }
 
-function buildCodeChallenge(codeVerifier) {
+function buildCodeChallenge(codeVerifier: string): string {
   return encodeBase64Url(createHash('sha256').update(codeVerifier).digest());
 }
 
@@ -389,7 +433,7 @@ export async function createConformanceAuthRequest({
   redirectUri?: string;
   authRequestPath?: string;
   pkcePath?: string;
-}): Promise<Record<string, any>> {
+}): Promise<StoredConformanceAuth> {
   if (typeof storeDomain !== 'string' || storeDomain.length === 0) {
     throw new Error('createConformanceAuthRequest requires storeDomain.');
   }
@@ -442,7 +486,7 @@ export async function exchangeConformanceAuthCallback({
   authRequestPath?: string;
   appEnvPath?: string;
   fetchImpl?: FetchImpl;
-}): Promise<Record<string, any>> {
+}): Promise<StoredConformanceAuth> {
   if (typeof callbackUrl !== 'string' || callbackUrl.length === 0) {
     throw new Error('exchangeConformanceAuthCallback requires callbackUrl.');
   }
@@ -453,7 +497,14 @@ export async function exchangeConformanceAuthCallback({
     );
   }
 
-  const requestState = await readJsonFile(authRequestPath);
+  const parsedRequestState = storedConformanceAuthSchema.safeParse(await readJsonFile(authRequestPath));
+  if (!parsedRequestState.success) {
+    throw new Error(`Shopify conformance auth request file at ${authRequestPath} does not contain a JSON object.`);
+  }
+  const requestState = parsedRequestState.data;
+  const requestClientId = readRequiredStringProperty(requestState, 'client_id');
+  const requestCodeVerifier = readRequiredStringProperty(requestState, 'code_verifier');
+  const requestRedirectUri = readRequiredStringProperty(requestState, 'redirect_uri');
   const callback = new URL(callbackUrl);
   const code = callback.searchParams.get('code');
   const shop = callback.searchParams.get('shop');
@@ -475,11 +526,11 @@ export async function exchangeConformanceAuthCallback({
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
-      client_id: requestState['client_id'],
+      client_id: requestClientId,
       client_secret: clientSecret,
       code,
-      code_verifier: requestState['code_verifier'],
-      redirect_uri: requestState['redirect_uri'],
+      code_verifier: requestCodeVerifier,
+      redirect_uri: requestRedirectUri,
       expiring: '1',
     }),
   });
@@ -488,28 +539,79 @@ export async function exchangeConformanceAuthCallback({
     throw new Error(extractClearErrorMessage(payload, response.status));
   }
 
+  const accessToken = readRequiredStringProperty(payload, 'access_token');
   const obtainedAt = new Date().toISOString();
   const persisted = {
     shop,
     store: shop,
-    client_id: requestState['client_id'],
-    access_token: payload['access_token'],
-    refresh_token: payload['refresh_token'] ?? null,
-    scope: payload['scope'] ?? requestState['scopes']?.join(',') ?? null,
-    expires_in: payload['expires_in'] ?? null,
-    expires_at: Number.isInteger(payload['expires_in'])
-      ? new Date(Date.now() + payload['expires_in'] * 1000).toISOString()
+    client_id: requestClientId,
+    access_token: accessToken,
+    refresh_token: readStringProperty(payload, 'refresh_token') ?? null,
+    scope:
+      readStringProperty(payload, 'scope') ??
+      (Array.isArray(requestState['scopes']) ? requestState['scopes'].join(',') : null),
+    expires_in: readNumberProperty(payload, 'expires_in') ?? null,
+    expires_at: Number.isInteger(readNumberProperty(payload, 'expires_in'))
+      ? new Date(Date.now() + readRequiredNumberProperty(payload, 'expires_in') * 1000).toISOString()
       : null,
-    refresh_token_expires_in: payload['refresh_token_expires_in'] ?? null,
-    refresh_token_expires_at: Number.isInteger(payload['refresh_token_expires_in'])
-      ? new Date(Date.now() + payload['refresh_token_expires_in'] * 1000).toISOString()
+    refresh_token_expires_in: readNumberProperty(payload, 'refresh_token_expires_in') ?? null,
+    refresh_token_expires_at: Number.isInteger(readNumberProperty(payload, 'refresh_token_expires_in'))
+      ? new Date(Date.now() + readRequiredNumberProperty(payload, 'refresh_token_expires_in') * 1000).toISOString()
       : null,
     obtained_at: obtainedAt,
     source_callback_url: callbackUrl,
     grant_mode: 'expiring-offline-token-pkce',
-    token_family: tokenFamily(payload['access_token']),
+    token_family: tokenFamily(accessToken),
   };
 
   await writeJsonAtomically(credentialPath, persisted);
   return persisted;
+}
+
+function parseAccessTokenRefreshResponse(payload: unknown): AccessTokenRefreshResponse | null {
+  const parsed = accessTokenRefreshResponseSchema.safeParse(payload);
+  return parsed.success ? parsed.data : null;
+}
+
+function readRequiredStringProperty(value: unknown, key: string): string {
+  const result = readStringProperty(value, key);
+  if (typeof result !== 'string' || result.length === 0) {
+    throw new Error(`Expected ${key} to be a non-empty string.`);
+  }
+  return result;
+}
+
+function readRequiredNumberProperty(value: unknown, key: string): number {
+  const result = readNumberProperty(value, key);
+  if (typeof result !== 'number' || !Number.isFinite(result)) {
+    throw new Error(`Expected ${key} to be a number.`);
+  }
+  return result;
+}
+
+function readStringProperty(value: unknown, key: string): string | null {
+  const property = readUnknownProperty(value, key);
+  return typeof property === 'string' ? property : null;
+}
+
+function readNumberProperty(value: unknown, key: string): number | null {
+  const property = readUnknownProperty(value, key);
+  return typeof property === 'number' ? property : null;
+}
+
+function readArrayProperty(value: unknown, key: string): unknown[] {
+  const property = readUnknownProperty(value, key);
+  return Array.isArray(property) ? property : [];
+}
+
+function readUnknownProperty(value: unknown, key: string): unknown {
+  return isRecord(value) ? value[key] : undefined;
+}
+
+function hasProperty(value: unknown, key: string): boolean {
+  return isRecord(value) && key in value;
+}
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
