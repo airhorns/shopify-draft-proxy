@@ -89,6 +89,7 @@ App -> Koa server -> operation classifier
 - read pipeline
 - mutation pipeline
 - response overlay engine
+- GraphQL route dispatch keeps HTTP validation, auth/upstream wiring, and unsupported fallback passthrough in `routes.ts`; domain behavior is selected through a `DomainDispatcher` table whose entries own `canHandle`, mutation handling, query handling, and live-hybrid hydration decisions for their resource area.
 
 ### `src/shopify/`
 
@@ -195,6 +196,8 @@ This allows:
 - deterministic testing
 - commit replay from original raw mutation documents
 - future conformance instrumentation per command type
+
+Current route dispatch preserves the same supported/unsupported split through shared staged-log helpers. Supported dispatchers append the original raw request body and interpreted metadata before returning synthesized responses, while unknown or unimplemented mutations fall through to the route-level passthrough logger and upstream request path.
 
 ## Response overlay strategy
 

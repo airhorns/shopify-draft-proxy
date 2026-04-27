@@ -20,6 +20,7 @@
     "conformance:exchange-auth": "tsx ./scripts/exchange-conformance-auth-callback.mts",
     "conformance:probe": "tsx ./scripts/conformance-probe.mts",
     "conformance:refresh-auth": "tsx ./scripts/refresh-conformance-auth.mts",
+    "conformance:capture:index": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture-products": "tsx ./scripts/capture-product-conformance.mts",
     "conformance:capture-customers": "tsx ./scripts/capture-customer-conformance.mts",
     "conformance:capture-customer-mutations": "tsx ./scripts/capture-customer-mutation-conformance.mts",
