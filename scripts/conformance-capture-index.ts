@@ -236,6 +236,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    packageScript: 'conformance:capture-selling-plan-groups',
+    scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
+    purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
+      'config/parity-specs/selling-plan-group-lifecycle.json',
+    ],
+    cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     packageScript: 'conformance:capture-metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
@@ -564,6 +577,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}delivery-profile-*.json`, 'config/parity-specs/delivery-profile-*.json'],
     cleanupBehavior: 'Removes or restores created delivery profile artifacts; review default-profile protections.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'shipping-fulfillments',
+    packageScript: 'conformance:capture-shipping-settings',
+    scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
+    purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-settings-package-pickup-constraints.json`,
+      'config/parity-specs/shipping-settings-package-pickup-constraints.json',
+    ],
+    cleanupBehavior: 'Enables and disables local pickup on an active location to restore the pre-capture setting.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'bulk-operations',
