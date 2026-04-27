@@ -54,6 +54,7 @@ const emptySnapshot = {
   onlineStoreCommentOrder: [],
   bulkOperations: {},
   bulkOperationOrder: [],
+  bulkOperationResults: {},
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
