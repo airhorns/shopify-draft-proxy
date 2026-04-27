@@ -41,13 +41,24 @@ describe('saved search flow', () => {
       });
 
     expect(response.status).toBe(200);
-    for (const value of Object.values(response.body.data)) {
+    const { draftOrderSavedSearches, ...emptyConnections } = response.body.data;
+    for (const value of Object.values(emptyConnections)) {
       expect(value).toMatchObject({
         nodes: [],
         pageInfo: { hasNextPage: false, hasPreviousPage: false, startCursor: null, endCursor: null },
       });
     }
     expect(response.body.data.productSavedSearches.edges).toEqual([]);
+    expect(draftOrderSavedSearches.nodes).toEqual([
+      { id: 'gid://shopify/SavedSearch/3634390597938' },
+      { id: 'gid://shopify/SavedSearch/3634390630706' },
+    ]);
+    expect(draftOrderSavedSearches.pageInfo).toMatchObject({
+      hasNextPage: true,
+      hasPreviousPage: false,
+      startCursor: 'cursor:gid://shopify/SavedSearch/3634390597938',
+      endCursor: 'cursor:gid://shopify/SavedSearch/3634390630706',
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

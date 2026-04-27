@@ -405,6 +405,21 @@ function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
   };
 }
 
+function connectionFromEdges(edges: ConnectionEdge[]): Record<string, unknown> {
+  return {
+    edges: edges.map((edge) => ({
+      cursor: edge.cursor,
+      node: edge.node,
+    })),
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
+    },
+  };
+}
+
 function marketTypeConditionApplies(source: Record<string, unknown>, typeCondition: string | undefined): boolean {
   const sourceTypename = typeof source['__typename'] === 'string' ? source['__typename'] : null;
   return (
@@ -2749,6 +2764,7 @@ function variantPriceListNode(
   product: ProductRecord | null,
   input: Record<string, unknown>,
   currencyCode: string,
+  existingNode: Record<string, unknown> | null = null,
 ): Record<string, unknown> | null {
   const price = moneyPayload(input['price'], currencyCode);
   if (!price) {
@@ -2756,13 +2772,19 @@ function variantPriceListNode(
   }
 
   return {
+    __typename: 'PriceListPrice',
     price,
     compareAtPrice: moneyPayload(input['compareAtPrice'], currencyCode),
     originType: 'FIXED',
+    quantityPriceBreaks: isPlainObject(existingNode?.['quantityPriceBreaks'])
+      ? structuredClone(existingNode['quantityPriceBreaks'])
+      : emptyConnection(),
     variant: {
+      __typename: 'ProductVariant',
       id: variant.id,
       sku: variant.sku,
       product: {
+        __typename: 'Product',
         id: variant.productId,
         title: product?.title ?? null,
       },
@@ -2783,18 +2805,7 @@ function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: Connection
   const data: Record<string, unknown> = {
     ...structuredClone(priceList.data),
     fixedPricesCount,
-    prices: {
-      edges: edges.map((edge) => ({
-        cursor: edge.cursor,
-        node: edge.node,
-      })),
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: edges[0]?.cursor ?? null,
-        endCursor: edges.at(-1)?.cursor ?? null,
-      },
-    },
+    prices: connectionFromEdges(edges),
     updatedAt: makeSyntheticTimestamp(),
   };
 
@@ -2849,7 +2860,8 @@ function upsertFixedPriceNodes(
     }
 
     const product = store.getEffectiveProductById(variant.productId);
-    const node = variantPriceListNode(variant, product, input, currencyCode);
+    const existingNode = isPlainObject(existing?.node) ? existing.node : null;
+    const node = variantPriceListNode(variant, product, input, currencyCode, existingNode);
     if (!node) {
       errors.push(priceListError(['prices', 'price'], "Price can't be blank", 'BLANK'));
       continue;
@@ -2894,6 +2906,511 @@ function deleteFixedPriceNodes(
   return {
     priceList: rebuildPriceListWithEdges(priceList, edges),
     deletedVariantIds,
+  };
+}
+
+function readQuantityRuleInputs(args: Record<string, unknown>, names: string[]): Record<string, unknown>[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    if (Array.isArray(raw)) {
+      return raw.filter(isPlainObject);
+    }
+  }
+  return [];
+}
+
+function readQuantityVariantIds(args: Record<string, unknown>, names: string[]): string[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    const values = readStringArray(raw);
+    if (values.length > 0 || Array.isArray(raw)) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function quantityRuleVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node)) {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['productVariant']) ? edge.node['productVariant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function quantityPriceBreakId(edge: ConnectionEdge): string | null {
+  return isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? edge.node['id'] : null;
+}
+
+function quantityPriceBreakVariantId(edge: ConnectionEdge): string | null {
+  if (!isPlainObject(edge.node)) {
+    return null;
+  }
+  const variant = isPlainObject(edge.node['variant']) ? edge.node['variant'] : null;
+  return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function quantityPriceBreakMinimum(edge: ConnectionEdge): number | null {
+  return isPlainObject(edge.node) && typeof edge.node['minimumQuantity'] === 'number'
+    ? edge.node['minimumQuantity']
+    : null;
+}
+
+function quantityRuleNode(
+  variant: ProductVariantRecord,
+  product: ProductRecord | null,
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    __typename: 'QuantityRule',
+    minimum: typeof input['minimum'] === 'number' ? Math.floor(input['minimum']) : 1,
+    maximum: typeof input['maximum'] === 'number' ? Math.floor(input['maximum']) : null,
+    increment: typeof input['increment'] === 'number' ? Math.floor(input['increment']) : 1,
+    isDefault: false,
+    originType: 'FIXED',
+    productVariant: {
+      __typename: 'ProductVariant',
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        __typename: 'Product',
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function addQuantityRuleValidationErrors(
+  input: Record<string, unknown>,
+  field: string[],
+  errors: MarketUserError[],
+  codePrefix: 'standalone' | 'pricing',
+): void {
+  const minimum = typeof input['minimum'] === 'number' ? Math.floor(input['minimum']) : null;
+  const maximum = typeof input['maximum'] === 'number' ? Math.floor(input['maximum']) : null;
+  const increment = typeof input['increment'] === 'number' ? Math.floor(input['increment']) : null;
+
+  const addError = (suffix: string, message: string, code: string) => {
+    errors.push({
+      field: [...field, suffix],
+      message,
+      code,
+    });
+  };
+
+  if (minimum === null || minimum < 1) {
+    addError(
+      'minimum',
+      'Minimum must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MINIMUM_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (increment === null || increment < 1) {
+    addError(
+      'increment',
+      'Increment must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_INCREMENT_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (maximum !== null && maximum < 1) {
+    addError(
+      'maximum',
+      'Maximum must be greater than or equal to 1.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MAXIMUM_IS_LESS_THAN_ONE' : 'GREATER_THAN_OR_EQUAL_TO',
+    );
+  }
+  if (minimum !== null && maximum !== null && minimum > maximum) {
+    addError(
+      'minimum',
+      'Minimum must be lower than or equal to the maximum.',
+      codePrefix === 'pricing' ? 'QUANTITY_RULE_ADD_MINIMUM_GREATER_THAN_MAXIMUM' : 'MINIMUM_IS_GREATER_THAN_MAXIMUM',
+    );
+  }
+  if (minimum !== null && increment !== null && increment > minimum) {
+    addError(
+      'increment',
+      'Increment must be lower than or equal to the minimum.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_INCREMENT_IS_GREATER_THAN_MINIMUM'
+        : 'INCREMENT_IS_GREATER_THAN_MINIMUM',
+    );
+  }
+  if (minimum !== null && increment !== null && minimum % increment !== 0) {
+    addError(
+      'minimum',
+      'The minimum must be a multiple of the increment.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_MINIMUM_NOT_A_MULTIPLE_OF_INCREMENT'
+        : 'MINIMUM_NOT_MULTIPLE_OF_INCREMENT',
+    );
+  }
+  if (maximum !== null && increment !== null && maximum % increment !== 0) {
+    addError(
+      'maximum',
+      'The maximum must be a multiple of the increment.',
+      codePrefix === 'pricing'
+        ? 'QUANTITY_RULE_ADD_MAXIMUM_NOT_A_MULTIPLE_OF_INCREMENT'
+        : 'MAXIMUM_NOT_MULTIPLE_OF_INCREMENT',
+    );
+  }
+}
+
+function rebuildPriceListWithQuantityRuleEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+  const data: Record<string, unknown> = {
+    ...structuredClone(priceList.data),
+    quantityRules: connectionFromEdges(edges),
+    updatedAt: makeSyntheticTimestamp(),
+  };
+
+  return {
+    id: priceList.id,
+    cursor: priceList.cursor,
+    data: data as Record<string, JsonValue>,
+  };
+}
+
+function upsertQuantityRuleNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  errors: MarketUserError[],
+  options: {
+    fieldPrefix: string[];
+    variantNotFoundCode: string;
+    duplicateCode: string;
+    validationCodePrefix: 'standalone' | 'pricing';
+  },
+): { priceList: PriceListRecord; quantityRules: Record<string, unknown>[]; variantIds: string[] } {
+  const edgesByVariantId = new Map<string, ConnectionEdge>();
+  const otherEdges: ConnectionEdge[] = [];
+  const quantityRules: Record<string, unknown>[] = [];
+  const variantIds: string[] = [];
+
+  for (const edge of readConnectionEdges(priceList.data['quantityRules'])) {
+    const variantId = quantityRuleVariantId(edge);
+    if (variantId) {
+      edgesByVariantId.set(variantId, edge);
+    } else {
+      otherEdges.push(edge);
+    }
+  }
+
+  const inputVariantIds = new Set<string>();
+  for (const [index, input] of inputs.entries()) {
+    const field = [...options.fieldPrefix, String(index)];
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId) {
+      errors.push({
+        field: [...field, 'variantId'],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+    if (inputVariantIds.has(variantId)) {
+      errors.push({
+        field,
+        code: options.duplicateCode,
+        message: 'Quantity rule inputs must be unique by variant id.',
+      });
+      continue;
+    }
+    inputVariantIds.add(variantId);
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      errors.push({
+        field: [...field, 'variantId'],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+
+    addQuantityRuleValidationErrors(input, field, errors, options.validationCodePrefix);
+    if (errors.length > 0) {
+      continue;
+    }
+
+    const product = store.getEffectiveProductById(variant.productId);
+    const node = quantityRuleNode(variant, product, input);
+    edgesByVariantId.set(variantId, { cursor: variantId, node });
+    quantityRules.push(node);
+    variantIds.push(variantId);
+  }
+
+  return {
+    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    quantityRules,
+    variantIds,
+  };
+}
+
+function deleteQuantityRuleNodes(
+  priceList: PriceListRecord,
+  variantIds: string[],
+  errors: MarketUserError[],
+  options: {
+    fieldPrefix: string[];
+    variantNotFoundCode: string;
+    missingRuleCode: string;
+    missingRuleMessage: string;
+  },
+): { priceList: PriceListRecord; deletedVariantIds: string[] } {
+  const requestedIds = new Set(variantIds);
+  const deletedVariantIds: string[] = [];
+
+  const edges = readConnectionEdges(priceList.data['quantityRules']).filter((edge) => {
+    const variantId = quantityRuleVariantId(edge);
+    if (!variantId || !requestedIds.has(variantId)) {
+      return true;
+    }
+    const node = isPlainObject(edge.node) ? edge.node : null;
+    if (node?.['originType'] !== 'FIXED') {
+      return true;
+    }
+    deletedVariantIds.push(variantId);
+    return false;
+  });
+
+  for (const [index, variantId] of variantIds.entries()) {
+    if (!store.getEffectiveVariantById(variantId)) {
+      errors.push({
+        field: [...options.fieldPrefix, String(index)],
+        code: options.variantNotFoundCode,
+        message: 'Product variant ID does not exist.',
+      });
+      continue;
+    }
+    if (!deletedVariantIds.includes(variantId)) {
+      errors.push({
+        field: [...options.fieldPrefix, String(index)],
+        code: options.missingRuleCode,
+        message: options.missingRuleMessage,
+      });
+    }
+  }
+
+  return {
+    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, edges),
+    deletedVariantIds,
+  };
+}
+
+function quantityPriceBreakNode(
+  priceList: PriceListRecord,
+  variant: ProductVariantRecord,
+  input: Record<string, unknown>,
+  currencyCode: string,
+): Record<string, unknown> | null {
+  const price = moneyPayload(input['price'], currencyCode);
+  const minimumQuantity = typeof input['minimumQuantity'] === 'number' ? Math.floor(input['minimumQuantity']) : null;
+  if (!price || minimumQuantity === null) {
+    return null;
+  }
+
+  const product = store.getEffectiveProductById(variant.productId);
+  return {
+    __typename: 'QuantityPriceBreak',
+    id: makeSyntheticGid('QuantityPriceBreak'),
+    minimumQuantity,
+    price,
+    priceList: {
+      __typename: 'PriceList',
+      id: priceList.id,
+      name: priceList.data['name'] ?? null,
+      currency: priceList.data['currency'] ?? currencyCode,
+    },
+    variant: {
+      __typename: 'ProductVariant',
+      id: variant.id,
+      sku: variant.sku,
+      product: {
+        __typename: 'Product',
+        id: variant.productId,
+        title: product?.title ?? null,
+      },
+    },
+  };
+}
+
+function rebuildFixedPriceEdgeWithQuantityBreaks(
+  edge: ConnectionEdge,
+  quantityBreakEdges: ConnectionEdge[],
+): ConnectionEdge {
+  if (!isPlainObject(edge.node)) {
+    return edge;
+  }
+
+  return {
+    cursor: edge.cursor,
+    node: {
+      ...structuredClone(edge.node),
+      quantityPriceBreaks: connectionFromEdges(quantityBreakEdges),
+    },
+  };
+}
+
+function upsertQuantityPriceBreakNodes(
+  priceList: PriceListRecord,
+  inputs: Record<string, unknown>[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; variantIds: string[] } {
+  const currencyCode = typeof priceList.data['currency'] === 'string' ? priceList.data['currency'] : 'USD';
+  const priceEdges = readConnectionEdges(priceList.data['prices']);
+  const updatedEdgesByVariantId = new Map<string, ConnectionEdge>();
+  const changedVariantIds: string[] = [];
+  const inputsByVariantId = new Map<string, Record<string, unknown>[]>();
+
+  for (const [index, input] of inputs.entries()) {
+    const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
+    if (!variantId || !store.getEffectiveVariantById(variantId)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToAdd', String(index)],
+        code: 'QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND',
+        message: 'Variant not found.',
+      });
+      continue;
+    }
+    inputsByVariantId.set(variantId, [...(inputsByVariantId.get(variantId) ?? []), input]);
+  }
+
+  for (const edge of priceEdges) {
+    const variantId = fixedPriceVariantId(edge);
+    if (!variantId || !inputsByVariantId.has(variantId) || !isPlainObject(edge.node)) {
+      continue;
+    }
+
+    const variant = store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    const breakEdgesByMinimum = new Map<number, ConnectionEdge>();
+    for (const quantityBreakEdge of readConnectionEdges(edge.node['quantityPriceBreaks'])) {
+      const minimum = quantityPriceBreakMinimum(quantityBreakEdge);
+      if (minimum !== null) {
+        breakEdgesByMinimum.set(minimum, quantityBreakEdge);
+      }
+    }
+
+    const seenMinimums = new Set<number>();
+    for (const input of inputsByVariantId.get(variantId) ?? []) {
+      const minimumQuantity =
+        typeof input['minimumQuantity'] === 'number' ? Math.floor(input['minimumQuantity']) : null;
+      if (minimumQuantity === null || minimumQuantity < 1) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_INVALID',
+          message: 'Invalid quantity price break.',
+        });
+        continue;
+      }
+      if (seenMinimums.has(minimumQuantity)) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_DUPLICATE_INPUT_FOR_VARIANT_AND_MIN',
+          message: 'Quantity price breaks to add inputs must be unique by variant id and minimum quantity.',
+        });
+        continue;
+      }
+      seenMinimums.add(minimumQuantity);
+
+      const node = quantityPriceBreakNode(priceList, variant, input, currencyCode);
+      if (!node) {
+        errors.push({
+          field: ['input', 'quantityPriceBreaksToAdd'],
+          code: 'QUANTITY_PRICE_BREAK_ADD_INVALID',
+          message: 'Invalid quantity price break.',
+        });
+        continue;
+      }
+
+      breakEdgesByMinimum.set(minimumQuantity, { cursor: node['id'] as string, node });
+      if (!changedVariantIds.includes(variantId)) {
+        changedVariantIds.push(variantId);
+      }
+    }
+
+    updatedEdgesByVariantId.set(
+      variantId,
+      rebuildFixedPriceEdgeWithQuantityBreaks(edge, [...breakEdgesByMinimum.values()]),
+    );
+  }
+
+  for (const [variantId] of inputsByVariantId) {
+    if (!priceEdges.some((edge) => fixedPriceVariantId(edge) === variantId)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToAdd'],
+        code: 'QUANTITY_PRICE_BREAK_ADD_PRICE_LIST_PRICE_NOT_FOUND',
+        message: "Quantity price break's fixed price not found.",
+      });
+    }
+  }
+
+  if (errors.length > 0) {
+    return { priceList, variantIds: [] };
+  }
+
+  const mergedEdges = priceEdges.map((edge) => {
+    const variantId = fixedPriceVariantId(edge);
+    return variantId ? (updatedEdgesByVariantId.get(variantId) ?? edge) : edge;
+  });
+
+  return {
+    priceList: rebuildPriceListWithEdges(priceList, mergedEdges),
+    variantIds: changedVariantIds,
+  };
+}
+
+function deleteQuantityPriceBreakNodes(
+  priceList: PriceListRecord,
+  ids: string[],
+  variantIds: string[],
+  errors: MarketUserError[],
+): { priceList: PriceListRecord; variantIds: string[] } {
+  const deleteIds = new Set(ids);
+  const deleteVariantIds = new Set(variantIds);
+  const deletedIds = new Set<string>();
+  const changedVariantIds: string[] = [];
+  const nextEdges = readConnectionEdges(priceList.data['prices']).map((edge) => {
+    if (!isPlainObject(edge.node)) {
+      return edge;
+    }
+
+    const variantId = fixedPriceVariantId(edge);
+    const nextBreakEdges = readConnectionEdges(edge.node['quantityPriceBreaks']).filter((quantityBreakEdge) => {
+      const id = quantityPriceBreakId(quantityBreakEdge);
+      const breakVariantId = quantityPriceBreakVariantId(quantityBreakEdge) ?? variantId;
+      const shouldDelete =
+        (id !== null && deleteIds.has(id)) || (breakVariantId !== null && deleteVariantIds.has(breakVariantId));
+      if (shouldDelete && id !== null) {
+        deletedIds.add(id);
+        if (breakVariantId && !changedVariantIds.includes(breakVariantId)) {
+          changedVariantIds.push(breakVariantId);
+        }
+      }
+      return !shouldDelete;
+    });
+
+    return rebuildFixedPriceEdgeWithQuantityBreaks(edge, nextBreakEdges);
+  });
+
+  for (const id of ids) {
+    if (!deletedIds.has(id)) {
+      errors.push({
+        field: ['input', 'quantityPriceBreaksToDelete'],
+        code: 'QUANTITY_PRICE_BREAK_DELETE_NOT_FOUND',
+        message: 'Quantity price break not found.',
+      });
+    }
+  }
+
+  return {
+    priceList: errors.length === 0 ? rebuildPriceListWithEdges(priceList, nextEdges) : priceList,
+    variantIds: errors.length === 0 ? changedVariantIds : [],
   };
 }
 
@@ -3282,6 +3799,201 @@ function handlePriceListFixedPricesByProductUpdate(
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
       deletedFixedPriceVariantIds: errors.length === 0 ? removedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
+  }
+
+  const quantityRuleInputs = readQuantityRuleInputs(args, ['quantityRules', 'rules', 'quantityRulesToAdd']);
+  const { priceList, quantityRules } = existingPriceList
+    ? upsertQuantityRuleNodes(existingPriceList, quantityRuleInputs, errors, {
+        fieldPrefix: ['quantityRules'],
+        variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+        duplicateCode: 'DUPLICATE_INPUT_FOR_VARIANT',
+        validationCodePrefix: 'standalone',
+      })
+    : { priceList: null, quantityRules: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      quantityRules: errors.length === 0 ? quantityRules : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleQuantityRulesDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
+  }
+
+  const variantIds = readQuantityVariantIds(args, ['variantIds', 'quantityRulesToDeleteByVariantId']);
+  const { priceList, deletedVariantIds } = existingPriceList
+    ? deleteQuantityRuleNodes(existingPriceList, variantIds, errors, {
+        fieldPrefix: ['variantIds'],
+        variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+        missingRuleCode: 'VARIANT_QUANTITY_RULE_DOES_NOT_EXIST',
+        missingRuleMessage: 'Quantity rule for variant associated with the price list provided does not exist.',
+      })
+    : { priceList: null, deletedVariantIds: [] };
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedQuantityRulesVariantIds: errors.length === 0 ? deletedVariantIds : [],
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
+function handleQuantityPricingByVariantUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  if (!priceListId || !existingPriceList) {
+    errors.push(priceListError(['priceListId'], 'Price list not found.', 'PRICE_LIST_NOT_FOUND'));
+  }
+
+  let priceList = existingPriceList;
+  const changedVariantIds = new Set<string>();
+
+  if (priceList && errors.length === 0) {
+    const priceInputs = readFixedPriceInputs(args, ['pricesToAdd']);
+    const upserted = upsertFixedPriceNodes(priceList, priceInputs, 'upsert', errors);
+    priceList = upserted.priceList;
+    for (const variantId of upserted.changedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const priceVariantIdsToDelete = readFixedPriceVariantIds(args, ['pricesToDeleteByVariantId']);
+    const deleted = deleteFixedPriceNodes(priceList, priceVariantIdsToDelete, errors);
+    priceList = deleted.priceList;
+    for (const variantId of deleted.deletedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const ruleInputs = readQuantityRuleInputs(args, ['quantityRulesToAdd']);
+    const upserted = upsertQuantityRuleNodes(priceList, ruleInputs, errors, {
+      fieldPrefix: ['input', 'quantityRulesToAdd'],
+      variantNotFoundCode: 'QUANTITY_RULE_ADD_VARIANT_NOT_FOUND',
+      duplicateCode: 'QUANTITY_RULE_ADD_DUPLICATE_INPUT_FOR_VARIANT',
+      validationCodePrefix: 'pricing',
+    });
+    priceList = upserted.priceList;
+    for (const variantId of upserted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const ruleVariantIdsToDelete = readQuantityVariantIds(args, ['quantityRulesToDeleteByVariantId']);
+    const deleted = deleteQuantityRuleNodes(priceList, ruleVariantIdsToDelete, errors, {
+      fieldPrefix: ['input', 'quantityRulesToDeleteByVariantId'],
+      variantNotFoundCode: 'QUANTITY_RULE_DELETE_VARIANT_NOT_FOUND',
+      missingRuleCode: 'QUANTITY_RULE_DELETE_RULE_NOT_FOUND',
+      missingRuleMessage: 'Quantity rule not found.',
+    });
+    priceList = deleted.priceList;
+    for (const variantId of deleted.deletedVariantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const priceBreakInputs = readQuantityRuleInputs(args, ['quantityPriceBreaksToAdd']);
+    const upserted = upsertQuantityPriceBreakNodes(priceList, priceBreakInputs, errors);
+    priceList = upserted.priceList;
+    for (const variantId of upserted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (priceList && errors.length === 0) {
+    const quantityPriceBreakIdsToDelete = readQuantityVariantIds(args, ['quantityPriceBreaksToDelete']);
+    const quantityPriceBreakVariantIdsToDelete = readQuantityVariantIds(args, [
+      'quantityPriceBreaksToDeleteByVariantId',
+    ]);
+    const deleted = deleteQuantityPriceBreakNodes(
+      priceList,
+      quantityPriceBreakIdsToDelete,
+      quantityPriceBreakVariantIdsToDelete,
+      errors,
+    );
+    priceList = deleted.priceList;
+    for (const variantId of deleted.variantIds) {
+      changedVariantIds.add(variantId);
+    }
+  }
+
+  if (errors.length === 0 && priceList) {
+    store.stageUpdatePriceList(priceList);
+  }
+
+  const productVariants =
+    errors.length === 0
+      ? [...changedVariantIds]
+          .map((variantId) => store.getEffectiveVariantById(variantId))
+          .filter((variant): variant is ProductVariantRecord => variant !== null)
+          .map((variant) => {
+            const product = store.getEffectiveProductById(variant.productId);
+            return {
+              __typename: 'ProductVariant',
+              id: variant.id,
+              title: variant.title,
+              sku: variant.sku,
+              product: product ? { __typename: 'Product', id: product.id, title: product.title } : null,
+            };
+          })
+      : null;
+
+  return projectMutationPayload(
+    {
+      productVariants,
       userErrors: errors,
     },
     field,
@@ -4020,6 +4732,15 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'priceListFixedPricesByProductUpdate':
         data[key] = handlePriceListFixedPricesByProductUpdate(field, variables, fragments);
+        break;
+      case 'quantityPricingByVariantUpdate':
+        data[key] = handleQuantityPricingByVariantUpdate(field, variables, fragments);
+        break;
+      case 'quantityRulesAdd':
+        data[key] = handleQuantityRulesAdd(field, variables, fragments);
+        break;
+      case 'quantityRulesDelete':
+        data[key] = handleQuantityRulesDelete(field, variables, fragments);
         break;
       case 'webPresenceCreate':
         data[key] = handleWebPresenceCreate(field, variables, fragments);

@@ -39,6 +39,8 @@ export const operationRegistryEntrySchema = z.strictObject({
   type: z.enum(['query', 'mutation']),
   domain: z.enum([
     'products',
+    'admin-platform',
+    'b2b',
     'apps',
     'media',
     'bulk-operations',
@@ -54,7 +56,9 @@ export const operationRegistryEntrySchema = z.strictObject({
     'privacy',
     'segments',
     'shipping-fulfillments',
+    'gift-cards',
     'webhooks',
+    'localization',
     'metafields',
     'metaobjects',
     'markets',

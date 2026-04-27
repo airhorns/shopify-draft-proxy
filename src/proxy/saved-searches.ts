@@ -14,6 +14,7 @@ import {
   serializeConnection,
   type FragmentMap,
 } from './graphql-helpers.js';
+import { DRAFT_ORDER_SAVED_SEARCHES } from './orders.js';
 
 type SavedSearchMutationResult = {
   response: Record<string, unknown>;
@@ -38,6 +39,18 @@ const SAVED_SEARCH_ROOT_RESOURCE_TYPES: Record<string, string> = {
 };
 
 const SUPPORTED_SAVED_SEARCH_RESOURCE_TYPES = new Set(Object.values(SAVED_SEARCH_ROOT_RESOURCE_TYPES));
+
+function defaultSavedSearchesForResourceType(resourceType: string): SavedSearchRecord[] {
+  if (resourceType !== 'DRAFT_ORDER') {
+    return [];
+  }
+
+  return DRAFT_ORDER_SAVED_SEARCHES.map((savedSearch) => ({
+    ...savedSearch,
+    cursor: null,
+    filters: [],
+  }));
+}
 
 function readInput(args: Record<string, unknown>): Record<string, unknown> | null {
   return isPlainObject(args['input']) ? args['input'] : null;
@@ -297,10 +310,15 @@ function matchesQuery(record: SavedSearchRecord, query: unknown): boolean {
 }
 
 function listSavedSearches(field: FieldNode, variables: Record<string, unknown>): SavedSearchRecord[] {
-  const resourceType = SAVED_SEARCH_ROOT_RESOURCE_TYPES[field.name.value];
+  const resourceType = SAVED_SEARCH_ROOT_RESOURCE_TYPES[field.name.value] ?? '';
   const args = getFieldArguments(field, variables);
-  const records = store
-    .listEffectiveSavedSearches()
+  const localRecords = store.listEffectiveSavedSearches();
+  const records = [
+    ...defaultSavedSearchesForResourceType(resourceType).filter(
+      (defaultRecord) => !localRecords.some((record) => record.id === defaultRecord.id),
+    ),
+    ...localRecords,
+  ]
     .filter((record) => record.resourceType === resourceType)
     .filter((record) => matchesQuery(record, args['query']));
 

@@ -16,7 +16,7 @@ HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin
   - `codeDiscountSavedSearches`
   - `automaticDiscountSavedSearches`
   - `discountRedeemCodeSavedSearches`
-- Empty saved-search roots return a non-null connection with empty `nodes`/`edges` and false/null `pageInfo`, matching the captured no-data shape.
+- Empty saved-search roots return a non-null connection with empty `nodes`/`edges` and false/null `pageInfo`, matching the captured no-data shape. `draftOrderSavedSearches` is the captured exception: Shopify returns five default draft-order saved searches even when no merchant-created saved searches are present, and the local saved-search domain preserves those records.
 - Saved-search query strings are parsed into simple `searchTerms` plus `filters { key value }` records by splitting field terms of the form `key:value` from free text. The local stored `query` is normalized as search terms followed by filters, which matches the captured connection-read ordering for the product saved-search slice.
 
 ## Captured evidence

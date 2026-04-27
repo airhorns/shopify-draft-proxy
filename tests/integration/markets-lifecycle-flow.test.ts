@@ -124,6 +124,27 @@ const PRICE_LIST_FIELDS = `#graphql
       id
       title
     }
+    quantityRules(first: 10) {
+      edges {
+        cursor
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant {
+            id
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
     prices(first: 10, originType: FIXED) {
       edges {
         cursor
@@ -143,6 +164,28 @@ const PRICE_LIST_FIELDS = `#graphql
             product {
               id
               title
+            }
+          }
+          quantityPriceBreaks(first: 10) {
+            edges {
+              cursor
+              node {
+                id
+                minimumQuantity
+                price {
+                  amount
+                  currencyCode
+                }
+                variant {
+                  id
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
             }
           }
         }
@@ -1964,6 +2007,15 @@ describe('Markets lifecycle staging', () => {
               title: 'Contextual Pricing Hat',
             },
           },
+          quantityPriceBreaks: {
+            edges: [],
+            pageInfo: {
+              hasNextPage: false,
+              hasPreviousPage: false,
+              startCursor: null,
+              endCursor: null,
+            },
+          },
         },
       },
     ]);
@@ -2056,6 +2108,204 @@ describe('Markets lifecycle staging', () => {
     ).toEqual({
       amount: '40.00',
       currencyCode: 'EUR',
+    });
+
+    const quantityRulesAddResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation AddQuantityRule($priceListId: ID!, $quantityRules: [QuantityRuleInput!]!) {
+            quantityRulesAdd(priceListId: $priceListId, quantityRules: $quantityRules) {
+              quantityRules {
+                minimum
+                maximum
+                increment
+                isDefault
+                originType
+                productVariant {
+                  id
+                }
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          quantityRules: [
+            {
+              variantId,
+              minimum: 2,
+              maximum: 10,
+              increment: 2,
+            },
+          ],
+        },
+      });
+
+    expect(quantityRulesAddResponse.body.data.quantityRulesAdd).toEqual({
+      quantityRules: [
+        {
+          minimum: 2,
+          maximum: 10,
+          increment: 2,
+          isDefault: false,
+          originType: 'FIXED',
+          productVariant: {
+            id: variantId,
+          },
+        },
+      ],
+      userErrors: [],
+    });
+
+    const quantityPricingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation QuantityPricing($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+            quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+              productVariants {
+                id
+                title
+                sku
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          input: {
+            pricesToAdd: [
+              {
+                variantId,
+                price: {
+                  amount: '38.00',
+                  currencyCode: 'EUR',
+                },
+              },
+            ],
+            pricesToDeleteByVariantId: [],
+            quantityRulesToAdd: [
+              {
+                variantId,
+                minimum: 4,
+                maximum: 12,
+                increment: 4,
+              },
+            ],
+            quantityRulesToDeleteByVariantId: [],
+            quantityPriceBreaksToAdd: [
+              {
+                variantId,
+                minimumQuantity: 8,
+                price: {
+                  amount: '35.00',
+                  currencyCode: 'EUR',
+                },
+              },
+            ],
+            quantityPriceBreaksToDelete: [],
+          },
+        },
+      });
+
+    expect(quantityPricingResponse.body.data.quantityPricingByVariantUpdate).toEqual({
+      productVariants: [
+        {
+          id: variantId,
+          title: 'Default Title',
+          sku: null,
+        },
+      ],
+      userErrors: [],
+    });
+
+    const readQuantityPricingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          query ReadQuantityPricing($id: ID!) {
+            priceList(id: $id) {
+              ...LifecyclePriceListFields
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(readQuantityPricingResponse.body.data.priceList.quantityRules.edges).toEqual([
+      {
+        cursor: variantId,
+        node: {
+          minimum: 4,
+          maximum: 12,
+          increment: 4,
+          isDefault: false,
+          originType: 'FIXED',
+          productVariant: {
+            id: variantId,
+          },
+        },
+      },
+    ]);
+    expect(readQuantityPricingResponse.body.data.priceList.prices.edges).toHaveLength(1);
+    expect(readQuantityPricingResponse.body.data.priceList.prices.edges[0].node.price).toEqual({
+      amount: '38.00',
+      currencyCode: 'EUR',
+    });
+    expect(readQuantityPricingResponse.body.data.priceList.prices.edges[0].node.quantityPriceBreaks.edges).toEqual([
+      {
+        cursor: expect.stringMatching(/^gid:\/\/shopify\/QuantityPriceBreak\//),
+        node: {
+          id: expect.stringMatching(/^gid:\/\/shopify\/QuantityPriceBreak\//),
+          minimumQuantity: 8,
+          price: {
+            amount: '35.00',
+            currencyCode: 'EUR',
+          },
+          variant: {
+            id: variantId,
+          },
+        },
+      },
+    ]);
+
+    const quantityRulesDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DeleteQuantityRule($priceListId: ID!, $variantIds: [ID!]!) {
+            quantityRulesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+              deletedQuantityRulesVariantIds
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          variantIds: [variantId],
+        },
+      });
+
+    expect(quantityRulesDeleteResponse.body.data.quantityRulesDelete).toEqual({
+      deletedQuantityRulesVariantIds: [variantId],
+      userErrors: [],
     });
 
     const deleteFixedResponse = await request(app)
@@ -2247,6 +2497,9 @@ describe('Markets lifecycle staging', () => {
     const logResponse = await request(app).get('/__meta/log');
     expect(stateResponse.body.stagedState.deletedPriceListIds).toEqual({ [priceListId]: true });
     expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
       'staged',
       'staged',
       'staged',

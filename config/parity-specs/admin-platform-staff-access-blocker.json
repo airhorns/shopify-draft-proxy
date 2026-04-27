@@ -1,0 +1,42 @@
+{
+  "scenarioId": "admin-platform-staff-access-blocker",
+  "operationNames": ["staffMember", "staffMembers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "access-control", "null-empty-behavior"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform-staff-access-blocker.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-315 captured the current conformance credential blocker for staff utility roots: staffMember and staffMembers both return null plus ACCESS_DENIED errors. Authorized staff identity/catalog modeling remains unsupported until a credential with read_users and the required app/store eligibility is available; HAR-335 tracks that follow-up.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "staff-data",
+        "capturePath": "$.captures.staffAccessBlocker.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "staff-errors",
+        "capturePath": "$.captures.staffAccessBlocker.result.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$[0].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The checked-in parity request is repository-formatted while the captured Shopify request carried extra GraphQL indentation; the line, path, message, and access metadata remain strictly compared."
+          },
+          {
+            "path": "$[1].locations[0].column",
+            "matcher": "any-number",
+            "reason": "The checked-in parity request is repository-formatted while the captured Shopify request carried extra GraphQL indentation; the line, path, message, and access metadata remain strictly compared."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {
+  giftCard(id: $id) {
+    note
+    templateSuffix
+    expiresOn
+    enabled
+    balance {
+      amount
+      currencyCode
+    }
+    transactions(first: 5) {
+      nodes {
+        note
+        amount {
+          amount
+          currencyCode
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  giftCards(first: 2, query: $query, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+      enabled
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  giftCardsCount(query: $query) {
+    count
+    precision
+  }
+}

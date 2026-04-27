@@ -1,0 +1,45 @@
+{
+  "data": {
+    "companyUpdate": {
+      "company": null,
+      "userErrors": [
+        {
+          "field": ["companyId"],
+          "message": "Resource requested does not exist.",
+          "code": "RESOURCE_NOT_FOUND"
+        }
+      ]
+    },
+    "companyLocationUpdate": {
+      "companyLocation": null,
+      "userErrors": [
+        {
+          "field": ["input"],
+          "message": "The company location doesn't exist",
+          "code": "RESOURCE_NOT_FOUND"
+        }
+      ]
+    },
+    "companyContactUpdate": {
+      "companyContact": null,
+      "userErrors": [
+        {
+          "field": ["companyContactId"],
+          "message": "The company contact doesn't exist.",
+          "code": "RESOURCE_NOT_FOUND"
+        }
+      ]
+    }
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 30,
+      "actualQueryCost": 30,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1970,
+        "restoreRate": 100
+      }
+    }
+  }
+}

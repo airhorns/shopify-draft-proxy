@@ -29,6 +29,7 @@ This project is not a generic mock server. It is a **digital twin** / **draft la
 - `docs/simple-demo-guide.md` — copy-pasteable local demo for read/write staging, reset, and commit
 - `docs/original-intent.md` — project intent and non-goals; preserve this vision
 - `docs/architecture.md` — system design and execution model
+- `docs/conformance-capture.md` — indexed capture-command lookup for domains, scopes, outputs, cleanup, and status checks
 - `docs/implementation-plan.md` — milestone plan and ordered build steps
 - `docs/hard-and-weird-notes.md` — fidelity traps and oddities discovered during implementation
 - `.agents/skills/shopify-conformance-expansion/SKILL.md` — how to connect a real Shopify dev store/app for parity testing and extend conformance coverage
