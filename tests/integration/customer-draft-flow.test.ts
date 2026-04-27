@@ -603,6 +603,48 @@ describe('customer draft flow', () => {
       },
     });
 
+    const readAfterNormalizationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerAfterNormalizedUpdate($id: ID!) {
+          customer(id: $id) {
+            id
+            firstName
+            lastName
+            note
+            tags
+            defaultPhoneNumber { phoneNumber }
+          }
+          customerByIdentifier(identifier: { emailAddress: "validation-update@example.com" }) {
+            id
+            firstName
+            lastName
+            note
+            tags
+            defaultPhoneNumber { phoneNumber }
+          }
+        }`,
+        variables: { id: customerId },
+      });
+    expect(readAfterNormalizationResponse.body.data).toEqual({
+      customer: {
+        id: customerId,
+        firstName: null,
+        lastName: null,
+        note: '',
+        tags: ['alpha', 'spaced tag', 'Zulu'],
+        defaultPhoneNumber: null,
+      },
+      customerByIdentifier: {
+        id: customerId,
+        firstName: null,
+        lastName: null,
+        note: '',
+        tags: ['alpha', 'spaced tag', 'Zulu'],
+        defaultPhoneNumber: null,
+      },
+    });
+
     const nullScalarResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
