@@ -4,6 +4,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
+import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -25,6 +26,9 @@ const emptySnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerAccountPages: {},
+  customerAccountPageOrder: [],
+  customerDataErasureRequests: {},
   storeCreditAccounts: {},
   storeCreditAccountTransactions: {},
   customerSegmentMembersQueries: {},
@@ -48,10 +52,14 @@ const emptySnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  bulkOperations: {},
+  bulkOperationOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  paymentTermsTemplates: defaultPaymentTermsTemplateRecordMap,
+  paymentTermsTemplateOrder: defaultPaymentTermsTemplateOrder,
   deletedPaymentCustomizationIds: {},
   customerMetafields: {},
   businessEntities: {},
@@ -79,6 +87,8 @@ const emptySnapshot = {
   deletedPriceListIds: {},
   deliveryProfiles: {},
   deliveryProfileOrder: [],
+  sellingPlanGroups: {},
+  sellingPlanGroupOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -126,6 +136,7 @@ const emptySnapshot = {
   deletedShopLocales: {},
   deletedTranslations: {},
   deletedDeliveryProfileIds: {},
+  deletedSellingPlanGroupIds: {},
   deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
   deletedMetaobjectIds: {},

@@ -9,7 +9,12 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { store } from '../../src/state/store.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import type { NormalizedStateSnapshotFile, ShopRecord } from '../../src/state/types.js';
+import {
+  defaultPaymentTermsTemplateOrder,
+  defaultPaymentTermsTemplateRecordMap,
+  type NormalizedStateSnapshotFile,
+  type ShopRecord,
+} from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -138,6 +143,9 @@ function writeSnapshot(shop: ShopRecord | null): string {
       customers: {},
       customerAddresses: {},
       customerPaymentMethods: {},
+      customerAccountPages: {},
+      customerAccountPageOrder: [],
+      customerDataErasureRequests: {},
       storeCreditAccounts: {},
       storeCreditAccountTransactions: {},
       segments: {},
@@ -161,10 +169,14 @@ function writeSnapshot(shop: ShopRecord | null): string {
       onlineStorePageOrder: [],
       onlineStoreComments: {},
       onlineStoreCommentOrder: [],
+      bulkOperations: {},
+      bulkOperationOrder: [],
       discounts: {},
       discountBulkOperations: {},
       paymentCustomizations: {},
       paymentCustomizationOrder: [],
+      paymentTermsTemplates: defaultPaymentTermsTemplateRecordMap,
+      paymentTermsTemplateOrder: defaultPaymentTermsTemplateOrder,
       shopifyFunctions: {},
       shopifyFunctionOrder: [],
       validations: {},
@@ -197,6 +209,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       priceListOrder: [],
       deliveryProfiles: {},
       deliveryProfileOrder: [],
+      sellingPlanGroups: {},
+      sellingPlanGroupOrder: [],
       abandonedCheckouts: {},
       abandonedCheckoutOrder: [],
       abandonments: {},
@@ -236,6 +250,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       deletedShopLocales: {},
       deletedTranslations: {},
       deletedDeliveryProfileIds: {},
+      deletedSellingPlanGroupIds: {},
       deletedMetafieldDefinitionIds: {},
       deletedMetaobjectDefinitionIds: {},
       deletedMetaobjectIds: {},

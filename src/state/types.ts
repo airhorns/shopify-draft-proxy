@@ -877,6 +877,22 @@ export const customerCatalogConnectionRecordSchema = z.strictObject({
 });
 export type CustomerCatalogConnectionRecord = z.infer<typeof customerCatalogConnectionRecordSchema>;
 
+export const customerAccountPageRecordSchema = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  handle: z.string(),
+  defaultCursor: z.string(),
+  cursor: nullableStringSchema.optional(),
+});
+export type CustomerAccountPageRecord = z.infer<typeof customerAccountPageRecordSchema>;
+
+export const customerDataErasureRequestRecordSchema = z.strictObject({
+  customerId: z.string(),
+  requestedAt: z.string(),
+  canceledAt: nullableStringSchema.optional(),
+});
+export type CustomerDataErasureRequestRecord = z.infer<typeof customerDataErasureRequestRecordSchema>;
+
 export const discountCombinesWithRecordSchema = z.strictObject({
   productDiscounts: z.boolean(),
   orderDiscounts: z.boolean(),
@@ -1002,6 +1018,23 @@ export const discountBulkOperationRecordSchema = z.strictObject({
 });
 export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 
+export const bulkOperationRecordSchema = z.strictObject({
+  id: z.string(),
+  status: z.enum(['CANCELED', 'CANCELING', 'COMPLETED', 'CREATED', 'EXPIRED', 'FAILED', 'RUNNING']),
+  type: z.enum(['MUTATION', 'QUERY']),
+  errorCode: z.enum(['ACCESS_DENIED', 'INTERNAL_SERVER_ERROR', 'TIMEOUT']).nullable(),
+  createdAt: z.string(),
+  completedAt: nullableStringSchema,
+  objectCount: z.string(),
+  rootObjectCount: z.string(),
+  fileSize: nullableStringSchema,
+  url: nullableStringSchema,
+  partialDataUrl: nullableStringSchema,
+  query: nullableStringSchema,
+  cursor: nullableStringSchema.optional(),
+});
+export type BulkOperationRecord = z.infer<typeof bulkOperationRecordSchema>;
+
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
@@ -1067,6 +1100,97 @@ export const paymentCustomizationRecordSchema = z.strictObject({
   metafields: z.array(paymentCustomizationMetafieldRecordSchema).optional(),
 });
 export type PaymentCustomizationRecord = z.infer<typeof paymentCustomizationRecordSchema>;
+
+export const paymentTermsTemplateRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  dueInDays: nullableNumberSchema,
+  paymentTermsType: z.string(),
+  translatedName: z.string(),
+});
+export type PaymentTermsTemplateRecord = z.infer<typeof paymentTermsTemplateRecordSchema>;
+
+export const defaultPaymentTermsTemplates: PaymentTermsTemplateRecord[] = [
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/1',
+    name: 'Due on receipt',
+    description: 'Due on receipt',
+    dueInDays: null,
+    paymentTermsType: 'RECEIPT',
+    translatedName: 'Due on receipt',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/9',
+    name: 'Due on fulfillment',
+    description: 'Due on fulfillment',
+    dueInDays: null,
+    paymentTermsType: 'FULFILLMENT',
+    translatedName: 'Due on fulfillment',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/2',
+    name: 'Net 7',
+    description: 'Within 7 days',
+    dueInDays: 7,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 7',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/3',
+    name: 'Net 15',
+    description: 'Within 15 days',
+    dueInDays: 15,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 15',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/4',
+    name: 'Net 30',
+    description: 'Within 30 days',
+    dueInDays: 30,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 30',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/8',
+    name: 'Net 45',
+    description: 'Within 45 days',
+    dueInDays: 45,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 45',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/5',
+    name: 'Net 60',
+    description: 'Within 60 days',
+    dueInDays: 60,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 60',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/6',
+    name: 'Net 90',
+    description: 'Within 90 days',
+    dueInDays: 90,
+    paymentTermsType: 'NET',
+    translatedName: 'Net 90',
+  },
+  {
+    id: 'gid://shopify/PaymentTermsTemplate/7',
+    name: 'Fixed',
+    description: 'Fixed date',
+    dueInDays: null,
+    paymentTermsType: 'FIXED',
+    translatedName: 'Fixed',
+  },
+];
+
+export const defaultPaymentTermsTemplateRecordMap: Record<string, PaymentTermsTemplateRecord> = Object.fromEntries(
+  defaultPaymentTermsTemplates.map((template) => [template.id, template]),
+);
+
+export const defaultPaymentTermsTemplateOrder = defaultPaymentTermsTemplates.map((template) => template.id);
 
 export const shopifyFunctionRecordSchema = z.strictObject({
   id: z.string(),
@@ -1170,6 +1294,19 @@ export const draftOrderCustomerRecordSchema = z.strictObject({
 });
 export type DraftOrderCustomerRecord = z.infer<typeof draftOrderCustomerRecordSchema>;
 
+export const paymentScheduleRecordSchema = z.strictObject({
+  id: z.string(),
+  dueAt: nullableStringSchema,
+  issuedAt: nullableStringSchema,
+  completedAt: nullableStringSchema,
+  completed: z.boolean().optional(),
+  due: nullableBooleanSchema.optional(),
+  amount: moneyV2Schema.nullable().optional(),
+  balanceDue: moneyV2Schema.nullable().optional(),
+  totalBalance: moneyV2Schema.nullable().optional(),
+});
+export type PaymentScheduleRecord = z.infer<typeof paymentScheduleRecordSchema>;
+
 export const draftOrderPaymentTermsRecordSchema = z.strictObject({
   id: z.string(),
   due: z.boolean(),
@@ -1178,6 +1315,7 @@ export const draftOrderPaymentTermsRecordSchema = z.strictObject({
   paymentTermsName: z.string(),
   paymentTermsType: z.string(),
   translatedName: z.string(),
+  paymentSchedules: z.array(paymentScheduleRecordSchema).optional(),
 });
 export type DraftOrderPaymentTermsRecord = z.infer<typeof draftOrderPaymentTermsRecordSchema>;
 
@@ -1558,6 +1696,7 @@ export const orderRecordSchema = z.strictObject({
   transactions: z.array(orderTransactionRecordSchema),
   refunds: z.array(orderRefundRecordSchema),
   returns: z.array(orderReturnRecordSchema),
+  paymentTerms: draftOrderPaymentTermsRecordSchema.nullable().optional(),
 });
 export type OrderRecord = z.infer<typeof orderRecordSchema>;
 
@@ -1857,6 +1996,29 @@ export const deliveryProfileRecordSchema = z.strictObject({
 });
 export type DeliveryProfileRecord = z.infer<typeof deliveryProfileRecordSchema>;
 
+export const sellingPlanRecordSchema = z.strictObject({
+  id: z.string(),
+  data: jsonObjectSchema.default({}),
+});
+export type SellingPlanRecord = z.infer<typeof sellingPlanRecordSchema>;
+
+export const sellingPlanGroupRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  appId: nullableStringSchema,
+  name: z.string(),
+  merchantCode: z.string(),
+  description: nullableStringSchema,
+  options: z.array(z.string()),
+  position: nullableNumberSchema,
+  summary: nullableStringSchema,
+  createdAt: z.string(),
+  productIds: z.array(z.string()).default([]),
+  productVariantIds: z.array(z.string()).default([]),
+  sellingPlans: z.array(sellingPlanRecordSchema).default([]),
+});
+export type SellingPlanGroupRecord = z.infer<typeof sellingPlanGroupRecordSchema>;
+
 export const calculatedOrderRecordSchema = orderRecordSchema.extend({
   originalOrderId: z.string(),
 });
@@ -1907,6 +2069,9 @@ export const stateSnapshotSchema = z.strictObject({
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
+  customerAccountPages: z.record(z.string(), customerAccountPageRecordSchema).default({}),
+  customerAccountPageOrder: z.array(z.string()).default([]),
+  customerDataErasureRequests: z.record(z.string(), customerDataErasureRequestRecordSchema).default({}),
   storeCreditAccounts: z.record(z.string(), storeCreditAccountRecordSchema).default({}),
   storeCreditAccountTransactions: z.record(z.string(), storeCreditAccountTransactionRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
@@ -1930,10 +2095,16 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStorePageOrder: z.array(z.string()).default([]),
   onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreCommentOrder: z.array(z.string()).default([]),
+  bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
+  bulkOperationOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
   paymentCustomizationOrder: z.array(z.string()).default([]),
+  paymentTermsTemplates: z
+    .record(z.string(), paymentTermsTemplateRecordSchema)
+    .default(defaultPaymentTermsTemplateRecordMap),
+  paymentTermsTemplateOrder: z.array(z.string()).default(defaultPaymentTermsTemplateOrder),
   shopifyFunctions: z.record(z.string(), shopifyFunctionRecordSchema).default({}),
   shopifyFunctionOrder: z.array(z.string()).default([]),
   validations: z.record(z.string(), validationRecordSchema).default({}),
@@ -1965,6 +2136,8 @@ export const stateSnapshotSchema = z.strictObject({
   priceListOrder: z.array(z.string()).default([]),
   deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
   deliveryProfileOrder: z.array(z.string()).default([]),
+  sellingPlanGroups: z.record(z.string(), sellingPlanGroupRecordSchema).default({}),
+  sellingPlanGroupOrder: z.array(z.string()).default([]),
   abandonedCheckouts: z.record(z.string(), abandonedCheckoutRecordSchema).default({}),
   abandonedCheckoutOrder: z.array(z.string()).default([]),
   abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
@@ -2005,6 +2178,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedShopLocales: z.record(z.string(), z.literal(true)).default({}),
   deletedTranslations: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedSellingPlanGroupIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectIds: z.record(z.string(), z.literal(true)).default({}),

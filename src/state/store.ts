@@ -1,3 +1,4 @@
+import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from './types.js';
 import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
@@ -6,6 +7,7 @@ import type {
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
+  BulkOperationRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
@@ -14,7 +16,9 @@ import type {
   CatalogRecord,
   CollectionRecord,
   CustomerAddressRecord,
+  CustomerAccountPageRecord,
   CustomerCatalogConnectionRecord,
+  CustomerDataErasureRequestRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
@@ -46,6 +50,7 @@ import type {
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
+  PaymentTermsTemplateRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
@@ -57,6 +62,7 @@ import type {
   PriceListRecord,
   PublicationRecord,
   SegmentRecord,
+  SellingPlanGroupRecord,
   ShopRecord,
   ShopifyFunctionRecord,
   ShopLocaleRecord,
@@ -102,6 +108,9 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerAccountPages: {},
+  customerAccountPageOrder: [],
+  customerDataErasureRequests: {},
   storeCreditAccounts: {},
   storeCreditAccountTransactions: {},
   segments: {},
@@ -125,10 +134,14 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  bulkOperations: {},
+  bulkOperationOrder: [],
   discounts: {},
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  paymentTermsTemplates: structuredClone(defaultPaymentTermsTemplateRecordMap),
+  paymentTermsTemplateOrder: [...defaultPaymentTermsTemplateOrder],
   shopifyFunctions: {},
   shopifyFunctionOrder: [],
   validations: {},
@@ -160,6 +173,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   priceListOrder: [],
   deliveryProfiles: {},
   deliveryProfileOrder: [],
+  sellingPlanGroups: {},
+  sellingPlanGroupOrder: [],
   abandonedCheckouts: {},
   abandonedCheckoutOrder: [],
   abandonments: {},
@@ -200,6 +215,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedShopLocales: {},
   deletedTranslations: {},
   deletedDeliveryProfileIds: {},
+  deletedSellingPlanGroupIds: {},
   deletedMetafieldDefinitionIds: {},
   deletedMetaobjectDefinitionIds: {},
   deletedMetaobjectIds: {},
@@ -795,6 +811,91 @@ export class InMemoryStore {
     );
   }
 
+  upsertBaseSellingPlanGroups(groups: SellingPlanGroupRecord[]): void {
+    for (const group of groups) {
+      delete this.baseState.deletedSellingPlanGroupIds[group.id];
+      delete this.stagedState.deletedSellingPlanGroupIds[group.id];
+      this.baseState.sellingPlanGroups[group.id] = structuredClone(group);
+      if (!this.baseState.sellingPlanGroupOrder.includes(group.id)) {
+        this.baseState.sellingPlanGroupOrder.push(group.id);
+      }
+    }
+  }
+
+  upsertStagedSellingPlanGroup(group: SellingPlanGroupRecord): SellingPlanGroupRecord {
+    delete this.stagedState.deletedSellingPlanGroupIds[group.id];
+    this.stagedState.sellingPlanGroups[group.id] = structuredClone(group);
+    if (
+      !this.baseState.sellingPlanGroupOrder.includes(group.id) &&
+      !this.stagedState.sellingPlanGroupOrder.includes(group.id)
+    ) {
+      this.stagedState.sellingPlanGroupOrder.push(group.id);
+    }
+    return structuredClone(group);
+  }
+
+  deleteStagedSellingPlanGroup(groupId: string): void {
+    delete this.stagedState.sellingPlanGroups[groupId];
+    this.stagedState.deletedSellingPlanGroupIds[groupId] = true;
+  }
+
+  getEffectiveSellingPlanGroupById(groupId: string): SellingPlanGroupRecord | null {
+    if (this.stagedState.deletedSellingPlanGroupIds[groupId]) {
+      return null;
+    }
+
+    const group = this.stagedState.sellingPlanGroups[groupId] ?? this.baseState.sellingPlanGroups[groupId] ?? null;
+    return group ? structuredClone(group) : null;
+  }
+
+  listEffectiveSellingPlanGroups(): SellingPlanGroupRecord[] {
+    const orderedIds = new Set([...this.baseState.sellingPlanGroupOrder, ...this.stagedState.sellingPlanGroupOrder]);
+    const orderedGroups = [...orderedIds]
+      .map((groupId) => this.getEffectiveSellingPlanGroupById(groupId))
+      .filter((group): group is SellingPlanGroupRecord => group !== null);
+    const unorderedGroups = Object.values({
+      ...this.baseState.sellingPlanGroups,
+      ...this.stagedState.sellingPlanGroups,
+    })
+      .filter((group) => !orderedIds.has(group.id))
+      .filter((group) => !this.stagedState.deletedSellingPlanGroupIds[group.id])
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id))
+      .map((group) => structuredClone(group));
+
+    return [...orderedGroups, ...unorderedGroups];
+  }
+
+  listEffectiveSellingPlanGroupsForProduct(productId: string): SellingPlanGroupRecord[] {
+    return this.listEffectiveSellingPlanGroups().filter((group) => group.productIds.includes(productId));
+  }
+
+  listEffectiveSellingPlanGroupsForProductVariant(variantId: string): SellingPlanGroupRecord[] {
+    return this.listEffectiveSellingPlanGroups().filter((group) => group.productVariantIds.includes(variantId));
+  }
+
+  listEffectiveSellingPlanGroupsVisibleForProductVariant(variantId: string): SellingPlanGroupRecord[] {
+    const variant = this.getEffectiveVariantById(variantId);
+    return this.listEffectiveSellingPlanGroups().filter(
+      (group) =>
+        group.productVariantIds.includes(variantId) || (variant ? group.productIds.includes(variant.productId) : false),
+    );
+  }
+
+  hasSellingPlanGroups(): boolean {
+    return (
+      Object.keys(this.baseState.sellingPlanGroups).length > 0 ||
+      Object.keys(this.stagedState.sellingPlanGroups).length > 0 ||
+      Object.keys(this.stagedState.deletedSellingPlanGroupIds).length > 0
+    );
+  }
+
+  hasStagedSellingPlanGroups(): boolean {
+    return (
+      Object.keys(this.stagedState.sellingPlanGroups).length > 0 ||
+      Object.keys(this.stagedState.deletedSellingPlanGroupIds).length > 0
+    );
+  }
+
   private upsertBaseMarketingRecords(
     bucket: Record<string, MarketingRecord>,
     order: string[],
@@ -1224,6 +1325,76 @@ export class InMemoryStore {
     );
   }
 
+  upsertBaseBulkOperations(operations: BulkOperationRecord[]): void {
+    for (const operation of operations) {
+      this.baseState.bulkOperations[operation.id] = structuredClone(operation);
+      if (!this.baseState.bulkOperationOrder.includes(operation.id)) {
+        this.baseState.bulkOperationOrder.push(operation.id);
+      }
+    }
+  }
+
+  stageBulkOperation(operation: BulkOperationRecord): BulkOperationRecord {
+    this.stagedState.bulkOperations[operation.id] = structuredClone(operation);
+    if (
+      !this.baseState.bulkOperationOrder.includes(operation.id) &&
+      !this.stagedState.bulkOperationOrder.includes(operation.id)
+    ) {
+      this.stagedState.bulkOperationOrder.push(operation.id);
+    }
+    return structuredClone(operation);
+  }
+
+  getEffectiveBulkOperationById(operationId: string): BulkOperationRecord | null {
+    const operation =
+      this.stagedState.bulkOperations[operationId] ?? this.baseState.bulkOperations[operationId] ?? null;
+    return operation ? structuredClone(operation) : null;
+  }
+
+  getStagedBulkOperationById(operationId: string): BulkOperationRecord | null {
+    const operation = this.stagedState.bulkOperations[operationId] ?? null;
+    return operation ? structuredClone(operation) : null;
+  }
+
+  listEffectiveBulkOperations(): BulkOperationRecord[] {
+    const orderedIds = new Set([...this.baseState.bulkOperationOrder, ...this.stagedState.bulkOperationOrder]);
+    const orderedOperations = [...orderedIds]
+      .map((operationId) => this.getEffectiveBulkOperationById(operationId))
+      .filter((operation): operation is BulkOperationRecord => operation !== null);
+    const unorderedOperations = Object.values({
+      ...this.baseState.bulkOperations,
+      ...this.stagedState.bulkOperations,
+    })
+      .filter((operation) => !orderedIds.has(operation.id))
+      .sort(
+        (left, right) => right.createdAt.localeCompare(left.createdAt) || compareShopifyResourceIds(left.id, right.id),
+      )
+      .map((operation) => structuredClone(operation));
+
+    return [...orderedOperations, ...unorderedOperations];
+  }
+
+  cancelStagedBulkOperation(operationId: string): BulkOperationRecord | null {
+    const operation = this.stagedState.bulkOperations[operationId] ?? null;
+    if (!operation) {
+      return null;
+    }
+
+    operation.status = 'CANCELING';
+    operation.completedAt = null;
+    return structuredClone(operation);
+  }
+
+  hasBulkOperations(): boolean {
+    return (
+      Object.keys(this.baseState.bulkOperations).length > 0 || Object.keys(this.stagedState.bulkOperations).length > 0
+    );
+  }
+
+  hasStagedBulkOperations(): boolean {
+    return Object.keys(this.stagedState.bulkOperations).length > 0;
+  }
+
   stageCreateSegment(segment: SegmentRecord): SegmentRecord {
     delete this.stagedState.deletedSegmentIds[segment.id];
     this.stagedState.segments[segment.id] = structuredClone(segment);
@@ -1306,6 +1477,15 @@ export class InMemoryStore {
       this.baseState.paymentCustomizations[customization.id] = structuredClone(customization);
       if (!this.baseState.paymentCustomizationOrder.includes(customization.id)) {
         this.baseState.paymentCustomizationOrder.push(customization.id);
+      }
+    }
+  }
+
+  upsertBasePaymentTermsTemplates(paymentTermsTemplates: PaymentTermsTemplateRecord[]): void {
+    for (const template of paymentTermsTemplates) {
+      this.baseState.paymentTermsTemplates[template.id] = structuredClone(template);
+      if (!this.baseState.paymentTermsTemplateOrder.includes(template.id)) {
+        this.baseState.paymentTermsTemplateOrder.push(template.id);
       }
     }
   }
@@ -2672,6 +2852,56 @@ export class InMemoryStore {
     this.stagedState.deletedCustomerIds[customerId] = true;
   }
 
+  upsertBaseCustomerAccountPages(pages: CustomerAccountPageRecord[]): void {
+    for (const page of pages) {
+      this.baseState.customerAccountPages[page.id] = structuredClone(page);
+      if (!this.baseState.customerAccountPageOrder.includes(page.id)) {
+        this.baseState.customerAccountPageOrder.push(page.id);
+      }
+    }
+  }
+
+  getEffectiveCustomerAccountPageById(pageId: string): CustomerAccountPageRecord | null {
+    return structuredClone(this.baseState.customerAccountPages[pageId] ?? null);
+  }
+
+  listEffectiveCustomerAccountPages(): CustomerAccountPageRecord[] {
+    const orderedIds = [
+      ...this.baseState.customerAccountPageOrder,
+      ...Object.keys(this.baseState.customerAccountPages).filter(
+        (pageId) => !this.baseState.customerAccountPageOrder.includes(pageId),
+      ),
+    ];
+    return orderedIds.flatMap((pageId) => {
+      const page = this.baseState.customerAccountPages[pageId];
+      return page ? [structuredClone(page)] : [];
+    });
+  }
+
+  hasCustomerAccountPages(): boolean {
+    return Object.keys(this.baseState.customerAccountPages).length > 0;
+  }
+
+  stageCustomerDataErasureRequest(request: CustomerDataErasureRequestRecord): CustomerDataErasureRequestRecord {
+    this.stagedState.customerDataErasureRequests[request.customerId] = structuredClone(request);
+    return structuredClone(request);
+  }
+
+  stageCustomerDataErasureCancellation(customerId: string, canceledAt: string): CustomerDataErasureRequestRecord {
+    const existing =
+      this.stagedState.customerDataErasureRequests[customerId] ??
+      this.baseState.customerDataErasureRequests[customerId];
+    const request = existing
+      ? { ...existing, canceledAt }
+      : {
+          customerId,
+          requestedAt: canceledAt,
+          canceledAt,
+        };
+    this.stagedState.customerDataErasureRequests[customerId] = structuredClone(request);
+    return structuredClone(request);
+  }
+
   stageCreateDiscount(discount: DiscountRecord): DiscountRecord {
     delete this.stagedState.deletedDiscountIds[discount.id];
     this.stagedState.discounts[discount.id] = structuredClone(discount);
@@ -3699,6 +3929,23 @@ export class InMemoryStore {
     return structuredClone([...orderedCustomizations, ...unorderedCustomizations]);
   }
 
+  getEffectivePaymentTermsTemplateById(paymentTermsTemplateId: string): PaymentTermsTemplateRecord | null {
+    const template = this.baseState.paymentTermsTemplates[paymentTermsTemplateId] ?? null;
+    return template ? structuredClone(template) : null;
+  }
+
+  listEffectivePaymentTermsTemplates(): PaymentTermsTemplateRecord[] {
+    const orderedIds = new Set(this.baseState.paymentTermsTemplateOrder);
+    const orderedTemplates = Array.from(orderedIds)
+      .map((id) => this.baseState.paymentTermsTemplates[id] ?? null)
+      .filter((template): template is PaymentTermsTemplateRecord => template !== null);
+    const unorderedTemplates = Object.values(this.baseState.paymentTermsTemplates)
+      .filter((template) => !orderedIds.has(template.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedTemplates, ...unorderedTemplates]);
+  }
+
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
   }
@@ -3737,6 +3984,10 @@ export class InMemoryStore {
       Object.keys(this.stagedState.paymentCustomizations).length > 0 ||
       Object.keys(this.stagedState.deletedPaymentCustomizationIds).length > 0
     );
+  }
+
+  hasPaymentTermsTemplates(): boolean {
+    return Object.keys(this.baseState.paymentTermsTemplates).length > 0;
   }
 
   hasFunctionMetadata(): boolean {

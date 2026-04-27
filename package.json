@@ -31,6 +31,7 @@
     "conformance:capture-customer-consent": "tsx ./scripts/capture-customer-consent-conformance.ts",
     "conformance:capture-customer-tax-exemptions": "tsx ./scripts/capture-customer-tax-exemption-conformance.ts",
     "conformance:capture-customer-input-validation": "tsx ./scripts/capture-customer-input-validation-conformance.ts",
+    "conformance:capture-customer-account-page-data-erasure": "tsx ./scripts/capture-customer-account-page-data-erasure-conformance.ts",
     "conformance:capture-store-credit": "tsx ./scripts/capture-store-credit-conformance.ts",
     "conformance:capture-customer-order-summary": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-customer-order-summary-conformance.ts",
     "conformance:capture-product-mutations": "tsx ./scripts/capture-product-mutation-conformance.mts",
@@ -80,9 +81,10 @@
     "conformance:capture-order-refunds": "tsx ./scripts/capture-order-refund-conformance.mts",
     "conformance:capture-fulfillment-order-lifecycle": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-fulfillment-order-lifecycle-conformance.ts",
     "conformance:capture-delivery-profiles": "tsx ./scripts/capture-delivery-profile-conformance.ts",
-    "conformance:capture-bulk-operations": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-bulk-operation-status-conformance.ts",
     "conformance:capture-webhook-subscriptions": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-webhook-subscription-conformance.ts",
-    "conformance:capture-gift-cards": "tsx ./scripts/capture-gift-card-conformance.ts"
+    "conformance:capture-bulk-operations": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-bulk-operation-status-conformance.ts",
+    "conformance:capture-gift-cards": "tsx ./scripts/capture-gift-card-conformance.ts",
+    "conformance:capture-selling-plan-groups": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-selling-plan-group-conformance.ts"
   },
   "dependencies": {
     "@koa/router": "^15.4.0",

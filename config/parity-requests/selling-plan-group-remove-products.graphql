@@ -1,0 +1,10 @@
+mutation RemoveProducts($id: ID!, $productIds: [ID!]!) {
+  sellingPlanGroupRemoveProducts(id: $id, productIds: $productIds) {
+    removedProductIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
