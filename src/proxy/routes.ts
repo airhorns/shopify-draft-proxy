@@ -143,6 +143,14 @@ const CARRIER_SERVICE_MUTATION_ROOTS = new Set([
   'carrierServiceDelete',
 ]);
 
+const SHIPPING_SETTINGS_MUTATION_ROOTS = new Set([
+  'locationLocalPickupEnable',
+  'locationLocalPickupDisable',
+  'shippingPackageUpdate',
+  'shippingPackageMakeDefault',
+  'shippingPackageDelete',
+]);
+
 const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
   'fulfillmentOrderHold',
   'fulfillmentOrderReleaseHold',
@@ -780,7 +788,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts()
+        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
@@ -846,9 +854,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.capability.execution === 'stage-locally' &&
         request.primaryRootField &&
         (FULFILLMENT_SERVICE_MUTATION_ROOTS.has(request.primaryRootField) ||
-          CARRIER_SERVICE_MUTATION_ROOTS.has(request.primaryRootField))
+          CARRIER_SERVICE_MUTATION_ROOTS.has(request.primaryRootField) ||
+          SHIPPING_SETTINGS_MUTATION_ROOTS.has(request.primaryRootField))
       ) {
         const isCarrierServiceMutation = CARRIER_SERVICE_MUTATION_ROOTS.has(request.primaryRootField);
+        const isShippingSettingsMutation = SHIPPING_SETTINGS_MUTATION_ROOTS.has(request.primaryRootField);
         request.proxyLogger.debug(
           {
             execution: request.capability.execution,
@@ -856,18 +866,24 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             operationType: request.parsed.type,
             rootFields: request.parsed.rootFields,
           },
-          isCarrierServiceMutation
-            ? 'staging supported carrier service mutation locally'
-            : 'staging supported fulfillment service mutation locally',
+          isShippingSettingsMutation
+            ? 'staging supported shipping settings mutation locally'
+            : isCarrierServiceMutation
+              ? 'staging supported carrier service mutation locally'
+              : 'staging supported fulfillment service mutation locally',
         );
 
         const responseBody = handleStorePropertiesMutation(request.body.query, request.variables);
-        appendStagedMutationLog(request, {
-          responseBody,
-          notes: isCarrierServiceMutation
-            ? 'Staged locally in the in-memory carrier service draft store; callback URL and service-discovery endpoints are not invoked.'
-            : 'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
-        });
+        if (!isShippingSettingsMutation || !hasLocalMutationErrors(responseBody)) {
+          appendStagedMutationLog(request, {
+            responseBody,
+            notes: isShippingSettingsMutation
+              ? 'Staged locally in the in-memory shipping settings draft store; no Shopify delivery settings or package configuration are mutated at runtime.'
+              : isCarrierServiceMutation
+                ? 'Staged locally in the in-memory carrier service draft store; callback URL and service-discovery endpoints are not invoked.'
+                : 'Staged locally in the in-memory fulfillment service draft store; callback, inventory, tracking, and fulfillment-order notification endpoints are not invoked.',
+          });
+        }
         setGraphQLResponse(request, 200, responseBody);
         return true;
       }
@@ -940,7 +956,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           (request.primaryRootField === 'carrierService' &&
             typeof request.variables['id'] === 'string' &&
             store.getEffectiveCarrierServiceById(request.variables['id']) !== null) ||
-          (request.primaryRootField === 'carrierServices' && store.hasStagedCarrierServices()))
+          (request.primaryRootField === 'carrierServices' && store.hasStagedCarrierServices()) ||
+          (request.primaryRootField === 'availableCarrierServices' &&
+            (store.hasStagedCarrierServices() || store.hasStagedLocations())) ||
+          (request.primaryRootField === 'locationsAvailableForDeliveryProfilesConnection' &&
+            store.hasStagedLocations()))
       ) {
         setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
         return true;
@@ -1784,6 +1804,14 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (request.config.readMode === 'live-hybrid') {
         if (request.primaryRootField === 'shop' && store.getEffectiveShop() !== null) {
+          setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+          return true;
+        }
+
+        if (
+          (request.primaryRootField === 'location' || request.primaryRootField === 'locationByIdentifier') &&
+          store.hasStagedLocations()
+        ) {
           setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
           return true;
         }
