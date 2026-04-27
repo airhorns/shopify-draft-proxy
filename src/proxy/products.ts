@@ -3697,6 +3697,19 @@ function applyInventorySetQuantities(input: Record<string, unknown>): {
   }
 
   const ignoreCompareQuantity = input['ignoreCompareQuantity'] === true;
+  if (!ignoreCompareQuantity && quantities.some((quantity) => typeof quantity.compareQuantity !== 'number')) {
+    return {
+      group: null,
+      userErrors: [
+        {
+          field: ['input', 'ignoreCompareQuantity'],
+          message:
+            'The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity.',
+        },
+      ],
+    };
+  }
+
   const variantsByProductId = new Map<string, ProductVariantRecord[]>();
   const changes: InventoryAdjustmentChangeRecord[] = [];
   const mirroredOnHandChanges: InventoryAdjustmentChangeRecord[] = [];
