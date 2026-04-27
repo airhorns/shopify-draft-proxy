@@ -1,0 +1,21 @@
+mutation ProductVariantsBulkReorderParity($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+  productVariantsBulkReorder(productId: $productId, positions: $positions) {
+    product {
+      id
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

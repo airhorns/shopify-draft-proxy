@@ -81,6 +81,13 @@ The current live-backed slice on this host now shows:
 - explicit colliding handles do **not** auto-rewrite silently
   - `productCreate` returns `product: null` plus `userErrors[{ field: ['input', 'handle'], message: "Handle '<handle>' already in use. Please provide a new handle." }]`
   - `productUpdate` and synchronous `productSet` return the unchanged existing product payload plus that same `['input', 'handle']` userError
+- a follow-up HAR-22 live probe found no product-handle reserved word rejection for common storefront/admin-looking handles including `admin`, `products`, `collections`, `cart`, `checkout`, and `new`
+  - those explicit handles were accepted as-is on `productCreate` when no product already owned the handle
+- explicit Unicode handles are not collapsed to the ASCII fallback path
+  - live `productCreate(handle: "東京")` and `productUpdate(handle: "大阪")` preserved those handles
+- explicit handles longer than 255 characters are rejected
+  - `productCreate` returns `product: null` plus `userErrors[{ field: ['handle'], message: 'Handle is too long (maximum is 255 characters)' }]`
+  - `productUpdate` returns the unchanged product payload plus the same `['handle']` userError
 - a title-only `productUpdate` against a product that already has an explicit handle keeps that current handle stable
   - on this host, updating the title of a product created with `handle: title-only-handle-probe-<runId>` returned the new title but preserved the same handle
   - practical consequence: do not regenerate handles from title-only updates once a product already has a concrete handle unless a broader live capture proves Shopify does something more specific for other edge cases
@@ -88,21 +95,11 @@ The current live-backed slice on this host now shows:
 Practical rule:
 
 - run explicit merchant-supplied handles through the same slug-normalization path before uniqueness checks; otherwise local create/update/productSet behavior drifts immediately from the live store
+- preserve Unicode letters/numbers during explicit handle normalization; do not treat non-ASCII handles as punctuation-only fallback input
 - keep explicit-handle collision handling separate from auto-generated-handle de-duplication after normalization
 - do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
-
-What is still missing:
-
-- reserved/invalid handles
-- interaction with broader normalization quirks outside the captured collision cases
-
-Practical rule:
-
-- keep explicit-handle collision handling separate from auto-generated-handle de-duplication
-- do not "fix" explicit collisions by silently inventing a new handle locally; Shopify surfaced a userError instead
-- when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 
 ## 6. Product update semantics are under-modeled
 
@@ -200,6 +197,13 @@ Current live findings on this host:
   - `draftOrderDuplicate` creates a new open, ready draft, allocates a new name/invoice URL/line-item IDs, copies customer/email/tags/custom attributes/addresses, but clears reserve inventory, shipping line, tax exemption, and discounts; totals recalculate from the undiscounted copied line items
   - `draftOrderDelete` returns the deleted draft ID and downstream `draftOrder(id:)` returns `null`
   - `draftOrderCreateFromOrder` can use an order produced by a setup `draftOrderComplete` flow and mirrors the duplicate-like clearing behavior for discounts/shipping while preserving the merchant-facing draft/order customer context
+- HAR-275 captured the `draftOrderInvoiceSend` safety slice on `harry-test-heelo.myshopify.com` / Admin GraphQL 2026-04 without sending a customer-visible invoice email:
+  - missing required variable still returns the normal GraphQL `INVALID_VARIABLE` path before resolver side effects
+  - omitted or inline-null `id` arguments fail at GraphQL validation before resolver side effects
+  - unknown and deleted draft IDs return `draftOrder: null` with `field: null`, `message: "Draft order not found"`
+  - an open draft with no recipient email returns the selected draft plus `field: null`, `message: "To can't be blank"`
+  - a completed draft with no recipient email returns the selected completed draft plus two userErrors: `"To can't be blank"` and `"Draft order Invoice can't be sent. This draft order is already paid."`
+  - this capture does not prove the success path should be emulated locally as delivered mail; local runtime must keep staging the raw mutation only and must not send email until explicit commit replay
 - easy schema/request traps from promoting those scenarios:
   - `DraftOrder.note` is not selectable on the current Admin GraphQL schema for these payloads, even though draft-order inputs can carry note-like data through local state
   - `DraftOrderInput.shippingLine` does not accept a `code` field; live updates accepted title and price fields, and Shopify returned `code: "custom"` on the resulting `shippingLine`
@@ -508,10 +512,10 @@ Current live findings on this host:
   - `orderEditSetQuantity` now also has that same first safe GraphQL-validation slice before the access gate: omitting the required `$id` variable while still sending `lineItemId` and `quantity` returns the same top-level `INVALID_VARIABLE` payload before Shopify reaches the root's separate `write_order_edits` blocker
   - `orderEditCommit` also fails on the same missing-`$id` variables-path validation branch before the access gate: omitting the required `$id` variable while still sending `notifyCustomer` / `staffNote` returns top-level `INVALID_VARIABLE` before Shopify reaches the root's separate `write_order_edits` blocker
 - current practical split for that family:
-  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and those captured branches are enough to cover each root narrowly while keeping happy-path parity blocked separately
-  - the remaining calculated-order edit work is the happy-path non-local Shopify parity family, which still needs explicit blocker-note + parity-plan scaffolding until a `write_order_edits`-capable install exists
+  - `orderEditBegin`, `orderEditAddVariant`, `orderEditSetQuantity`, and `orderEditCommit` are safe to mirror locally in snapshot mode and live-hybrid for the missing-`$id` validation branch without hitting upstream, and captured existing-order workflows now cover the initial lifecycle and downstream read-after-write paths
+  - the remaining calculated-order edit work is represented by captured existing-order workflow evidence plus executable single-root begin/add/set/commit parity slices; those scenario IDs must not return to planned access-scope-only blockers
 
-- keep concrete parity requests checked in for each root so later live capture can compare the real payload slice once an order-edit capable credential exists
+- keep the captured workflow parity requests checked in so later live capture can compare full begin/add/set/commit sequences rather than isolated root placeholders
 - refresh HAR-115 with `corepack pnpm conformance:capture-orders` evidence instead of leaving the order-edit family as a generic worklist bullet
 - do not skip ahead to fulfillment just because the edit roots introspect cleanly; the current host still needs a `write_order_edits`-capable credential before broader order-edit parity can become evidence-backed runtime work
 - newer local-runtime consequence: even without that credential, the proxy can still support a minimal but coherent local calculated-order session for synthetic/local orders only
@@ -1095,6 +1099,8 @@ The first staged media-write increment surfaced a few durable modeling constrain
 - once the asset is `READY`, using the staged source URL as the local ready-state stand-in is a practical first-pass approximation for both `preview.image.url` and `MediaImage.image.url`
 - `productDeleteMedia` carries two delete-id lists (`deletedMediaIds` and `deletedProductImageIds`); current live capture returns the deleted `MediaImage` id in `deletedMediaIds` and the paired legacy `ProductImage` id in `deletedProductImageIds`
 - staging an empty product media set needs an explicit "media family was staged" marker, otherwise downstream reads can accidentally fall back to hydrated/base media after deleting the last item
+- media validation is not uniformly atomic: empty create/update/delete inputs are accepted as empty successes, mixed `productCreateMedia` inputs create the valid image media while returning indexed errors for invalid image URLs, but mixed `productUpdateMedia` and `productDeleteMedia` batches with an unknown media ID reject the whole batch and leave existing media unchanged
+- unknown product IDs for media mutations use `Product does not exist`; unknown media IDs use root-level media fields (`media` for update, `mediaIds` for delete) rather than the indexed item path
 
 That means media writes are not just three new mutation cases — they also force the media serializer to understand richer node identity/state, inline-fragment selection semantics, and a small upload lifecycle (`UPLOADED` → `PROCESSING` → `READY`) before update parity is credible.
 
@@ -1172,7 +1178,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-No parity spec is checked in for this fixture yet because the proxy does not have an executable metaobject read/snapshot model. Do not add a planned-only metaobject parity spec just to point at this fixture.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -1881,6 +1887,23 @@ Practical rule for the proxy:
 - mask staged `defaultPhoneNumber.phoneNumber` in the same practical style as the captured live payload instead of echoing raw phone input
 - preserve the captured validation distinctions exactly: null-field missing-identity create error, `Customer does not exist` for unknown-id update, and `Customer can't be found` for unknown-id delete
 
+### 44a. `dataSaleOptOut` is privacy-scoped but behaves like a customer write
+
+HAR-255 capture on `harry-test-heelo.myshopify.com` / Admin GraphQL 2025-01 settled a few non-obvious data-sale opt-out behaviors:
+
+- `dataSaleOptOut(email:)` requires the privacy write scope, but the downstream observable field is `Customer.dataSaleOptOut`
+- an existing customer starts with `dataSaleOptOut: false`; after `dataSaleOptOut(email:)`, both `customer(id:)` and `customerByIdentifier(identifier: { id })` read `dataSaleOptOut: true`
+- repeating the same opt-out is idempotent and returns the same `customerId` with no `userErrors`
+- invalid email strings such as `not-an-email` and `""` return payload `customerId: null` plus `userErrors[{ field: null, message: "Data sale opt out failed.", code: "FAILED" }]`
+- a valid email with no existing customer creates a customer and returns its `customerId`; the created customer reads back with the requested email and `dataSaleOptOut: true`
+- the immediate `customers(query: "email:<address>", sortKey: UPDATED_AT, reverse: true)` slice returned an empty connection for opted-out disposable customers, so do not infer general customer-search visibility from this privacy mutation without broader evidence
+
+Practical rule for the proxy:
+
+- keep the registry operation under the privacy domain, but implement the staged read-after-write effect on `CustomerRecord.dataSaleOptOut`
+- for unknown valid emails, create a local opted-out customer instead of returning a not-found userError
+- treat invalid email strings as captured payload userErrors, not as top-level GraphQL errors, when local request parsing reaches the resolver path
+
 ## 45. Rich collection fields need a real collection row, not only membership rows
 
 Extending collection reads past `id` / `title` / `handle` exposed the limit of deriving every collection only from `product.collections` memberships.
@@ -2147,11 +2170,12 @@ Captured evidence:
 
 Current local classification:
 
-- empty/no-data only: `addresses`, `addressesV2`, `companyContactProfiles`, `events`, `orders`, `lastOrder`, `paymentMethods`, `storeCreditAccounts`, and `subscriptionContracts`
+- empty/no-data only: `companyContactProfiles`, `events`, `orders`, `lastOrder`, `storeCreditAccounts`, and customer-level `subscriptionContracts`
 - customer-metafield local replay: singular `metafield(namespace:, key:)` and the `metafields` connection are backed by the customer-owned metafield model added for `customerUpdate`
 - hydrate-and-replay candidate: captured nested `addresses` / `addressesV2`, `orders` / `lastOrder`, `events`, and non-empty metafield shapes, but broad non-empty replay still requires normalized state for each sub-resource family
 - staged-overlay capable later: customer-owned addresses once their mutation roots are staged locally
-- deferred: store credit accounts, payment methods, subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
+- seeded/local replay: `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)` now serialize from normalized `customerPaymentMethods` state, including instrument union fragments, revoked filtering, and payment-method-owned `subscriptionContracts` links
+- deferred: store credit accounts, customer-level subscription contracts, customer statistics, mergeability, and product subscriber status until captured fixture evidence settles access, empty-state, and non-empty shapes
 
 Practical rule for the proxy:
 
@@ -2159,6 +2183,20 @@ Practical rule for the proxy:
 - do not fabricate order, event, store credit, payment method, subscription, company-contact, address, or unrelated metafield records after staged customer CRUD
 - keep customer-order overlap narrow: local customer reads may expose empty `orders` / `lastOrder` when the customer graph has no modeled order relationship, while real order lifecycle behavior remains in the order-domain notes and tests
 - any future non-empty nested customer replay must first add normalized state for that sub-resource and compare against captured fixtures instead of reusing the HAR-160 empty/no-data serializer branch
+
+### 53a. `orderCustomerSet` updates `Customer.orders` before the scalar summaries
+
+HAR-288 captured a focused 2026-04 live sequence with a disposable customer and an existing order:
+
+- before linking, `customer.orders` was empty, `lastOrder` was `null`, `numberOfOrders` was `"0"`, and `amountSpent` was zero
+- immediately after `orderCustomerSet`, `customer.orders(first: 5)` contained the linked order with its `customer` object pointing at the disposable customer
+- in that same immediate read, `lastOrder` stayed `null`, `numberOfOrders` stayed `"0"`, and `amountSpent` stayed zero
+- after `orderCustomerRemove`, `customer.orders` returned to the empty connection shape
+
+Practical rule:
+
+- model the immediate read-after-write bridge from order customer mutations by deriving `Customer.orders` from normalized `OrderRecord.customer`
+- do not increment `Customer.numberOfOrders`, add to `Customer.amountSpent`, or synthesize `Customer.lastOrder` from local order customer set/remove mutations unless a future capture proves a different lifecycle branch
 
 ## 54. Markets reads are safe to capture, but writes are not harmless
 
@@ -2170,6 +2208,7 @@ Observed current-version surface:
 - schema inventory confirms current mutation roots for `marketCreate`, `marketUpdate`, `marketDelete`, `webPresenceCreate`, `webPresenceUpdate`, `webPresenceDelete`, `marketLocalizationsRegister`, and `marketLocalizationsRemove`
 - `marketsResolvedValues(buyerSignal: { countryCode: US })` is present in 2026-04 and returned resolved currency/price-inclusivity data on this store, but an empty resolved catalog connection for the captured buyer signal
 - top-level `webPresences` can be captured safely with `id`, `subfolderSuffix`, `domain`, `rootUrls`, linked `markets`, `defaultLocale`, and `alternateLocales`
+- On 2026-04, `BuyerSignalInput.countryCode` is a Shopify `CountryCode` enum. A live probe against `harry-test-heelo.myshopify.com` returned `INVALID_VARIABLE` for `AQ`, while accepted country codes such as `US`, `CA`, `DE`, `FR`, and `ZZ` all resolved through the shop's configured primary market/web presence. That shop therefore cannot currently provide a true no-market/no-web-presence buyer-signal capture without changing market configuration; use empty resolved catalog connections plus local empty-state tests for the current safe no-data evidence.
 
 Access-scope trap:
 
@@ -2355,6 +2394,7 @@ Observed current-version surface:
 - the current store returned an empty `paymentCustomizations` connection, an empty `tenderTransactions` connection, an empty Shop Pay receipt connection, and the standard payment-terms template catalog
 - `shopifyPaymentsAccount` still returns field-level `ACCESS_DENIED`; Shopify requires `read_shopify_payments` or `read_shopify_payments_accounts`, and the refreshed app scopes only include dispute/payout sub-scopes
 - `customerPaymentMethod(id:)` still returns field-level `ACCESS_DENIED`; Shopify requires `read_customers` plus `read_customer_payment_methods`, and the refreshed app scopes still lack `read_customer_payment_methods`
+- local seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state. Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied.
 - HAR-220 re-ran the direct `shopifyPaymentsAccount` probe with the configured `harry-test-heelo.myshopify.com` 2025-01 credential on 2026-04-25. It still returned `shopifyPaymentsAccount: null` with `ACCESS_DENIED`, so the checked-in parity scenario compares only the null data branch while targeted runtime tests cover fixture-backed safe scalar and empty connection behavior.
 
 Capture prerequisites and safety constraints:
@@ -2368,7 +2408,11 @@ Capture prerequisites and safety constraints:
   - create with `functionId: gid://shopify/ShopifyFunction/0` returns `FUNCTION_NOT_FOUND` under `['paymentCustomization', 'functionId']` and mentions the installed app id `347082227713`
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
-- customer payment method reads remain blocked on `read_customer_payment_methods` even though `read_customers` is present; writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- HAR-224 hardened the local runtime against the 2026-04 `PaymentCustomizationInput` docs: `functionHandle` is the current Function identifier, `functionId` remains deprecated but accepted for the captured parity branch, requests with both identifiers return `MULTIPLE_FUNCTION_IDENTIFIERS`, captured missing Function handles return `FUNCTION_NOT_FOUND`, malformed owner metafields return `INVALID_METAFIELDS`, and duplicate activation ids are handled idempotently
+- customer payment method live captures remain blocked on `read_customer_payment_methods` even though `read_customers` is present; seeded-state reads are safe to model without vaulting because they only serialize already-captured or hand-seeded normalized state
+- customer payment method writes require `write_customers` plus `write_customer_payment_methods` and must use isolated test customers/payment methods because card sessions, duplication data, update URLs, revocation, and remote gateway identifiers are sensitive
+- customer payment method credit-card/PayPal create and update roots can eventually be staged locally only after isolated fixture evidence settles instrument payloads and read-after-write behavior. Remote create also needs polling/asynchronous status evidence through `customerPaymentMethod`. Duplication data and update URLs must be treated as sensitive ephemeral payment material. Revoke is destructive for recurring billing flows, and update-email is customer-visible mail, so both stay unsupported until a safe no-recipient or disposable-method plan exists.
+- Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` is locally buffered when the payment method exists in the local customer-payment graph; the runtime must not deliver customer email upstream outside explicit commit replay.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization
 - mandate payment requires `write_payment_mandate`, `pay_orders_by_vaulted_card` permission, mandate-backed schedule data, idempotency-key coverage, and Shopify Plus coverage for amount-specific branches
 - payment terms template reads are currently capture-ready; payment terms writes have `write_payment_terms` on the app manifest but still require order or draft-order access and an isolated order/payment schedule because they change due dates and payment status
@@ -2421,7 +2465,7 @@ Practical rule:
 
 ## 62. Admin customer address roots use MailingAddress payloads and split validation styles
 
-HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`.
+HAR-152 captured customer address lifecycle evidence on Admin GraphQL 2025-01 with `corepack pnpm conformance:capture-customer-addresses`. HAR-283 expanded the same fixture with address validation, normalization, ownership, default-address, and bounded maximum-address probes.
 
 Captured facts:
 
@@ -2431,12 +2475,18 @@ Captured facts:
 - `MailingAddressInput` accepts `countryCode` and `provinceCode`; the response expands those to full `country` / `province` strings plus `countryCodeV2` / `provinceCode`
 - unknown customer ids on address create return payload `userErrors` with `field: ["customerId"]` and message `Customer does not exist`
 - unknown address ids on update, delete, and default-address selection return top-level GraphQL errors with message `invalid id`, extension code `RESOURCE_NOT_FOUND`, and `data.<root>: null`
+- address ids that exist but belong to a different customer are not top-level errors: update returns `address: null`, delete returns `deletedAddressId: null`, and default-address selection returns the unchanged customer; all three carry payload `userErrors[{ field: ["addressId"], message: "Address does not exist" }]`
+- `{}` creates a blank address and inherits the owning customer's first/last names; explicit empty address strings normalize to `null`
+- invalid `countryCode` and invalid Canadian `provinceCode` return payload userErrors at `["address", "country"]` and `["address", "province"]`; arbitrary postal text is accepted in the captured Canadian branch
+- duplicate `customerAddressCreate` returns payload `userErrors[{ field: ["address"], message: "Address already exists" }]`
+- deleting the default address promotes the remaining address to `Customer.defaultAddress`; omitted/null `setAsDefault` does not replace an existing default
+- the bounded maximum-address probe successfully created 105 addresses without a Shopify failure, so local staging should not enforce a lower artificial limit
 
 Practical rule:
 
 - locally stage address lifecycle roots against a normalized customer-owned address graph and keep `Customer.defaultAddress` synchronized from the selected address row
-- use fixture-backed top-level errors for unknown address ids instead of turning those branches into payload `userErrors`
-- keep broader address validation, normalization, and territory-specific postal validation out of local support until new fixtures capture those branches
+- keep unknown-address-id top-level errors distinct from cross-customer ownership userErrors
+- model only fixture-backed address validation/normalization branches locally; do not invent postal validation or a smaller maximum-address cap without new evidence
 
 ## 63. `customerSet` uses its own identifier input and replaces address lists
 
@@ -2451,6 +2501,11 @@ Captured facts:
 - unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+- `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
+- no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
+- identifier/input alignment errors are not field-specific beyond `["input"]`: missing corresponding input fields return `The input field corresponding to the identifier is required.`, while mismatches return `The identifier value does not match the value of the corresponding field in the input.`
+- `addresses: null` is a successful no-op for an existing customer, while `taxExempt: null` returns `field: ["input", "taxExempt"]` / `Tax exempt is of unexpected type NilClass`
+- after a customer is deleted, `customerSet(identifier: { id: deletedId })` returns the same `Resource matching the identifier was not found.` payload userError as an unknown id
 
 Practical rule:
 
@@ -2494,3 +2549,102 @@ Practical rule:
 
 - do not mark broad discount bulk roots implemented until local staging covers the full selected lifecycle and downstream read effects without runtime Shopify writes
 - preserve raw bulk mutation bodies in the staged log so `__meta/commit` replays the original add/delete order exactly once
+
+## 66. `productSet` inventory quantities are location rows, but product totals lag
+
+HAR-286 refreshed `productSet` live parity on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` with two active locations.
+
+Captured facts:
+
+- live `ProductSetInput.variants[].inventoryQuantities[]` entries require `locationId`, `name`, and `quantity`; the captured writable name is `available`
+- a single productSet-created variant can carry multiple location rows, and each row is exposed immediately through nested `inventoryItem.inventoryLevels`
+- `available` rows are mirrored into `on_hand` rows with the same quantity, while `incoming` remained `0`
+- `productVariant.inventoryQuantity` is the aggregate available quantity across the variant's captured inventory levels
+- product-level `totalInventory` did not simply sum every variant: on create it counted the tracked variant and excluded the untracked variant, and after a follow-up `productSet` inventory update it stayed at the prior product aggregate even though the variant and inventory-item quantities changed immediately
+
+Practical rule:
+
+- model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
+- do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
+
+## 67. Draft-order create validation differs from early local guesses
+
+HAR-277 captured a grouped `draftOrderCreate` validation matrix on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured invalid branches:
+
+- empty `lineItems` returns `field: null`, message `Add at least 1 product`
+- an unknown `variantId` returns `field: null`, message `Product with ID <legacy id> is no longer available.`
+- a custom line missing `title` returns `field: null`, message `Merchandise title is empty.`
+- `quantity: 0` returns `field: ["lineItems", "0", "quantity"]`, message `Quantity must be greater than or equal to 1`
+- `paymentTerms` with only `paymentSchedules` returns `field: null`, message `Payment terms template id can not be empty.`
+- a negative custom line `originalUnitPrice` returns `field: null`, message `Cannot send negative price for line_item`
+- past `reserveInventoryUntil` returns `field: null`, message `Reserve until can't be in the past`
+- invalid email returns `field: ["email"]`, message `Email is invalid`
+
+Exploratory probes also disproved two earlier assumptions: Shopify accepted a variant-backed line item that also included custom `title` and `originalUnitPrice`, and it accepted a custom line with no `originalUnitPrice` as a zero-price line. It also accepted a `shippingLine` with `priceWithCurrency` and no title.
+
+Practical rule:
+
+- do not reject variant-backed draft lines just because custom title/price fields are present
+- keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
+- broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
+
+## 68. Unknown comment detail can error while comment moderation validates cleanly
+
+HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- empty `articles`, `articleAuthors`, and `comments` roots returned normal empty connections with false/null `pageInfo`
+- missing `article(id:)`, `blog(id:)`, and `page(id:)` returned `null`
+- missing `comment(id:)` returned a Shopify internal error for the sampled synthetic unknown ID
+- unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal payload-level `userErrors`: `field: ["id"]`, message `Comment does not exist`
+- the disposable success capture for `blogCreate`/`blogUpdate`/`blogDelete`, `pageCreate`/`pageUpdate`/`pageDelete`, and `articleCreate`/`articleUpdate`/`articleDelete` confirmed the content mutation roots can be exercised with explicit cleanup evidence
+
+Practical rule:
+
+- keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
+- treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
+- continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics
+
+## 69. Fulfillment-order lifecycle roots split work into replacement orders
+
+HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
+
+Captured facts:
+
+- partial `fulfillmentOrderHold` changes the selected work to `ON_HOLD`, creates a new `FulfillmentHold`, reduces the held fulfillment-order line item quantities, and returns a separate `remainingFulfillmentOrder` for the unheld quantity
+- `fulfillmentOrderReleaseHold` restores the held fulfillment order to `OPEN`, clears `fulfillmentHolds`, and re-expands the line item back to the full remaining quantity in the captured branch
+- partial `fulfillmentOrderMove` creates a new moved fulfillment order at the destination location while the original fulfillment order remains open with the remaining quantity; the payload reports the same original record as `originalFulfillmentOrder` and `remainingFulfillmentOrder`
+- `fulfillmentOrderReportProgress` changes an open merchant-managed fulfillment order to `IN_PROGRESS` and adds `MARK_AS_OPEN`; `fulfillmentOrderOpen` changes it back to `OPEN`
+- `fulfillmentOrderCancel` closes the original fulfillment order, empties its line items, and returns a replacement open fulfillment order carrying the remaining line item quantity
+- nested `Order.fulfillmentOrders` does not accept `includeClosed`; that argument belongs to the top-level `fulfillmentOrders` root
+- the captured merchant-managed setup returns guardrails for unsupported branches: reschedule requires a scheduled fulfillment order, close requires an API fulfillment service, and the attempted included-location reroute returned a Shopify internal error instead of a success payload
+
+Practical rule:
+
+- do not model fulfillment-order lifecycle roots as simple status patches; partial hold/move/cancel behavior affects line-item quantities and replacement fulfillment-order identities
+- keep `fulfillmentOrderReschedule`, `fulfillmentOrderClose`, and `fulfillmentOrdersReroute` unimplemented for full support until success-path fixtures exist, even if local guardrails are mirrored
+
+## 70. Fulfillment-order request lifecycles need an API fulfillment service to reach happy paths
+
+HAR-233 captured fulfillment-order request/cancellation behavior on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`. A merchant-managed fulfillment order did not reach the request happy path: `fulfillmentOrderSubmitFulfillmentRequest` returned `userErrors[{ field: ["id"], message: "The fulfillment order's assigned fulfillment service must be of api type" }]`.
+
+Useful setup and behavior:
+
+- creating a temporary `fulfillmentService` without a callback URL produced a third-party API fulfillment service plus a service-managed location
+- moving a disposable order's fulfillment order to that location with `fulfillmentOrderMove` was enough to exercise the request roots
+- partial `fulfillmentOrderSubmitFulfillmentRequest` shrank the submitted fulfillment order's line-item `totalQuantity` / `remainingQuantity` to the requested quantity and created an `UNSUBMITTED` replacement fulfillment order for the remaining quantity
+- submit fulfillment request records a `FULFILLMENT_REQUEST` merchant request with the message and `requestOptions.notify_customer`
+- accept fulfillment request transitions `status` to `IN_PROGRESS` and `requestStatus` to `ACCEPTED`; the selected merchant request `responseData` remained `null` even when `message` and `estimatedShippedAt` were passed
+- submit cancellation request appends a `CANCELLATION_REQUEST` merchant request, but the selected fulfillment order still reported `requestStatus: ACCEPTED` immediately after submission
+- accept cancellation transitions to `status: CLOSED`, `requestStatus: CANCELLATION_ACCEPTED`, and selected line-item quantities of `0`
+- reject fulfillment request transitions to `requestStatus: REJECTED`; reject cancellation request transitions to `requestStatus: CANCELLATION_REJECTED`
+- all six scoped roots returned top-level `RESOURCE_NOT_FOUND` errors for `gid://shopify/FulfillmentOrder/0`
+
+Practical rule:
+
+- model these roots as order-backed fulfillment-order state transitions plus merchant request history, not as generic status patches or runtime callback calls
+- keep hold/move/reroute/progress semantics out of this slice even though live setup used `fulfillmentOrderMove`; that move was conformance setup, not locally supported request-lifecycle behavior
+- do not infer broader fulfillment-service assignment filtering from `assignedFulfillmentOrders`; the current local read exposes staged order-backed records so tests can see request transitions, while broader live access-scope behavior remains separate evidence

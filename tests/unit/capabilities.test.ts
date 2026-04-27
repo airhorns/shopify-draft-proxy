@@ -324,6 +324,19 @@ describe('getOperationCapability', () => {
       operationName: 'ProductVariantsBulkDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'ProductVariantsBulkReorder',
+        rootFields: ['productVariantsBulkReorder'],
+      }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductVariantsBulkReorder',
+      type: 'mutation',
+    });
   });
 
   it('marks singular product variant mutations as locally staged mutations', () => {
@@ -449,6 +462,15 @@ describe('getOperationCapability', () => {
       domain: 'products',
       execution: 'stage-locally',
       operationName: 'ProductDeleteMedia',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: 'ProductReorderMedia', rootFields: ['productReorderMedia'] }),
+    ).toEqual({
+      domain: 'products',
+      execution: 'stage-locally',
+      operationName: 'ProductReorderMedia',
       type: 'mutation',
     });
   });
@@ -679,6 +701,28 @@ describe('getOperationCapability', () => {
         execution: 'overlay-read',
         operationName: rootField,
         type: 'query',
+      });
+    }
+  });
+
+  it('routes implemented metaobject definition mutation roots through local staging', () => {
+    for (const rootField of [
+      'metaobjectDefinitionCreate',
+      'metaobjectDefinitionUpdate',
+      'metaobjectDefinitionDelete',
+      'standardMetaobjectDefinitionEnable',
+    ]) {
+      expect(
+        getOperationCapability({
+          type: 'mutation',
+          name: rootField,
+          rootFields: [rootField],
+        }),
+      ).toEqual({
+        domain: 'metaobjects',
+        execution: 'stage-locally',
+        operationName: rootField,
+        type: 'mutation',
       });
     }
   });

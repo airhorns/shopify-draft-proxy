@@ -107,6 +107,56 @@ const MARKET_FIELDS = `#graphql
   }
 `;
 
+const PRICE_LIST_FIELDS = `#graphql
+  fragment LifecyclePriceListFields on PriceList {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    parent {
+      adjustment {
+        type
+        value
+      }
+    }
+    catalog {
+      id
+      title
+    }
+    prices(first: 10, originType: FIXED) {
+      edges {
+        cursor
+        node {
+          price {
+            amount
+            currencyCode
+          }
+          compareAtPrice {
+            amount
+            currencyCode
+          }
+          originType
+          variant {
+            id
+            sku
+            product {
+              id
+              title
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
 function seedCatalogMarkets(): { canadaMarketId: string; usMarketId: string } {
   const canadaMarketId = 'gid://shopify/Market/101';
   const usMarketId = 'gid://shopify/Market/202';
@@ -1430,6 +1480,259 @@ describe('Markets lifecycle staging', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('resolves marketsResolvedValues from staged market catalog and web presence effects', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('resolved values staging must not proxy'));
+    const app = createApp(config).callback();
+
+    const marketResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${MARKET_FIELDS}
+          mutation CreateResolvedMarket($input: MarketCreateInput!) {
+            marketCreate(input: $input) {
+              market {
+                ...LifecycleMarketFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: 'Codex Germany',
+            handle: 'codex-germany',
+            status: 'ACTIVE',
+            conditions: {
+              regionsCondition: {
+                regions: [{ countryCode: 'DE' }],
+              },
+            },
+            currencySettings: {
+              baseCurrency: 'EUR',
+              localCurrencies: false,
+              roundingEnabled: true,
+            },
+            priceInclusions: {
+              dutiesPricingStrategy: 'INCLUDES_DUTIES_IN_PRICE',
+              taxPricingStrategy: 'INCLUDES_TAXES_IN_PRICE',
+            },
+          },
+        },
+      });
+
+    expect(marketResponse.status).toBe(200);
+    expect(marketResponse.body.data.marketCreate.userErrors).toEqual([]);
+    const marketId = marketResponse.body.data.marketCreate.market.id as string;
+
+    const catalogResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateResolvedCatalog($input: CatalogCreateInput!) {
+            catalogCreate(input: $input) {
+              catalog {
+                __typename
+                id
+                ... on MarketCatalog {
+                  title
+                  status
+                  priceList {
+                    id
+                  }
+                  markets(first: 5) {
+                    nodes {
+                      id
+                    }
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            title: 'Codex Germany Catalog',
+            status: 'ACTIVE',
+            context: {
+              marketIds: [marketId],
+            },
+            priceListId: 'gid://shopify/PriceList/919',
+          },
+        },
+      });
+
+    expect(catalogResponse.status).toBe(200);
+    expect(catalogResponse.body.data.catalogCreate.userErrors).toEqual([]);
+    const catalogId = catalogResponse.body.data.catalogCreate.catalog.id as string;
+
+    const webPresenceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${WEB_PRESENCE_FIELDS}
+          mutation CreateResolvedWebPresence($input: WebPresenceCreateInput!) {
+            webPresenceCreate(input: $input) {
+              webPresence {
+                ...LifecycleWebPresenceFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            defaultLocale: 'de',
+            alternateLocales: ['en'],
+            subfolderSuffix: 'de',
+          },
+        },
+      });
+
+    expect(webPresenceResponse.status).toBe(200);
+    expect(webPresenceResponse.body.data.webPresenceCreate.userErrors).toEqual([]);
+    const webPresenceId = webPresenceResponse.body.data.webPresenceCreate.webPresence.id as string;
+
+    const associateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AssociateResolvedWebPresence($id: ID!, $input: MarketUpdateInput!) {
+            marketUpdate(id: $id, input: $input) {
+              market {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: marketId,
+          input: {
+            webPresencesToAdd: [webPresenceId],
+          },
+        },
+      });
+
+    expect(associateResponse.status).toBe(200);
+    expect(associateResponse.body.data.marketUpdate.userErrors).toEqual([]);
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadResolvedValues {
+            marketsResolvedValues(buyerSignal: { countryCode: DE }) {
+              currencyCode
+              priceInclusivity {
+                dutiesIncluded
+                taxesIncluded
+              }
+              catalogs(first: 5) {
+                nodes {
+                  id
+                  title
+                  priceList {
+                    id
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                  defaultLocale {
+                    locale
+                  }
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+            }
+          }
+        `,
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.marketsResolvedValues).toEqual({
+      currencyCode: 'EUR',
+      priceInclusivity: {
+        dutiesIncluded: true,
+        taxesIncluded: true,
+      },
+      catalogs: {
+        nodes: [
+          {
+            id: catalogId,
+            title: 'Codex Germany Catalog',
+            priceList: {
+              id: 'gid://shopify/PriceList/919',
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: catalogId,
+          endCursor: catalogId,
+        },
+      },
+      webPresences: {
+        nodes: [
+          {
+            id: webPresenceId,
+            subfolderSuffix: 'de',
+            defaultLocale: {
+              locale: 'de',
+            },
+          },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: webPresenceId,
+          endCursor: webPresenceId,
+        },
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'marketCreate',
+      'catalogCreate',
+      'webPresenceCreate',
+      'marketUpdate',
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns MarketUserError shapes for invalid web presence inputs without staging records', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('web presence validation must not proxy'));
     const app = createApp(config).callback();
@@ -1511,5 +1814,460 @@ describe('Markets lifecycle staging', () => {
     expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged']);
     expect(store.getLog().map((entry) => entry.operationName)).toEqual(['webPresenceCreate', 'webPresenceUpdate']);
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stages price-list lifecycle and fixed-price mutations locally with read-after-write and meta visibility', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('price lists must not proxy'));
+    const app = createApp(config).callback();
+
+    const productResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateProduct {
+            productCreate(product: { title: "Contextual Pricing Hat" }) {
+              product {
+                id
+                title
+                variants(first: 1) {
+                  nodes {
+                    id
+                    sku
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      });
+
+    const product = productResponse.body.data.productCreate.product as {
+      id: string;
+      variants: { nodes: Array<{ id: string }> };
+    };
+    const variantId = product.variants.nodes[0]!.id;
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation CreatePriceList($input: PriceListCreateInput!) {
+            priceListCreate(input: $input) {
+              priceList {
+                ...LifecyclePriceListFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: 'Codex EUR',
+            currency: 'EUR',
+            parent: {
+              adjustment: {
+                type: 'PERCENTAGE_DECREASE',
+                value: 10,
+              },
+            },
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.priceListCreate.userErrors).toEqual([]);
+    expect(createResponse.body.data.priceListCreate.priceList).toMatchObject({
+      __typename: 'PriceList',
+      id: expect.stringMatching(/^gid:\/\/shopify\/PriceList\//),
+      name: 'Codex EUR',
+      currency: 'EUR',
+      fixedPricesCount: 0,
+      parent: {
+        adjustment: {
+          type: 'PERCENTAGE_DECREASE',
+          value: 10,
+        },
+      },
+      prices: {
+        edges: [],
+      },
+    });
+    const priceListId = createResponse.body.data.priceListCreate.priceList.id as string;
+
+    const addResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation AddFixedPrice($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+            priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+              priceList {
+                ...LifecyclePriceListFields
+              }
+              fixedPriceVariantIds
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          prices: [
+            {
+              variantId,
+              price: {
+                amount: '42.00',
+                currencyCode: 'EUR',
+              },
+              compareAtPrice: {
+                amount: '50.00',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body.data.priceListFixedPricesAdd.userErrors).toEqual([]);
+    expect(addResponse.body.data.priceListFixedPricesAdd.fixedPriceVariantIds).toEqual([variantId]);
+    expect(addResponse.body.data.priceListFixedPricesAdd.priceList.fixedPricesCount).toBe(1);
+    expect(addResponse.body.data.priceListFixedPricesAdd.priceList.prices.edges).toEqual([
+      {
+        cursor: variantId,
+        node: {
+          price: {
+            amount: '42.00',
+            currencyCode: 'EUR',
+          },
+          compareAtPrice: {
+            amount: '50.00',
+            currencyCode: 'EUR',
+          },
+          originType: 'FIXED',
+          variant: {
+            id: variantId,
+            sku: null,
+            product: {
+              id: product.id,
+              title: 'Contextual Pricing Hat',
+            },
+          },
+        },
+      },
+    ]);
+
+    const duplicateAddResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DuplicateFixedPrice($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+            priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+              priceList {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          prices: [
+            {
+              variantId,
+              price: {
+                amount: '43.00',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+        },
+      });
+
+    expect(duplicateAddResponse.body.data.priceListFixedPricesAdd).toEqual({
+      priceList: null,
+      userErrors: [
+        {
+          field: ['prices', 'variantId'],
+          message: 'Fixed price already exists',
+          code: 'TAKEN',
+        },
+      ],
+    });
+
+    const byProductUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation ProductFixedPriceUpdate($priceListId: ID!, $productId: ID!, $prices: [PriceListPriceInput!]!) {
+            priceListFixedPricesByProductUpdate(
+              priceListId: $priceListId
+              productId: $productId
+              prices: $prices
+            ) {
+              priceList {
+                ...LifecyclePriceListFields
+              }
+              fixedPriceVariantIds
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          productId: product.id,
+          prices: [
+            {
+              variantId,
+              price: {
+                amount: '40.00',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+        },
+      });
+
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.userErrors).toEqual([]);
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.fixedPriceVariantIds).toEqual([
+      variantId,
+    ]);
+    expect(
+      byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.priceList.prices.edges[0].node.price,
+    ).toEqual({
+      amount: '40.00',
+      currencyCode: 'EUR',
+    });
+
+    const deleteFixedResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation DeleteFixedPrice($priceListId: ID!, $variantIds: [ID!]!) {
+            priceListFixedPricesDelete(priceListId: $priceListId, variantIds: $variantIds) {
+              priceList {
+                ...LifecyclePriceListFields
+              }
+              deletedFixedPriceVariantIds
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          variantIds: [variantId],
+        },
+      });
+
+    expect(deleteFixedResponse.body.data.priceListFixedPricesDelete).toMatchObject({
+      deletedFixedPriceVariantIds: [variantId],
+      priceList: {
+        fixedPricesCount: 0,
+        prices: {
+          edges: [],
+        },
+      },
+      userErrors: [],
+    });
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AddFixedPriceAgain($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+            priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+              priceList {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          prices: [
+            {
+              variantId,
+              price: {
+                amount: '39.00',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+        },
+      });
+
+    const currencyUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          mutation ChangeCurrency($id: ID!, $input: PriceListUpdateInput!) {
+            priceListUpdate(id: $id, input: $input) {
+              priceList {
+                ...LifecyclePriceListFields
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+          input: {
+            currency: 'CAD',
+          },
+        },
+      });
+
+    expect(currencyUpdateResponse.body.data.priceListUpdate.userErrors).toEqual([]);
+    expect(currencyUpdateResponse.body.data.priceListUpdate.priceList).toMatchObject({
+      id: priceListId,
+      currency: 'CAD',
+      fixedPricesCount: 0,
+      prices: {
+        edges: [],
+      },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          query ReadPriceList($id: ID!) {
+            priceList(id: $id) {
+              ...LifecyclePriceListFields
+            }
+            priceLists(first: 10) {
+              nodes {
+                id
+                name
+                currency
+                fixedPricesCount
+              }
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(readResponse.body.data.priceList).toMatchObject({
+      id: priceListId,
+      name: 'Codex EUR',
+      currency: 'CAD',
+      fixedPricesCount: 0,
+    });
+    expect(readResponse.body.data.priceLists.nodes).toContainEqual({
+      id: priceListId,
+      name: 'Codex EUR',
+      currency: 'CAD',
+      fixedPricesCount: 0,
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DeletePriceList($id: ID!) {
+            priceListDelete(id: $id) {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(deleteResponse.body.data.priceListDelete).toEqual({
+      deletedId: priceListId,
+      userErrors: [],
+    });
+
+    const readAfterDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadDeletedPriceList($id: ID!) {
+            priceList(id: $id) {
+              id
+            }
+            priceLists(first: 10) {
+              nodes {
+                id
+              }
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(readAfterDeleteResponse.body.data.priceList).toBeNull();
+    expect(readAfterDeleteResponse.body.data.priceLists.nodes).not.toContainEqual({ id: priceListId });
+
+    const stateResponse = await request(app).get('/__meta/state');
+    const logResponse = await request(app).get('/__meta/log');
+    expect(stateResponse.body.stagedState.deletedPriceListIds).toEqual({ [priceListId]: true });
+    expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+    ]);
+    expect(logResponse.body.entries[1]).toMatchObject({
+      operationName: 'priceListCreate',
+      requestBody: {
+        variables: {
+          input: {
+            name: 'Codex EUR',
+            currency: 'EUR',
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

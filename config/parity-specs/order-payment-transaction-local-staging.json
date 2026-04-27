@@ -10,5 +10,5 @@
     "mode": "strict-json",
     "expectedDifferences": []
   },
-  "notes": "Runtime evidence for HAR-226 local order payment staging. The covered happy paths intentionally use synthetic/local order transactions rather than live gateway-affecting captures, voids, or mandate payments; permission-specific and Plus-only live branches remain documented as future conformance expansion. Enforced by the referenced integration test until the generic parity runner can replay the multi-operation local payment staging flow directly."
+  "notes": "Runtime evidence for HAR-226 local order payment staging plus HAR-278 validation guardrails. The covered happy paths and validation branches intentionally use synthetic/local order transactions rather than live gateway-affecting captures, voids, or mandate payments; permission-specific and Plus-only live branches remain documented as future conformance expansion. The referenced integration test verifies over-capture, invalid void, void-after-capture, and missing mandate idempotency branches leave downstream order state and mutation logs unchanged until the generic parity runner can replay the multi-operation local payment staging flow directly."
 }

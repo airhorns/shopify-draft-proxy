@@ -1,0 +1,155 @@
+mutation MarketingActivityLifecyclePrimary(
+  $createInput: MarketingActivityCreateExternalInput!
+  $seedUpdateInput: MarketingActivityCreateExternalInput!
+  $updateRemoteId: String!
+  $updateInput: MarketingActivityUpdateExternalInput!
+  $upsertCreateInput: MarketingActivityUpsertExternalInput!
+  $upsertChangedUtmInput: MarketingActivityUpsertExternalInput!
+  $upsertUpdateInput: MarketingActivityUpsertExternalInput!
+  $invalidCreateInput: MarketingActivityCreateExternalInput!
+  $missingDeleteRemoteId: String
+) {
+  createExternal: marketingActivityCreateExternal(input: $createInput) {
+    marketingActivity {
+      ...MarketingActivityLifecycleFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateRemoteId: marketingActivityCreateExternal(input: $createInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  seedUpdateExternal: marketingActivityCreateExternal(input: $seedUpdateInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $updateRemoteId, input: $updateInput) {
+    marketingActivity {
+      ...MarketingActivityLifecycleFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  upsertCreate: marketingActivityUpsertExternal(input: $upsertCreateInput) {
+    marketingActivity {
+      id
+      title
+      status
+      statusLabel
+      marketingEvent {
+        id
+        remoteId
+        startedAt
+        endedAt
+        manageUrl
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  upsertChangedUtm: marketingActivityUpsertExternal(input: $upsertChangedUtmInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  upsertUpdate: marketingActivityUpsertExternal(input: $upsertUpdateInput) {
+    marketingActivity {
+      id
+      title
+      updatedAt
+      status
+      statusLabel
+      marketingEvent {
+        id
+        remoteId
+        startedAt
+        endedAt
+        manageUrl
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalidCreate: marketingActivityCreateExternal(input: $invalidCreateInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  missingDelete: marketingActivityDeleteExternal(remoteId: $missingDeleteRemoteId) {
+    deletedMarketingActivityId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+
+fragment MarketingActivityLifecycleFields on MarketingActivity {
+  id
+  title
+  createdAt
+  updatedAt
+  status
+  statusLabel
+  tactic
+  marketingChannelType
+  sourceAndMedium
+  isExternal
+  inMainWorkflowVersion
+  utmParameters {
+    campaign
+    source
+    medium
+  }
+  marketingEvent {
+    id
+    type
+    remoteId
+    startedAt
+    endedAt
+    manageUrl
+    previewUrl
+    utmCampaign
+    utmMedium
+    utmSource
+    description
+    marketingChannelType
+    sourceAndMedium
+  }
+}

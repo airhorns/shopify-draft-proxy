@@ -10,6 +10,8 @@ description: Push current branch changes to origin and create or update the corr
 
 - `gh` CLI is installed and available in `PATH`.
 - `gh auth status` succeeds for GitHub operations in this repo.
+- This repository uses pnpm through Corepack; use `corepack pnpm ...` for
+  validation commands unless a ticket explicitly requires a different runner.
 
 ## Goals
 
@@ -25,7 +27,10 @@ description: Push current branch changes to origin and create or update the corr
 ## Steps
 
 1. Identify current branch and confirm remote state.
-2. Run local validation (`make -C elixir all`) before pushing.
+2. Run validation appropriate to the change before pushing. For documentation or
+   skill-only changes, use a lightweight repo check such as `git diff --check`;
+   for runtime changes, run the targeted tests plus the required repo gates from
+   `AGENTS.md` / the ticket workpad.
 3. Push branch to `origin` with upstream tracking if needed, using whatever
    remote URL is already configured.
 4. If push is not clean/rejected:
@@ -43,7 +48,8 @@ description: Push current branch changes to origin and create or update the corr
    - Write a proper PR title that clearly describes the change outcome
    - For branch updates, explicitly reconsider whether current PR title still
      matches the latest scope; update it if it no longer does.
-6. Write/update PR body explicitly using `.github/pull_request_template.md`:
+6. Write/update the PR body explicitly. Use `.github/pull_request_template.md`
+   when it exists:
    - Fill every section with concrete content for this change.
    - Replace all placeholder comments (`<!-- ... -->`).
    - Keep bullets/checkboxes where template expects them.
@@ -51,7 +57,9 @@ description: Push current branch changes to origin and create or update the corr
      scope (all intended work on the branch), not just the newest commits,
      including newly added work, removed work, or changed approach.
    - Do not reuse stale description text from earlier iterations.
-7. Validate PR body with `mix pr_body.check` and fix all reported issues.
+7. If `gh pr edit` fails with GitHub's Projects classic / `projectCards`
+   deprecation path, update the exact field or label with a narrower `gh api`
+   call and verify the result with `gh pr view`.
 8. Reply with the PR URL from `gh pr view`.
 
 ## Commands
@@ -60,8 +68,12 @@ description: Push current branch changes to origin and create or update the corr
 # Identify branch
 branch=$(git branch --show-current)
 
-# Minimal validation gate
-make -C elixir all
+# Minimal documentation-only validation gate
+git diff --check
+
+# Runtime changes need targeted repo validation, for example:
+corepack pnpm vitest run <targeted test files>
+corepack pnpm typecheck
 
 # Initial push: respect the current origin remote.
 git push -u origin HEAD
@@ -92,16 +104,11 @@ else
   gh pr edit --title "$pr_title"
 fi
 
-# Write/edit PR body to match .github/pull_request_template.md before validation.
+# Write/edit PR body to match .github/pull_request_template.md when present.
 # Example workflow:
 # 1) open the template and draft body content for this PR
 # 2) gh pr edit --body-file /tmp/pr_body.md
 # 3) for branch updates, re-check that title/body still match current diff
-
-tmp_pr_body=$(mktemp)
-gh pr view --json body -q .body > "$tmp_pr_body"
-(cd elixir && mix pr_body.check --file "$tmp_pr_body")
-rm -f "$tmp_pr_body"
 
 # Show PR URL for the reply
 gh pr view --json url -q .url
@@ -114,3 +121,6 @@ gh pr view --json url -q .url
   - Use the `pull` skill for non-fast-forward or stale-branch issues.
   - Surface auth, permissions, or workflow restrictions directly instead of
     changing remotes or protocols.
+- `gh pr edit --add-label` and body/title edits may hit GitHub deprecation
+  errors unrelated to auth. Prefer targeted `gh api` fallbacks before treating
+  GitHub as blocked.

@@ -1,12 +1,20 @@
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
+import type { JsonValue } from '../json-schemas.js';
 import {
+  applySearchQuery,
+  matchesSearchQueryString,
+  searchQueryTermValue,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
+import {
+  buildSyntheticCursor,
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
   serializeConnection,
+  serializeConnectionPageInfo,
 } from './graphql-helpers.js';
 import {
   mergeMetafieldRecords,
@@ -16,6 +24,8 @@ import {
   serializeMetafieldSelection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { serializeOrderNode } from './orders.js';
+import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
@@ -24,7 +34,10 @@ import type {
   CustomerCatalogPageInfoRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
+  CustomerPaymentMethodRecord,
+  CustomerPaymentMethodSubscriptionContractRecord,
   CustomerRecord,
+  OrderRecord,
 } from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -33,6 +46,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function cloneJsonObject(value: Record<string, unknown>): Record<string, JsonValue> {
+  return structuredClone(value) as Record<string, JsonValue>;
 }
 
 const VALID_TAX_EXEMPTION_VALUES = [
@@ -203,17 +220,32 @@ const SUPPORTED_CUSTOMER_SET_INPUT_FIELDS = new Set([
 
 const SUPPORTED_CUSTOMER_SET_IDENTIFIER_FIELDS = new Set(['id', 'email', 'phone']);
 
-const COUNTRY_NAMES_BY_CODE: Record<string, string> = {
-  CA: 'Canada',
-  US: 'United States',
-};
+const CUSTOMER_ADDRESS_COUNTRIES_BY_CODE: Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.map((country) => [country.code, country]),
+);
 
-const PROVINCE_NAMES_BY_COUNTRY_CODE: Record<string, Record<string, string>> = {
-  CA: {
-    ON: 'Ontario',
-    QC: 'Quebec',
-  },
-};
+const CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE: Map<
+  string,
+  Map<string, (typeof CUSTOMER_ADDRESS_COUNTRIES)[number]['zones'][number]>
+> = new Map(
+  CUSTOMER_ADDRESS_COUNTRIES.filter((country) => country.zones.length > 0).map((country) => [
+    country.code,
+    new Map(country.zones.map((zone) => [zone.code, zone])),
+  ]),
+);
+
+const CUSTOMER_ADDRESS_DUPLICATE_FIELDS = [
+  'firstName',
+  'lastName',
+  'address1',
+  'address2',
+  'city',
+  'company',
+  'provinceCode',
+  'countryCodeV2',
+  'zip',
+  'phone',
+] as const;
 
 function isValidCustomerMetafieldType(type: string): boolean {
   return VALID_CUSTOMER_METAFIELD_TYPES.has(type) || CUSTOMER_METAFIELD_LIST_TYPES.includes(type);
@@ -230,6 +262,23 @@ function normalizeStringField(
 
   const value = raw[key];
   return typeof value === 'string' ? value : null;
+}
+
+function normalizeAddressStringField(
+  raw: Record<string, unknown>,
+  key: string,
+  fallback: string | null = null,
+): string | null {
+  if (!hasOwnField(raw, key)) {
+    return fallback;
+  }
+
+  const value = raw[key];
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  return value.trim().length > 0 ? value : null;
 }
 
 function normalizeStringLikeField(
@@ -317,8 +366,23 @@ function maskPhoneNumber(phone: string | null): string | null {
   return phone;
 }
 
+function resolveIntlCountryName(countryCode: string): string | null {
+  try {
+    const displayName = new Intl.DisplayNames(['en'], { type: 'region' }).of(countryCode);
+    return displayName && displayName !== 'Unknown Region' ? displayName : null;
+  } catch {
+    return null;
+  }
+}
+
+function isValidCountryCode(countryCode: string): boolean {
+  return CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.has(countryCode);
+}
+
 function resolveCountryName(countryCode: string | null, fallback: string | null): string | null {
-  return countryCode ? (COUNTRY_NAMES_BY_CODE[countryCode] ?? fallback ?? countryCode) : fallback;
+  return countryCode
+    ? (CUSTOMER_ADDRESS_COUNTRIES_BY_CODE.get(countryCode)?.name ?? resolveIntlCountryName(countryCode) ?? fallback)
+    : fallback;
 }
 
 function resolveProvinceName(
@@ -330,7 +394,7 @@ function resolveProvinceName(
     return fallback;
   }
 
-  return PROVINCE_NAMES_BY_COUNTRY_CODE[countryCode]?.[provinceCode] ?? fallback ?? provinceCode;
+  return CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode)?.get(provinceCode)?.name ?? fallback ?? provinceCode;
 }
 
 function buildFormattedArea(city: string | null, provinceCode: string | null, country: string | null): string | null {
@@ -351,6 +415,29 @@ function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = 
     amount: normalizeStringField(raw, 'amount'),
     currencyCode: normalizeStringField(raw, 'currencyCode'),
   };
+}
+
+function listOrdersForCustomer(customerId: string): OrderRecord[] {
+  return store.getOrders().filter((order) => order.customer?.id === customerId);
+}
+
+function serializeCustomerOrdersConnection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const orders = listOrdersForCustomer(customerId);
+  const window = paginateConnectionItems(orders, field, variables, (order) => order.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (order) => order.id,
+    serializeNode: (order, selection) => serializeOrderNode(selection, order, variables),
+    selectedFieldOptions: { includeInlineFragments: true },
+    pageInfoOptions: { includeInlineFragments: true },
+  });
 }
 
 function normalizeDefaultEmailAddress(
@@ -508,29 +595,29 @@ function normalizeCustomerAddress(
 
   const rawId = raw['id'];
   const id = typeof rawId === 'string' && rawId ? rawId : (options.fallback?.id ?? makeSyntheticGid('CustomerAddress'));
-  const firstName = normalizeStringField(raw, 'firstName', options.fallback?.firstName ?? null);
-  const lastName = normalizeStringField(raw, 'lastName', options.fallback?.lastName ?? null);
-  const address1 = normalizeStringField(raw, 'address1', options.fallback?.address1 ?? null);
-  const address2 = normalizeStringField(raw, 'address2', options.fallback?.address2 ?? null);
-  const city = normalizeStringField(raw, 'city', options.fallback?.city ?? null);
-  const company = normalizeStringField(raw, 'company', options.fallback?.company ?? null);
-  const provinceCode = normalizeStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
+  const firstName = normalizeAddressStringField(raw, 'firstName', options.fallback?.firstName ?? null);
+  const lastName = normalizeAddressStringField(raw, 'lastName', options.fallback?.lastName ?? null);
+  const address1 = normalizeAddressStringField(raw, 'address1', options.fallback?.address1 ?? null);
+  const address2 = normalizeAddressStringField(raw, 'address2', options.fallback?.address2 ?? null);
+  const city = normalizeAddressStringField(raw, 'city', options.fallback?.city ?? null);
+  const company = normalizeAddressStringField(raw, 'company', options.fallback?.company ?? null);
+  const provinceCode = normalizeAddressStringField(raw, 'provinceCode', options.fallback?.provinceCode ?? null);
   const countryCodeV2 =
-    normalizeStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
-    normalizeStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
-  const country = normalizeStringField(
+    normalizeAddressStringField(raw, 'countryCodeV2', options.fallback?.countryCodeV2 ?? null) ??
+    normalizeAddressStringField(raw, 'countryCode', options.fallback?.countryCodeV2 ?? null);
+  const country = normalizeAddressStringField(
     raw,
     'country',
     resolveCountryName(countryCodeV2, options.fallback?.country ?? null),
   );
-  const province = normalizeStringField(
+  const province = normalizeAddressStringField(
     raw,
     'province',
     resolveProvinceName(countryCodeV2, provinceCode, options.fallback?.province ?? null),
   );
-  const zip = normalizeStringField(raw, 'zip', options.fallback?.zip ?? null);
-  const phone = normalizeStringField(raw, 'phone', options.fallback?.phone ?? null);
-  const rawName = normalizeStringField(raw, 'name', options.fallback?.name ?? null);
+  const zip = normalizeAddressStringField(raw, 'zip', options.fallback?.zip ?? null);
+  const phone = normalizeAddressStringField(raw, 'phone', options.fallback?.phone ?? null);
+  const rawName = normalizeAddressStringField(raw, 'name', options.fallback?.name ?? null);
   const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
   const name = rawName ?? fallbackName;
 
@@ -623,6 +710,7 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
     note: normalizeStringField(raw, 'note', existing?.note ?? null),
     canDelete: normalizeBooleanField(raw, 'canDelete', existing?.canDelete ?? null),
     verifiedEmail: normalizeBooleanField(raw, 'verifiedEmail', existing?.verifiedEmail ?? null),
+    dataSaleOptOut: normalizeBooleanField(raw, 'dataSaleOptOut', existing?.dataSaleOptOut ?? false) ?? false,
     taxExempt: normalizeBooleanField(raw, 'taxExempt', existing?.taxExempt ?? null),
     taxExemptions: normalizeTaxExemptionsField(raw, existing?.taxExemptions ?? []),
     state: normalizeStringField(raw, 'state', existing?.state ?? null),
@@ -925,6 +1013,279 @@ function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unk
     serializeNode: () => null,
   });
 }
+
+function readBooleanArgument(args: Record<string, unknown>, name: string): boolean {
+  return args[name] === true;
+}
+
+function serializeJsonObjectSelection(field: FieldNode, value: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
+    const key = getFieldResponseKey(selection);
+    const selectedValue = value[selection.name.value];
+    if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+      result[key] = serializeJsonObjectSelection(selection, selectedValue as Record<string, unknown>);
+      continue;
+    }
+
+    result[key] = selectedValue ?? null;
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodInstrumentSelection(
+  field: FieldNode,
+  instrument: CustomerPaymentMethodRecord['instrument'],
+): Record<string, unknown> | null {
+  if (!instrument) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind === Kind.FIELD) {
+      const key = getFieldResponseKey(selection);
+      if (selection.name.value === '__typename') {
+        result[key] = instrument.typeName;
+        continue;
+      }
+
+      result[key] = instrument.data[selection.name.value] ?? null;
+      continue;
+    }
+
+    if (selection.kind !== Kind.INLINE_FRAGMENT || selection.typeCondition?.name.value !== instrument.typeName) {
+      continue;
+    }
+
+    for (const inlineSelection of selection.selectionSet.selections) {
+      if (inlineSelection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = getFieldResponseKey(inlineSelection);
+      if (inlineSelection.name.value === '__typename') {
+        result[key] = instrument.typeName;
+        continue;
+      }
+
+      const selectedValue = instrument.data[inlineSelection.name.value];
+      if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+        result[key] = serializeJsonObjectSelection(inlineSelection, selectedValue as Record<string, unknown>);
+        continue;
+      }
+
+      result[key] = selectedValue ?? null;
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodSubscriptionContractSelection(
+  field: FieldNode,
+  subscriptionContract: CustomerPaymentMethodSubscriptionContractRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = subscriptionContract.id;
+        break;
+      case '__typename':
+        result[key] =
+          typeof subscriptionContract.data['__typename'] === 'string'
+            ? subscriptionContract.data['__typename']
+            : 'SubscriptionContract';
+        break;
+      default: {
+        const selectedValue = subscriptionContract.data[selection.name.value];
+        if (selectedValue && typeof selectedValue === 'object' && !Array.isArray(selectedValue)) {
+          result[key] = serializeJsonObjectSelection(selection, selectedValue as Record<string, unknown>);
+          break;
+        }
+        result[key] = selectedValue ?? null;
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodSubscriptionContractsConnection(
+  paymentMethod: CustomerPaymentMethodRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const window = paginateConnectionItems(
+    paymentMethod.subscriptionContracts,
+    field,
+    variables,
+    (subscriptionContract) => subscriptionContract.cursor ?? subscriptionContract.id,
+  );
+  const connection: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        connection[key] = window.items.map((subscriptionContract) =>
+          serializeCustomerPaymentMethodSubscriptionContractSelection(selection, subscriptionContract),
+        );
+        break;
+      case 'edges':
+        connection[key] = window.items.map((subscriptionContract) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = buildSyntheticCursor(subscriptionContract.cursor ?? subscriptionContract.id);
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerPaymentMethodSubscriptionContractSelection(
+                  edgeSelection,
+                  subscriptionContract,
+                );
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        connection[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          (subscriptionContract) => subscriptionContract.cursor ?? subscriptionContract.id,
+        );
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+
+  return connection;
+}
+
+function serializeCustomerPaymentMethodSelection(
+  paymentMethod: CustomerPaymentMethodRecord,
+  field: FieldNode,
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = paymentMethod.id;
+        break;
+      case '__typename':
+        result[key] = 'CustomerPaymentMethod';
+        break;
+      case 'instrument':
+        result[key] = serializeCustomerPaymentMethodInstrumentSelection(selection, paymentMethod.instrument);
+        break;
+      case 'revokedAt':
+        result[key] = paymentMethod.revokedAt;
+        break;
+      case 'revokedReason':
+        result[key] = paymentMethod.revokedReason ?? null;
+        break;
+      case 'customer': {
+        const customer = store.getEffectiveCustomerById(paymentMethod.customerId);
+        result[key] = customer ? serializeCustomerSelection(customer, selection, variables) : null;
+        break;
+      }
+      case 'subscriptionContracts':
+        result[key] = serializeCustomerPaymentMethodSubscriptionContractsConnection(
+          paymentMethod,
+          selection,
+          variables,
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeCustomerPaymentMethodsConnectionSelection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const window = paginateConnectionItems(
+    store.listEffectiveCustomerPaymentMethods(customerId, {
+      showRevoked: readBooleanArgument(args, 'showRevoked'),
+    }),
+    field,
+    variables,
+    (paymentMethod) => paymentMethod.cursor ?? paymentMethod.id,
+  );
+  const connection: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'nodes':
+        connection[key] = window.items.map((paymentMethod) =>
+          serializeCustomerPaymentMethodSelection(paymentMethod, selection, variables),
+        );
+        break;
+      case 'edges':
+        connection[key] = window.items.map((paymentMethod) => {
+          const edge: Record<string, unknown> = {};
+          for (const edgeSelection of getSelectedChildFields(selection)) {
+            const edgeKey = getFieldResponseKey(edgeSelection);
+            switch (edgeSelection.name.value) {
+              case 'cursor':
+                edge[edgeKey] = buildSyntheticCursor(paymentMethod.cursor ?? paymentMethod.id);
+                break;
+              case 'node':
+                edge[edgeKey] = serializeCustomerPaymentMethodSelection(paymentMethod, edgeSelection, variables);
+                break;
+              default:
+                edge[edgeKey] = null;
+                break;
+            }
+          }
+          return edge;
+        });
+        break;
+      case 'pageInfo':
+        connection[key] = serializeConnectionPageInfo(
+          selection,
+          window.items,
+          window.hasNextPage,
+          window.hasPreviousPage,
+          (paymentMethod) => paymentMethod.cursor ?? paymentMethod.id,
+        );
+        break;
+      default:
+        connection[key] = null;
+        break;
+    }
+  }
+
+  return connection;
+}
+
 function serializeCustomerSelection(
   customer: CustomerRecord,
   field: FieldNode,
@@ -965,6 +1326,9 @@ function serializeCustomerSelection(
       case 'verifiedEmail':
         result[key] = customer.verifiedEmail;
         break;
+      case 'dataSaleOptOut':
+        result[key] = customer.dataSaleOptOut ?? false;
+        break;
       case 'taxExempt':
         result[key] = customer.taxExempt;
         break;
@@ -999,6 +1363,10 @@ function serializeCustomerSelection(
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
         break;
       case 'addresses':
+        result[key] = store
+          .listEffectiveCustomerAddresses(customer.id)
+          .map((address) => serializeCustomerAddressSelection(selection, address));
+        break;
       case 'companyContactProfiles':
         result[key] = [];
         break;
@@ -1006,11 +1374,15 @@ function serializeCustomerSelection(
         result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
         break;
       case 'events':
-      case 'orders':
-      case 'paymentMethods':
       case 'storeCreditAccounts':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'orders':
+        result[key] = serializeCustomerOrdersConnection(customer.id, selection, variables);
+        break;
+      case 'paymentMethods':
+        result[key] = serializeCustomerPaymentMethodsConnectionSelection(customer.id, selection, variables);
         break;
       case 'lastOrder':
         result[key] = null;
@@ -1200,6 +1572,23 @@ function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>
   return null;
 }
 
+function findCustomerByEmail(email: string): CustomerRecord | null {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  return (
+    store
+      .listEffectiveCustomers()
+      .find(
+        (customer) =>
+          customer.email?.trim().toLowerCase() === normalizedEmail ||
+          customer.defaultEmailAddress?.emailAddress?.trim().toLowerCase() === normalizedEmail,
+      ) ?? null
+  );
+}
+
 function countProvidedCustomerIdentifiers(identifier: Record<string, unknown>): number {
   return ['id', 'emailAddress', 'phoneNumber', 'customId'].filter((key) => identifier[key] !== undefined).length;
 }
@@ -1244,38 +1633,12 @@ function buildCustomerCustomIdentifierError(field: FieldNode): Record<string, un
   };
 }
 
-function isPrefixPattern(rawValue: string): boolean {
-  return rawValue.endsWith('*');
-}
-
 function matchesStringValue(
   candidate: string | null | undefined,
   rawValue: string,
   matchMode: 'includes' | 'exact',
 ): boolean {
-  const value = rawValue.trim().toLowerCase();
-  if (!value) {
-    return true;
-  }
-
-  const prefixMode = isPrefixPattern(value);
-  const normalizedValue = prefixMode ? value.slice(0, -1) : value;
-  if (!normalizedValue) {
-    return true;
-  }
-
-  const normalizedCandidate = normalizeCustomerSearchValue(candidate);
-  if (prefixMode) {
-    if (normalizedCandidate.startsWith(normalizedValue)) {
-      return true;
-    }
-
-    return normalizedCandidate.split(/[^a-z0-9]+/u).some((part) => part.startsWith(normalizedValue));
-  }
-
-  return matchMode === 'exact'
-    ? normalizedCandidate === normalizedValue
-    : normalizedCandidate.includes(normalizedValue);
+  return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
 function customerMatchesBareToken(customer: CustomerRecord, token: string): boolean {
@@ -1296,10 +1659,6 @@ function customerMatchesBareToken(customer: CustomerRecord, token: string): bool
   return haystacks.some((value) => matchesStringValue(value, normalizedToken, 'includes'));
 }
 
-function searchTermValue(term: SearchQueryTerm): string {
-  return term.comparator === null ? term.value : `${term.comparator}${term.value}`;
-}
-
 function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: SearchQueryTerm): boolean {
   if (term.field === null) {
     return customerMatchesBareToken(customer, term.value);
@@ -1309,7 +1668,7 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 
   const rawField = term.field;
-  const rawValue = searchTermValue(term);
+  const rawValue = searchQueryTermValue(term);
   const field = normalizeCustomerSearchValue(rawField);
 
   switch (field) {
@@ -1335,34 +1694,8 @@ function customerMatchesPositiveQueryTerm(customer: CustomerRecord, term: Search
   }
 }
 
-function customerMatchesQueryNode(customer: CustomerRecord, node: SearchQueryNode): boolean {
-  switch (node.type) {
-    case 'term': {
-      const matches = customerMatchesPositiveQueryTerm(customer, node.term);
-      return node.term.negated ? !matches : matches;
-    }
-    case 'and':
-      return node.children.every((child) => customerMatchesQueryNode(customer, child));
-    case 'or':
-      return node.children.some((child) => customerMatchesQueryNode(customer, child));
-    case 'not':
-      return !customerMatchesQueryNode(customer, node.child);
-    default:
-      return true;
-  }
-}
-
 function filterCustomersByQuery(customers: CustomerRecord[], rawQuery: unknown): CustomerRecord[] {
-  if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
-    return customers;
-  }
-
-  const parsedQuery = parseSearchQuery(rawQuery, { quoteCharacters: ['"'] });
-  if (!parsedQuery) {
-    return customers;
-  }
-
-  return customers.filter((customer) => customerMatchesQueryNode(customer, parsedQuery));
+  return applySearchQuery(customers, rawQuery, { quoteCharacters: ['"'] }, customerMatchesPositiveQueryTerm);
 }
 
 function compareNullableStrings(left: string | null, right: string | null): number {
@@ -1727,6 +2060,169 @@ function collectCustomerAddresses(document: string, raw: unknown): CustomerAddre
   return addresses;
 }
 
+function normalizeCustomerPaymentMethodSubscriptionContract(
+  raw: unknown,
+  cursor: string | null = null,
+): CustomerPaymentMethodSubscriptionContractRecord | null {
+  if (!isObject(raw) || typeof raw['id'] !== 'string' || !raw['id']) {
+    return null;
+  }
+
+  return {
+    id: raw['id'],
+    cursor,
+    data: cloneJsonObject(raw),
+  };
+}
+
+function collectSubscriptionContracts(rawConnection: unknown): CustomerPaymentMethodSubscriptionContractRecord[] {
+  if (!isObject(rawConnection)) {
+    return [];
+  }
+
+  const subscriptionContracts: CustomerPaymentMethodSubscriptionContractRecord[] = [];
+  const seenContractIds = new Set<string>();
+  const addContract = (rawContract: unknown, cursor: string | null): void => {
+    const subscriptionContract = normalizeCustomerPaymentMethodSubscriptionContract(rawContract, cursor);
+    if (!subscriptionContract || seenContractIds.has(subscriptionContract.id)) {
+      return;
+    }
+
+    seenContractIds.add(subscriptionContract.id);
+    subscriptionContracts.push(subscriptionContract);
+  };
+
+  if (Array.isArray(rawConnection['nodes'])) {
+    rawConnection['nodes'].forEach((node) => addContract(node, null));
+  }
+
+  if (Array.isArray(rawConnection['edges'])) {
+    rawConnection['edges'].forEach((edge) => {
+      if (isObject(edge)) {
+        addContract(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null);
+      }
+    });
+  }
+
+  return subscriptionContracts;
+}
+
+function normalizeCustomerPaymentMethod(
+  raw: unknown,
+  options: { fallbackCustomerId?: string | null; cursor?: string | null } = {},
+): CustomerPaymentMethodRecord | null {
+  if (!isObject(raw) || typeof raw['id'] !== 'string' || !raw['id']) {
+    return null;
+  }
+
+  const rawCustomer = raw['customer'];
+  const customerId =
+    isObject(rawCustomer) && typeof rawCustomer['id'] === 'string' && rawCustomer['id']
+      ? rawCustomer['id']
+      : (options.fallbackCustomerId ?? null);
+  if (!customerId) {
+    return null;
+  }
+
+  const rawInstrument = raw['instrument'];
+  const typeName =
+    isObject(rawInstrument) && typeof rawInstrument['__typename'] === 'string' && rawInstrument['__typename']
+      ? rawInstrument['__typename']
+      : null;
+
+  return {
+    id: raw['id'],
+    customerId,
+    cursor: options.cursor ?? null,
+    instrument:
+      isObject(rawInstrument) && typeName
+        ? {
+            typeName,
+            data: cloneJsonObject(rawInstrument),
+          }
+        : null,
+    revokedAt: normalizeStringField(raw, 'revokedAt'),
+    revokedReason: normalizeStringField(raw, 'revokedReason'),
+    subscriptionContracts: collectSubscriptionContracts(raw['subscriptionContracts']),
+  };
+}
+
+function collectCustomerPaymentMethodsFromRawCustomer(rawCustomer: unknown): CustomerPaymentMethodRecord[] {
+  if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
+    return [];
+  }
+
+  const customerId = rawCustomer['id'];
+  const paymentMethodsConnection = rawCustomer['paymentMethods'];
+  if (!isObject(paymentMethodsConnection)) {
+    return [];
+  }
+
+  const paymentMethods: CustomerPaymentMethodRecord[] = [];
+  const seenPaymentMethodIds = new Set<string>();
+  const addPaymentMethod = (rawPaymentMethod: unknown, cursor: string | null): void => {
+    const paymentMethod = normalizeCustomerPaymentMethod(rawPaymentMethod, { fallbackCustomerId: customerId, cursor });
+    if (!paymentMethod || seenPaymentMethodIds.has(paymentMethod.id)) {
+      return;
+    }
+
+    seenPaymentMethodIds.add(paymentMethod.id);
+    paymentMethods.push(paymentMethod);
+  };
+
+  if (Array.isArray(paymentMethodsConnection['nodes'])) {
+    paymentMethodsConnection['nodes'].forEach((node) => addPaymentMethod(node, null));
+  }
+
+  if (Array.isArray(paymentMethodsConnection['edges'])) {
+    paymentMethodsConnection['edges'].forEach((edge) => {
+      if (isObject(edge)) {
+        addPaymentMethod(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null);
+      }
+    });
+  }
+
+  return paymentMethods;
+}
+
+function collectCustomerPaymentMethods(document: string, raw: unknown): CustomerPaymentMethodRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const paymentMethods: CustomerPaymentMethodRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const rootValue = raw[getFieldResponseKey(field)];
+    if (field.name.value === 'customerPaymentMethod') {
+      const paymentMethod = normalizeCustomerPaymentMethod(rootValue);
+      if (paymentMethod) {
+        paymentMethods.push(paymentMethod);
+      }
+      continue;
+    }
+
+    if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
+      paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(rootValue));
+      continue;
+    }
+
+    if (field.name.value !== 'customers' || !isObject(rootValue)) {
+      continue;
+    }
+
+    for (const customer of Array.isArray(rootValue['nodes']) ? rootValue['nodes'] : []) {
+      paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(customer));
+    }
+    for (const edge of Array.isArray(rootValue['edges']) ? rootValue['edges'] : []) {
+      if (isObject(edge)) {
+        paymentMethods.push(...collectCustomerPaymentMethodsFromRawCustomer(edge['node']));
+      }
+    }
+  }
+
+  return paymentMethods;
+}
+
 function collectCustomerMetafieldsFromSelection(
   customerId: string,
   rawCustomer: Record<string, unknown>,
@@ -2084,6 +2580,26 @@ function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions:
   };
 }
 
+function buildCustomerWithDataSaleOptOut(existing: CustomerRecord): CustomerRecord {
+  return {
+    ...existing,
+    dataSaleOptOut: true,
+    updatedAt: existing.dataSaleOptOut ? existing.updatedAt : makeSyntheticTimestamp(),
+  };
+}
+
+function isValidDataSaleOptOutEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email.trim());
+}
+
+function buildDataSaleOptOutFailedError(): CustomerMutationUserError {
+  return {
+    field: null,
+    message: 'Data sale opt out failed.',
+    code: 'FAILED',
+  };
+}
+
 function buildInvalidTaxExemptionVariableErrors(rawTaxExemptions: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(rawTaxExemptions)) {
     return [];
@@ -2135,6 +2651,27 @@ function validateCustomerTaxExemptionInput(input: Record<string, unknown>): Cust
           },
         ],
   );
+}
+
+function validateCustomerSetTaxExemptionInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (input['taxExemptions'] === null) {
+    return [];
+  }
+
+  return validateCustomerTaxExemptionInput(input);
+}
+
+function validateCustomerSetTaxExemptInput(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (!hasOwnField(input, 'taxExempt') || input['taxExempt'] !== null) {
+    return [];
+  }
+
+  return [
+    {
+      field: ['input', 'taxExempt'],
+      message: 'Tax exempt is of unexpected type NilClass',
+    },
+  ];
 }
 
 function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: string): CustomerMutationUserError[] {
@@ -2191,12 +2728,81 @@ function readCustomerAddressInputs(raw: unknown): Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.map(readCustomerAddressInput) : [];
 }
 
-function buildCreatedCustomerAddress(customerId: string, input: Record<string, unknown>): CustomerAddressRecord {
-  const position = store.listEffectiveCustomerAddresses(customerId).length;
-  return normalizeCustomerAddress(customerId, input, {
+function applyCustomerNameFallbackToAddress(
+  address: CustomerAddressRecord,
+  customer: CustomerRecord,
+): CustomerAddressRecord {
+  const firstName = address.firstName ?? customer.firstName;
+  const lastName = address.lastName ?? customer.lastName;
+  const fallbackName = [firstName, lastName].filter(Boolean).join(' ') || null;
+  const name = address.name ?? fallbackName;
+
+  return {
+    ...address,
+    firstName,
+    lastName,
+    name,
+  };
+}
+
+function validateCustomerAddressInput(
+  input: Record<string, unknown>,
+  fieldPrefix: string[] = ['address'],
+): CustomerMutationUserError[] {
+  const countryCode =
+    normalizeAddressStringField(input, 'countryCodeV2') ?? normalizeAddressStringField(input, 'countryCode');
+  const provinceCode = normalizeAddressStringField(input, 'provinceCode');
+  const userErrors: CustomerMutationUserError[] = [];
+
+  if (countryCode && !isValidCountryCode(countryCode)) {
+    userErrors.push({ field: [...fieldPrefix, 'country'], message: 'Country is invalid' });
+  }
+
+  const validProvinceCodes = countryCode ? CUSTOMER_ADDRESS_ZONES_BY_COUNTRY_CODE.get(countryCode) : undefined;
+  if (provinceCode && validProvinceCodes && !validProvinceCodes.has(provinceCode)) {
+    userErrors.push({ field: [...fieldPrefix, 'province'], message: 'Province is invalid' });
+  }
+
+  return userErrors;
+}
+
+function validateCustomerAddressInputs(
+  rawAddresses: unknown,
+  fieldPrefix: string[] = ['input', 'addresses'],
+): CustomerMutationUserError[] {
+  if (!Array.isArray(rawAddresses)) {
+    return [];
+  }
+
+  return rawAddresses.flatMap((rawAddress, index) =>
+    validateCustomerAddressInput(readCustomerAddressInput(rawAddress), [...fieldPrefix, String(index)]),
+  );
+}
+
+function customerAddressesMatch(left: CustomerAddressRecord, right: CustomerAddressRecord): boolean {
+  return CUSTOMER_ADDRESS_DUPLICATE_FIELDS.every((field) => left[field] === right[field]);
+}
+
+function findDuplicateCustomerAddress(
+  customerId: string,
+  candidate: CustomerAddressRecord,
+  options: { excludeAddressId?: string | null; within?: CustomerAddressRecord[] } = {},
+): CustomerAddressRecord | null {
+  const addresses = options.within ?? store.listEffectiveCustomerAddresses(customerId);
+  return (
+    addresses.find(
+      (address) => address.id !== options.excludeAddressId && customerAddressesMatch(address, candidate),
+    ) ?? null
+  );
+}
+
+function buildCreatedCustomerAddress(customer: CustomerRecord, input: Record<string, unknown>): CustomerAddressRecord {
+  const position = store.listEffectiveCustomerAddresses(customer.id).length;
+  const address = normalizeCustomerAddress(customer.id, input, {
     position,
-    cursor: `customer-address-${customerId}-${position}`,
+    cursor: `customer-address-${customer.id}-${position}`,
   })!;
+  return applyCustomerNameFallbackToAddress(address, customer);
 }
 
 function buildUpdatedCustomerAddress(
@@ -2226,11 +2832,23 @@ function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unk
     store.stageDeleteCustomerAddress(address.id);
   }
 
-  const addresses = readCustomerAddressInputs(rawAddresses).map((addressInput) =>
-    store.stageUpsertCustomerAddress(buildCreatedCustomerAddress(customer.id, addressInput)),
-  );
+  const addresses: CustomerAddressRecord[] = [];
+  for (const addressInput of readCustomerAddressInputs(rawAddresses)) {
+    const address = buildCreatedCustomerAddress(customer, addressInput);
+    if (findDuplicateCustomerAddress(customer.id, address, { within: addresses })) {
+      continue;
+    }
+    addresses.push(store.stageUpsertCustomerAddress(address));
+  }
 
   return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
+}
+
+function buildCustomerAddressOwnershipUserError(): CustomerMutationUserError {
+  return {
+    field: ['addressId'],
+    message: 'Address does not exist',
+  };
 }
 
 function buildMissingCustomerAddressCustomerError(fieldPath: string[]): CustomerMutationUserError {
@@ -2275,6 +2893,7 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
     note,
     canDelete: true,
     verifiedEmail: email ? true : null,
+    dataSaleOptOut: false,
     taxExempt,
     taxExemptions,
     state: 'DISABLED',
@@ -2535,11 +3154,31 @@ function validateSupportedCustomerSetInput(input: Record<string, unknown>): Cust
   });
 
   const addressErrors: CustomerMutationUserError[] =
-    hasOwnField(input, 'addresses') && !Array.isArray(input['addresses'])
+    hasOwnField(input, 'addresses') && input['addresses'] !== null && !Array.isArray(input['addresses'])
       ? [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }]
       : [];
 
-  return [...unsupportedErrors, ...addressErrors, ...validateCustomerTaxExemptionInput(input)];
+  return [
+    ...unsupportedErrors,
+    ...addressErrors,
+    ...validateCustomerSetTaxExemptInput(input),
+    ...validateCustomerSetTaxExemptionInput(input),
+  ];
+}
+
+function validateCustomerSetCreateIdentityUniqueness(input: Record<string, unknown>): CustomerMutationUserError[] {
+  const errors: CustomerMutationUserError[] = [];
+  const email = normalizeCustomerIdentifierValue(input['email']);
+  if (email && findCustomerByIdentifier({ emailAddress: email })) {
+    errors.push({ field: ['input', 'email'], message: 'Email has already been taken' });
+  }
+
+  const phone = normalizeCustomerIdentifierValue(input['phone']);
+  if (phone && findCustomerByIdentifier({ phoneNumber: phone })) {
+    errors.push({ field: ['input', 'phone'], message: 'Phone has already been taken' });
+  }
+
+  return errors;
 }
 
 function providedCustomerSetIdentifierFields(identifier: Record<string, unknown>): string[] {
@@ -2588,8 +3227,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (email && inputEmail && email.toLowerCase() !== inputEmail.toLowerCase()) {
     return [
       {
-        field: ['input', 'email'],
-        message: 'customerSet local staging requires input.email to match identifier.email',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -2607,8 +3246,8 @@ function validateCustomerSetIdentifierInputAlignment(
   if (phone && inputPhone && phone !== inputPhone) {
     return [
       {
-        field: ['input', 'phone'],
-        message: 'customerSet local staging requires input.phone to match identifier.phone',
+        field: ['input'],
+        message: 'The identifier value does not match the value of the corresponding field in the input.',
       },
     ];
   }
@@ -2741,6 +3380,7 @@ function serializeCustomerMutationPayload(
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
+    customerId?: string | null;
     customerAddress?: CustomerAddressRecord | null;
     accountActivationUrl?: string | null;
     deletedCustomerId?: string | null;
@@ -2758,6 +3398,9 @@ function serializeCustomerMutationPayload(
     switch (selection.name.value) {
       case 'customer':
         result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        break;
+      case 'customerId':
+        result[key] = payload.customerId ?? null;
         break;
       case 'accountActivationUrl':
         result[key] = payload.accountActivationUrl ?? null;
@@ -2903,6 +3546,31 @@ export function handleCustomerMutation(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
+
+    if (field.name.value === 'dataSaleOptOut') {
+      const email = typeof args['email'] === 'string' ? args['email'].trim() : '';
+      if (!isValidDataSaleOptOutEmail(email)) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildDataSaleOptOutFailedError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const existingCustomer = findCustomerByEmail(email);
+      const customer = existingCustomer
+        ? store.stageUpdateCustomer(buildCustomerWithDataSaleOptOut(existingCustomer))
+        : store.stageCreateCustomer({
+            ...buildCreatedCustomer({ email }),
+            dataSaleOptOut: true,
+          });
+      data[key] = serializeCustomerMutationPayload(field, { customerId: customer.id, userErrors: [] }, variables);
+      continue;
+    }
 
     if (field.name.value === 'customerCreate') {
       const input = readCustomerInput(args['input']);
@@ -3093,11 +3761,14 @@ export function handleCustomerMutation(
         ...validateCustomerSetIdentifier(identifier),
         ...validateCustomerSetIdentifierInputAlignment(effectiveInput, identifier),
       ];
-      if (hasOwnField(effectiveInput, 'addresses') && !existingCustomer) {
+      if (Array.isArray(effectiveInput['addresses']) && !existingCustomer) {
         userErrors.push({
           field: ['input', 'addresses'],
           message: 'customerSet local staging supports addresses only when updating an existing customer',
         });
+      }
+      if (hasOwnField(effectiveInput, 'addresses')) {
+        userErrors.push(...validateCustomerAddressInputs(effectiveInput['addresses']));
       }
 
       const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
@@ -3115,6 +3786,7 @@ export function handleCustomerMutation(
 
       if (!existingCustomer) {
         userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
+        userErrors.push(...validateCustomerSetCreateIdentityUniqueness(effectiveInput));
       }
 
       if (userErrors.length > 0) {
@@ -3125,7 +3797,7 @@ export function handleCustomerMutation(
       const stagedCustomer = existingCustomer
         ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
         : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
-      const customer = hasOwnField(effectiveInput, 'addresses')
+      const customer = Array.isArray(effectiveInput['addresses'])
         ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
         : stagedCustomer;
       data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
@@ -3214,9 +3886,27 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const address = store.stageUpsertCustomerAddress(
-        buildCreatedCustomerAddress(customerId, readCustomerAddressInput(args['address'])),
-      );
+      const addressInput = readCustomerAddressInput(args['address']);
+      const userErrors = validateCustomerAddressInput(addressInput);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        continue;
+      }
+
+      const address = buildCreatedCustomerAddress(existingCustomer, addressInput);
+      if (findDuplicateCustomerAddress(customerId, address)) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [{ field: ['address'], message: 'Address already exists' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageUpsertCustomerAddress(address);
       if (!existingCustomer.defaultAddress || args['setAsDefault'] === true) {
         store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
       }
@@ -3241,15 +3931,44 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!existingAddress || existingAddress.customerId !== customerId) {
+      if (!existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
         continue;
       }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
+        continue;
+      }
 
-      const address = store.stageUpsertCustomerAddress(
-        buildUpdatedCustomerAddress(existingAddress, readCustomerAddressInput(args['address'])),
-      );
+      const addressInput = readCustomerAddressInput(args['address']);
+      const userErrors = validateCustomerAddressInput(addressInput);
+      if (userErrors.length > 0) {
+        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        continue;
+      }
+
+      const address = buildUpdatedCustomerAddress(existingAddress, addressInput);
+      if (findDuplicateCustomerAddress(customerId, address, { excludeAddressId: existingAddress.id })) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerAddress: null,
+            userErrors: [{ field: ['address'], message: 'Address already exists' }],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageUpsertCustomerAddress(address);
       if (existingCustomer.defaultAddress?.id === address.id || args['setAsDefault'] === true) {
         store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
       }
@@ -3274,9 +3993,20 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!addressId || !existingAddress || existingAddress.customerId !== customerId) {
+      if (!addressId || !existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            deletedCustomerAddressId: null,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
         continue;
       }
 
@@ -3312,9 +4042,20 @@ export function handleCustomerMutation(
         );
         continue;
       }
-      if (!existingAddress || existingAddress.customerId !== customerId) {
+      if (!existingAddress) {
         data[key] = null;
         errors.push(buildCustomerAddressResourceNotFoundError(field));
+        continue;
+      }
+      if (existingAddress.customerId !== customerId) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customer: existingCustomer,
+            userErrors: [buildCustomerAddressOwnershipUserError()],
+          },
+          variables,
+        );
         continue;
       }
 
@@ -3464,6 +4205,11 @@ export function hydrateCustomersFromUpstreamResponse(
     store.upsertBaseCustomerAddresses(customerAddresses);
   }
 
+  const customerPaymentMethods = collectCustomerPaymentMethods(document, upstreamBody['data']);
+  if (customerPaymentMethods.length > 0) {
+    store.upsertBaseCustomerPaymentMethods(customerPaymentMethods);
+  }
+
   const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);
   for (const [customerId, metafields] of Object.entries(customerMetafields)) {
     store.replaceBaseMetafieldsForCustomer(customerId, metafields);
@@ -3495,6 +4241,18 @@ export function handleCustomerQuery(
 
   for (const field of rootFields) {
     const key = getFieldResponseKey(field);
+    if (field.name.value === 'customerPaymentMethod') {
+      const args = getFieldArguments(field, variables);
+      const paymentMethodId = typeof args['id'] === 'string' ? args['id'] : null;
+      const paymentMethod = paymentMethodId
+        ? store.getEffectiveCustomerPaymentMethodById(paymentMethodId, {
+            showRevoked: readBooleanArgument(args, 'showRevoked'),
+          })
+        : null;
+      data[key] = paymentMethod ? serializeCustomerPaymentMethodSelection(paymentMethod, field, variables) : null;
+      continue;
+    }
+
     if (field.name.value === 'customer') {
       const args = getFieldArguments(field, variables);
       const customerId = typeof args['id'] === 'string' ? args['id'] : null;
