@@ -295,6 +295,36 @@
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
   },
   {
+    "name": "event",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["event", "Event"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns null for absent Event IDs without contacting Shopify; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "events",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["events", "Events"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns a Shopify-like empty Event connection with null cursors; non-empty event hydration remains unsupported."
+  },
+  {
+    "name": "eventsCount",
+    "type": "query",
+    "domain": "events",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["eventsCount", "EventsCount"],
+    "runtimeTests": ["tests/integration/event-query-shapes.test.ts"],
+    "supportNotes": "HAR-323 captured top-level Event no-data behavior. Snapshot mode returns an exact zero Count for absent local Event state; non-empty event hydration remains unsupported."
+  },
+  {
     "name": "customers",
     "type": "query",
     "domain": "customers",
@@ -742,6 +772,256 @@
     "matchNames": ["shopPolicyUpdate", "ShopPolicyUpdate"],
     "runtimeTests": ["tests/integration/shop-policy-update-flow.test.ts"],
     "supportNotes": "HAR-173: stages legal policy updates locally by ShopPolicyType, preserves raw mutation requests for commit replay, and overlays downstream shop.shopPolicies reads without proxying supported requests upstream."
+  },
+  {
+    "name": "article",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["article", "Article"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields are resolved from the local online-store content graph."
+  },
+  {
+    "name": "articleAuthors",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleAuthors", "ArticleAuthors"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives the author connection from locally staged or hydrated article authors with Shopify-like empty connection behavior."
+  },
+  {
+    "name": "articles",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articles", "Articles"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, and staged read-after-write effects."
+  },
+  {
+    "name": "articleTags",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["articleTags", "ArticleTags"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: derives article tags from the effective local article graph and returns an empty list when no articles carry tags."
+  },
+  {
+    "name": "articleCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleCreate", "ArticleCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article creation locally, including handle/publication/tag/author fields and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
+  },
+  {
+    "name": "articleUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleUpdate", "ArticleUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article updates locally for the supported scalar lifecycle fields and keeps downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
+  },
+  {
+    "name": "articleDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["articleDelete", "ArticleDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Article tombstones locally so detail reads return null and catalog/blog article reads omit the deleted article."
+  },
+  {
+    "name": "blog",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blog", "Blog"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Blog detail reads return staged or hydrated records with nested articles/counts and null for missing IDs."
+  },
+  {
+    "name": "blogs",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogs", "Blogs"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Blog catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "blogsCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["blogsCount", "BlogsCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local blog graph, honoring the same simple query filter as blogs."
+  },
+  {
+    "name": "blogCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogCreate", "BlogCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog creation locally with title, handle, template suffix, and comment policy, then updates downstream blog/blogs/blogsCount reads without upstream writes."
+  },
+  {
+    "name": "blogUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogUpdate", "BlogUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog scalar updates locally and keeps nested article/catalog/count reads coherent."
+  },
+  {
+    "name": "blogDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["blogDelete", "BlogDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Blog deletion locally so detail reads return null and blog catalog/count reads omit the deleted blog."
+  },
+  {
+    "name": "page",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["page", "Page"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Page detail reads return staged or hydrated records and null for missing IDs."
+  },
+  {
+    "name": "pages",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pages", "Pages"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Page catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged lifecycle visibility."
+  },
+  {
+    "name": "pagesCount",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["pagesCount", "PagesCount"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: returns an EXACT Count from the effective local page graph."
+  },
+  {
+    "name": "pageCreate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageCreate", "PageCreate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page creation locally with handle/body/publication/template fields and downstream page/pages/pagesCount visibility."
+  },
+  {
+    "name": "pageUpdate",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageUpdate", "PageUpdate"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page scalar updates locally and keeps downstream reads coherent."
+  },
+  {
+    "name": "pageDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["pageDelete", "PageDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Page tombstones locally so detail reads return null and page catalog/count reads omit deleted pages."
+  },
+  {
+    "name": "comment",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comment", "Comment"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: snapshot/local Comment detail reads return staged or hydrated records and null for missing local IDs; live Shopify returned an internal error for an unknown comment ID during capture and that quirk is documented rather than emulated."
+  },
+  {
+    "name": "comments",
+    "type": "query",
+    "domain": "online-store",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["comments", "Comments"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: supports snapshot/local Comment catalog reads, empty connections, simple filtering, sort/reverse, cursor windows, and staged moderation/delete visibility."
+  },
+  {
+    "name": "commentApprove",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentApprove", "CommentApprove"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment approval locally for hydrated/snapshot comments, setting the local status to PUBLISHED and updating downstream comment reads without upstream writes."
+  },
+  {
+    "name": "commentSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentSpam", "CommentSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages comment spam classification locally for hydrated/snapshot comments, setting the local status to SPAM."
+  },
+  {
+    "name": "commentNotSpam",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentNotSpam", "CommentNotSpam"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages not-spam moderation locally for hydrated/snapshot comments, returning the comment to a pending local status."
+  },
+  {
+    "name": "commentDelete",
+    "type": "mutation",
+    "domain": "online-store",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["commentDelete", "CommentDelete"],
+    "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
+    "supportNotes": "HAR-303: stages Comment tombstones locally so detail reads return null and comment/article comment catalogs omit the deleted comment."
   },
   {
     "name": "menu",

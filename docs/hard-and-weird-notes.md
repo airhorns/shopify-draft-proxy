@@ -2486,6 +2486,11 @@ Captured facts:
 - unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
+- `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
+- no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
+- identifier/input alignment errors are not field-specific beyond `["input"]`: missing corresponding input fields return `The input field corresponding to the identifier is required.`, while mismatches return `The identifier value does not match the value of the corresponding field in the input.`
+- `addresses: null` is a successful no-op for an existing customer, while `taxExempt: null` returns `field: ["input", "taxExempt"]` / `Tax exempt is of unexpected type NilClass`
+- after a customer is deleted, `customerSet(identifier: { id: deletedId })` returns the same `Resource matching the identifier was not found.` payload userError as an unknown id
 
 Practical rule:
 
@@ -2569,3 +2574,21 @@ Practical rule:
 - do not reject variant-backed draft lines just because custom title/price fields are present
 - keep missing custom price and missing shipping-line title out of the local validation list until a later fixture proves a narrower invalid branch
 - broad direct `orderCreate` validation capture is still constrained by Shopify's order-create attempt throttle on this host; the executable direct-order fixture currently covers only the no-line-items branch
+
+## 68. Unknown comment detail can error while comment moderation validates cleanly
+
+HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- empty `articles`, `articleAuthors`, and `comments` roots returned normal empty connections with false/null `pageInfo`
+- missing `article(id:)`, `blog(id:)`, and `page(id:)` returned `null`
+- missing `comment(id:)` returned a Shopify internal error for the sampled synthetic unknown ID
+- unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal payload-level `userErrors`: `field: ["id"]`, message `Comment does not exist`
+- the disposable success capture for `blogCreate`/`blogUpdate`/`blogDelete`, `pageCreate`/`pageUpdate`/`pageDelete`, and `articleCreate`/`articleUpdate`/`articleDelete` confirmed the content mutation roots can be exercised with explicit cleanup evidence
+
+Practical rule:
+
+- keep local snapshot `comment(id:)` missing behavior stable as `null` rather than reproducing Shopify's internal-error branch
+- treat comment moderation as local lifecycle support only for comments already present in snapshot or hydrated local state, since Admin GraphQL did not expose a captured comment-create root in this slice
+- continue to record success-path setup and cleanup for online-store content mutations when broadening validation or publication semantics

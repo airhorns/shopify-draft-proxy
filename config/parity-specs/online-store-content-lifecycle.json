@@ -1,0 +1,48 @@
+{
+  "scenarioId": "online-store-content-lifecycle",
+  "operationNames": [
+    "article",
+    "articleAuthors",
+    "articles",
+    "articleTags",
+    "articleCreate",
+    "articleUpdate",
+    "articleDelete",
+    "blog",
+    "blogs",
+    "blogsCount",
+    "blogCreate",
+    "blogUpdate",
+    "blogDelete",
+    "page",
+    "pages",
+    "pagesCount",
+    "pageCreate",
+    "pageUpdate",
+    "pageDelete",
+    "comment",
+    "comments",
+    "commentApprove",
+    "commentSpam",
+    "commentNotSpam",
+    "commentDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "null-empty-behavior",
+    "pagination-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-303 captured online-store content catalog/detail/empty reads, blog/page/article create-update-delete success paths with downstream reads, and unknown-id comment moderation/delete userErrors against harry-test-heelo.myshopify.com on 2026-04-26. The runtime test enforces local snapshot empty reads, local lifecycle staging without upstream writes, downstream read-after-write effects, raw mutation log visibility, and comment moderation/delete behavior for snapshot comments.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
