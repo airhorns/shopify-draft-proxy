@@ -6,11 +6,49 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/draft-order-invoice-send-safety.json"
   ],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.graphql",
+    "variablesCapturePath": "$.validation.unknownDraftOrder.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown draft order validation",
+        "capturePath": "$.validation.unknownDraftOrder.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend"
+      },
+      {
+        "name": "open no-recipient validation",
+        "capturePath": "$.recipient.openNoRecipient.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.recipient.openNoRecipient.variables"
+        }
+      },
+      {
+        "name": "deleted draft order validation",
+        "capturePath": "$.lifecycle.deletedDraftOrder.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.lifecycle.deletedDraftOrder.variables"
+        }
+      },
+      {
+        "name": "completed no-recipient validation",
+        "capturePath": "$.lifecycle.completedNoRecipient.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.lifecycle.completedNoRecipient.variables"
+        }
+      }
+    ]
   },
-  "notes": "Captured 2026-04 no-email safety evidence for missing/unknown draft IDs, deleted drafts, completed drafts, and no-recipient validation. Generic parity replay is intentionally fixture-backed through the draft-order mutation family runtime test because successful draftOrderInvoiceSend can send customer-visible email; local runtime never sends the mutation upstream and retains the original raw mutation for explicit commit replay."
+  "notes": "Captured 2026-04 no-email safety evidence is now replayed by the generic parity runner as strict proxy-vs-recording comparison for unknown draft IDs, deleted drafts, open no-recipient drafts, and completed no-recipient drafts. The parity harness seeds only the captured disposable draft-order setup states and never executes a recipient-backed invoice send; the runtime test remains the no-upstream/log-retention guardrail proving local handling never sends customer-visible email and keeps the original raw mutation for explicit commit replay."
 }
