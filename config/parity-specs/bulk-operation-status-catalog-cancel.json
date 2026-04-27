@@ -8,7 +8,7 @@
     "bulkOperationCancel"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "passthrough-boundary"],
+  "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "local-state-foundation"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json"
   ],
@@ -18,7 +18,7 @@
     "variablesPath": "config/parity-requests/bulk-operation-catalog-empty-running-mutation.variables.json"
   },
   "comparisonMode": "captured-fixture",
-  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. The proxy does not yet implement a local BulkOperation job model, so the runtime test enforces that the captured fixture is discoverable while current proxy behavior remains an explicit passthrough gap rather than guessed local emulation.",
+  "notes": "HAR-262 captured Shopify Admin GraphQL 2026-04 BulkOperation reads, list empty filters, deprecated currentBulkOperation behavior, bulkOperationRunQuery validation, unknown-id cancel userErrors, terminal cancel userErrors, and safe query export status transitions. HAR-263 implements the local BulkOperation state/read/list/current/cancel foundation using that fixture evidence; bulkOperationRunQuery and bulkOperationRunMutation execution remain unsupported until separate lifecycle staging work exists.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": []

@@ -25,6 +25,13 @@ HAR-255 adds separate customer/privacy mutation coverage for:
 
 `dataSaleOptOut` is `implemented: true`. It is tracked separately because it is a customer email data-sale opt-out mutation, not a shop privacy settings read and not the consent-policy update flow covered by HAR-250.
 
+HAR-322 adds customer data-erasure request/cancel roots under the customers endpoint group:
+
+- `customerRequestDataErasure`
+- `customerCancelDataErasure`
+
+These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay. Granted-scope HAR-322 capture records real request/cancel success payloads, unchanged immediate downstream customer reads, unknown-customer `DOES_NOT_EXIST` userErrors, and repeat-cancel `NOT_BEING_ERASED` cleanup behavior.
+
 ## Coverage boundaries
 
 - `privacySettings` returns shop privacy settings such as cookie banner, data sale opt-out page, and privacy policy settings. Shopify documents the `PrivacySettings` object as requiring the `read_privacy_settings` access scope.

@@ -147,6 +147,26 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "sellingPlanGroup",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroup", "SellingPlanGroup"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local detail reads for staged selling-plan groups, including unknown-id null behavior and product/product-variant membership connections."
+  },
+  {
+    "name": "sellingPlanGroups",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroups", "SellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local catalog reads for staged selling-plan groups with connection pagination and downstream product/variant membership visibility."
+  },
+  {
     "name": "publicApiVersions",
     "type": "query",
     "domain": "admin-platform",
@@ -990,14 +1010,64 @@
     "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
   },
   {
+    "name": "validation",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["validation", "Validation"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Function validation detail reads are modeled from normalized metadata state. Function references expose stored ShopifyFunction metadata only; external Shopify Function code is never executed locally."
+  },
+  {
+    "name": "validations",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["validations", "Validations"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Function validation catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination."
+  },
+  {
+    "name": "cartTransforms",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["cartTransforms", "CartTransforms"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform catalog reads serialize normalized local metadata with Shopify-like empty/no-data connections and cursor pagination. Checkout cart transform execution is intentionally not modeled."
+  },
+  {
+    "name": "shopifyFunction",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopifyFunction", "ShopifyFunction"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Shopify Function detail reads expose metadata recorded from function-backed local configuration inputs. The proxy does not execute Function WASM or call extension runtimes."
+  },
+  {
+    "name": "shopifyFunctions",
+    "type": "query",
+    "domain": "functions",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["shopifyFunctions", "ShopifyFunctions"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Shopify Function catalog reads expose locally recorded validation/cart-transform function metadata and optional apiType filtering. The proxy does not discover or execute external Function code."
+  },
+  {
     "name": "paymentTermsTemplates",
     "type": "query",
     "domain": "payments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentTermsTemplates", "PaymentTermsTemplates"],
-    "runtimeTests": [],
-    "supportNotes": "Payment terms scaffold only. The 2026-04-25 harry-test-heelo probe can capture the template catalog; future capture should also record paymentTermsType filtering before local overlay support."
+    "runtimeTests": ["tests/integration/payment-terms-query-shapes.test.ts"],
+    "supportNotes": "Snapshot and live-hybrid payment terms template reads serialize the captured standard template catalog, including due-day values, translated names, and paymentTermsType filtering. Payment terms lifecycle mutations remain out of scope."
   },
   {
     "name": "financeAppAccessPolicy",
@@ -1100,6 +1170,35 @@
     "supportNotes": "Tender transaction scaffold only. HAR-316 captured 2025-01 harry-test-heelo type-only connection shape without ids or payment details; future support must preserve payment-details nullability and avoid exposing sensitive tender data without scrubbed fixtures."
   },
   {
+    "name": "channel",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["channel", "Channel"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local overlay models the deprecated channel root from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence."
+  },
+  {
+    "name": "channels",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["channels", "Channels"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local overlay models the deprecated channels connection from explicit Channel records or hydrated/staged Publication records. Full live non-empty channel parity remains limited by available capture evidence."
+  },
+  {
+    "name": "publication",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publication", "Publication"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
     "name": "publications",
     "type": "query",
     "domain": "products",
@@ -1109,6 +1208,34 @@
     "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
   },
   {
+    "name": "publicationsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publicationsCount", "PublicationsCount"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
+    "name": "publishedProductsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["publishedProductsCount", "PublishedProductsCount"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"]
+  },
+  {
+    "name": "storeCreditAccount",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["storeCreditAccount", "StoreCreditAccount"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: snapshot/local reads expose only seeded or staged store credit accounts. Unknown ids return null, customer nested connections remain empty unless normalized accounts exist, and balances are never fabricated."
+  },
+  {
     "name": "customer",
     "type": "query",
     "domain": "customers",
@@ -1116,6 +1243,16 @@
     "implemented": true,
     "matchNames": ["customer", "Customer"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customerAccountPage",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerAccountPage", "CustomerAccountPage"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "HAR-322: snapshot mode resolves customer account page details from normalized local state and returns null for absent IDs. Live capture on harry-test-heelo showed the built-in Orders, Profile, and Settings pages; live-hybrid keeps upstream payloads authoritative for this read-only system surface."
   },
   {
     "name": "event",
@@ -1155,6 +1292,16 @@
     "implemented": true,
     "matchNames": ["customers", "Customers"],
     "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"]
+  },
+  {
+    "name": "customerAccountPages",
+    "type": "query",
+    "domain": "customers",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["customerAccountPages", "CustomerAccountPages"],
+    "runtimeTests": ["tests/integration/customer-query-shapes.test.ts"],
+    "supportNotes": "HAR-322: snapshot mode serializes normalized customer account pages through the shared connection helpers and returns an empty connection when no account-page snapshot state exists. Live capture on harry-test-heelo showed Orders, Profile, and Settings default pages."
   },
   {
     "name": "customersCount",
@@ -1218,6 +1365,26 @@
     "implemented": true,
     "matchNames": ["customerDelete", "CustomerDelete"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "customerRequestDataErasure",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerRequestDataErasure", "CustomerRequestDataErasure"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-322: stages a local customer data-erasure request intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads and DOES_NOT_EXIST unknown-customer userErrors."
+  },
+  {
+    "name": "customerCancelDataErasure",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["customerCancelDataErasure", "CustomerCancelDataErasure"],
+    "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"],
+    "supportNotes": "HAR-322: stages a local data-erasure cancellation intent for customers already present in normalized state, returns customerId/userErrors, exposes the intent in meta state/logs, and preserves the original raw mutation for commit replay. Granted-scope live conformance captures success payloads, DOES_NOT_EXIST unknown-customer userErrors, and NOT_BEING_ERASED repeat-cancel cleanup behavior."
   },
   {
     "name": "customerAddressCreate",
@@ -1330,6 +1497,26 @@
     "supportNotes": "Buffered locally as a staged outbound invite intent. Runtime support validates the customer, updates local account state to invited when applicable, and keeps the original raw mutation for commit-time email delivery."
   },
   {
+    "name": "storeCreditAccountCredit",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["storeCreditAccountCredit", "StoreCreditAccountCredit"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: stages credit adjustments only for existing normalized store credit accounts, updates local balance/transactions, returns captured unknown-id userErrors locally, and keeps the original raw mutation for commit replay without runtime Shopify writes."
+  },
+  {
+    "name": "storeCreditAccountDebit",
+    "type": "mutation",
+    "domain": "customers",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["storeCreditAccountDebit", "StoreCreditAccountDebit"],
+    "runtimeTests": ["tests/integration/store-credit-flow.test.ts"],
+    "supportNotes": "HAR-317: stages debit adjustments only for existing normalized store credit accounts, enforces local currency/funds checks, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes."
+  },
+  {
     "name": "customerPaymentMethodSendUpdateEmail",
     "type": "mutation",
     "domain": "customers",
@@ -1347,6 +1534,76 @@
     "implemented": true,
     "matchNames": ["customerMerge", "CustomerMerge"],
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
+  },
+  {
+    "name": "sellingPlanGroupCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupCreate", "SellingPlanGroupCreate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages selling-plan group create locally, including nested sellingPlansToCreate and initial product/product-variant resources, without runtime Shopify writes."
+  },
+  {
+    "name": "sellingPlanGroupUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupUpdate", "SellingPlanGroupUpdate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group scalar updates, selling plan updates/creates/deletes, and unknown-id GROUP_DOES_NOT_EXIST userErrors locally."
+  },
+  {
+    "name": "sellingPlanGroupDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupDelete", "SellingPlanGroupDelete"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group deletion locally; downstream detail/catalog/product/variant reads omit deleted groups and unknown deletes return Shopify-like GROUP_DOES_NOT_EXIST userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProducts", "SellingPlanGroupAddProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership locally and makes product.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProducts", "SellingPlanGroupRemoveProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership removal locally and returns removedProductIds with Shopify-like unknown-id userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProductVariants", "SellingPlanGroupAddProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership locally and makes ProductVariant.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProductVariants", "SellingPlanGroupRemoveProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors."
   },
   {
     "name": "tagsAdd",
@@ -1502,6 +1759,36 @@
     "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
     "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
     "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
+  },
+  {
+    "name": "publicationCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationCreate", "PublicationCreate"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support stages Publication catalog rows only. Product and Collection visibility changes still flow through the existing publishable/product publication roots; deleting a staged or hydrated publication removes that target from locally modeled product/collection publication memberships."
+  },
+  {
+    "name": "publicationUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationUpdate", "PublicationUpdate"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support updates the normalized Publication catalog row. It does not claim broader channel specification or app-publication setup behavior beyond selected downstream reads."
+  },
+  {
+    "name": "publicationDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["publicationDelete", "PublicationDelete"],
+    "runtimeTests": ["tests/integration/publication-query-shapes.test.ts"],
+    "supportNotes": "Local lifecycle support removes the normalized Publication row and strips that publication target from locally modeled Product and Collection visibility."
   },
   {
     "name": "productPublish",
@@ -2281,30 +2568,30 @@
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperation", "BulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API read gap. Requires a local BulkOperation job model for query exports and mutation imports, missing-id/null behavior, and status/result fields before overlay-read support; this is separate from product variant, inventory, discount, and metaobject bulk roots."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: reads BulkOperation records from the normalized in-memory job model with Shopify-like missing-id/null behavior; query export and mutation import execution remain unsupported."
   },
   {
     "name": "bulkOperations",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperations", "BulkOperations"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API catalog read gap. Requires captured pagination, filtering by id/status/operation_type, CREATED_AT sorting, empty connection behavior, and app-scoped job visibility before overlay-read support."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: lists effective in-memory BulkOperation jobs with shared connection helpers, cursor windows, CREATED_AT/ID sorting, reverse, and captured id/status/operation_type/created_at query filters."
   },
   {
     "name": "currentBulkOperation",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["currentBulkOperation", "CurrentBulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 deprecated root-level Bulk Operations read gap. Keep unimplemented until the proxy can derive the most recent query or mutation BulkOperation from local job state; current Shopify docs point new callers to bulkOperations with a status filter."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: derives the deprecated currentBulkOperation root from the newest local BulkOperation for the requested type, defaulting to QUERY."
   },
   {
     "name": "bulkOperationRunQuery",
@@ -2331,10 +2618,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationCancel", "BulkOperationCancel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations cancellation gap. Future support must stage canceling/canceled transitions against local BulkOperation jobs and downstream reads without treating this declared root as a permanent passthrough capability."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: cancels staged BulkOperation jobs locally, returns captured unknown-id and terminal-state userErrors without proxying supported cancel attempts upstream, and records the local cancel attempt in the meta log."
   },
   {
     "name": "productOptionsCreate",
@@ -2727,50 +3014,50 @@
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectCreate", "MetaobjectCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field validation, handle generation, capabilities, and downstream read visibility are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages metaobject entry creation for existing effective definitions, captured field/value projection, handle identity, publishable status defaults/input, definition counts, downstream entry reads, meta state/log visibility, and commit replay ordering without runtime Shopify writes."
   },
   {
     "name": "metaobjectUpdate",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectUpdate", "MetaobjectUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until field patching, validation, capability changes, and read-after-write behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages effective metaobject entry field, handle, displayName, and publishable status updates with downstream ID/handle/catalog read-after-write behavior and local NOT_FOUND/TAKEN userErrors."
   },
   {
     "name": "metaobjectUpsert",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectUpsert", "MetaobjectUpsert"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until create-vs-update identity, handle conflicts, and downstream catalog behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages handle-scoped metaobject upsert, updating an existing effective row or creating a new row against an existing effective definition with immediate downstream entry/catalog visibility."
   },
   {
     "name": "metaobjectDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectDelete", "MetaobjectDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until delete payloads, unknown IDs, references, and downstream absence behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages metaobject entry deletion tombstones, Shopify-like deletedId/NOT_FOUND userError payloads for selected fields, definition count updates, downstream absence, and meta state/log visibility without runtime Shopify writes."
   },
   {
     "name": "metaobjectBulkDelete",
     "type": "mutation",
     "domain": "metaobjects",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["metaobjectBulkDelete", "MetaobjectBulkDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Known unsupported root must not be treated as supported passthrough until bulk selection, partial failures, async job shape, and downstream absence behavior are modeled."
+    "runtimeTests": ["tests/integration/metaobject-draft-flow.test.ts"],
+    "supportNotes": "Locally stages ids/where-type metaobject bulk deletion with a completed local job payload, ordered missing-row userErrors, definition count updates, downstream absence, and meta state visibility."
   },
   {
     "name": "metaobjectDefinitionCreate",
@@ -3203,6 +3490,66 @@
     "matchNames": ["paymentCustomizationUpdate", "PaymentCustomizationUpdate"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
     "supportNotes": "Payment customization update stages local scalar/metafield changes over normalized records, including current functionHandle and deprecated functionId identifier changes. Unknown ids and captured Function/metafield validation branches return Shopify-like PaymentCustomizationError payloads without proxying runtime writes upstream."
+  },
+  {
+    "name": "validationCreate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationCreate", "ValidationCreate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation create stages normalized Function validation metadata locally, records the function handle/id as ShopifyFunction metadata, and exposes downstream validation(s)/shopifyFunction(s) reads without executing external Function code or writing to Shopify at runtime."
+  },
+  {
+    "name": "validationUpdate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationUpdate", "ValidationUpdate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation update stages scalar metadata changes locally over normalized validation records and refreshes downstream validation(s)/shopifyFunction(s) reads without executing external Function code."
+  },
+  {
+    "name": "validationDelete",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["validationDelete", "ValidationDelete"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Validation delete marks normalized validation metadata deleted locally. Downstream validation detail/catalog reads return null/empty structures while original raw mutations remain in the meta log for commit replay."
+  },
+  {
+    "name": "cartTransformCreate",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["cartTransformCreate", "CartTransformCreate"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform create stages normalized metadata locally, records the function handle/id as ShopifyFunction metadata, and updates downstream cartTransforms/shopifyFunction(s) reads. Checkout cart transform execution is intentionally not modeled."
+  },
+  {
+    "name": "cartTransformDelete",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["cartTransformDelete", "CartTransformDelete"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Cart transform delete marks normalized cart transform metadata deleted locally and updates downstream cartTransforms reads without executing or deregistering external Function code at runtime."
+  },
+  {
+    "name": "taxAppConfigure",
+    "type": "mutation",
+    "domain": "functions",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["taxAppConfigure", "TaxAppConfigure"],
+    "runtimeTests": ["tests/integration/functions-flow.test.ts"],
+    "supportNotes": "Tax app configure stores local readiness metadata only. It does not invoke tax calculation callbacks, validate tax app installation authority, or execute external tax logic during proxy runtime."
   },
   {
     "name": "paymentReminderSend",

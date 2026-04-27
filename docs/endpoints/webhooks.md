@@ -38,6 +38,70 @@ The three query roots are registered under the `webhooks` domain as implemented 
 - Missing or null `webhookSubscriptionDelete(id:)` arguments return Shopify-like GraphQL validation errors locally and do not append mutation-log entries.
 - Local registration/update/delete does not deliver webhook payloads and does not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.
 
+## Draft Delivery Policy
+
+Default runtime policy: supported draft-mode mutations must never send webhook deliveries to external systems. This includes HTTP callback URLs, EventBridge ARNs, Pub/Sub topics, app-config/TOML subscriptions, and any other destination Shopify can target. The proxy should treat registered webhook subscriptions as local subscription metadata during normal runtime handling, not as permission to notify the outside world.
+
+The recommended implementation policy is an in-memory, pull-based webhook outbox exposed through the meta API. When a supported local mutation eventually maps to a supported webhook topic, the proxy should append a synthetic payload record to the outbox after the domain command is successfully staged. Tests can inspect that deterministic record through meta endpoints, but the proxy does not POST to callback URLs, publish to AWS/GCP destinations, retry, or forward any delivery auth/secrets.
+
+Rejected alternatives:
+
+- Never fire and never record: safest, but too little observability once webhook subscriptions are modeled. Apps cannot assert that a staged product/order/customer mutation would have produced a relevant Shopify event.
+- Fire synthetic local callbacks: creates real HTTP side effects, duplicate notifications, retry and timeout behavior, HMAC/signing questions, and destination availability problems during tests.
+- Deliver to EventBridge or Pub/Sub: requires cloud credentials and can escape the local test boundary even more easily than HTTP callbacks.
+- Deliver during `__meta/commit`: commit replay may cause real Shopify to deliver real webhooks for the replayed mutations; the proxy must not also replay synthetic outbox entries or emit separate notifications, because that would create duplicate side effects.
+- Allow opt-in external delivery now: useful only after the outbox, payload-shape fixtures, topic coverage rules, isolation controls, and credential redaction rules are implemented. It should stay a separate future design/implementation slice, not the default HAR-271 policy.
+
+### Outbox Observability Contract
+
+The future meta API should expose webhook payload records separately from the existing mutation log, for example:
+
+- `GET /__meta/webhooks/outbox` returns ordered synthetic webhook payload records.
+- `POST /__meta/webhooks/outbox/reset` clears only the webhook outbox.
+- `POST /__meta/reset` clears the webhook outbox together with staged state, caches, synthetic identities, and the mutation log.
+
+Each outbox record should be JSON-serializable and deterministic:
+
+- `id`: stable synthetic delivery ID, suitable for a Shopify-like webhook ID/header value.
+- `sequence`: monotonically increasing integer in append order.
+- `recordedAt`: proxy timestamp from the same clock source used for staged mutation timestamps.
+- `topic`: Shopify topic enum value such as `PRODUCTS_CREATE`.
+- `subscriptionId`: local or hydrated `WebhookSubscription` GID that matched the topic.
+- `endpoint`: cloned subscription endpoint metadata; HTTP callback URLs, EventBridge ARNs, and Pub/Sub coordinates are recorded as destination metadata only.
+- `format`, `includeFields`, `metafieldNamespaces`, and `filter`: subscription fields used to derive the payload.
+- `sourceMutationLogEntryId` and `sourceMutationLogIndex`: link back to the staged mutation that generated the payload.
+- `resourceGid`: primary resource ID affected by the staged mutation.
+- `payload`: Shopify-shaped JSON payload for the selected topic and format.
+- `headers`: deterministic, secret-free preview of delivery headers such as topic, shop domain, API version, synthetic webhook ID, and trigger timestamp. Do not copy incoming Admin API auth headers. Do not expose or derive real app secrets; HMAC should be absent or explicitly `null` unless a later isolated test mode introduces a test-only signing secret.
+- `delivery`: `{ mode: "recorded", status: "recorded", attempts: [] }` for the default policy.
+
+Ordering follows the mutation log: records are appended only for successful supported local mutations, after validation passes and after the domain command has staged local state. If one mutation matches multiple local subscriptions for the same topic, append one outbox record per matching subscription in deterministic subscription order. Validation-only branches and unsupported passthrough mutations must not create synthetic outbox records; unsupported passthrough may still cause real Shopify side effects upstream and should remain visible through existing observability.
+
+`includeFields`, `metafieldNamespaces`, and `filter` must be applied before writing the outbox record once those semantics are modeled. Until they are conformance-backed for a topic, the topic should remain unsupported for outbox generation rather than emitting a broad guessed payload.
+
+### Topic Mapping Policy
+
+Webhook payload generation should be driven by domain events emitted by supported local mutation handlers, not by patching GraphQL responses. A domain handler that stages a resource change should expose enough normalized before/after state for the webhook outbox mapper to decide whether a topic is eligible and to serialize the payload.
+
+First viable slice:
+
+- `PRODUCTS_CREATE` from staged `productCreate`.
+- `PRODUCTS_UPDATE` from staged product update/editing mutations once the changed product payload is conformance-backed.
+- `PRODUCTS_DELETE` from staged product deletion once deletion payload shape is captured.
+
+These topics match the project priority of products first, but they still require payload fixtures before implementation. Product-adjacent topics such as variant, collection, inventory, publication, media, and metafield events should not be inferred from product mutations until specific Shopify payload evidence exists and the local domain event can identify the affected resource precisely.
+
+Later slices should follow the same rule:
+
+- Orders: map only after the order-domain mutation already stages the relevant lifecycle transition locally and has payload evidence for topics such as order create/update/cancel/payment/fulfillment events.
+- Customers: map only after customer-domain staging can provide the Shopify-shaped customer payload and evidence for customer create/update/delete topics.
+- Draft orders, refunds, fulfillments, discounts, files, markets, metaobjects, shop policies, and privacy topics remain unsupported for webhook outbox generation until their owning endpoint group has both local lifecycle fidelity and topic-specific payload fixtures.
+- App lifecycle topics, compliance topics, and subscription lifecycle topics remain unsupported by default because they are not caused by ordinary local draft-mode resource mutations.
+
+### Source Alignment
+
+This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscription docs and the current app webhook delivery docs. Relevant Shopify surfaces include `webhookSubscriptionCreate`, `WebhookSubscriptionInput.uri`, `WebhookSubscriptionTopic`, `WebhookSubscriptionFormat`, HTTP/EventBridge/PubSub endpoint variants, delivery headers, HMAC signing, retry behavior, and Shopify's warning that webhook ordering and duplicate delivery cannot be assumed. The draft proxy should record enough metadata for tests to assert intended local behavior, while explicitly not emulating network delivery, retry scheduling, or cloud destination semantics until a later isolated delivery mode is designed.
+
 ## Captured Evidence
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json` records:

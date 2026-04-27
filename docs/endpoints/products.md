@@ -12,6 +12,8 @@ Overlay reads:
 - `productsCount`
 - `productFeed`
 - `productFeeds`
+- `sellingPlanGroup`
+- `sellingPlanGroups`
 - `productVariant`
 - `productVariantByIdentifier`
 - `productVariants`
@@ -32,7 +34,12 @@ Overlay reads:
 - `collectionByHandle`
 - `collections`
 - `locations`
+- `channel`
+- `channels`
+- `publication`
 - `publications`
+- `publicationsCount`
+- `publishedProductsCount`
 
 Local staged mutations:
 
@@ -76,6 +83,16 @@ Local staged mutations:
 - `collectionAddProducts`
 - `collectionRemoveProducts`
 - `collectionReorderProducts`
+- `sellingPlanGroupCreate`
+- `sellingPlanGroupUpdate`
+- `sellingPlanGroupDelete`
+- `sellingPlanGroupAddProducts`
+- `sellingPlanGroupRemoveProducts`
+- `sellingPlanGroupAddProductVariants`
+- `sellingPlanGroupRemoveProductVariants`
+- `publicationCreate`
+- `publicationUpdate`
+- `publicationDelete`
 
 ## Registered product helper and merchandising gaps
 
@@ -94,6 +111,8 @@ These product-adjacent roots are registered in the operation registry as product
 
 - Product feed reads currently support Shopify-like no-data behavior in snapshot mode. Captured 2025-01 `harry-test-heelo` evidence returns `productFeed(id:)` as `null` for an absent feed id and `productFeeds(first:)` as an empty connection with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Live-hybrid `productFeed` / `productFeeds` requests continue to proxy upstream because staged product mutations do not currently model feed-channel membership.
 - Product feed mutations remain unsupported. The 2025-01 `harry-test-heelo` probe for `productFeedCreate(country: US, language: EN)` returned a top-level `NOT_FOUND` error, `Unable to find channel for product feed`; `productFeedDelete` and `productFullSync` unknown feed ids returned payload userErrors with `field: ["id"]` and `ProductFeed does not exist`. Local staging needs channel-backed success evidence and downstream feed read effects before these roots can become supported.
+- Selling-plan group lifecycle and membership details are documented in `docs/endpoints/selling-plans.md`.
+- `Product.sellingPlanGroups`, `Product.sellingPlanGroupsCount`, `ProductVariant.sellingPlanGroups`, and `ProductVariant.sellingPlanGroupsCount` resolve from the staged selling-plan group membership model. Product and variant memberships are tracked separately, matching captured 2026-04 behavior where a group created with `resources.productIds` applies to the product but not automatically to the product variant.
 - Product bundle and combined-listing mutations remain unsupported. Captured guardrails cover `productBundleCreate` with empty components (`productBundleOperation: null`, user error `At least one component is required.`), `productBundleUpdate` with an unknown product (`productBundleOperation: null`, user error `Product does not exist`), and `combinedListingUpdate` with an unknown parent product (`product: null`, code `PARENT_PRODUCT_NOT_FOUND`). Local staging needs component-backed bundle success evidence, `ProductBundleOperation` lifecycle/status behavior, combined-listing child relationship evidence, and downstream product reads before these roots can become supported.
 - Product-domain metafields are normalized as owner-scoped records for `Product`, `ProductVariant`, and `Collection` owners. Besides `id`, `namespace`, `key`, `type`, and `value`, hydrated and staged records carry `compareDigest`, `jsonValue`, `createdAt`, `updatedAt`, and `ownerType` for owner-scoped parity. Metafield `definition` still serializes as `null` for product metafield node selections until a product-owned fixture returns nested definition data; definition records themselves are modeled through the metafields endpoint group.
 - Local `metafieldsSet` support covers product, product variant, and collection owners only. It validates the full input batch before replacing each affected owner metafield set, supports compare-and-set through `compareDigest`, treats `compareDigest: null` as a create-only guard, and preserves Shopify-like atomic no-write behavior when any modeled resolver error is returned. For matching staged/effective metafield definitions, it infers omitted input `type`, rejects explicit type mismatches, and applies the fixture-backed `max` and `regex` validations represented in the local definition model. Customer, order, draft-order, shop, discount, and other owner families remain scoped to their own endpoint groups or future issues.
@@ -114,6 +133,8 @@ These product-adjacent roots are registered in the operation registry as product
 - Collection records carry aggregate publication target ids alongside product publication ids. A staged `collectionCreate` starts unpublished; collection publication counts and `publishedOnPublication(publicationId:)` remain unpublished until a local publish mutation adds a target.
 - `publishedOnCurrentPublication` is not inferred from aggregate collection publication count. Captured Online Store publishable writes leave it false when the app current publication is not the target.
 - Local `publishablePublish` and `publishableUnpublish` currently stage Product and Collection publishables. Broader publishable implementers remain unsupported in their own groups.
+- Top-level `publication(id:)`, `publications(...)`, `publicationsCount(...)`, `publishedProductsCount(publicationId:)`, and deprecated `channel` / `channels` roots resolve from the normalized publication catalog in snapshot/local overlay paths. Empty snapshot state returns `publication: null`, `channel: null`, empty channel/publication connections, and exact zero counts without upstream access. The existing live publication catalog fixture captures non-empty `publications` id/name/cursor shape; HAR-319 adds runtime-test-backed local evidence for the remaining root family and lifecycle flow.
+- `publicationCreate`, `publicationUpdate`, and `publicationDelete` stage normalized Publication rows locally and never perform runtime Shopify writes. This support is intentionally catalog-level: product and collection publication membership still flows through the existing product-specific or generic publishable roots. Deleting a publication strips that target from locally modeled Product and Collection publication IDs so downstream `publishedOnPublication`, publication counts, and `published_status` filters stop seeing the removed target.
 - Product handle generation and validation follows the captured product mutation slice: duplicate title-generated handles are de-duplicated, explicit handles are normalized before uniqueness checks, Unicode letters/numbers are preserved, punctuation-only explicit handles fall back into the `product` handle family, explicit collisions return `['input', 'handle']` userErrors, and explicit handles longer than 255 characters return `['handle']` userErrors without staging partial state. The HAR-22 live probe found no product reserved-word rejection for handles such as `admin`, `products`, `collections`, `cart`, `checkout`, or `new`.
 - Product option lifecycle staging is fixture-backed for `productOptionsCreate`, `productOptionUpdate`, and `productOptionsDelete`. The current conformance fixtures cover replacing Shopify's default `Title` option with created options, keeping non-variant option values in `optionValues` but out of `values`, renaming and repositioning options, adding/updating/deleting option values, reordering variant `selectedOptions` after option repositioning, and restoring Shopify's default option/variant graph when all custom options are deleted. Expected parity differences are limited to generated `ProductOption` and `ProductOptionValue` GIDs.
 - Captured option lifecycle validation branches include `productOptionsCreate` with an unknown product (`field: ["productId"]`, `Product does not exist`), `productOptionUpdate` with an unknown option (`field: ["option"]`, `Option does not exist`), and `productOptionsDelete` with an unknown option id (`field: ["options", "0"]`, `Option does not exist`). These branches stage no upstream Shopify writes.
@@ -145,5 +166,6 @@ These product-adjacent roots are registered in the operation registry as product
 - Product helper roots parity: `config/parity-specs/product-helper-roots-read.json`, `config/parity-requests/product-helper-roots-read.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-helper-roots-read.json`, captured by `corepack pnpm conformance:capture-product-helper-reads`
 - Product merchandising read fixture: `config/parity-specs/product-feeds-empty-read.json`, `config/parity-requests/product-feeds-empty-read.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-feeds-empty-read.json`
 - Product merchandising mutation guardrail fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-merchandising-mutation-probes.json`
+- Selling-plan group lifecycle fixture: `config/parity-specs/selling-plan-group-lifecycle.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plan-group-lifecycle.json`
 - Product handle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-handle-validation-parity.json`
 - Bulk variant validation/atomicity parity: `config/parity-specs/product-variants-bulk-validation-atomicity.json`, `config/parity-requests/productVariantsBulk*-validation-atomicity.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-variants-bulk-validation-atomicity.json`

@@ -10,6 +10,7 @@ import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
+import { handleBulkOperationMutation, handleBulkOperationQuery } from './bulk-operations.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation, handleMediaQuery } from './media.js';
@@ -23,6 +24,12 @@ import { handleCustomerMutation, handleCustomerQuery, hydrateCustomersFromUpstre
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import {
+  FUNCTION_MUTATION_ROOTS,
+  FUNCTION_QUERY_ROOTS,
+  handleFunctionMutation,
+  handleFunctionQuery,
+} from './functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from './gift-cards.js';
 import { handleMarketMutation, handleMarketsQuery, hydrateMarketsFromUpstreamResponse } from './markets.js';
 import {
@@ -662,6 +669,42 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     },
   },
   {
+    name: 'bulk-operations',
+    canHandle: (request) => request.capability.domain === 'bulk-operations',
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally' || request.primaryRootField !== 'bulkOperationCancel') {
+        return false;
+      }
+
+      const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables);
+      if (!bulkOperationMutation) {
+        return false;
+      }
+
+      appendStagedMutationLog(request, {
+        stagedResourceIds: bulkOperationMutation.stagedResourceIds,
+        notes: bulkOperationMutation.notes,
+      });
+      setGraphQLResponse(request, 200, bulkOperationMutation.response);
+      return true;
+    },
+    handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (
+        request.config.readMode === 'snapshot' ||
+        (request.config.readMode === 'live-hybrid' && store.hasBulkOperations())
+      ) {
+        setGraphQLResponse(request, 200, handleBulkOperationQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      return false;
+    },
+  },
+  {
     name: 'products',
     canHandle: (request) =>
       isProductLocalMutationCapability(request.capability) ||
@@ -687,7 +730,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts()
+        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
@@ -908,10 +951,16 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
         hydrateCustomersFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+
+        if (request.primaryRootField === 'customerAccountPage' || request.primaryRootField === 'customerAccountPages') {
+          setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
+          return true;
+        }
+
         setGraphQLResponse(
           request,
           upstreamResponse.status,
-          store.hasBaseCustomers() || store.hasStagedCustomers()
+          store.hasBaseCustomers() || store.hasStagedCustomers() || store.hasCustomerAccountPages()
             ? handleCustomerQuery(request.body.query, request.variables)
             : upstreamResponse.body,
         );
@@ -1047,8 +1096,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const responseBody = handleMetaobjectDefinitionMutation(request.body.query, request.variables);
       appendStagedMutationLog(request, {
         responseBody,
-        notes:
-          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
+        notes: 'Staged locally in the in-memory metaobject definition/entry draft store.',
       });
       setGraphQLResponse(request, 200, responseBody);
       return true;
@@ -1288,7 +1336,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return true;
       }
 
-      if (request.config.readMode === 'live-hybrid' && store.hasPaymentCustomizations()) {
+      if (
+        request.config.readMode === 'live-hybrid' &&
+        (store.hasPaymentCustomizations() || request.primaryRootField === 'paymentTermsTemplates')
+      ) {
         setGraphQLResponse(request, 200, handlePaymentQuery(request.body.query, request.variables));
         return true;
       }
@@ -1537,6 +1588,52 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       setGraphQLResponse(request, 200, webhookSubscriptionMutation.response);
+      return true;
+    },
+  },
+  {
+    name: 'functions',
+    canHandle: (request) =>
+      request.capability.domain === 'functions' ||
+      (request.primaryRootField !== null &&
+        (FUNCTION_QUERY_ROOTS.has(request.primaryRootField) || FUNCTION_MUTATION_ROOTS.has(request.primaryRootField))),
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read') {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot') {
+        setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        if (store.hasFunctionMetadata()) {
+          setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+          return true;
+        }
+
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const responseBody = handleFunctionMutation(request.body.query, request.variables);
+      appendStagedMutationLog(request, {
+        responseBody,
+        notes:
+          request.primaryRootField === 'taxAppConfigure'
+            ? 'Staged locally in the in-memory tax app configuration metadata store; no tax calculation app callbacks are invoked.'
+            : 'Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed.',
+      });
+      setGraphQLResponse(request, 200, responseBody);
       return true;
     },
   },

@@ -1,4 +1,4 @@
-import { getLocation, Kind, parse, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -14,9 +14,58 @@ import {
   getNodeLocation,
   getVariableDefinitionLocation,
   paginateConnectionItems,
+  projectGraphqlObject,
+  readPlainObjectArray,
   serializeConnection,
   type GraphqlErrorLocation,
 } from './graphql-helpers.js';
+import {
+  getOperationPathLabel,
+  hasOwnField,
+  isObject,
+  readLegacyResourceIdFromGid,
+  stripHtmlToDescription,
+} from './product-runtime/helpers.js';
+import {
+  ensureUniqueProductHandle,
+  findEffectiveProductByHandle,
+  prepareProductInputWithResolvedHandle,
+  slugifyHandle,
+} from './product-runtime/handles.js';
+import {
+  addInventoryQuantityAmount,
+  buildStableSyntheticInventoryLevelId,
+  DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
+  readInventoryQuantityAmount,
+  sumAvailableInventoryLevels,
+  writeInventoryQuantityAmount,
+} from './product-runtime/inventory-quantities.js';
+import {
+  buildInvalidProductMediaContentTypeVariableError,
+  buildInvalidProductMediaProductIdVariableError,
+  CREATE_MEDIA_CONTENT_TYPES,
+  isValidMediaSource,
+  makeCreatedMediaRecord,
+  mediaValidationProductNotFoundPayload,
+  transitionMediaToProcessing,
+  transitionMediaToReady,
+  updateMediaRecord,
+} from './product-runtime/media.js';
+import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './product-runtime/metafield-values.js';
+import {
+  buildProductSetOptionRecords,
+  deleteOptionRecords,
+  deriveVariantTitle,
+  insertOptionAtPosition,
+  makeCreatedOptionRecord,
+  makeDefaultOptionRecord,
+  makeDefaultVariantRecord,
+  productUsesOnlyDefaultOptionState,
+  remapDefaultVariantToCreatedOptions,
+  restoreDefaultOptionState,
+  updateOptionRecords,
+} from './product-runtime/options.js';
+import { serializeCountValue, serializeJobSelectionSet } from './product-runtime/serializers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -30,6 +79,7 @@ import type {
   CollectionImageRecord,
   CollectionRecord,
   CollectionRuleSetRecord,
+  ChannelRecord,
   InventoryLevelRecord,
   LocationRecord,
   ProductCatalogConnectionRecord,
@@ -40,6 +90,8 @@ import type {
   ProductOptionRecord,
   ProductOperationRecord,
   ProductRecord,
+  SellingPlanGroupRecord,
+  SellingPlanRecord,
   ProductVariantRecord,
   PublicationRecord,
 } from '../state/types.js';
@@ -51,113 +103,8 @@ type ProductFeedRecord = {
   status: 'ACTIVE' | 'INACTIVE';
 };
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function hasOwnField(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function parseMetafieldJsonValue(type: string | null, value: string | null): ProductMetafieldRecord['jsonValue'] {
-  if (value === null) {
-    return null;
-  }
-
-  if (type === 'json' || type?.startsWith('list.')) {
-    try {
-      return JSON.parse(value) as ProductMetafieldRecord['jsonValue'];
-    } catch {
-      return value;
-    }
-  }
-
-  if (type === 'number_integer') {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'number_decimal') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'boolean') {
-    return value === 'true';
-  }
-
-  return value;
-}
-
-function makeMetafieldCompareDigest(metafield: {
-  namespace: string;
-  key: string;
-  type: string | null;
-  value: string | null;
-  jsonValue?: unknown;
-  updatedAt?: string | null | undefined;
-}): string {
-  return `draft:${Buffer.from(
-    JSON.stringify([
-      metafield.namespace,
-      metafield.key,
-      metafield.type,
-      metafield.value,
-      metafield.jsonValue ?? null,
-      metafield.updatedAt ?? null,
-    ]),
-  ).toString('base64url')}`;
-}
-
-function getOperationPathLabel(document: string): string {
-  const ast = parse(document);
-  const operation = ast.definitions.find((definition) => definition.kind === Kind.OPERATION_DEFINITION);
-  if (!operation || operation.kind !== Kind.OPERATION_DEFINITION) {
-    return 'mutation';
-  }
-
-  const operationType = operation.operation;
-  return operation.name ? `${operationType} ${operation.name.value}` : operationType;
-}
-
-const maxProductHandleLength = 255;
-
-function normalizeHandleParts(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function slugifyHandle(title: string): string {
-  const normalized = normalizeHandleParts(title);
-  return normalized || 'untitled-product';
-}
-
-function readLegacyResourceIdFromGid(id: string): string | null {
-  const tail = id.split('/').at(-1);
-  return tail && /^\d+$/u.test(tail) ? tail : null;
-}
-
-function stripHtmlToDescription(value: string): string {
-  return value
-    .replace(/<[^>]*>/gu, '')
-    .replace(/\s+/gu, ' ')
-    .trim();
-}
-
-type ExplicitHandleResolution =
-  | { kind: 'normalized-explicit'; handle: string }
-  | { kind: 'fallback-explicit'; handle: string }
-  | { kind: 'invalid'; error: { field: string[]; message: string } };
-
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
-}
-
-function findEffectiveProductByHandle(handle: string): ProductRecord | null {
-  return store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
 }
 
 function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
@@ -177,126 +124,6 @@ function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): 
 function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
   const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
   return id ? store.getEffectiveVariantById(id) : null;
-}
-
-function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResolution | null {
-  const rawHandle = input['handle'];
-  if (typeof rawHandle !== 'string') {
-    return null;
-  }
-
-  const trimmedHandle = rawHandle.trim();
-  if (!trimmedHandle) {
-    return null;
-  }
-
-  const normalized = normalizeHandleParts(trimmedHandle);
-  if (!normalized) {
-    return { kind: 'fallback-explicit', handle: 'product' };
-  }
-
-  if (Array.from(normalized).length > maxProductHandleLength) {
-    return {
-      kind: 'invalid',
-      error: {
-        field: ['handle'],
-        message: `Handle is too long (maximum is ${maxProductHandleLength} characters)`,
-      },
-    };
-  }
-
-  return { kind: 'normalized-explicit', handle: normalized };
-}
-
-function productHandleInUse(handle: string, excludedProductId?: string): boolean {
-  const existing = findEffectiveProductByHandle(handle);
-  return Boolean(existing && existing.id !== excludedProductId);
-}
-
-function nextProductHandleCandidate(handle: string): string {
-  const numericSuffixMatch = handle.match(/^(.*?)(\d+)$/u);
-  if (numericSuffixMatch) {
-    const prefix = numericSuffixMatch[1] ?? '';
-    const numericSuffix = numericSuffixMatch[2] ?? '';
-    return `${prefix}${String(Number.parseInt(numericSuffix, 10) + 1)}`;
-  }
-
-  const hyphenatedSuffixMatch = handle.match(/^(.*?)-(\d+)$/u);
-  if (hyphenatedSuffixMatch) {
-    const prefix = hyphenatedSuffixMatch[1] ?? handle;
-    const numericSuffix = hyphenatedSuffixMatch[2] ?? '0';
-    return `${prefix}-${String(Number.parseInt(numericSuffix, 10) + 1)}`;
-  }
-
-  return `${handle}-1`;
-}
-
-function ensureUniqueProductHandle(handle: string, excludedProductId?: string): string {
-  let candidate = handle;
-  while (productHandleInUse(candidate, excludedProductId)) {
-    candidate = nextProductHandleCandidate(candidate);
-  }
-
-  return candidate;
-}
-
-function productHandleConflictError(handle: string): { field: string[]; message: string } {
-  return {
-    field: ['input', 'handle'],
-    message: `Handle '${handle}' already in use. Please provide a new handle.`,
-  };
-}
-
-function prepareProductInputWithResolvedHandle(
-  input: Record<string, unknown>,
-  existing?: ProductRecord,
-): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
-  const explicitHandle = readExplicitHandle(input);
-  if (explicitHandle) {
-    if (explicitHandle.kind === 'invalid') {
-      return { input, error: explicitHandle.error };
-    }
-
-    if (explicitHandle.kind === 'normalized-explicit') {
-      if (productHandleInUse(explicitHandle.handle, existing?.id)) {
-        return { input, error: productHandleConflictError(explicitHandle.handle) };
-      }
-
-      return { input: { ...input, handle: explicitHandle.handle }, error: null };
-    }
-
-    return {
-      input: {
-        ...input,
-        handle: ensureUniqueProductHandle(explicitHandle.handle, existing?.id),
-      },
-      error: null,
-    };
-  }
-
-  const rawId = input['id'];
-  const isSparseUpdate = typeof rawId === 'string' && !existing;
-  if (isSparseUpdate) {
-    return {
-      input: {
-        ...input,
-        handle: '',
-      },
-      error: null,
-    };
-  }
-
-  const rawTitle = input['title'];
-  const title =
-    typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle.trim() : (existing?.title ?? 'Untitled product');
-  const baseHandle = existing?.handle ?? slugifyHandle(title);
-  return {
-    input: {
-      ...input,
-      handle: ensureUniqueProductHandle(baseHandle, existing?.id),
-    },
-    error: null,
-  };
 }
 
 function findEffectiveCollectionById(collectionId: string): CollectionRecord | null {
@@ -367,6 +194,10 @@ function readEffectiveInventoryLevelLocation(
 
 function listEffectivePublications(): PublicationRecord[] {
   return store.listEffectivePublications();
+}
+
+function listEffectiveChannels(): ChannelRecord[] {
+  return store.listEffectiveChannels();
 }
 
 function listEffectiveProductsForCollection(collectionId: string): ProductRecord[] {
@@ -759,33 +590,6 @@ function removeProductsFromCollection(collection: CollectionRecord, productIds: 
   }
 }
 
-function serializeJobSelectionSet(
-  job: { id: string; done: boolean },
-  selections: readonly SelectionNode[],
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = job.id;
-        break;
-      case 'done':
-        result[key] = job.done;
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
-}
-
 interface ProductSetInventoryQuantityInput {
   locationId: string | null;
   name: string;
@@ -1018,32 +822,39 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   return next;
 }
 
-function getPublishableProductId(rawId: unknown): string | null {
-  return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
-}
-
-function serializeCountValue(field: FieldNode, count: number): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of field.selectionSet?.selections ?? []) {
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'count':
-        result[key] = count;
-        break;
-      case 'precision':
-        result[key] = 'EXACT';
-        break;
-      default:
-        result[key] = null;
+function removePublicationFromPublishables(publicationId: string): void {
+  for (const product of store.listEffectiveProducts()) {
+    if (product.publicationIds.includes(publicationId)) {
+      store.stageUpdateProduct(
+        makeProductRecord(
+          {
+            id: product.id,
+            publicationIds: removePublicationTargets(product.publicationIds, [publicationId]),
+          },
+          product,
+        ),
+      );
     }
   }
 
-  return result;
+  for (const collection of listEffectiveCollections()) {
+    const publicationIds = collection.publicationIds ?? [];
+    if (publicationIds.includes(publicationId)) {
+      store.stageUpdateCollection(
+        makeCollectionRecord(
+          {
+            id: collection.id,
+            publicationIds: removePublicationTargets(publicationIds, [publicationId]),
+          },
+          collection,
+        ),
+      );
+    }
+  }
+}
+
+function getPublishableProductId(rawId: unknown): string | null {
+  return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
 function makeProductRecord(input: Record<string, unknown>, existing?: ProductRecord): ProductRecord {
@@ -1245,49 +1056,26 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
   };
 }
 
-function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantRecord['inventoryItem']> {
-  return {
-    id: makeSyntheticGid('InventoryItem'),
-    tracked: false,
-    requiresShipping: true,
-    measurement: null,
-    countryCodeOfOrigin: null,
-    provinceCodeOfOrigin: null,
-    harmonizedSystemCode: null,
-    inventoryLevels: null,
-  };
-}
+function makePublicationRecord(input: Record<string, unknown>, existing?: PublicationRecord): PublicationRecord {
+  const rawId = input['id'];
+  const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : (existing?.id ?? makeSyntheticGid('Publication'));
+  const rawName = input['name'] ?? input['title'];
+  const rawAutoPublish = input['autoPublish'];
+  const rawSupportsFuturePublishing = input['supportsFuturePublishing'];
+  const rawCatalogId = input['catalogId'];
+  const rawChannelId = input['channelId'];
 
-function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord {
   return {
-    id: makeSyntheticGid('ProductVariant'),
-    productId: product.id,
-    title: 'Default Title',
-    sku: null,
-    barcode: null,
-    price: null,
-    compareAtPrice: null,
-    taxable: null,
-    inventoryPolicy: null,
-    inventoryQuantity: 0,
-    selectedOptions: [],
-    inventoryItem: makeDefaultInventoryItemRecord(),
-  };
-}
-
-function makeDefaultOptionRecord(product: ProductRecord): ProductOptionRecord {
-  return {
-    id: makeSyntheticGid('ProductOption'),
-    productId: product.id,
-    name: 'Title',
-    position: 1,
-    optionValues: [
-      {
-        id: makeSyntheticGid('ProductOptionValue'),
-        name: 'Default Title',
-        hasVariants: true,
-      },
-    ],
+    id,
+    name: typeof rawName === 'string' ? rawName : (existing?.name ?? null),
+    autoPublish: typeof rawAutoPublish === 'boolean' ? rawAutoPublish : existing?.autoPublish,
+    supportsFuturePublishing:
+      typeof rawSupportsFuturePublishing === 'boolean'
+        ? rawSupportsFuturePublishing
+        : existing?.supportsFuturePublishing,
+    catalogId: typeof rawCatalogId === 'string' ? rawCatalogId : existing?.catalogId,
+    channelId: typeof rawChannelId === 'string' ? rawChannelId : existing?.channelId,
+    cursor: existing?.cursor,
   };
 }
 
@@ -1363,116 +1151,6 @@ function duplicateCollectionRecord(collection: ProductCollectionRecord, productI
   };
 }
 
-function makeSyntheticMediaId(mediaContentType: string | null | undefined): string {
-  if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('MediaImage');
-  }
-
-  return makeSyntheticGid('Media');
-}
-
-function makeSyntheticProductImageId(mediaContentType: string | null | undefined): string | null {
-  if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('ProductImage');
-  }
-
-  return null;
-}
-
-const CREATE_MEDIA_CONTENT_TYPES = new Set(['VIDEO', 'EXTERNAL_VIDEO', 'MODEL_3D', 'IMAGE']);
-
-function isValidMediaSource(value: unknown): value is string {
-  if (typeof value !== 'string' || !value.trim()) {
-    return false;
-  }
-
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
-
-function mediaValidationProductNotFoundPayload(shape: 'create' | 'update' | 'delete') {
-  if (shape === 'delete') {
-    return {
-      deletedMediaIds: null,
-      deletedProductImageIds: null,
-      mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
-      product: null,
-    };
-  }
-
-  return {
-    media: null,
-    mediaUserErrors: [{ field: ['productId'], message: 'Product does not exist' }],
-    ...(shape === 'create' ? { product: null } : {}),
-  };
-}
-
-function buildInvalidProductMediaContentTypeVariableError(
-  media: unknown[],
-  mediaIndex: number,
-  mediaContentType: string,
-  document: string,
-): {
-  errors: Array<{
-    message: string;
-    locations: GraphqlErrorLocation[];
-    extensions: {
-      code: 'INVALID_VARIABLE';
-      value: unknown[];
-      problems: Array<{ path: Array<string | number>; explanation: string }>;
-    };
-  }>;
-} {
-  const explanation = `Expected "${mediaContentType}" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE`;
-  return {
-    errors: [
-      {
-        message: `Variable $media of type [CreateMediaInput!]! was provided invalid value for ${mediaIndex}.mediaContentType (${explanation})`,
-        locations: getVariableDefinitionLocation(document, 'media'),
-        extensions: {
-          code: 'INVALID_VARIABLE',
-          value: structuredClone(media),
-          problems: [{ path: [mediaIndex, 'mediaContentType'], explanation }],
-        },
-      },
-    ],
-  };
-}
-
-function buildInvalidProductMediaProductIdVariableError(
-  productId: string,
-  document: string,
-): {
-  errors: Array<{
-    message: string;
-    locations: GraphqlErrorLocation[];
-    extensions: {
-      code: 'INVALID_VARIABLE';
-      value: string;
-      problems: Array<{ path: never[]; explanation: string; message: string }>;
-    };
-  }>;
-} {
-  const message = `Invalid global id '${productId}'`;
-  return {
-    errors: [
-      {
-        message: 'Variable $productId of type ID! was provided invalid value',
-        locations: getVariableDefinitionLocation(document, 'productId'),
-        extensions: {
-          code: 'INVALID_VARIABLE',
-          value: productId,
-          problems: [{ path: [], explanation: message, message }],
-        },
-      },
-    ],
-  };
-}
-
 function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
   const timestamp = makeSyntheticTimestamp();
   const duplicated: ProductMetafieldRecord = {
@@ -1493,397 +1171,6 @@ function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: 
     ...duplicated,
     compareDigest: makeMetafieldCompareDigest(duplicated),
   };
-}
-
-function normalizeOptionPositions(options: ProductOptionRecord[]): ProductOptionRecord[] {
-  return options.map((option, index) => ({
-    ...structuredClone(option),
-    position: index + 1,
-  }));
-}
-
-function makeCreatedMediaRecord(
-  productId: string,
-  input: Record<string, unknown>,
-  position: number,
-): ProductMediaRecord {
-  const rawMediaContentType = input['mediaContentType'];
-  const mediaContentType = typeof rawMediaContentType === 'string' ? rawMediaContentType : 'IMAGE';
-  const rawAlt = input['alt'];
-  const rawOriginalSource = input['originalSource'];
-  const sourceUrl = typeof rawOriginalSource === 'string' && rawOriginalSource.trim() ? rawOriginalSource : null;
-
-  return {
-    key: `${productId}:media:${position}`,
-    productId,
-    position,
-    id: makeSyntheticMediaId(mediaContentType),
-    mediaContentType,
-    alt: typeof rawAlt === 'string' ? rawAlt : null,
-    status: 'UPLOADED',
-    productImageId: makeSyntheticProductImageId(mediaContentType),
-    imageUrl: null,
-    imageWidth: null,
-    imageHeight: null,
-    previewImageUrl: null,
-    sourceUrl,
-  };
-}
-
-function transitionMediaToProcessing(media: ProductMediaRecord): ProductMediaRecord {
-  return {
-    ...structuredClone(media),
-    status: 'PROCESSING',
-    imageUrl: null,
-    imageWidth: null,
-    imageHeight: null,
-    previewImageUrl: null,
-  };
-}
-
-function transitionMediaToReady(media: ProductMediaRecord): ProductMediaRecord {
-  const readyUrl = media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? null;
-  return {
-    ...structuredClone(media),
-    status: 'READY',
-    imageUrl: readyUrl,
-    previewImageUrl: readyUrl,
-  };
-}
-
-function updateMediaRecord(existing: ProductMediaRecord, input: Record<string, unknown>): ProductMediaRecord {
-  const rawAlt = input['alt'];
-  const rawPreviewImageSource = input['previewImageSource'];
-  const rawOriginalSource = input['originalSource'];
-  const nextImageUrl =
-    typeof rawPreviewImageSource === 'string' && rawPreviewImageSource.trim()
-      ? rawPreviewImageSource
-      : typeof rawOriginalSource === 'string' && rawOriginalSource.trim()
-        ? rawOriginalSource
-        : (existing.imageUrl ?? existing.previewImageUrl ?? existing.sourceUrl ?? null);
-
-  return {
-    ...structuredClone(existing),
-    alt: typeof rawAlt === 'string' ? rawAlt : existing.alt,
-    status: 'READY',
-    imageUrl: nextImageUrl,
-    imageWidth: existing.imageWidth ?? null,
-    imageHeight: existing.imageHeight ?? null,
-    previewImageUrl: nextImageUrl,
-    sourceUrl: existing.sourceUrl ?? nextImageUrl,
-  };
-}
-
-function readOptionValueCreateInput(raw: unknown): ProductOptionRecord['optionValues'][number] | null {
-  if (!isObject(raw)) {
-    return null;
-  }
-
-  const rawName = raw['name'];
-  if (typeof rawName !== 'string' || !rawName.trim()) {
-    return null;
-  }
-
-  return {
-    id: makeSyntheticGid('ProductOptionValue'),
-    name: rawName,
-    hasVariants: false,
-  };
-}
-
-function readOptionValueCreateInputs(raw: unknown): ProductOptionRecord['optionValues'] {
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw
-    .map((value) => readOptionValueCreateInput(value))
-    .filter((value): value is ProductOptionRecord['optionValues'][number] => value !== null);
-}
-
-function makeCreatedOptionRecord(productId: string, input: Record<string, unknown>): ProductOptionRecord {
-  const rawName = input['name'];
-  const optionValues = readOptionValueCreateInputs(input['values']);
-
-  return {
-    id: makeSyntheticGid('ProductOption'),
-    productId,
-    name: typeof rawName === 'string' && rawName.trim() ? rawName : 'Option',
-    position: 0,
-    optionValues,
-  };
-}
-
-function insertOptionAtPosition(
-  options: ProductOptionRecord[],
-  option: ProductOptionRecord,
-  rawPosition: unknown,
-): ProductOptionRecord[] {
-  const nextOptions = options.map((existingOption) => structuredClone(existingOption));
-  const normalizedPosition =
-    typeof rawPosition === 'number' && Number.isInteger(rawPosition) && rawPosition > 0
-      ? Math.min(rawPosition, nextOptions.length + 1)
-      : nextOptions.length + 1;
-
-  nextOptions.splice(normalizedPosition - 1, 0, structuredClone(option));
-  return normalizeOptionPositions(nextOptions);
-}
-
-function productUsesOnlyDefaultOptionState(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
-  const selectedOptions = variants[0]?.selectedOptions ?? [];
-  const variantUsesDefaultSelection =
-    selectedOptions.length === 0 ||
-    (selectedOptions.length === 1 &&
-      selectedOptions[0]?.name === 'Title' &&
-      selectedOptions[0]?.value === 'Default Title');
-
-  return (
-    options.length === 1 &&
-    options[0]?.name === 'Title' &&
-    options[0]?.optionValues.length === 1 &&
-    options[0]?.optionValues[0]?.name === 'Default Title' &&
-    variants.length === 1 &&
-    variantUsesDefaultSelection
-  );
-}
-
-function remapDefaultVariantToCreatedOptions(
-  variant: ProductVariantRecord,
-  options: ProductOptionRecord[],
-): ProductVariantRecord {
-  const selectedOptions = options
-    .map((option) => {
-      const firstValue = option.optionValues[0]?.name;
-      if (typeof firstValue !== 'string' || !firstValue.trim()) {
-        return null;
-      }
-      return {
-        name: option.name,
-        value: firstValue,
-      };
-    })
-    .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
-
-  return {
-    ...structuredClone(variant),
-    title: deriveVariantTitle(null, selectedOptions, 'Default Title'),
-    selectedOptions,
-  };
-}
-
-function restoreDefaultOptionState(
-  product: ProductRecord,
-  variants: ProductVariantRecord[],
-): {
-  options: ProductOptionRecord[];
-  variants: ProductVariantRecord[];
-} {
-  const baseVariant = variants[0] ? structuredClone(variants[0]) : makeDefaultVariantRecord(product);
-  return {
-    options: [makeDefaultOptionRecord(product)],
-    variants: [
-      {
-        ...baseVariant,
-        productId: product.id,
-        title: 'Default Title',
-        selectedOptions: [{ name: 'Title', value: 'Default Title' }],
-      },
-    ],
-  };
-}
-
-function remapVariantSelectionsForOptionUpdate(
-  variants: ProductVariantRecord[],
-  previousOptionName: string,
-  nextOptionName: string,
-  renamedValues: Map<string, string>,
-): ProductVariantRecord[] {
-  return variants.map((variant) => {
-    const selectedOptions = variant.selectedOptions.map((selectedOption) => {
-      if (selectedOption.name !== previousOptionName) {
-        return selectedOption;
-      }
-      return {
-        name: nextOptionName,
-        value: renamedValues.get(selectedOption.value) ?? selectedOption.value,
-      };
-    });
-
-    return {
-      ...structuredClone(variant),
-      title: deriveVariantTitle(null, selectedOptions, variant.title),
-      selectedOptions,
-    };
-  });
-}
-
-function reorderVariantSelectionsForOptions(
-  variants: ProductVariantRecord[],
-  options: ProductOptionRecord[],
-): ProductVariantRecord[] {
-  return variants.map((variant) => {
-    const selectedByName = new Map(
-      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption]),
-    );
-    const selectedOptions = options
-      .map((option) => selectedByName.get(option.name) ?? null)
-      .filter(
-        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
-      );
-
-    return {
-      ...structuredClone(variant),
-      title: deriveVariantTitle(null, selectedOptions, variant.title),
-      selectedOptions,
-    };
-  });
-}
-
-function updateOptionRecords(
-  productId: string,
-  options: ProductOptionRecord[],
-  variants: ProductVariantRecord[],
-  optionInput: Record<string, unknown>,
-  optionValuesToAddRaw: unknown,
-  optionValuesToUpdateRaw: unknown,
-  optionValuesToDeleteRaw: unknown,
-): { options: ProductOptionRecord[]; variants: ProductVariantRecord[] } | null {
-  const rawOptionId = optionInput['id'];
-  if (typeof rawOptionId !== 'string') {
-    return null;
-  }
-
-  const existingIndex = options.findIndex((option) => option.id === rawOptionId && option.productId === productId);
-  if (existingIndex < 0) {
-    return null;
-  }
-
-  const nextOptions = options.map((option) => structuredClone(option));
-  const existingTarget = nextOptions[existingIndex];
-  if (!existingTarget) {
-    return null;
-  }
-
-  const target = structuredClone(existingTarget);
-  const previousOptionName = existingTarget.name;
-  const renamedValues = new Map<string, string>();
-  const rawName = optionInput['name'];
-  if (typeof rawName === 'string' && rawName.trim()) {
-    target.name = rawName;
-  }
-
-  const deleteIds = Array.isArray(optionValuesToDeleteRaw)
-    ? optionValuesToDeleteRaw.filter((value): value is string => typeof value === 'string')
-    : [];
-  if (deleteIds.length > 0) {
-    target.optionValues = target.optionValues.filter((value) => !deleteIds.includes(value.id));
-  }
-
-  if (Array.isArray(optionValuesToUpdateRaw)) {
-    for (const rawValue of optionValuesToUpdateRaw) {
-      if (!isObject(rawValue)) {
-        continue;
-      }
-
-      const optionValueId = rawValue['id'];
-      const optionValueName = rawValue['name'];
-      if (typeof optionValueId !== 'string' || typeof optionValueName !== 'string' || !optionValueName.trim()) {
-        continue;
-      }
-
-      const existingValue = target.optionValues.find((optionValue) => optionValue.id === optionValueId);
-      if (existingValue) {
-        renamedValues.set(existingValue.name, optionValueName);
-        existingValue.name = optionValueName;
-      }
-    }
-  }
-
-  const optionValuesToAdd = readOptionValueCreateInputs(optionValuesToAddRaw);
-  if (optionValuesToAdd.length > 0) {
-    target.optionValues = [...target.optionValues, ...optionValuesToAdd];
-  }
-
-  nextOptions.splice(existingIndex, 1);
-  const reorderedOptions = insertOptionAtPosition(nextOptions, target, optionInput['position']);
-  const remappedVariants = remapVariantSelectionsForOptionUpdate(
-    variants,
-    previousOptionName,
-    target.name,
-    renamedValues,
-  );
-  return {
-    options: reorderedOptions,
-    variants: reorderVariantSelectionsForOptions(remappedVariants, reorderedOptions),
-  };
-}
-
-function deleteOptionRecords(
-  productId: string,
-  options: ProductOptionRecord[],
-  rawOptionIds: unknown,
-): { options: ProductOptionRecord[]; deletedOptionIds: string[] } {
-  const optionIds = Array.isArray(rawOptionIds)
-    ? rawOptionIds.filter((value): value is string => typeof value === 'string')
-    : [];
-  const deletedOptionIds = options
-    .filter((option) => option.productId === productId && optionIds.includes(option.id))
-    .map((option) => option.id);
-  const nextOptions = options.filter((option) => !(option.productId === productId && optionIds.includes(option.id)));
-
-  return {
-    options: normalizeOptionPositions(nextOptions),
-    deletedOptionIds,
-  };
-}
-
-function buildProductSetOptionRecords(productId: string, rawOptions: unknown): ProductOptionRecord[] {
-  const existingOptions = store.getEffectiveOptionsByProductId(productId);
-  const existingOptionsById = new Map(existingOptions.map((option) => [option.id, option]));
-
-  if (!Array.isArray(rawOptions)) {
-    return [];
-  }
-
-  return normalizeOptionPositions(
-    rawOptions
-      .filter((value): value is Record<string, unknown> => isObject(value))
-      .map((value, index) => {
-        const rawId = value['id'];
-        const existing = typeof rawId === 'string' ? (existingOptionsById.get(rawId) ?? null) : null;
-        const created = makeCreatedOptionRecord(productId, value);
-        const optionValuesInput = Array.isArray(value['values']) ? value['values'] : [];
-        const existingValuesById = new Map(
-          (existing?.optionValues ?? []).map((optionValue) => [optionValue.id, optionValue]),
-        );
-        const optionValues = optionValuesInput
-          .filter((entry): entry is Record<string, unknown> => isObject(entry))
-          .map((entry) => {
-            const rawValueId = entry['id'];
-            const rawValueName = entry['name'];
-            const existingValue = typeof rawValueId === 'string' ? (existingValuesById.get(rawValueId) ?? null) : null;
-            return {
-              id: existingValue?.id ?? makeSyntheticGid('ProductOptionValue'),
-              name:
-                typeof rawValueName === 'string' && rawValueName.trim()
-                  ? rawValueName
-                  : (existingValue?.name ?? 'Option value'),
-              hasVariants: existingValue?.hasVariants ?? false,
-            };
-          });
-
-        return {
-          id: existing?.id ?? created.id,
-          productId,
-          name:
-            typeof value['name'] === 'string' && value['name'].trim()
-              ? value['name']
-              : (existing?.name ?? created.name),
-          position: typeof value['position'] === 'number' ? value['position'] : index + 1,
-          optionValues,
-        };
-      }),
-  );
 }
 
 function readSelectedOptionsInput(raw: unknown): ProductVariantRecord['selectedOptions'] {
@@ -1986,17 +1273,6 @@ function readVariantSku(input: Record<string, unknown>, fallback: string | null)
   }
 
   return fallback;
-}
-
-const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
-
-function buildStableSyntheticInventoryLevelId(inventoryItemId: string, locationId: string): string {
-  const inventoryItemTail = inventoryItemId.split('/').at(-1) ?? encodeURIComponent(inventoryItemId);
-  const locationTail = locationId.split('/').at(-1) ?? encodeURIComponent(locationId);
-
-  return `gid://shopify/InventoryLevel/${inventoryItemTail}-${locationTail}?inventory_item_id=${encodeURIComponent(
-    inventoryItemId,
-  )}`;
 }
 
 function makeDefaultInventoryItemMeasurement(): NonNullable<
@@ -2256,22 +1532,6 @@ function applyProductSetInventoryQuantitiesToVariant(
       inventoryLevels,
     },
   };
-}
-
-function deriveVariantTitle(
-  rawTitle: unknown,
-  selectedOptions: ProductVariantRecord['selectedOptions'],
-  fallbackTitle: string,
-): string {
-  if (typeof rawTitle === 'string' && rawTitle.trim()) {
-    return rawTitle;
-  }
-
-  const selectedOptionTitle = selectedOptions
-    .map((selectedOption) => selectedOption.value)
-    .join(' / ')
-    .trim();
-  return selectedOptionTitle || fallbackTitle;
 }
 
 function makeCreatedVariantRecord(
@@ -3234,41 +2494,6 @@ function isOnHandComponentQuantityName(name: string): boolean {
     INVENTORY_QUANTITY_NAME_DEFINITIONS.find((definition) => definition.name === name)?.belongsTo.includes('on_hand') ??
     false
   );
-}
-
-function readInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  fallback = 0,
-): number {
-  return quantities.find((quantity) => quantity.name === name)?.quantity ?? fallback;
-}
-
-function writeInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  quantity: number,
-): InventoryLevelRecord['quantities'] {
-  const existingIndex = quantities.findIndex((candidate) => candidate.name === name);
-  if (existingIndex >= 0) {
-    return quantities.map((candidate, index) =>
-      index === existingIndex ? { ...candidate, quantity, updatedAt: makeSyntheticTimestamp() } : candidate,
-    );
-  }
-
-  return [...quantities, { name, quantity, updatedAt: makeSyntheticTimestamp() }];
-}
-
-function addInventoryQuantityAmount(
-  quantities: InventoryLevelRecord['quantities'],
-  name: string,
-  delta: number,
-): InventoryLevelRecord['quantities'] {
-  return writeInventoryQuantityAmount(quantities, name, readInventoryQuantityAmount(quantities, name) + delta);
-}
-
-function sumAvailableInventoryLevels(levels: InventoryLevelRecord[]): number {
-  return levels.reduce((total, level) => total + readInventoryQuantityAmount(level.quantities, 'available'), 0);
 }
 
 function getInventoryMutableVariant(
@@ -5360,6 +4585,36 @@ function serializeProductMutationPayload(
   return result;
 }
 
+function serializePublicationMutationPayload(
+  field: FieldNode,
+  payload: {
+    publication: PublicationRecord | null;
+    deletedId?: string | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  const publicationField = getChildField(field, 'publication');
+  if (publicationField) {
+    result[getResponseKey(publicationField)] = payload.publication
+      ? serializePublicationSelectionSet(payload.publication, publicationField.selectionSet?.selections ?? [])
+      : null;
+  }
+
+  const deletedIdField = getChildField(field, 'deletedId');
+  if (deletedIdField) {
+    result[getResponseKey(deletedIdField)] = payload.deletedId ?? null;
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
 function serializePublishableSelectionSet(
   publishable: ProductRecord | CollectionRecord | null,
   selections: readonly SelectionNode[],
@@ -6020,6 +5275,256 @@ function serializeInventoryItemSelectionSet(
   );
 }
 
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)];
+}
+
+type SellingPlanGroupUserError = {
+  field: string[];
+  message: string;
+  code?: string | null;
+};
+
+function sellingPlanGroupDoesNotExistError(): SellingPlanGroupUserError {
+  return {
+    field: ['id'],
+    message: 'Selling plan group does not exist.',
+    code: 'GROUP_DOES_NOT_EXIST',
+  };
+}
+
+function serializeSellingPlanGroupUserErrors(
+  errors: SellingPlanGroupUserError[],
+  field: FieldNode | null,
+): Array<Record<string, unknown>> {
+  const selections = field?.selectionSet?.selections ?? [];
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of selections) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeSellingPlanRecord(plan: SellingPlanRecord, field: FieldNode | null): unknown {
+  if (!field) {
+    return null;
+  }
+
+  return projectGraphqlObject(plan.data, field.selectionSet?.selections ?? [], new Map());
+}
+
+function serializeSellingPlanConnection(
+  plans: SellingPlanRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(plans, field, variables, (plan) => plan.id);
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (plan) => plan.id,
+    serializeNode: (plan, selection) => serializeSellingPlanRecord(plan, selection),
+  });
+}
+
+function serializeSellingPlanGroupProductsConnection(
+  group: SellingPlanGroupRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const products = group.productIds
+    .map((productId) => store.getEffectiveProductById(productId))
+    .filter((product): product is ProductRecord => product !== null);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    products,
+    field,
+    variables,
+    (product) => product.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (product) => product.id,
+    serializeNode: (product, selection) => serializeProduct(product, selection, variables),
+  });
+}
+
+function serializeSellingPlanGroupProductVariantsConnection(
+  group: SellingPlanGroupRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+  const variants = group.productVariantIds
+    .map((variantId) => store.getEffectiveVariantById(variantId))
+    .filter((variant): variant is ProductVariantRecord => variant !== null)
+    .filter((variant) => productId === null || variant.productId === productId);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    variants,
+    field,
+    variables,
+    (variant) => variant.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (variant) => variant.id,
+    serializeNode: (variant, selection) =>
+      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+  });
+}
+
+function serializeSellingPlanGroup(
+  group: SellingPlanGroupRecord | null,
+  field: FieldNode | null,
+  variables: Record<string, unknown>,
+): unknown {
+  if (!group || !field) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'SellingPlanGroup';
+        break;
+      case 'id':
+        result[key] = group.id;
+        break;
+      case 'appId':
+        result[key] = group.appId;
+        break;
+      case 'name':
+        result[key] = group.name;
+        break;
+      case 'merchantCode':
+        result[key] = group.merchantCode;
+        break;
+      case 'description':
+        result[key] = group.description;
+        break;
+      case 'options':
+        result[key] = [...group.options];
+        break;
+      case 'position':
+        result[key] = group.position;
+        break;
+      case 'summary':
+        result[key] = group.summary;
+        break;
+      case 'createdAt':
+        result[key] = group.createdAt;
+        break;
+      case 'appliesToProduct': {
+        const args = getFieldArguments(selection, variables);
+        result[key] = typeof args['productId'] === 'string' && group.productIds.includes(args['productId']);
+        break;
+      }
+      case 'appliesToProductVariant': {
+        const args = getFieldArguments(selection, variables);
+        result[key] =
+          typeof args['productVariantId'] === 'string' && group.productVariantIds.includes(args['productVariantId']);
+        break;
+      }
+      case 'appliesToProductVariants': {
+        const args = getFieldArguments(selection, variables);
+        const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+        result[key] =
+          productId !== null &&
+          group.productVariantIds.some(
+            (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+          );
+        break;
+      }
+      case 'products':
+        result[key] = serializeSellingPlanGroupProductsConnection(group, selection, variables);
+        break;
+      case 'productsCount':
+        result[key] = serializeCountValue(selection, group.productIds.length);
+        break;
+      case 'productVariants':
+        result[key] = serializeSellingPlanGroupProductVariantsConnection(group, selection, variables);
+        break;
+      case 'productVariantsCount': {
+        const args = getFieldArguments(selection, variables);
+        const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
+        const count =
+          productId === null
+            ? group.productVariantIds.length
+            : group.productVariantIds.filter(
+                (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+              ).length;
+        result[key] = serializeCountValue(selection, count);
+        break;
+      }
+      case 'sellingPlans':
+        result[key] = serializeSellingPlanConnection(group.sellingPlans, selection, variables);
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeSellingPlanGroupConnection(
+  groups: SellingPlanGroupRecord[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    groups,
+    field,
+    variables,
+    (group) => group.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (group) => group.cursor ?? group.id,
+    serializeNode: (group, selection) => serializeSellingPlanGroup(group, selection, variables),
+  });
+}
+
 function serializeVariantSelectionSet(
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
@@ -6118,6 +5623,19 @@ function serializeVariantSelectionSet(
           getEffectiveMetafieldsForOwner(variant.id),
           selection,
           variables,
+        );
+        break;
+      case 'sellingPlanGroups':
+        result[key] = serializeSellingPlanGroupConnection(
+          store.listEffectiveSellingPlanGroupsVisibleForProductVariant(variant.id),
+          selection,
+          variables,
+        );
+        break;
+      case 'sellingPlanGroupsCount':
+        result[key] = serializeCountValue(
+          selection,
+          store.listEffectiveSellingPlanGroupsForProductVariant(variant.id).length,
         );
         break;
       default:
@@ -6634,24 +6152,195 @@ function serializeTopLevelLocationsConnection(
   });
 }
 
-function serializePublicationSelectionSet(
-  publication: PublicationRecord,
+function listProductsPublishedToPublication(publicationId: string): ProductRecord[] {
+  return store
+    .listEffectiveProducts()
+    .filter((product) => product.status === 'ACTIVE' && product.publicationIds.includes(publicationId));
+}
+
+function countCollectionsPublishedToPublication(publicationId: string): number {
+  return listEffectiveCollections().filter((collection) => (collection.publicationIds ?? []).includes(publicationId))
+    .length;
+}
+
+function serializeChannelSelectionSet(
+  channel: ChannelRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const publicationId = channel.publicationId ?? null;
 
   for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Channel' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeChannelSelectionSet(channel, selection.selectionSet.selections, variables));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Channel';
+        break;
+      case 'id':
+        result[key] = channel.id;
+        break;
+      case 'name':
+        result[key] = channel.name;
+        break;
+      case 'handle':
+        result[key] = channel.handle ?? null;
+        break;
+      case 'publication':
+        result[key] = publicationId
+          ? serializePublicationSelectionSet(
+              store.getEffectivePublicationById(publicationId) ?? { id: publicationId, name: channel.name },
+              selection.selectionSet?.selections ?? [],
+              variables,
+            )
+          : null;
+        break;
+      case 'productsCount':
+        result[key] = serializeCountValue(
+          selection,
+          publicationId ? listProductsPublishedToPublication(publicationId).length : 0,
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTopLevelChannelsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const allChannels = listEffectiveChannels();
+  const {
+    items: channels,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(allChannels, field, variables, (channel) => channel.cursor ?? channel.id, {
+    parseCursor: (raw) => raw,
+  });
+  return serializeConnection(field, {
+    items: channels,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (channel) => channel.cursor ?? `cursor:${channel.id}`,
+    serializeNode: (channel, selection) =>
+      serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
+}
+
+function serializePublicationSelectionSet(
+  publication: PublicationRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Publication' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(
+        result,
+        serializePublicationSelectionSet(publication, selection.selectionSet.selections, variables),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Publication';
+        break;
       case 'id':
         result[key] = publication.id;
         break;
       case 'name':
         result[key] = publication.name;
+        break;
+      case 'autoPublish':
+        result[key] = publication.autoPublish ?? false;
+        break;
+      case 'supportsFuturePublishing':
+        result[key] = publication.supportsFuturePublishing ?? false;
+        break;
+      case 'catalog':
+        result[key] = publication.catalogId
+          ? Object.fromEntries(
+              (selection.selectionSet?.selections ?? [])
+                .filter((catalogSelection): catalogSelection is FieldNode => catalogSelection.kind === Kind.FIELD)
+                .map((catalogSelection) => {
+                  const catalogKey = catalogSelection.alias?.value ?? catalogSelection.name.value;
+                  switch (catalogSelection.name.value) {
+                    case '__typename':
+                      return [catalogKey, 'MarketCatalog'];
+                    case 'id':
+                      return [catalogKey, publication.catalogId];
+                    default:
+                      return [catalogKey, null];
+                  }
+                }),
+            )
+          : null;
+        break;
+      case 'channel': {
+        const channel =
+          store.listEffectiveChannels().find((candidate) => candidate.publicationId === publication.id) ?? null;
+        result[key] = channel
+          ? serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'products': {
+        const args = getFieldArguments(selection, variables);
+        const rawFirst = args['first'];
+        const rawLast = args['last'];
+        result[key] = serializeProductsConnection(
+          listProductsPublishedToPublication(publication.id),
+          selection,
+          typeof rawFirst === 'number' ? rawFirst : null,
+          typeof rawLast === 'number' ? rawLast : null,
+          args['after'],
+          args['before'],
+          args['query'],
+          args['sortKey'],
+          args['reverse'],
+          variables,
+        );
+        break;
+      }
+      case 'productsCount':
+      case 'publishedProductsCount':
+        result[key] = serializeCountValue(selection, listProductsPublishedToPublication(publication.id).length);
+        break;
+      case 'collectionsCount':
+        result[key] = serializeCountValue(selection, countCollectionsPublishedToPublication(publication.id));
         break;
       default:
         result[key] = null;
@@ -7052,6 +6741,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
       return product.totalInventory;
     case 'tracksInventory':
       return product.tracksInventory;
+    case 'requiresSellingPlan':
+      return false;
     case 'createdAt':
       return product.createdAt;
     case 'updatedAt':
@@ -7126,6 +6817,14 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     }
     case 'metafields':
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
+    case 'sellingPlanGroups':
+      return serializeSellingPlanGroupConnection(
+        store.listEffectiveSellingPlanGroupsForProduct(product.id),
+        field,
+        variables,
+      );
+    case 'sellingPlanGroupsCount':
+      return serializeCountValue(field, store.listEffectiveSellingPlanGroupsForProduct(product.id).length);
     default:
       return null;
   }
@@ -8084,6 +7783,35 @@ function normalizeUpstreamPublication(value: unknown, cursor?: string | null): P
   return {
     id: rawId,
     name: typeof value['name'] === 'string' ? value['name'] : null,
+    autoPublish: typeof value['autoPublish'] === 'boolean' ? value['autoPublish'] : undefined,
+    supportsFuturePublishing:
+      typeof value['supportsFuturePublishing'] === 'boolean' ? value['supportsFuturePublishing'] : undefined,
+    catalogId:
+      isObject(value['catalog']) && typeof value['catalog']['id'] === 'string' ? value['catalog']['id'] : undefined,
+    channelId:
+      isObject(value['channel']) && typeof value['channel']['id'] === 'string' ? value['channel']['id'] : undefined,
+    cursor: typeof cursor === 'string' && cursor.length > 0 ? cursor : null,
+  };
+}
+
+function normalizeUpstreamChannel(value: unknown, cursor?: string | null): ChannelRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawId = value['id'];
+  if (typeof rawId !== 'string') {
+    return null;
+  }
+
+  return {
+    id: rawId,
+    name: typeof value['name'] === 'string' ? value['name'] : null,
+    handle: typeof value['handle'] === 'string' ? value['handle'] : null,
+    publicationId:
+      isObject(value['publication']) && typeof value['publication']['id'] === 'string'
+        ? value['publication']['id']
+        : null,
     cursor: typeof cursor === 'string' && cursor.length > 0 ? cursor : null,
   };
 }
@@ -8110,6 +7838,33 @@ function readPublicationRecords(value: unknown): PublicationRecord[] {
     return value['nodes']
       .map((publication) => normalizeUpstreamPublication(publication))
       .filter((publication): publication is PublicationRecord => publication !== null);
+  }
+
+  return [];
+}
+
+function readChannelRecords(value: unknown): ChannelRecord[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value['edges'])) {
+    return value['edges']
+      .map((edge) => {
+        if (!isObject(edge)) {
+          return null;
+        }
+
+        const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
+        return normalizeUpstreamChannel(edge['node'], cursor);
+      })
+      .filter((channel): channel is ChannelRecord => channel !== null);
+  }
+
+  if (Array.isArray(value['nodes'])) {
+    return value['nodes']
+      .map((channel) => normalizeUpstreamChannel(channel))
+      .filter((channel): channel is ChannelRecord => channel !== null);
   }
 
   return [];
@@ -8272,6 +8027,21 @@ export function hydrateProductsFromUpstreamResponse(
   const publications = readPublicationRecords(rawData['publications']);
   if (publications.length > 0) {
     store.upsertBasePublications(publications);
+  }
+
+  const maybePublication = normalizeUpstreamPublication(rawData['publication']);
+  if (maybePublication) {
+    store.upsertBasePublications([maybePublication]);
+  }
+
+  const channels = readChannelRecords(rawData['channels']);
+  if (channels.length > 0) {
+    store.upsertBaseChannels(channels);
+  }
+
+  const maybeChannel = normalizeUpstreamChannel(rawData['channel']);
+  if (maybeChannel) {
+    store.upsertBaseChannels([maybeChannel]);
   }
 
   const maybeProduct = normalizeUpstreamProduct(rawData['product']);
@@ -8528,6 +8298,253 @@ export function hydrateProductsFromUpstreamResponse(
   }
 }
 
+function readStringInput(input: Record<string, unknown>, key: string, fallback: string | null = null): string | null {
+  const value = input[key];
+  return typeof value === 'string' ? value : fallback;
+}
+
+function readNumberInput(input: Record<string, unknown>, key: string, fallback: number | null = null): number | null {
+  const value = input[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function sellingPlanPolicyValue(input: Record<string, unknown>): Record<string, unknown> {
+  const fixedValue = input['fixedValue'];
+  if (typeof fixedValue === 'string' || typeof fixedValue === 'number') {
+    return {
+      __typename: 'SellingPlanPricingPolicyFixedValue',
+      fixedValue,
+    };
+  }
+
+  return {
+    __typename: 'SellingPlanPricingPolicyPercentageValue',
+    percentage: typeof input['percentage'] === 'number' ? input['percentage'] : null,
+  };
+}
+
+function sellingPlanBillingPolicy(input: Record<string, unknown>, existing: unknown): Record<string, unknown> {
+  const recurring = readProductInput(input['recurring']);
+  if (Object.keys(recurring).length > 0) {
+    return {
+      __typename: 'SellingPlanRecurringBillingPolicy',
+      interval: readStringInput(recurring, 'interval'),
+      intervalCount: readNumberInput(recurring, 'intervalCount'),
+      minCycles: readNumberInput(recurring, 'minCycles'),
+      maxCycles: readNumberInput(recurring, 'maxCycles'),
+    };
+  }
+
+  const fixed = readProductInput(input['fixed']);
+  if (Object.keys(fixed).length > 0) {
+    return {
+      __typename: 'SellingPlanFixedBillingPolicy',
+      checkoutCharge: readProductInput(fixed['checkoutCharge']),
+      remainingBalanceChargeTrigger: readStringInput(fixed, 'remainingBalanceChargeTrigger'),
+      remainingBalanceChargeExactTime: readStringInput(fixed, 'remainingBalanceChargeExactTime'),
+      remainingBalanceChargeTimeAfterCheckout: readStringInput(fixed, 'remainingBalanceChargeTimeAfterCheckout'),
+    };
+  }
+
+  return isObject(existing) ? structuredClone(existing) : { __typename: 'SellingPlanRecurringBillingPolicy' };
+}
+
+function sellingPlanDeliveryPolicy(input: Record<string, unknown>, existing: unknown): Record<string, unknown> {
+  const recurring = readProductInput(input['recurring']);
+  if (Object.keys(recurring).length > 0) {
+    return {
+      __typename: 'SellingPlanRecurringDeliveryPolicy',
+      interval: readStringInput(recurring, 'interval'),
+      intervalCount: readNumberInput(recurring, 'intervalCount'),
+      cutoff: readNumberInput(recurring, 'cutoff'),
+      intent: readStringInput(recurring, 'intent', 'FULFILLMENT_BEGIN'),
+      preAnchorBehavior: readStringInput(recurring, 'preAnchorBehavior', 'ASAP'),
+    };
+  }
+
+  const fixed = readProductInput(input['fixed']);
+  if (Object.keys(fixed).length > 0) {
+    return {
+      __typename: 'SellingPlanFixedDeliveryPolicy',
+      cutoff: readNumberInput(fixed, 'cutoff'),
+      fulfillmentTrigger: readStringInput(fixed, 'fulfillmentTrigger'),
+      fulfillmentExactTime: readStringInput(fixed, 'fulfillmentExactTime'),
+      intent: readStringInput(fixed, 'intent'),
+      preAnchorBehavior: readStringInput(fixed, 'preAnchorBehavior'),
+    };
+  }
+
+  return isObject(existing) ? structuredClone(existing) : { __typename: 'SellingPlanRecurringDeliveryPolicy' };
+}
+
+function sellingPlanPricingPolicies(input: unknown): Array<Record<string, unknown>> {
+  return readPlainObjectArray(input).map((policyInput) => {
+    const fixed = readProductInput(policyInput['fixed']);
+    if (Object.keys(fixed).length > 0) {
+      return {
+        __typename: 'SellingPlanFixedPricingPolicy',
+        adjustmentType: readStringInput(fixed, 'adjustmentType'),
+        adjustmentValue: sellingPlanPolicyValue(readProductInput(fixed['adjustmentValue'])),
+      };
+    }
+
+    const recurring = readProductInput(policyInput['recurring']);
+    return {
+      __typename: 'SellingPlanRecurringPricingPolicy',
+      adjustmentType: readStringInput(recurring, 'adjustmentType'),
+      adjustmentValue: sellingPlanPolicyValue(readProductInput(recurring['adjustmentValue'])),
+      afterCycle: readNumberInput(recurring, 'afterCycle'),
+    };
+  });
+}
+
+function makeSellingPlanRecord(input: Record<string, unknown>, existing?: SellingPlanRecord): SellingPlanRecord {
+  const previous = existing?.data ?? {};
+  const id = readStringInput(input, 'id', existing?.id ?? makeProxySyntheticGid('SellingPlan'))!;
+  const data: Record<string, unknown> = {
+    ...structuredClone(previous),
+    __typename: 'SellingPlan',
+    id,
+    name: readStringInput(input, 'name', typeof previous['name'] === 'string' ? previous['name'] : 'Selling plan'),
+    description: readStringInput(
+      input,
+      'description',
+      typeof previous['description'] === 'string' ? previous['description'] : null,
+    ),
+    options: readStringArray(input['options'] ?? previous['options']),
+    position: readNumberInput(
+      input,
+      'position',
+      typeof previous['position'] === 'number' ? previous['position'] : null,
+    ),
+    category: readStringInput(
+      input,
+      'category',
+      typeof previous['category'] === 'string' ? previous['category'] : null,
+    ),
+    createdAt: typeof previous['createdAt'] === 'string' ? previous['createdAt'] : makeSyntheticTimestamp(),
+    billingPolicy: sellingPlanBillingPolicy(readProductInput(input['billingPolicy']), previous['billingPolicy']),
+    deliveryPolicy: sellingPlanDeliveryPolicy(readProductInput(input['deliveryPolicy']), previous['deliveryPolicy']),
+    inventoryPolicy: {
+      reserve:
+        readStringInput(readProductInput(input['inventoryPolicy']), 'reserve') ??
+        (isObject(previous['inventoryPolicy']) && typeof previous['inventoryPolicy']['reserve'] === 'string'
+          ? previous['inventoryPolicy']['reserve']
+          : null),
+    },
+    pricingPolicies: Object.prototype.hasOwnProperty.call(input, 'pricingPolicies')
+      ? sellingPlanPricingPolicies(input['pricingPolicies'])
+      : existing
+        ? []
+        : [],
+  };
+
+  return {
+    id,
+    data: data as SellingPlanRecord['data'],
+  };
+}
+
+function summarizeSellingPlanGroup(plans: SellingPlanRecord[]): string | null {
+  const policies: unknown[] = plans.flatMap((plan) =>
+    Array.isArray(plan.data['pricingPolicies']) ? plan.data['pricingPolicies'] : [],
+  );
+  const firstPolicy = policies.find((policy): policy is Record<string, unknown> => isObject(policy));
+  const adjustmentValue = isObject(firstPolicy?.['adjustmentValue']) ? firstPolicy['adjustmentValue'] : null;
+  const percentage = typeof adjustmentValue?.['percentage'] === 'number' ? `${adjustmentValue['percentage']}%` : '';
+  return `${plans.length} delivery frequency, ${percentage} discount`;
+}
+
+function applySellingPlanGroupInput(
+  input: Record<string, unknown>,
+  existing?: SellingPlanGroupRecord,
+  resources: Record<string, unknown> = {},
+): SellingPlanGroupRecord {
+  const currentPlans = existing?.sellingPlans ?? [];
+  const plansById = new Map(currentPlans.map((plan) => [plan.id, plan]));
+  const nextPlans = [...currentPlans];
+
+  for (const createInput of readPlainObjectArray(input['sellingPlansToCreate'])) {
+    nextPlans.push(makeSellingPlanRecord(createInput));
+  }
+
+  for (const updateInput of readPlainObjectArray(input['sellingPlansToUpdate'])) {
+    const planId = readStringInput(updateInput, 'id');
+    const existingPlan = planId ? plansById.get(planId) : undefined;
+    if (!planId || !existingPlan) {
+      continue;
+    }
+
+    const index = nextPlans.findIndex((plan) => plan.id === planId);
+    nextPlans[index] = makeSellingPlanRecord(updateInput, existingPlan);
+  }
+
+  const deletedPlanIds = new Set(readStringArray(input['sellingPlansToDelete']));
+  const filteredPlans = nextPlans.filter((plan) => !deletedPlanIds.has(plan.id));
+  const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+  const productIds = uniqueStrings([...(existing?.productIds ?? []), ...readStringArray(resources['productIds'])]);
+  const productVariantIds = uniqueStrings([
+    ...(existing?.productVariantIds ?? []),
+    ...readStringArray(resources['productVariantIds']),
+  ]);
+
+  const group: SellingPlanGroupRecord = {
+    id: existing?.id ?? makeProxySyntheticGid('SellingPlanGroup'),
+    appId: readStringInput(input, 'appId', existing?.appId ?? null),
+    name: readStringInput(input, 'name', existing?.name ?? 'Selling plan group')!,
+    merchantCode: readStringInput(input, 'merchantCode', existing?.merchantCode ?? 'selling-plan-group')!,
+    description: readStringInput(input, 'description', existing?.description ?? null),
+    options: readStringArray(input['options'] ?? existing?.options ?? []),
+    position: readNumberInput(input, 'position', existing?.position ?? null),
+    summary: null,
+    createdAt,
+    productIds,
+    productVariantIds,
+    sellingPlans: filteredPlans,
+  };
+  group.summary = summarizeSellingPlanGroup(group.sellingPlans);
+  return group;
+}
+
+function serializeSellingPlanGroupMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of field.selectionSet?.selections ?? []) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case 'sellingPlanGroup':
+        result[key] = serializeSellingPlanGroup(
+          (payload['sellingPlanGroup'] as SellingPlanGroupRecord | null | undefined) ?? null,
+          selection,
+          variables,
+        );
+        break;
+      case 'userErrors':
+        result[key] = serializeSellingPlanGroupUserErrors(
+          (payload['userErrors'] as SellingPlanGroupUserError[] | undefined) ?? [],
+          selection,
+        );
+        break;
+      case 'deletedSellingPlanGroupId':
+      case 'deletedSellingPlanIds':
+      case 'removedProductIds':
+      case 'removedProductVariantIds':
+        result[key] = payload[selection.name.value] ?? null;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
 export function handleProductMutation(
   document: string,
   variables: Record<string, unknown>,
@@ -8538,6 +8555,189 @@ export function handleProductMutation(
   const responseKey = field.alias?.value ?? field.name.value;
 
   switch (field.name.value) {
+    case 'sellingPlanGroupCreate': {
+      const group = store.upsertStagedSellingPlanGroup(
+        applySellingPlanGroupInput(readProductInput(args['input']), undefined, readProductInput(args['resources'])),
+      );
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupUpdate': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              deletedSellingPlanIds: null,
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const input = readProductInput(args['input']);
+      const deletedSellingPlanIds = readStringArray(input['sellingPlansToDelete']).filter((planId) =>
+        existing.sellingPlans.some((plan) => plan.id === planId),
+      );
+      const group = store.upsertStagedSellingPlanGroup(applySellingPlanGroupInput(input, existing));
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            deletedSellingPlanIds,
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupDelete': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              deletedSellingPlanGroupId: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      store.deleteStagedSellingPlanGroup(id);
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            deletedSellingPlanGroupId: id,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupAddProducts': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const group = store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productIds: uniqueStrings([...existing.productIds, ...readStringArray(args['productIds'])]),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupRemoveProducts': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              removedProductIds: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const requestedIds = readStringArray(args['productIds']);
+      const requested = new Set(requestedIds);
+      const removedProductIds = existing.productIds.filter((productId) => requested.has(productId));
+      store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productIds: existing.productIds.filter((productId) => !requested.has(productId)),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            removedProductIds,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupAddProductVariants': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              sellingPlanGroup: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const group = store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productVariantIds: uniqueStrings([
+          ...existing.productVariantIds,
+          ...readStringArray(args['productVariantIds']),
+        ]),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            sellingPlanGroup: group,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'sellingPlanGroupRemoveProductVariants': {
+      const id = typeof args['id'] === 'string' ? args['id'] : null;
+      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      if (!id || !existing) {
+        return {
+          data: {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+              removedProductVariantIds: null,
+              userErrors: [sellingPlanGroupDoesNotExistError()],
+            }),
+          },
+        };
+      }
+
+      const requested = new Set(readStringArray(args['productVariantIds']));
+      const removedProductVariantIds = existing.productVariantIds.filter((variantId) => requested.has(variantId));
+      store.upsertStagedSellingPlanGroup({
+        ...existing,
+        productVariantIds: existing.productVariantIds.filter((variantId) => !requested.has(variantId)),
+      });
+      return {
+        data: {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            removedProductVariantIds,
+            userErrors: [],
+          }),
+        },
+      };
+    }
     case 'tagsAdd': {
       const rawId = args['id'];
       const productId = typeof rawId === 'string' ? rawId : null;
@@ -9133,6 +9333,98 @@ export function handleProductMutation(
         data: {
           [responseKey]: serializeProductMutationPayload(field, variables, {
             product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationCreate': {
+      const input = readProductInput(args['input'] ?? args['publication']);
+      const publication = store.stageCreatePublication(makePublicationRecord(input));
+
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationUpdate': {
+      const input = readProductInput(args['input'] ?? args['publication']);
+      const rawId = args['id'] ?? input['id'];
+      const publicationId = typeof rawId === 'string' ? rawId : null;
+      if (!publicationId) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              userErrors: [{ field: ['id'], message: 'Publication id is required' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectivePublicationById(publicationId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              userErrors: [{ field: ['id'], message: 'Publication not found' }],
+            }),
+          },
+        };
+      }
+
+      const publication = store.stageUpdatePublication(
+        makePublicationRecord({ ...input, id: publicationId }, existing),
+      );
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationDelete': {
+      const rawId = args['id'];
+      const publicationId = typeof rawId === 'string' ? rawId : null;
+      if (!publicationId) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              deletedId: null,
+              userErrors: [{ field: ['id'], message: 'Publication id is required' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectivePublicationById(publicationId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              deletedId: null,
+              userErrors: [{ field: ['id'], message: 'Publication not found' }],
+            }),
+          },
+        };
+      }
+
+      removePublicationFromPublishables(publicationId);
+      store.stageDeletePublication(publicationId);
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication: existing,
+            deletedId: publicationId,
             userErrors: [],
           }),
         },
@@ -11064,6 +11356,24 @@ export function handleProductQuery(
         data[responseKey] = null;
         break;
       }
+      case 'sellingPlanGroup': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        data[responseKey] = serializeSellingPlanGroup(
+          id ? store.getEffectiveSellingPlanGroupById(id) : null,
+          field,
+          variables,
+        );
+        break;
+      }
+      case 'sellingPlanGroups': {
+        data[responseKey] = serializeSellingPlanGroupConnection(
+          store.listEffectiveSellingPlanGroups(),
+          field,
+          variables,
+        );
+        break;
+      }
       case 'inventoryItem': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
@@ -11124,8 +11434,45 @@ export function handleProductQuery(
         data[responseKey] = serializeTopLevelLocationsConnection(field, variables);
         break;
       }
+      case 'channel': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const channel = id ? store.getEffectiveChannelById(id) : null;
+        data[responseKey] = channel
+          ? serializeChannelSelectionSet(channel, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'channels': {
+        data[responseKey] = serializeTopLevelChannelsConnection(field, variables);
+        break;
+      }
+      case 'publication': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const publication = id ? store.getEffectivePublicationById(id) : null;
+        data[responseKey] = publication
+          ? serializePublicationSelectionSet(publication, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
       case 'publications': {
         data[responseKey] = serializeTopLevelPublicationsConnection(field, variables);
+        break;
+      }
+      case 'publicationsCount': {
+        data[responseKey] = serializeCountValue(field, listEffectivePublications().length);
+        break;
+      }
+      case 'publishedProductsCount': {
+        const rawPublicationId = args['publicationId'];
+        const publicationId = typeof rawPublicationId === 'string' ? rawPublicationId : null;
+        const count = publicationId
+          ? listProductsPublishedToPublication(publicationId).length
+          : store
+              .listEffectiveProducts()
+              .filter((product) => product.status === 'ACTIVE' && product.publicationIds.length > 0).length;
+        data[responseKey] = serializeCountValue(field, count);
         break;
       }
       default:
