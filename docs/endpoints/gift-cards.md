@@ -26,8 +26,8 @@ Local staged mutations:
 - Gift-card reads are backed by normalized `giftCards` state plus `giftCardOrder`.
 - Snapshot mode returns `null` for unknown `giftCard(id:)`, an empty `giftCards` connection, and `{ count: 0, precision: "EXACT" }` for `giftCardsCount` when no records are present.
 - `giftCards` uses the shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
-- Local query filtering currently covers simple `id`, `enabled`/`active`, and `last_characters` terms.
-- `giftCardConfiguration` exposes `issueLimit` and `purchaseLimit` money objects from normalized snapshot state. When no configuration fixture is present, snapshot mode returns zero-value CAD limits as a safe local placeholder until a readable live fixture is available.
+- Local query filtering covers `id` terms. Live evidence shows Shopify accepts `id:<numeric>` for gift-card search; fields such as `enabled`, `active`, and `last_characters` are invalid search fields and leave Shopify results unfiltered with warnings.
+- `giftCardConfiguration` exposes `issueLimit` and `purchaseLimit` money objects from normalized snapshot state. When no configuration fixture is present, snapshot mode returns zero-value CAD limits as a safe local placeholder.
 
 ## Local Mutation Behavior
 
@@ -43,11 +43,15 @@ Local staged mutations:
 
 - Admin GraphQL gift-card schema shape for the modeled fields and lifecycle payloads
 - active conformance access scopes
-- read/configuration blocker payloads requiring `read_gift_cards`
-- create/lifecycle blocker payloads requiring `write_gift_cards`
+- readable gift-card configuration limits
+- unknown-id and filtered empty read behavior, including empty `giftCards` and `{ count: 0, precision: "EXACT" }` for an `id:` search miss
+- non-empty `giftCards` / `giftCardsCount` behavior from the disposable conformance-shop gift cards
+- successful `giftCardCreate`, `giftCardUpdate`, and `giftCardDeactivate` payloads
+- `giftCard.transactions` blocker payloads requiring `read_gift_card_transactions`
+- `giftCardCredit` / `giftCardDebit` blocker payloads requiring `write_gift_card_transactions`
 - explicit non-execution of notification roots because those roots send customer-visible side effects
 
-The fixture shows the current conformance credential cannot read or mutate live gift cards, so full non-empty Shopify payload parity is blocked on adding `read_gift_cards` and `write_gift_cards` to the conformance grant. The local runtime test remains the executable evidence for staged read-after-write behavior until those scopes are available.
+The fixture shows the current conformance credential can read gift cards and perform the core gift-card create/update/deactivate lifecycle with `read_gift_cards` and `write_gift_cards`. Transaction reads and credit/debit mutations remain live-capture blockers until the conformance grant includes `read_gift_card_transactions` and `write_gift_card_transactions`. The local runtime test remains the executable evidence for staged credit/debit read-after-write behavior.
 
 ## Validation
 

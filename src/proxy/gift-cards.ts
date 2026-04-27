@@ -301,17 +301,9 @@ function giftCardMatchesTerm(giftCard: GiftCardRecord, term: SearchQueryTerm): b
   let matches = true;
 
   switch (term.field) {
-    case 'enabled':
-    case 'active':
-      matches = normalizedValue === String(giftCard.enabled);
-      break;
     case 'id':
       matches =
         normalizedValue === normalizeSearchQueryValue(giftCard.id) || normalizedValue === giftCardTail(giftCard.id);
-      break;
-    case 'last_characters':
-    case 'lastCharacters':
-      matches = normalizedValue === normalizeSearchQueryValue(giftCard.lastCharacters);
       break;
     default:
       matches = true;
@@ -327,12 +319,7 @@ function filterGiftCardsByQuery(giftCards: GiftCardRecord[], rawQuery: unknown):
   }
 
   const terms = parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) =>
-      term.field === 'enabled' ||
-      term.field === 'active' ||
-      term.field === 'id' ||
-      term.field === 'last_characters' ||
-      term.field === 'lastCharacters',
+    (term) => term.field === 'id',
   );
   return terms.length === 0
     ? giftCards

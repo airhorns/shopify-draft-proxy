@@ -189,6 +189,37 @@ const emptyRead = await capture(
   { unknownId },
 );
 
+const filteredEmptyRead = await capture(
+  'filteredEmptyRead',
+  `#graphql
+    query GiftCardFilteredEmptyRead($query: String!) {
+      giftCards(first: 2, query: $query, sortKey: ID) {
+        nodes {
+          id
+          lastCharacters
+        }
+        edges {
+          cursor
+          node {
+            id
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      giftCardsCount(query: $query) {
+        count
+        precision
+      }
+    }
+  `,
+  { query: 'id:999999999999' },
+);
+
 const configurationRead = await capture(
   'configurationRead',
   `#graphql
@@ -425,6 +456,8 @@ await writeFile(
       apiVersion,
       notes: [
         'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
+        'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
+        'Credit/debit transaction mutations and transaction-node reads are captured as payloads or access blockers depending on whether the active credential includes gift-card transaction scopes.',
         'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
       ],
       notificationRoots: {
@@ -439,6 +472,7 @@ await writeFile(
       },
       schemaAndAccess,
       emptyRead,
+      filteredEmptyRead,
       configurationRead,
       create,
       lifecycle,

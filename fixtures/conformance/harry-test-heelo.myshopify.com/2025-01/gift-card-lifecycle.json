@@ -1,9 +1,11 @@
 {
-  "capturedAt": "2026-04-26T02:02:36.923Z",
+  "capturedAt": "2026-04-27T14:15:06.353Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
     "HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.",
+    "The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.",
+    "Credit/debit transaction mutations and transaction-node reads are captured as payloads or access blockers depending on whether the active credential includes gift-card transaction scopes.",
     "Notification roots are intentionally not executed by this capture script because they are customer-visible side effects."
   ],
   "notificationRoots": {
@@ -28,9 +30,6 @@
             "accessScopes": [
               {
                 "handle": "read_assigned_fulfillment_orders"
-              },
-              {
-                "handle": "read_cash_tracking"
               },
               {
                 "handle": "read_content"
@@ -93,9 +92,6 @@
                 "handle": "read_payment_terms"
               },
               {
-                "handle": "read_privacy_settings"
-              },
-              {
                 "handle": "read_product_listings"
               },
               {
@@ -135,6 +131,9 @@
                 "handle": "write_assigned_fulfillment_orders"
               },
               {
+                "handle": "write_cash_tracking"
+              },
+              {
                 "handle": "write_content"
               },
               {
@@ -142,6 +141,9 @@
               },
               {
                 "handle": "write_customers"
+              },
+              {
+                "handle": "write_delivery_customizations"
               },
               {
                 "handle": "write_discounts"
@@ -154,6 +156,9 @@
               },
               {
                 "handle": "write_fulfillments"
+              },
+              {
+                "handle": "write_gift_cards"
               },
               {
                 "handle": "write_inventory"
@@ -195,13 +200,13 @@
                 "handle": "write_payment_terms"
               },
               {
-                "handle": "write_privacy_settings"
-              },
-              {
                 "handle": "write_products"
               },
               {
                 "handle": "write_publications"
+              },
+              {
+                "handle": "write_purchase_options"
               },
               {
                 "handle": "write_returns"
@@ -217,6 +222,18 @@
               },
               {
                 "handle": "write_translations"
+              },
+              {
+                "handle": "read_cash_tracking"
+              },
+              {
+                "handle": "read_delivery_customizations"
+              },
+              {
+                "handle": "read_gift_cards"
+              },
+              {
+                "handle": "read_purchase_options"
               }
             ]
           },
@@ -393,46 +410,101 @@
     "response": {
       "status": 200,
       "payload": {
-        "errors": [
-          {
-            "message": "Access denied for giftCard field. Required access: `read_gift_cards` access scope.",
-            "locations": [
+        "data": {
+          "giftCard": null,
+          "giftCards": {
+            "nodes": [
               {
-                "line": 3,
-                "column": 7
+                "id": "gid://shopify/GiftCard/650834870578",
+                "lastCharacters": "0001"
+              },
+              {
+                "id": "gid://shopify/GiftCard/654759264562",
+                "lastCharacters": "7646"
               }
             ],
-            "extensions": {
-              "code": "ACCESS_DENIED",
-              "documentation": "https://shopify.dev/api/usage/access-scopes",
-              "requiredAccess": "`read_gift_cards` access scope."
-            },
-            "path": ["giftCard"]
+            "edges": [
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NTA4MzQ4NzA1NzgsImxhc3RfdmFsdWUiOiI2NTA4MzQ4NzA1NzgifQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/650834870578"
+                }
+              },
+              {
+                "cursor": "eyJsYXN0X2lkIjo2NTQ3NTkyNjQ1NjIsImxhc3RfdmFsdWUiOiI2NTQ3NTkyNjQ1NjIifQ==",
+                "node": {
+                  "id": "gid://shopify/GiftCard/654759264562"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": true,
+              "hasPreviousPage": false,
+              "startCursor": "eyJsYXN0X2lkIjo2NTA4MzQ4NzA1NzgsImxhc3RfdmFsdWUiOiI2NTA4MzQ4NzA1NzgifQ==",
+              "endCursor": "eyJsYXN0X2lkIjo2NTQ3NTkyNjQ1NjIsImxhc3RfdmFsdWUiOiI2NTQ3NTkyNjQ1NjIifQ=="
+            }
           },
-          {
-            "message": "Access denied for giftCards field. Required access: `read_gift_cards` access scope.",
-            "locations": [
-              {
-                "line": 6,
-                "column": 7
-              }
-            ],
-            "extensions": {
-              "code": "ACCESS_DENIED",
-              "documentation": "https://shopify.dev/api/usage/access-scopes",
-              "requiredAccess": "`read_gift_cards` access scope."
+          "giftCardsCount": {
+            "count": 3,
+            "precision": "EXACT"
+          },
+          "giftCardConfiguration": {
+            "issueLimit": {
+              "amount": "3000.0",
+              "currencyCode": "CAD"
             },
-            "path": ["giftCards"]
+            "purchaseLimit": {
+              "amount": "14000.0",
+              "currencyCode": "CAD"
+            }
           }
-        ],
-        "data": null,
+        },
         "extensions": {
           "cost": {
             "requestedQueryCost": 16,
-            "actualQueryCost": 14,
+            "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1983,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "filteredEmptyRead": {
+    "label": "filteredEmptyRead",
+    "query": "#graphql\n    query GiftCardFilteredEmptyRead($query: String!) {\n      giftCards(first: 2, query: $query, sortKey: ID) {\n        nodes {\n          id\n          lastCharacters\n        }\n        edges {\n          cursor\n          node {\n            id\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      giftCardsCount(query: $query) {\n        count\n        precision\n      }\n    }\n  ",
+    "variables": {
+      "query": "id:999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "giftCards": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "giftCardsCount": {
+            "count": 0,
+            "precision": "EXACT"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 14,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -447,31 +519,25 @@
     "response": {
       "status": 200,
       "payload": {
-        "errors": [
-          {
-            "message": "Access denied for giftCardConfiguration field. Required access: `read_gift_cards` access scope.",
-            "locations": [
-              {
-                "line": 3,
-                "column": 7
-              }
-            ],
-            "extensions": {
-              "code": "ACCESS_DENIED",
-              "documentation": "https://shopify.dev/api/usage/access-scopes",
-              "requiredAccess": "`read_gift_cards` access scope."
+        "data": {
+          "giftCardConfiguration": {
+            "issueLimit": {
+              "amount": "3000.0",
+              "currencyCode": "CAD"
             },
-            "path": ["giftCardConfiguration"]
+            "purchaseLimit": {
+              "amount": "14000.0",
+              "currencyCode": "CAD"
+            }
           }
-        ],
-        "data": null,
+        },
         "extensions": {
           "cost": {
             "requestedQueryCost": 1,
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1994,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -485,7 +551,7 @@
     "variables": {
       "input": {
         "initialValue": "5.00",
-        "code": "HAR3101777168956830",
+        "code": "HAR3101777299305493",
         "note": "HAR-310 conformance gift card",
         "expiresOn": "2027-04-26"
       }
@@ -493,25 +559,31 @@
     "response": {
       "status": 200,
       "payload": {
-        "errors": [
-          {
-            "message": "Access denied for giftCardCreate field. Required access: `write_gift_cards` access scope.",
-            "locations": [
-              {
-                "line": 3,
-                "column": 7
-              }
-            ],
-            "extensions": {
-              "code": "ACCESS_DENIED",
-              "documentation": "https://shopify.dev/api/usage/access-scopes",
-              "requiredAccess": "`write_gift_cards` access scope."
-            },
-            "path": ["giftCardCreate"]
-          }
-        ],
         "data": {
-          "giftCardCreate": null
+          "giftCardCreate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654759330098",
+              "lastCharacters": "5493",
+              "maskedCode": "•••• •••• •••• 5493",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2027-04-26",
+              "note": "HAR-310 conformance gift card",
+              "templateSuffix": null,
+              "createdAt": "2026-04-27T14:15:05Z",
+              "updatedAt": "2026-04-27T14:15:05Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "giftCardCode": "har3101777299305493",
+            "userErrors": []
+          }
         },
         "extensions": {
           "cost": {
@@ -519,7 +591,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1990,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -527,8 +599,305 @@
       }
     }
   },
-  "lifecycle": [],
-  "lifecycleBlocked": {
-    "reason": "giftCardCreate did not return a giftCard.id; see create response for access or validation payload."
-  }
+  "lifecycle": [
+    {
+      "label": "detailAfterCreate",
+      "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for nodes field. Required access: `read_gift_card_transactions` access scope.",
+              "locations": [
+                {
+                  "line": 25,
+                  "column": 15
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_gift_card_transactions` access scope."
+              },
+              "path": ["giftCard", "transactions", "nodes"]
+            }
+          ],
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654759330098",
+              "lastCharacters": "5493",
+              "maskedCode": "•••• •••• •••• 5493",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2027-04-26",
+              "note": "HAR-310 conformance gift card",
+              "templateSuffix": null,
+              "createdAt": "2026-04-27T14:15:05Z",
+              "updatedAt": "2026-04-27T14:15:05Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "transactions": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "update",
+      "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098",
+        "input": {
+          "note": "HAR-310 conformance gift card updated",
+          "templateSuffix": "birthday",
+          "expiresOn": "2028-04-26"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardUpdate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654759330098",
+                "lastCharacters": "5493",
+                "maskedCode": "•••• •••• •••• 5493",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": "2028-04-26",
+                "note": "HAR-310 conformance gift card updated",
+                "templateSuffix": "birthday",
+                "createdAt": "2026-04-27T14:15:05Z",
+                "updatedAt": "2026-04-27T14:15:05Z",
+                "initialValue": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "credit",
+      "query": "#graphql\n        mutation GiftCardCredit($id: ID!, $input: GiftCardCreditInput!) {\n          giftCardCredit(id: $id, creditInput: $input) {\n            giftCardCreditTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098",
+        "input": {
+          "creditAmount": {
+            "amount": "2.00",
+            "currencyCode": "CAD"
+          },
+          "note": "HAR-310 credit"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for giftCardCredit field. Required access: `write_gift_card_transactions` access scope.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 11
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`write_gift_card_transactions` access scope."
+              },
+              "path": ["giftCardCredit"]
+            }
+          ],
+          "data": {
+            "giftCardCredit": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "debit",
+      "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098",
+        "input": {
+          "debitAmount": {
+            "amount": "1.00",
+            "currencyCode": "CAD"
+          },
+          "note": "HAR-310 debit"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for giftCardDebit field. Required access: `write_gift_card_transactions` access scope.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 11
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`write_gift_card_transactions` access scope."
+              },
+              "path": ["giftCardDebit"]
+            }
+          ],
+          "data": {
+            "giftCardDebit": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "deactivate",
+      "query": "#graphql\n        mutation GiftCardDeactivate($id: ID!) {\n          giftCardDeactivate(id: $id) {\n            giftCard {\n              id\n              enabled\n              deactivatedAt\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654759330098",
+                "enabled": false,
+                "deactivatedAt": "2026-04-27T14:15:06Z",
+                "balance": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "detailAfterDeactivate",
+      "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n          }\n        }\n      ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654759330098"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654759330098",
+              "lastCharacters": "5493",
+              "maskedCode": "•••• •••• •••• 5493",
+              "enabled": false,
+              "deactivatedAt": "2026-04-27T14:15:06Z",
+              "expiresOn": "2028-04-26",
+              "note": "HAR-310 conformance gift card updated",
+              "templateSuffix": "birthday",
+              "createdAt": "2026-04-27T14:15:05Z",
+              "updatedAt": "2026-04-27T14:15:06Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "lifecycleBlocked": null
 }

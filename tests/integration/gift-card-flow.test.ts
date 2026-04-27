@@ -137,6 +137,27 @@ describe('gift-card local staging', () => {
             count
             precision
           }
+          filteredEmptyGiftCards: giftCards(first: 2, query: "id:999999999999", sortKey: ID) {
+            nodes {
+              id
+            }
+            edges {
+              cursor
+              node {
+                id
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          filteredEmptyGiftCardsCount: giftCardsCount(query: "id:999999999999") {
+            count
+            precision
+          }
           giftCardConfiguration {
             issueLimit {
               amount
@@ -202,6 +223,17 @@ describe('gift-card local staging', () => {
       },
     });
     expect(response.body.data.giftCardsCount).toEqual({ count: 1, precision: 'EXACT' });
+    expect(response.body.data.filteredEmptyGiftCards).toEqual({
+      nodes: [],
+      edges: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(response.body.data.filteredEmptyGiftCardsCount).toEqual({ count: 0, precision: 'EXACT' });
     expect(response.body.data.giftCardConfiguration).toEqual({
       issueLimit: {
         amount: '1000.0',
