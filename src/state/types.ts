@@ -680,6 +680,25 @@ export const customerPaymentMethodRecordSchema = z.strictObject({
 });
 export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
 
+export const storeCreditAccountTransactionRecordSchema = z.strictObject({
+  id: z.string(),
+  accountId: z.string(),
+  amount: moneyV2RecordSchema,
+  balanceAfterTransaction: moneyV2RecordSchema,
+  createdAt: z.string(),
+  event: z.string(),
+  origin: jsonObjectSchema.nullable().default(null),
+});
+export type StoreCreditAccountTransactionRecord = z.infer<typeof storeCreditAccountTransactionRecordSchema>;
+
+export const storeCreditAccountRecordSchema = z.strictObject({
+  id: z.string(),
+  customerId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  balance: moneyV2RecordSchema,
+});
+export type StoreCreditAccountRecord = z.infer<typeof storeCreditAccountRecordSchema>;
+
 export const segmentRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
@@ -1830,6 +1849,8 @@ export const stateSnapshotSchema = z.strictObject({
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
+  storeCreditAccounts: z.record(z.string(), storeCreditAccountRecordSchema).default({}),
+  storeCreditAccountTransactions: z.record(z.string(), storeCreditAccountTransactionRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
   customerSegmentMembersQueries: z.record(z.string(), customerSegmentMembersQueryRecordSchema).default({}),
   webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
