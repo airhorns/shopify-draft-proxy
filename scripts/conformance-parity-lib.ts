@@ -51,6 +51,10 @@ import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
 } from '../src/proxy/metafield-definitions.js';
+import {
+  handleMetaobjectDefinitionMutation,
+  handleMetaobjectDefinitionQuery,
+} from '../src/proxy/metaobject-definitions.js';
 import { handlePaymentMutation, handlePaymentQuery } from '../src/proxy/payments.js';
 import {
   handleSegmentMutation,
@@ -877,6 +881,27 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
+    const body = handleMetaobjectDefinitionMutation(document, variables);
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1000,6 +1025,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMetafieldDefinitionQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
+    return {
+      status: 200,
+      body: handleMetaobjectDefinitionQuery(document, variables),
     };
   }
 
@@ -1166,6 +1198,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
     Object.keys(stagedState.metafieldDefinitions).length > 0 ||
+    Object.keys(stagedState.metaobjectDefinitions).length > 0 ||
+    Object.keys(stagedState.deletedMetaobjectDefinitionIds).length > 0 ||
     Object.keys(stagedState.deletedProductIds).length > 0 ||
     Object.keys(stagedState.deletedFileIds).length > 0 ||
     Object.keys(stagedState.deletedCollectionIds).length > 0 ||

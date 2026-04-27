@@ -1,0 +1,27 @@
+query MetaobjectDefinitionLifecycleRead($id: ID!, $type: String!) {
+  byId: metaobjectDefinition(id: $id) {
+    id
+    type
+    name
+    displayNameKey
+    fieldDefinitions {
+      key
+    }
+  }
+  byType: metaobjectDefinitionByType(type: $type) {
+    id
+    type
+    name
+    displayNameKey
+    fieldDefinitions {
+      key
+    }
+  }
+  catalog: metaobjectDefinitions(first: 5) {
+    nodes {
+      id
+      type
+      name
+    }
+  }
+}

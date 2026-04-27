@@ -114,7 +114,7 @@ The seeded branch creates one disposable merchant-owned metaobject definition an
 
 HAR-241 adds `config/parity-specs/metaobject-definitions-read.json` for the definition-read subset of this fixture, enforced by `tests/integration/metaobject-definition-query-shapes.test.ts`.
 
-HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json` and enforced by `tests/integration/metaobject-definition-draft-flow.test.ts`. This runtime fixture covers local definition create/update/delete, bounded standard enablement, downstream definition reads, meta API log/state visibility, no runtime Shopify writes, and explicit unsupported handling for associated-entry delete cascades.
+HAR-242 adds `config/parity-specs/metaobject-definition-lifecycle-local-staging.json`, backed by `fixtures/conformance/local-runtime/2026-04/metaobject-definition-draft-flow.json`, `config/parity-requests/metaobject-definition-*.graphql`, and `tests/integration/metaobject-definition-draft-flow.test.ts`. The convention-driven parity runner executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets. The runtime test also covers meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and explicit unsupported handling for associated-entry delete cascades.
 
 Entry reads and entry mutation lifecycles still need implementation before the full `metaobjects-read.json` capture can be promoted as a strict end-to-end parity scenario without expected gaps.
 
