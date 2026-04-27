@@ -179,6 +179,7 @@ function writeSnapshot(shop: ShopRecord | null): string {
       savedSearchOrder: [],
       bulkOperations: {},
       bulkOperationOrder: [],
+      bulkOperationResults: {},
       discounts: {},
       discountBulkOperations: {},
       paymentCustomizations: {},

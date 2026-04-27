@@ -752,7 +752,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     name: 'bulk-operations',
     canHandle: (request) => request.capability.domain === 'bulk-operations',
     handleMutation(request) {
-      if (request.capability.execution !== 'stage-locally' || request.primaryRootField !== 'bulkOperationCancel') {
+      if (
+        request.capability.execution !== 'stage-locally' ||
+        (request.primaryRootField !== 'bulkOperationCancel' && request.primaryRootField !== 'bulkOperationRunQuery')
+      ) {
         return false;
       }
 

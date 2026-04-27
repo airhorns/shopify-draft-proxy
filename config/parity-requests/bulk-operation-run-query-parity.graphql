@@ -1,0 +1,22 @@
+mutation BulkOperationRunQueryParity($query: String!) {
+  bulkOperationRunQuery(query: $query) {
+    bulkOperation {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
