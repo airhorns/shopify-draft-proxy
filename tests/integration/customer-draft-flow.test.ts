@@ -4956,4 +4956,130 @@ describe('customer draft flow', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages customer data erasure request and cancel intents locally with audit state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer data erasure mutations should not hit upstream fetch');
+    });
+
+    store.upsertBaseCustomers([makeConsentCustomer({ id: 'gid://shopify/Customer/7007' })]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerDataErasure($customerId: ID!) {
+          request: customerRequestDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+          cancel: customerCancelDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/7007' },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        request: {
+          customerId: 'gid://shopify/Customer/7007',
+          userErrors: [],
+        },
+        cancel: {
+          customerId: 'gid://shopify/Customer/7007',
+          userErrors: [],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const log = store.getLog();
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({
+      operationName: 'customerRequestDataErasure',
+      path: '/admin/api/2025-01/graphql.json',
+      status: 'staged',
+      interpreted: {
+        operationType: 'mutation',
+        operationName: 'CustomerDataErasure',
+        rootFields: ['customerRequestDataErasure', 'customerCancelDataErasure'],
+        primaryRootField: 'customerRequestDataErasure',
+        capability: {
+          domain: 'customers',
+          execution: 'stage-locally',
+        },
+      },
+      requestBody: {
+        variables: { customerId: 'gid://shopify/Customer/7007' },
+      },
+    });
+
+    const erasureRequest = store.getState().stagedState.customerDataErasureRequests['gid://shopify/Customer/7007'];
+    expect(erasureRequest).toMatchObject({
+      customerId: 'gid://shopify/Customer/7007',
+    });
+    expect(erasureRequest?.requestedAt).toBeTruthy();
+    expect(erasureRequest?.canceledAt).toBeTruthy();
+
+    const repeatCancelResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RepeatCustomerDataErasureCancel($customerId: ID!) {
+          customerCancelDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/7007' },
+      });
+
+    expect(repeatCancelResponse.status).toBe(200);
+    expect(repeatCancelResponse.body).toEqual({
+      data: {
+        customerCancelDataErasure: {
+          customerId: null,
+          userErrors: [
+            {
+              field: ['customerId'],
+              message: "Customer's data is not scheduled for erasure",
+              code: 'NOT_BEING_ERASED',
+            },
+          ],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const missingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation MissingCustomerDataErasure($customerId: ID!) {
+          customerRequestDataErasure(customerId: $customerId) {
+            customerId
+            userErrors { field message code }
+          }
+        }`,
+        variables: { customerId: 'gid://shopify/Customer/999999999999999' },
+      });
+
+    expect(missingResponse.status).toBe(200);
+    expect(missingResponse.body).toEqual({
+      data: {
+        customerRequestDataErasure: {
+          customerId: null,
+          userErrors: [
+            {
+              field: ['customerId'],
+              message: 'Customer does not exist',
+              code: 'DOES_NOT_EXIST',
+            },
+          ],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

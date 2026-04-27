@@ -1,0 +1,12 @@
+query CustomerDataErasureCustomerRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    firstName
+    lastName
+    tags
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+}
