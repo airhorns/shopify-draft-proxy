@@ -25,6 +25,7 @@ import { handleDeliverySettingsQuery } from './delivery-settings.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from './discounts.js';
 import { handleEventsQuery } from './events.js';
+import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from './inventory-shipments.js';
 import {
   FUNCTION_MUTATION_ROOTS,
   FUNCTION_QUERY_ROOTS,
@@ -179,6 +180,18 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
+
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
 
 function readVariables(raw: unknown): Record<string, unknown> {
   return typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
@@ -777,6 +790,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       isProductLocalMutationCapability(request.capability) ||
       (request.capability.execution === 'overlay-read' && request.capability.domain === 'products'),
     async handleQuery(request) {
+      if (request.primaryRootField === 'inventoryShipment') {
+        if (request.config.readMode === 'snapshot') {
+          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          return true;
+        }
+
+        if (request.config.readMode === 'live-hybrid' && store.hasInventoryShipments()) {
+          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          return true;
+        }
+      }
+
       if (request.config.readMode === 'snapshot') {
         setGraphQLResponse(
           request,
@@ -797,13 +822,33 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts() || store.hasStagedSellingPlanGroups() || store.hasStagedInventoryTransfers()
+        store.hasStagedProducts() ||
+          store.hasStagedSellingPlanGroups() ||
+          store.hasStagedInventoryTransfers() ||
+          store.hasInventoryShipments()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
       return true;
     },
     handleMutation(request) {
+      if (request.primaryRootField && INVENTORY_SHIPMENT_MUTATION_ROOTS.has(request.primaryRootField)) {
+        const inventoryShipmentMutation = handleInventoryShipmentMutation(request.body.query, request.variables);
+        if (!inventoryShipmentMutation) {
+          return false;
+        }
+
+        if (inventoryShipmentMutation.staged) {
+          appendStagedMutationLog(request, {
+            stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
+            notes: inventoryShipmentMutation.notes,
+          });
+        }
+
+        setGraphQLResponse(request, 200, inventoryShipmentMutation.response);
+        return true;
+      }
+
       request.proxyLogger.debug(
         {
           execution: request.capability.execution,

@@ -39,6 +39,7 @@ import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
 import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
+import { handleInventoryShipmentMutation, handleInventoryShipmentQuery } from '../src/proxy/inventory-shipments.js';
 import {
   handleMarketingMutation,
   handleMarketingQuery,
@@ -84,6 +85,11 @@ import {
   hydrateSegmentsFromUpstreamResponse,
 } from '../src/proxy/segments.js';
 import { handleStorePropertiesMutation, handleStorePropertiesQuery } from '../src/proxy/store-properties.js';
+import {
+  handleWebhookSubscriptionMutation,
+  handleWebhookSubscriptionQuery,
+  hydrateWebhookSubscriptionsFromUpstreamResponse,
+} from '../src/proxy/webhooks.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
@@ -786,6 +792,18 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
+
 async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
@@ -810,6 +828,33 @@ async function executeGraphQLAgainstLocalProxy(
     (capability.domain === 'products' ||
       (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
   ) {
+    if (parsed.rootFields.some((rootField) => INVENTORY_SHIPMENT_MUTATION_ROOTS.has(rootField))) {
+      const inventoryShipmentMutation = handleInventoryShipmentMutation(document, variables);
+      if (!inventoryShipmentMutation) {
+        throw new Error(`Inventory shipment parity request was not handled locally: ${capability.operationName}`);
+      }
+
+      if (inventoryShipmentMutation.staged) {
+        store.appendLog({
+          id: makeSyntheticGid('MutationLogEntry'),
+          receivedAt: makeSyntheticTimestamp(),
+          operationName: capability.operationName,
+          path: '/admin/api/2025-01/graphql.json',
+          query: document,
+          variables,
+          status: 'staged',
+          interpreted: interpretMutationLogEntry(parsed, capability),
+          stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
+          notes: inventoryShipmentMutation.notes,
+        });
+      }
+
+      return {
+        status: 200,
+        body: inventoryShipmentMutation.response,
+      };
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
@@ -1111,6 +1156,33 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'webhooks') {
+    const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(document, variables);
+    if (!webhookSubscriptionMutation) {
+      throw new Error(`Webhook-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (webhookSubscriptionMutation.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
+        notes: webhookSubscriptionMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: webhookSubscriptionMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1263,6 +1335,13 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'products') {
+    if (parsed.rootFields.includes('inventoryShipment')) {
+      return {
+        status: 200,
+        body: handleInventoryShipmentQuery(document, variables),
+      };
+    }
+
     if (upstreamPayload !== undefined) {
       hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
       if (!hasStagedState()) {
@@ -1511,6 +1590,23 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
+    if (upstreamPayload !== undefined) {
+      hydrateWebhookSubscriptionsFromUpstreamResponse(document, variables, upstreamPayload);
+      if (!hasStagedState()) {
+        return {
+          status: 200,
+          body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
+        };
+      }
+    }
+
+    return {
+      status: 200,
+      body: handleWebhookSubscriptionQuery(document, variables),
+    };
+  }
+
   throw new Error(
     `Parity execution does not allow live Shopify requests or unsupported operations: ${capability.operationName}`,
   );
@@ -1528,6 +1624,8 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.productMedia).length > 0 ||
     Object.keys(stagedState.files).length > 0 ||
     Object.keys(stagedState.productMetafields).length > 0 ||
+    Object.keys(stagedState.inventoryShipments).length > 0 ||
+    Object.keys(stagedState.deletedInventoryShipmentIds).length > 0 ||
     Object.keys(stagedState.metafieldDefinitions).length > 0 ||
     Object.keys(stagedState.metaobjectDefinitions).length > 0 ||
     Object.keys(stagedState.deletedMetaobjectDefinitionIds).length > 0 ||
@@ -1541,7 +1639,9 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.draftOrders).length > 0 ||
     Object.keys(stagedState.calculatedOrders).length > 0 ||
     Object.keys(stagedState.giftCards).length > 0 ||
-    Object.keys(stagedState.deletedGiftCardIds).length > 0
+    Object.keys(stagedState.deletedGiftCardIds).length > 0 ||
+    Object.keys(stagedState.webhookSubscriptions).length > 0 ||
+    Object.keys(stagedState.deletedWebhookSubscriptionIds).length > 0
   );
 }
 
@@ -5446,6 +5546,42 @@ function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId
   return true;
 }
 
+function seedProductReorderMediaPreconditions(capture: unknown, productId: string): boolean {
+  if (mutationNameFromCapture(capture) !== 'productReorderMedia') {
+    return false;
+  }
+
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const setupCreatedProduct = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreate'), 'data'),
+    'productCreate',
+  );
+  const setupProduct = readRecordField(setupCreatedProduct, 'product');
+  const setupCreateMedia = readRecordField(
+    readRecordField(readRecordField(setup, 'productCreateMedia'), 'response'),
+    'data',
+  );
+  const createMediaPayload = readRecordField(setupCreateMedia, 'productCreateMedia');
+  const mediaProduct = readRecordField(createMediaPayload, 'product');
+  const productSource =
+    readStringField(setupProduct, 'id') === productId
+      ? setupProduct
+      : readStringField(mediaProduct, 'id') === productId
+        ? mediaProduct
+        : null;
+
+  if (!productSource) {
+    return false;
+  }
+
+  store.upsertBaseProducts([makeSeedProduct(productId, productSource, 'Product media reorder conformance seed')]);
+  const capturedMedia = readCapturedProductMedia(productId, mediaProduct);
+  if (capturedMedia.length > 0) {
+    store.replaceBaseMediaForProduct(productId, capturedMedia);
+  }
+  return true;
+}
+
 function readTagQueryValue(query: string | null): string | null {
   if (!query) {
     return null;
@@ -7010,6 +7146,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       mutationName === 'productVariantsBulkReorder' &&
       seedProductVariantsBulkReorderPreconditions(capture, productId)
     ) {
+      return;
+    }
+
+    if (mutationName === 'productReorderMedia' && seedProductReorderMediaPreconditions(capture, productId)) {
       return;
     }
 

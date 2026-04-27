@@ -1,0 +1,48 @@
+query QuantityPricingPriceListRead($priceListId: ID!) {
+  priceList(id: $priceListId) {
+    id
+    currency
+    quantityRules(first: 10) {
+      edges {
+        node {
+          minimum
+          maximum
+          increment
+          isDefault
+          originType
+          productVariant {
+            id
+          }
+        }
+      }
+    }
+    prices(first: 10, originType: FIXED) {
+      edges {
+        node {
+          price {
+            amount
+            currencyCode
+          }
+          originType
+          variant {
+            id
+          }
+          quantityPriceBreaks(first: 10) {
+            edges {
+              node {
+                minimumQuantity
+                price {
+                  amount
+                  currencyCode
+                }
+                variant {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
