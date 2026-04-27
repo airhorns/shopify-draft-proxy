@@ -5379,6 +5379,17 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       store.replaceBaseVariantsForProduct(productId, variants);
     }
   }
+  const sellingPlanInput = readRecordField(variables, 'input');
+  const sellingPlanResources = readRecordField(variables, 'resources');
+  const isSellingPlanGroupLifecycleSeed =
+    seedProducts.length > 0 &&
+    (readArrayField(sellingPlanInput, 'sellingPlansToCreate').length > 0 ||
+      readArrayField(sellingPlanInput, 'sellingPlansToUpdate').length > 0 ||
+      readArrayField(sellingPlanResources, 'productIds').length > 0 ||
+      readArrayField(sellingPlanResources, 'productVariantIds').length > 0);
+  if (isSellingPlanGroupLifecycleSeed) {
+    return;
+  }
   seedExplicitProductMediaPreconditions(capture);
 
   seedProductMetafieldsReadPreconditions(capture);
@@ -5401,6 +5412,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
+  if (mutationName?.startsWith('sellingPlanGroup') && seedProducts.length > 0) {
+    return;
+  }
+
   if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
     return;
   }

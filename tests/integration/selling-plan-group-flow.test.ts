@@ -194,7 +194,7 @@ describe('selling plan group flow', () => {
     expect(downstreamAfterCreate.body.data.productVariant).toMatchObject({
       id: variantId,
       sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
-      sellingPlanGroups: { nodes: [] },
+      sellingPlanGroups: { nodes: [{ id: groupId, name: 'Subscribe and save', merchantCode: 'subscribe-save' }] },
     });
 
     const removeProductResponse = await request(app)

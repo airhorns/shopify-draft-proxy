@@ -9,6 +9,20 @@
   "productId": "gid://shopify/Product/10171897807154",
   "variantId": "gid://shopify/ProductVariant/51104286736690",
   "groupId": "gid://shopify/SellingPlanGroup/2876604722",
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10171897807154",
+      "title": "HAR-308 selling plan mohaplvo",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51104286736690",
+            "title": "Default Title"
+          }
+        ]
+      }
+    }
+  ],
   "captures": [
     {
       "label": "schema and access",

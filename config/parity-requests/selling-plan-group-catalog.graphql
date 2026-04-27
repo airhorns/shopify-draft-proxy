@@ -1,0 +1,27 @@
+query ReadSellingPlanGroups($productId: ID!, $variantId: ID!) {
+  sellingPlanGroups(first: 5) {
+    nodes {
+      name
+      merchantCode
+      options
+      position
+      productsCount {
+        count
+        precision
+      }
+      productVariantsCount {
+        count
+        precision
+      }
+      appliesToProduct(productId: $productId)
+      appliesToProductVariant(productVariantId: $variantId)
+      appliesToProductVariants(productId: $productId)
+      sellingPlans(first: 5) {
+        nodes {
+          name
+          options
+        }
+      }
+    }
+  }
+}

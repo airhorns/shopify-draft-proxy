@@ -5509,7 +5509,7 @@ function serializeVariantSelectionSet(
         break;
       case 'sellingPlanGroups':
         result[key] = serializeSellingPlanGroupConnection(
-          store.listEffectiveSellingPlanGroupsForProductVariant(variant.id),
+          store.listEffectiveSellingPlanGroupsVisibleForProductVariant(variant.id),
           selection,
           variables,
         );

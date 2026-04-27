@@ -249,6 +249,7 @@ const suffix = Date.now().toString(36);
 let productId: string | null = null;
 let variantId: string | null = null;
 let groupId: string | null = null;
+let seedProducts: unknown[] = [];
 const captures: Capture[] = [];
 const cleanup: Array<{ label: string; status: number; response: unknown }> = [];
 
@@ -261,6 +262,7 @@ try {
   );
   const createdProduct = readObject(readObject(captureData(captures.at(-1)!)['productCreate'])['product']);
   productId = createdProduct['id'] as string;
+  seedProducts = [createdProduct];
   const variantNodes = readArray(readObject(createdProduct['variants'])['nodes']);
   variantId = readObject(variantNodes[0])['id'] as string;
 
@@ -398,6 +400,7 @@ await writeFile(
       productId,
       variantId,
       groupId,
+      seedProducts,
       captures,
       cleanup,
     },

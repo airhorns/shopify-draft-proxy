@@ -1,0 +1,24 @@
+mutation AddProducts($id: ID!, $productIds: [ID!]!, $productId: ID!, $variantId: ID!) {
+  sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {
+    sellingPlanGroup {
+      name
+      merchantCode
+      productsCount {
+        count
+        precision
+      }
+      productVariantsCount {
+        count
+        precision
+      }
+      appliesToProduct(productId: $productId)
+      appliesToProductVariant(productVariantId: $variantId)
+      appliesToProductVariants(productId: $productId)
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

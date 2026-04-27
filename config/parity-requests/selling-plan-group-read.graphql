@@ -1,0 +1,17 @@
+query ReadSellingPlanGroup($id: ID!, $productId: ID!, $variantId: ID!) {
+  sellingPlanGroup(id: $id) {
+    name
+    merchantCode
+    productsCount {
+      count
+      precision
+    }
+    productVariantsCount {
+      count
+      precision
+    }
+    appliesToProduct(productId: $productId)
+    appliesToProductVariant(productVariantId: $variantId)
+    appliesToProductVariants(productId: $productId)
+  }
+}

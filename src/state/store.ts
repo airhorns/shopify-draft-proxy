@@ -754,6 +754,14 @@ export class InMemoryStore {
     return this.listEffectiveSellingPlanGroups().filter((group) => group.productVariantIds.includes(variantId));
   }
 
+  listEffectiveSellingPlanGroupsVisibleForProductVariant(variantId: string): SellingPlanGroupRecord[] {
+    const variant = this.getEffectiveVariantById(variantId);
+    return this.listEffectiveSellingPlanGroups().filter(
+      (group) =>
+        group.productVariantIds.includes(variantId) || (variant ? group.productIds.includes(variant.productId) : false),
+    );
+  }
+
   hasSellingPlanGroups(): boolean {
     return (
       Object.keys(this.baseState.sellingPlanGroups).length > 0 ||
