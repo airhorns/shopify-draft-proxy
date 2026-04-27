@@ -1,0 +1,18 @@
+mutation PublicationLifecyclePublishCollection($collectionId: ID!, $publicationId: ID!) {
+  publishablePublish(id: $collectionId, input: [{ publicationId: $publicationId }]) {
+    publishable {
+      ... on Collection {
+        id
+        publishedOnPublication(publicationId: $publicationId)
+        publicationCount {
+          count
+          precision
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

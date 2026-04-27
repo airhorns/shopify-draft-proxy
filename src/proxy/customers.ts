@@ -40,7 +40,10 @@ import type {
   CustomerPaymentMethodRecord,
   CustomerPaymentMethodSubscriptionContractRecord,
   CustomerRecord,
+  MoneyV2Record,
   OrderRecord,
+  StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
 } from '../state/types.js';
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -762,6 +765,228 @@ function serializeMoneySelection(
   return result;
 }
 
+function parseStoreCreditAmountCents(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(String(value));
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return Math.round(parsed * 100);
+}
+
+function formatStoreCreditAmount(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function normalizeStoreCreditMoney(raw: unknown): MoneyV2Record | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const amount = raw['amount'];
+  const currencyCode = raw['currencyCode'];
+  if (
+    (typeof amount !== 'string' && typeof amount !== 'number') ||
+    typeof currencyCode !== 'string' ||
+    currencyCode.length === 0
+  ) {
+    return null;
+  }
+
+  const cents = parseStoreCreditAmountCents(amount);
+  if (cents === null) {
+    return null;
+  }
+
+  return {
+    amount: formatStoreCreditAmount(cents),
+    currencyCode,
+  };
+}
+
+function serializeMoneyV2Selection(field: FieldNode, value: MoneyV2Record): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'amount':
+        result[key] = value.amount;
+        break;
+      case 'currencyCode':
+        result[key] = value.currencyCode;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeStoreCreditOwnerSelection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const customer = store.getEffectiveCustomerById(customerId);
+  const result: Record<string, unknown> = {};
+  const selections = field.selectionSet?.selections ?? [];
+
+  const serializeSelection = (selection: SelectionNode): void => {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeCondition = selection.typeCondition?.name.value;
+      if (!typeCondition || typeCondition === 'Customer' || typeCondition === 'HasStoreCreditAccounts') {
+        for (const inlineSelection of selection.selectionSet.selections) {
+          serializeSelection(inlineSelection);
+        }
+      }
+      return;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      return;
+    }
+
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Customer';
+        break;
+      case 'id':
+        result[key] = customer?.id ?? customerId;
+        break;
+      case 'email':
+        result[key] = customer?.email ?? null;
+        break;
+      case 'displayName':
+        result[key] = customer?.displayName ?? null;
+        break;
+      case 'firstName':
+        result[key] = customer?.firstName ?? null;
+        break;
+      case 'lastName':
+        result[key] = customer?.lastName ?? null;
+        break;
+      default:
+        result[key] = customer ? serializeCustomerSelection(customer, field, variables)[key] : null;
+        break;
+    }
+  };
+
+  for (const selection of selections) {
+    serializeSelection(selection);
+  }
+
+  return result;
+}
+
+function serializeStoreCreditTransactionSelection(
+  transaction: StoreCreditAccountTransactionRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'account': {
+        const account = store.getEffectiveStoreCreditAccountById(transaction.accountId);
+        result[key] = account ? serializeStoreCreditAccountSelection(account, selection, variables) : null;
+        break;
+      }
+      case 'amount':
+        result[key] = serializeMoneyV2Selection(selection, transaction.amount);
+        break;
+      case 'balanceAfterTransaction':
+        result[key] = serializeMoneyV2Selection(selection, transaction.balanceAfterTransaction);
+        break;
+      case 'createdAt':
+        result[key] = transaction.createdAt;
+        break;
+      case 'event':
+        result[key] = transaction.event;
+        break;
+      case 'origin':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeStoreCreditTransactionsConnection(
+  accountId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const sortedTransactions = store.listEffectiveStoreCreditAccountTransactions(accountId);
+  const transactions = args['reverse'] === true ? [...sortedTransactions].reverse() : sortedTransactions;
+  const window = paginateConnectionItems(transactions, field, variables, (transaction) => transaction.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (transaction) => transaction.id,
+    serializeNode: (transaction, selection) =>
+      serializeStoreCreditTransactionSelection(transaction, selection, variables),
+  });
+}
+
+function serializeStoreCreditAccountSelection(
+  account: StoreCreditAccountRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = account.id;
+        break;
+      case 'balance':
+        result[key] = serializeMoneyV2Selection(selection, account.balance);
+        break;
+      case 'owner':
+        result[key] = serializeStoreCreditOwnerSelection(account.customerId, selection, variables);
+        break;
+      case 'transactions':
+        result[key] = serializeStoreCreditTransactionsConnection(account.id, selection, variables);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeStoreCreditAccountsConnection(
+  customerId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const accounts = store.listEffectiveStoreCreditAccountsForCustomer(customerId);
+  const window = paginateConnectionItems(accounts, field, variables, (account) => account.cursor ?? account.id);
+
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (account) => account.cursor ?? account.id,
+    serializeNode: (account, selection) => serializeStoreCreditAccountSelection(account, selection, variables),
+  });
+}
+
 function serializeDefaultEmailSelection(
   field: FieldNode,
   value: CustomerRecord['defaultEmailAddress'],
@@ -1435,9 +1660,11 @@ function serializeCustomerSelection(
         result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
         break;
       case 'events':
-      case 'storeCreditAccounts':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
+        break;
+      case 'storeCreditAccounts':
+        result[key] = serializeStoreCreditAccountsConnection(customer.id, selection, variables);
         break;
       case 'orders':
         result[key] = serializeCustomerOrdersConnection(customer.id, selection, variables);
@@ -3897,6 +4124,77 @@ function buildSyntheticAccountActivationUrl(customerId: string): string {
   return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
 }
 
+function buildStoreCreditAccountNotFoundError(): CustomerMutationUserError {
+  return {
+    field: ['id'],
+    message: 'Store credit account does not exist',
+    code: 'ACCOUNT_NOT_FOUND',
+  };
+}
+
+function buildStoreCreditAmountError(inputName: 'creditInput' | 'debitInput'): CustomerMutationUserError {
+  return {
+    field: [inputName, inputName === 'creditInput' ? 'creditAmount' : 'debitAmount', 'amount'],
+    message: 'Amount must be greater than zero',
+    code: 'NEGATIVE_OR_ZERO_AMOUNT',
+  };
+}
+
+function buildStoreCreditCurrencyError(inputName: 'creditInput' | 'debitInput'): CustomerMutationUserError {
+  return {
+    field: [inputName, inputName === 'creditInput' ? 'creditAmount' : 'debitAmount', 'currencyCode'],
+    message: 'Currency must match the store credit account currency',
+    code: 'MISMATCHING_CURRENCY',
+  };
+}
+
+function buildStoreCreditInsufficientFundsError(): CustomerMutationUserError {
+  return {
+    field: ['debitInput', 'debitAmount', 'amount'],
+    message: 'Store credit account does not have sufficient funds',
+    code: 'INSUFFICIENT_FUNDS',
+  };
+}
+
+function buildStoreCreditExpiresAtPastError(): CustomerMutationUserError {
+  return {
+    field: ['creditInput', 'expiresAt'],
+    message: 'Expiration date must be in the future',
+    code: 'EXPIRES_AT_IN_PAST',
+  };
+}
+
+function stageStoreCreditAdjustment(
+  account: StoreCreditAccountRecord,
+  amount: MoneyV2Record,
+  direction: 'credit' | 'debit',
+): StoreCreditAccountTransactionRecord {
+  const balanceCents = parseStoreCreditAmountCents(account.balance.amount) ?? 0;
+  const amountCents = parseStoreCreditAmountCents(amount.amount) ?? 0;
+  const signedAmountCents = direction === 'credit' ? amountCents : -amountCents;
+  const nextBalance: MoneyV2Record = {
+    amount: formatStoreCreditAmount(balanceCents + signedAmountCents),
+    currencyCode: account.balance.currencyCode,
+  };
+  const stagedAccount = store.stageStoreCreditAccount({
+    ...account,
+    balance: nextBalance,
+  });
+
+  return store.stageStoreCreditAccountTransaction({
+    id: makeSyntheticGid('StoreCreditAccountTransaction'),
+    accountId: stagedAccount.id,
+    amount: {
+      amount: formatStoreCreditAmount(signedAmountCents),
+      currencyCode: account.balance.currencyCode,
+    },
+    balanceAfterTransaction: nextBalance,
+    createdAt: makeSyntheticTimestamp(),
+    event: 'ADJUSTMENT',
+    origin: null,
+  });
+}
+
 function isCustomerPaymentMethodGid(value: string): boolean {
   return value.startsWith('gid://shopify/CustomerPaymentMethod/');
 }
@@ -3911,6 +4209,7 @@ function serializeCustomerMutationPayload(
     deletedCustomerId?: string | null;
     deletedCustomerAddressId?: string | null;
     resultingCustomerId?: string | null;
+    storeCreditAccountTransaction?: StoreCreditAccountTransactionRecord | null;
     job?: { id: string; done: boolean } | null;
     shop?: boolean;
     userErrors: CustomerMutationUserError[];
@@ -3945,6 +4244,11 @@ function serializeCustomerMutationPayload(
         break;
       case 'resultingCustomerId':
         result[key] = payload.resultingCustomerId ?? null;
+        break;
+      case 'storeCreditAccountTransaction':
+        result[key] = payload.storeCreditAccountTransaction
+          ? serializeStoreCreditTransactionSelection(payload.storeCreditAccountTransaction, selection, variables)
+          : null;
         break;
       case 'job':
         result[key] = serializeJobSelection(selection, payload.job ?? null);
@@ -4071,6 +4375,65 @@ export function handleCustomerMutation(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
+
+    if (field.name.value === 'storeCreditAccountCredit' || field.name.value === 'storeCreditAccountDebit') {
+      const isCredit = field.name.value === 'storeCreditAccountCredit';
+      const inputName = isCredit ? 'creditInput' : 'debitInput';
+      const amountInputName = isCredit ? 'creditAmount' : 'debitAmount';
+      const accountId = typeof args['id'] === 'string' ? args['id'] : null;
+      const account = accountId ? store.getEffectiveStoreCreditAccountById(accountId) : null;
+      const input = isObject(args[inputName]) ? args[inputName] : {};
+      const amount = normalizeStoreCreditMoney(input[amountInputName]);
+      const amountCents = amount ? parseStoreCreditAmountCents(amount.amount) : null;
+      const userErrors: CustomerMutationUserError[] = [];
+
+      if (!account) {
+        userErrors.push(buildStoreCreditAccountNotFoundError());
+      }
+      if (!amount || amountCents === null || amountCents <= 0) {
+        userErrors.push(buildStoreCreditAmountError(inputName));
+      }
+      if (account && amount && amount.currencyCode !== account.balance.currencyCode) {
+        userErrors.push(buildStoreCreditCurrencyError(inputName));
+      }
+      if (
+        isCredit &&
+        typeof input['expiresAt'] === 'string' &&
+        input['expiresAt'].trim().length > 0 &&
+        Date.parse(input['expiresAt']) <= Date.now()
+      ) {
+        userErrors.push(buildStoreCreditExpiresAtPastError());
+      }
+      if (!isCredit && account && amountCents !== null) {
+        const balanceCents = parseStoreCreditAmountCents(account.balance.amount) ?? 0;
+        if (amountCents > balanceCents) {
+          userErrors.push(buildStoreCreditInsufficientFundsError());
+        }
+      }
+
+      if (userErrors.length > 0 || !account || !amount) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            storeCreditAccountTransaction: null,
+            userErrors,
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const transaction = stageStoreCreditAdjustment(account, amount, isCredit ? 'credit' : 'debit');
+      data[key] = serializeCustomerMutationPayload(
+        field,
+        {
+          storeCreditAccountTransaction: transaction,
+          userErrors: [],
+        },
+        variables,
+      );
+      continue;
+    }
 
     if (field.name.value === 'dataSaleOptOut') {
       const email = typeof args['email'] === 'string' ? args['email'].trim() : '';
@@ -4903,6 +5266,14 @@ export function handleCustomerQuery(
 
     if (field.name.value === 'customerAccountPages') {
       data[key] = serializeCustomerAccountPagesConnection(field, variables);
+      continue;
+    }
+
+    if (field.name.value === 'storeCreditAccount') {
+      const args = getFieldArguments(field, variables);
+      const accountId = typeof args['id'] === 'string' ? args['id'] : null;
+      const account = accountId ? store.getEffectiveStoreCreditAccountById(accountId) : null;
+      data[key] = account ? serializeStoreCreditAccountSelection(account, field, variables) : null;
       continue;
     }
 

@@ -1,0 +1,48 @@
+query PublicationRootsLocalRuntimeRead($publicationId: ID!, $channelId: ID!) {
+  publication(id: $publicationId) {
+    id
+    name
+    autoPublish
+    supportsFuturePublishing
+    channel {
+      id
+      name
+    }
+  }
+  channel(id: $channelId) {
+    id
+    name
+    publication {
+      id
+      name
+    }
+    productsCount {
+      count
+      precision
+    }
+  }
+  channels(first: 5) {
+    nodes {
+      id
+      name
+      publication {
+        id
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  publicationsCount {
+    count
+    precision
+  }
+  publishedProductsCount(publicationId: $publicationId) {
+    count
+    precision
+  }
+}
