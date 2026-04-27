@@ -1,0 +1,16 @@
+{
+  "scenarioId": "har-299-collection-add-products-v2-local-staging",
+  "operationNames": ["collectionAddProductsV2"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-add-products-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/collection-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-299 runtime-backed coverage for collectionAddProductsV2. The referenced collectionAddProducts capture supplies Shopify collection membership payload and downstream read behavior evidence; the runtime test executes the V2 mutation root directly, verifies its Job-shaped payload, validates unknown collection/product userErrors, and checks immediate staged collection/product membership read-after-write effects. The generic parity runner does not replay this async-shaped relationship mutation as a single captured proxy request.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

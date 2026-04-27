@@ -1,0 +1,19 @@
+{
+  "scenarioId": "har-299-selling-plan-membership-local-staging",
+  "operationNames": [
+    "productJoinSellingPlanGroups",
+    "productLeaveSellingPlanGroups",
+    "productVariantJoinSellingPlanGroups",
+    "productVariantLeaveSellingPlanGroups"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plan-group-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/selling-plan-group-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-299 runtime-backed coverage for product- and variant-centric selling-plan membership roots. The referenced selling-plan group lifecycle capture supplies Shopify membership payload, unknown-id userError, and downstream product/ProductVariant read evidence; the runtime test executes each product/productVariant join and leave root directly and checks root-specific payloads plus product, variant, and group membership read-after-write effects. The generic parity runner does not replay this multi-root membership flow as a single captured proxy request.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}

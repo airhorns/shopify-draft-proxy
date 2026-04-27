@@ -1,6 +1,6 @@
 {
   "scenarioId": "collection-add-products-live-parity",
-  "operationNames": ["collectionAddProducts", "collectionAddProductsV2"],
+  "operationNames": ["collectionAddProducts"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields. HAR-299 collectionAddProductsV2 shares the same staged membership model and is enforced by `tests/integration/collection-draft-flow.test.ts` for the V2 Job payload plus downstream read-after-write behavior.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables; expected differences are path-scoped to nondeterministic ids, timestamps, throttle metadata, or documented declared-gap fields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
