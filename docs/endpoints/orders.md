@@ -7,6 +7,7 @@ The orders group is fully implemented in the operation registry. It covers order
 Overlay reads:
 
 - `order`
+- `return`
 - `orders`
 - `ordersCount`
 - `abandonedCheckouts`
@@ -43,6 +44,11 @@ Local staged mutations:
 - `fulfillmentOrderCancel`
 - `orderCreate`
 - `refundCreate`
+- `returnCreate`
+- `returnRequest`
+- `returnCancel`
+- `returnClose`
+- `returnReopen`
 - `abandonmentUpdateActivitiesDeliveryStatuses`
 - `draftOrderCreate`
 - `draftOrderComplete`
@@ -73,6 +79,11 @@ Local staged mutations:
 - The captured DraftOrder detail read surface does not select `note`; local mutation payloads and downstream local reads still preserve staged note values, but live detail parity keeps note out of the strict object contract until Shopify exposes a selectable note field for this surface.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The order-edit conformance anchors are the captured existing-order workflow specs plus executable single-root begin/add/set/commit parity slices backed by those same workflow fixtures, so stale access-scope-only plans should not be reintroduced as blockers.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
+- Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
+  line items, while `returnCancel`, `returnClose`, and `returnReopen` update local return status. Top-level
+  `return(id:)` and nested `Order.returns` read from the same order graph. Broader calculation, returnable fulfillment,
+  processing, removal, reverse-delivery, and reverse-fulfillment-order roots are tracked in `docs/endpoints/returns.md`
+  until conformance-backed local models exist.
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - State-specific lifecycle/customer validation is modeled locally for the staged order roots covered by HAR-278. Repeated `orderClose`, repeated `orderOpen`, `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log.
@@ -100,4 +111,5 @@ Local staged mutations:
 - Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
+- Returns: `tests/integration/order-return-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.
