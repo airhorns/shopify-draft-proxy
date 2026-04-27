@@ -42,6 +42,7 @@ import {
 } from '../src/proxy/markets.js';
 import { handleMediaMutation } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
+import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -113,6 +114,25 @@ function interpretMutationLogEntry(
   };
 }
 
+function readRegisteredParityCapability(parsed: ParsedOperation, fallback: OperationCapability): OperationCapability {
+  const registryEntry = findOperationRegistryEntry(parsed.type, [...parsed.rootFields, parsed.name]);
+  if (!registryEntry) {
+    return fallback;
+  }
+
+  const matchedRootField = parsed.rootFields.find((rootField) => registryEntry.matchNames.includes(rootField));
+  const operationName =
+    matchedRootField ??
+    (parsed.name && registryEntry.matchNames.includes(parsed.name) ? parsed.name : registryEntry.name);
+
+  return {
+    type: parsed.type,
+    operationName,
+    domain: registryEntry.domain,
+    execution: registryEntry.execution,
+  };
+}
+
 export type ParityScenarioState =
   | 'ready-for-comparison'
   | 'enforced-by-fixture'
@@ -148,18 +168,6 @@ const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationCreate',
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
-]);
-
-const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
-  'fulfillmentOrderCancel',
-  'fulfillmentOrderClose',
-  'fulfillmentOrderHold',
-  'fulfillmentOrderMove',
-  'fulfillmentOrderOpen',
-  'fulfillmentOrderReleaseHold',
-  'fulfillmentOrderReportProgress',
-  'fulfillmentOrderReschedule',
-  'fulfillmentOrdersReroute',
 ]);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -717,6 +725,7 @@ async function executeGraphQLAgainstLocalProxy(
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   const capability = getOperationCapability(parsed);
+  const registeredCapability = readRegisteredParityCapability(parsed, capability);
 
   if (parsed.type === 'mutation') {
     const discountMutation = handleDiscountMutation(document, variables);
@@ -807,33 +816,6 @@ async function executeGraphQLAgainstLocalProxy(
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: '/admin/api/2025-01/graphql.json',
-      query: document,
-      variables,
-      status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
-      notes: 'Staged locally in the conformance parity proxy harness.',
-    });
-
-    return {
-      status: 200,
-      body,
-    };
-  }
-
-  if (
-    parsed.type === 'mutation' &&
-    parsed.rootFields.some((rootField) => FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(rootField))
-  ) {
-    const body = handleOrderMutation(document, variables, 'snapshot');
-    if (!body) {
-      throw new Error(`Fulfillment-order parity request was not handled locally: ${parsed.rootFields.join(', ')}`);
-    }
-
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
-      operationName: parsed.rootFields[0] ?? capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
       query: document,
       variables,
       status: 'staged',
@@ -961,18 +943,19 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'stage-locally' && capability.domain === 'shipping-fulfillments') {
+  const shippingCapability = capability.domain === 'shipping-fulfillments' ? capability : registeredCapability;
+  if (shippingCapability.execution === 'stage-locally' && shippingCapability.domain === 'shipping-fulfillments') {
     const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
     if (deliveryProfileMutation) {
       store.appendLog({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
-        operationName: capability.operationName,
+        operationName: shippingCapability.operationName,
         path: '/admin/api/2026-04/graphql.json',
         query: document,
         variables,
         status: 'staged',
-        interpreted: interpretMutationLogEntry(parsed, capability),
+        interpreted: interpretMutationLogEntry(parsed, shippingCapability),
         stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
         notes: deliveryProfileMutation.notes,
       });
@@ -983,15 +966,43 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
+    const orderMutationBody = handleOrderMutation(document, variables, 'snapshot');
+    if (orderMutationBody) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: shippingCapability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, shippingCapability),
+        notes: 'Staged locally in the conformance parity proxy harness.',
+      });
+
+      return {
+        status: 200,
+        body: orderMutationBody,
+      };
+    }
+
+    if (capability.domain !== 'shipping-fulfillments') {
+      throw new Error(
+        `Registered shipping-fulfillment parity request was not handled locally: ${
+          shippingCapability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
-      operationName: capability.operationName,
+      operationName: shippingCapability.operationName,
       path: '/admin/api/2026-04/graphql.json',
       query: document,
       variables,
       status: 'staged',
-      interpreted: interpretMutationLogEntry(parsed, capability),
+      interpreted: interpretMutationLogEntry(parsed, shippingCapability),
       notes: 'Staged locally in the conformance parity proxy harness.',
     });
 
