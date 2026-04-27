@@ -15,7 +15,9 @@ import type {
   CatalogRecord,
   CollectionRecord,
   CustomerAddressRecord,
+  CustomerAccountPageRecord,
   CustomerCatalogConnectionRecord,
+  CustomerDataErasureRequestRecord,
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
@@ -104,6 +106,9 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerAccountPages: {},
+  customerAccountPageOrder: [],
+  customerDataErasureRequests: {},
   storeCreditAccounts: {},
   storeCreditAccountTransactions: {},
   segments: {},
@@ -2683,6 +2688,56 @@ export class InMemoryStore {
       }
     }
     this.stagedState.deletedCustomerIds[customerId] = true;
+  }
+
+  upsertBaseCustomerAccountPages(pages: CustomerAccountPageRecord[]): void {
+    for (const page of pages) {
+      this.baseState.customerAccountPages[page.id] = structuredClone(page);
+      if (!this.baseState.customerAccountPageOrder.includes(page.id)) {
+        this.baseState.customerAccountPageOrder.push(page.id);
+      }
+    }
+  }
+
+  getEffectiveCustomerAccountPageById(pageId: string): CustomerAccountPageRecord | null {
+    return structuredClone(this.baseState.customerAccountPages[pageId] ?? null);
+  }
+
+  listEffectiveCustomerAccountPages(): CustomerAccountPageRecord[] {
+    const orderedIds = [
+      ...this.baseState.customerAccountPageOrder,
+      ...Object.keys(this.baseState.customerAccountPages).filter(
+        (pageId) => !this.baseState.customerAccountPageOrder.includes(pageId),
+      ),
+    ];
+    return orderedIds.flatMap((pageId) => {
+      const page = this.baseState.customerAccountPages[pageId];
+      return page ? [structuredClone(page)] : [];
+    });
+  }
+
+  hasCustomerAccountPages(): boolean {
+    return Object.keys(this.baseState.customerAccountPages).length > 0;
+  }
+
+  stageCustomerDataErasureRequest(request: CustomerDataErasureRequestRecord): CustomerDataErasureRequestRecord {
+    this.stagedState.customerDataErasureRequests[request.customerId] = structuredClone(request);
+    return structuredClone(request);
+  }
+
+  stageCustomerDataErasureCancellation(customerId: string, canceledAt: string): CustomerDataErasureRequestRecord {
+    const existing =
+      this.stagedState.customerDataErasureRequests[customerId] ??
+      this.baseState.customerDataErasureRequests[customerId];
+    const request = existing
+      ? { ...existing, canceledAt }
+      : {
+          customerId,
+          requestedAt: canceledAt,
+          canceledAt,
+        };
+    this.stagedState.customerDataErasureRequests[customerId] = structuredClone(request);
+    return structuredClone(request);
   }
 
   stageCreateDiscount(discount: DiscountRecord): DiscountRecord {

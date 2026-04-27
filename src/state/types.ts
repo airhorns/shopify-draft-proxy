@@ -877,6 +877,22 @@ export const customerCatalogConnectionRecordSchema = z.strictObject({
 });
 export type CustomerCatalogConnectionRecord = z.infer<typeof customerCatalogConnectionRecordSchema>;
 
+export const customerAccountPageRecordSchema = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  handle: z.string(),
+  defaultCursor: z.string(),
+  cursor: nullableStringSchema.optional(),
+});
+export type CustomerAccountPageRecord = z.infer<typeof customerAccountPageRecordSchema>;
+
+export const customerDataErasureRequestRecordSchema = z.strictObject({
+  customerId: z.string(),
+  requestedAt: z.string(),
+  canceledAt: nullableStringSchema.optional(),
+});
+export type CustomerDataErasureRequestRecord = z.infer<typeof customerDataErasureRequestRecordSchema>;
+
 export const discountCombinesWithRecordSchema = z.strictObject({
   productDiscounts: z.boolean(),
   orderDiscounts: z.boolean(),
@@ -2013,6 +2029,9 @@ export const stateSnapshotSchema = z.strictObject({
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
+  customerAccountPages: z.record(z.string(), customerAccountPageRecordSchema).default({}),
+  customerAccountPageOrder: z.array(z.string()).default([]),
+  customerDataErasureRequests: z.record(z.string(), customerDataErasureRequestRecordSchema).default({}),
   storeCreditAccounts: z.record(z.string(), storeCreditAccountRecordSchema).default({}),
   storeCreditAccountTransactions: z.record(z.string(), storeCreditAccountTransactionRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),

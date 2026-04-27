@@ -32,6 +32,7 @@ import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-ide
 import { store } from '../state/store.js';
 import type {
   CustomerAddressRecord,
+  CustomerAccountPageRecord,
   CustomerCatalogConnectionRecord,
   CustomerCatalogPageInfoRecord,
   CustomerMergeRequestRecord,
@@ -1241,6 +1242,64 @@ function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unk
   });
 }
 
+function serializeCustomerAccountPageSelection(
+  page: CustomerAccountPageRecord,
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'CustomerAccountPage';
+        break;
+      case 'id':
+        result[key] = page.id;
+        break;
+      case 'title':
+        result[key] = page.title;
+        break;
+      case 'handle':
+        result[key] = page.handle;
+        break;
+      case 'defaultCursor':
+        result[key] = page.defaultCursor;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCustomerAccountPagesConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const pages = store.listEffectiveCustomerAccountPages();
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    pages,
+    field,
+    variables,
+    (page, index) => page.cursor ?? page.defaultCursor ?? `customer-account-page-${index}`,
+    {
+      parseCursor: (raw) => raw,
+    },
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (page, index) => page.cursor ?? page.defaultCursor ?? `customer-account-page-${index}`,
+    serializeNode: (page, selection) => serializeCustomerAccountPageSelection(page, selection),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
+}
+
 function readBooleanArgument(args: Record<string, unknown>, name: string): boolean {
   return args[name] === true;
 }
@@ -2220,6 +2279,85 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
   return customers;
 }
 
+function normalizeCustomerAccountPage(raw: unknown, cursor: string | null = null): CustomerAccountPageRecord | null {
+  if (!isObject(raw)) {
+    return null;
+  }
+
+  const id = typeof raw['id'] === 'string' ? raw['id'] : null;
+  const title = typeof raw['title'] === 'string' ? raw['title'] : null;
+  const handle = typeof raw['handle'] === 'string' ? raw['handle'] : null;
+  const defaultCursor = typeof raw['defaultCursor'] === 'string' ? raw['defaultCursor'] : null;
+  if (!id || !title || !handle || !defaultCursor) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    handle,
+    defaultCursor,
+    cursor,
+  };
+}
+
+function collectCustomerAccountPages(document: string, raw: unknown): CustomerAccountPageRecord[] {
+  if (!isObject(raw)) {
+    return [];
+  }
+
+  const pages: CustomerAccountPageRecord[] = [];
+  for (const field of getRootFields(document)) {
+    const responseKey = getFieldResponseKey(field);
+    if (field.name.value === 'customerAccountPage') {
+      const page = normalizeCustomerAccountPage(raw[responseKey]);
+      if (page) {
+        pages.push(page);
+      }
+      continue;
+    }
+
+    if (field.name.value !== 'customerAccountPages') {
+      continue;
+    }
+
+    const connection = raw[responseKey];
+    if (!isObject(connection)) {
+      continue;
+    }
+
+    const edgePages = Array.isArray(connection['edges'])
+      ? connection['edges']
+          .filter((edge): edge is Record<string, unknown> => isObject(edge))
+          .map((edge) =>
+            normalizeCustomerAccountPage(edge['node'], typeof edge['cursor'] === 'string' ? edge['cursor'] : null),
+          )
+          .filter((page): page is CustomerAccountPageRecord => page !== null)
+      : [];
+    if (edgePages.length > 0) {
+      pages.push(...edgePages);
+      continue;
+    }
+
+    const nodes = Array.isArray(connection['nodes']) ? connection['nodes'] : [];
+    const pageInfo = isObject(connection['pageInfo']) ? connection['pageInfo'] : {};
+    for (const [index, node] of nodes.entries()) {
+      const cursor =
+        index === 0 && typeof pageInfo['startCursor'] === 'string'
+          ? pageInfo['startCursor']
+          : index === nodes.length - 1 && typeof pageInfo['endCursor'] === 'string'
+            ? pageInfo['endCursor']
+            : null;
+      const page = normalizeCustomerAccountPage(node, cursor);
+      if (page) {
+        pages.push(page);
+      }
+    }
+  }
+
+  return pages;
+}
+
 function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): CustomerAddressRecord[] {
   if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
     return [];
@@ -2831,6 +2969,22 @@ function buildDataSaleOptOutFailedError(): CustomerMutationUserError {
     field: null,
     message: 'Data sale opt out failed.',
     code: 'FAILED',
+  };
+}
+
+function buildCustomerDataErasureMissingCustomerError(): CustomerMutationUserError {
+  return {
+    field: ['customerId'],
+    message: 'Customer does not exist',
+    code: 'DOES_NOT_EXIST',
+  };
+}
+
+function buildCustomerDataErasureNotBeingErasedError(): CustomerMutationUserError {
+  return {
+    field: ['customerId'],
+    message: "Customer's data is not scheduled for erasure",
+    code: 'NOT_BEING_ERASED',
   };
 }
 
@@ -4306,6 +4460,66 @@ export function handleCustomerMutation(
       continue;
     }
 
+    if (field.name.value === 'customerRequestDataErasure') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildCustomerDataErasureMissingCustomerError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageCustomerDataErasureRequest({
+        customerId,
+        requestedAt: makeSyntheticTimestamp(),
+        canceledAt: null,
+      });
+      data[key] = serializeCustomerMutationPayload(field, { customerId, userErrors: [] }, variables);
+      continue;
+    }
+
+    if (field.name.value === 'customerCancelDataErasure') {
+      const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      if (!customerId || !existingCustomer) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildCustomerDataErasureMissingCustomerError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      const state = store.getState();
+      const existingRequest =
+        state.stagedState.customerDataErasureRequests[customerId] ??
+        state.baseState.customerDataErasureRequests[customerId];
+      if (!existingRequest || existingRequest.canceledAt) {
+        data[key] = serializeCustomerMutationPayload(
+          field,
+          {
+            customerId: null,
+            userErrors: [buildCustomerDataErasureNotBeingErasedError()],
+          },
+          variables,
+        );
+        continue;
+      }
+
+      store.stageCustomerDataErasureCancellation(customerId, makeSyntheticTimestamp());
+      data[key] = serializeCustomerMutationPayload(field, { customerId, userErrors: [] }, variables);
+      continue;
+    }
+
     if (field.name.value === 'customerCreate') {
       const input = readCustomerInput(args['input']);
       const customerIdForValidation = 'gid://shopify/Customer/__pending__';
@@ -4984,6 +5198,11 @@ export function hydrateCustomersFromUpstreamResponse(
     store.upsertBaseCustomers(customers);
   }
 
+  const customerAccountPages = collectCustomerAccountPages(document, upstreamBody['data']);
+  if (customerAccountPages.length > 0) {
+    store.upsertBaseCustomerAccountPages(customerAccountPages);
+  }
+
   const customerAddresses = collectCustomerAddresses(document, upstreamBody['data']);
   if (customerAddresses.length > 0) {
     store.upsertBaseCustomerAddresses(customerAddresses);
@@ -5034,6 +5253,19 @@ export function handleCustomerQuery(
           })
         : null;
       data[key] = paymentMethod ? serializeCustomerPaymentMethodSelection(paymentMethod, field, variables) : null;
+      continue;
+    }
+
+    if (field.name.value === 'customerAccountPage') {
+      const args = getFieldArguments(field, variables);
+      const pageId = typeof args['id'] === 'string' ? args['id'] : null;
+      const page = pageId ? store.getEffectiveCustomerAccountPageById(pageId) : null;
+      data[key] = page ? serializeCustomerAccountPageSelection(page, field) : null;
+      continue;
+    }
+
+    if (field.name.value === 'customerAccountPages') {
+      data[key] = serializeCustomerAccountPagesConnection(field, variables);
       continue;
     }
 

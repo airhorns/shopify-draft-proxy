@@ -894,10 +894,16 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
         hydrateCustomersFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+
+        if (request.primaryRootField === 'customerAccountPage' || request.primaryRootField === 'customerAccountPages') {
+          setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
+          return true;
+        }
+
         setGraphQLResponse(
           request,
           upstreamResponse.status,
-          store.hasBaseCustomers() || store.hasStagedCustomers()
+          store.hasBaseCustomers() || store.hasStagedCustomers() || store.hasCustomerAccountPages()
             ? handleCustomerQuery(request.body.query, request.variables)
             : upstreamResponse.body,
         );
