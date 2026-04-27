@@ -1,0 +1,16 @@
+{
+  "scenarioId": "inventory-quantity-roots-parity",
+  "operationNames": ["inventoryItems", "inventoryProperties", "inventorySetQuantities", "inventoryMoveQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "null-empty-behavior", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/inventory-quantity-roots-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-quantity-roots.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-305 live evidence covers Admin GraphQL 2025-01 schema for inventoryItems/inventoryProperties/inventorySetQuantities/inventoryMoveQuantities, empty inventoryItems no-data behavior, captured inventoryProperties quantity names, successful available set behavior, successful same-location available-to-damaged move behavior, and visible blocked branches. The multi-step local behavior is enforced by the targeted integration test because the generic parity runner does not seed the disposable product, activate the second location, run set, run move, and then replay downstream reads as a single chained scenario.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
