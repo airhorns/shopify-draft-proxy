@@ -1,0 +1,33 @@
+query DownstreamSellingPlanRead($productId: ID!, $variantId: ID!) {
+  product(id: $productId) {
+    id
+    title
+    requiresSellingPlan
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+    sellingPlanGroups(first: 5) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    title
+    sellingPlanGroupsCount {
+      count
+      precision
+    }
+    sellingPlanGroups(first: 5) {
+      nodes {
+        id
+        name
+        merchantCode
+      }
+    }
+  }
+}
