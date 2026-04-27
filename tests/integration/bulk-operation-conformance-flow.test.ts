@@ -244,9 +244,9 @@ describe('BulkOperation conformance fixture and local model', () => {
         'bulkOperation',
         'bulkOperations',
         'currentBulkOperation',
+        'bulkOperationCancel',
         'bulkOperationRunQuery',
         'bulkOperationRunMutation',
-        'bulkOperationCancel',
       ],
       captureFiles: [fixturePath],
     });
