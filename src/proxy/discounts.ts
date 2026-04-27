@@ -3,10 +3,10 @@ import { Kind, type ArgumentNode, type FieldNode, type SelectionNode } from 'gra
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
 import {
+  applySearchQueryTerms,
   matchesSearchQueryDate,
   matchesSearchQueryNumber,
   normalizeSearchQueryValue,
-  parseSearchQueryTerms,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { compareNullableStrings, compareShopifyResourceIds } from '../shopify/resource-ids.js';
@@ -1470,16 +1470,6 @@ function validateRedeemCodeBulkDelete(args: Record<string, unknown>): DiscountMu
   return null;
 }
 
-function parseDiscountQuery(rawQuery: unknown): SearchQueryTerm[] {
-  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
-    return [];
-  }
-
-  return parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) => normalizeSearchQueryValue(term.value).length > 0,
-  );
-}
-
 function inferDiscountType(discount: DiscountRecord): string | null {
   if (discount.discountType) {
     return discount.discountType.toLowerCase();
@@ -1549,22 +1539,13 @@ function matchesPositiveDiscountTerm(discount: DiscountRecord, term: SearchQuery
   }
 }
 
-function matchesDiscountTerm(discount: DiscountRecord, term: SearchQueryTerm): boolean {
-  if (!term.raw) {
-    return true;
-  }
-
-  const matches = matchesPositiveDiscountTerm(discount, term);
-  return term.negated ? !matches : matches;
-}
-
 function filterDiscountsByQuery(discounts: DiscountRecord[], rawQuery: unknown): DiscountRecord[] {
-  const terms = parseDiscountQuery(rawQuery);
-  if (terms.length === 0) {
-    return discounts;
-  }
-
-  return discounts.filter((discount) => terms.every((term) => matchesDiscountTerm(discount, term)));
+  return applySearchQueryTerms(
+    discounts,
+    rawQuery,
+    { ignoredKeywords: ['AND'], dropEmptyValues: true },
+    matchesPositiveDiscountTerm,
+  );
 }
 
 function sortDiscounts(discounts: DiscountRecord[], rawSortKey: unknown, rawReverse: unknown): DiscountRecord[] {

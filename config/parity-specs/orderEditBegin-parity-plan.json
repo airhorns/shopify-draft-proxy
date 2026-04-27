@@ -1,31 +1,31 @@
 {
   "scenarioId": "order-edit-begin-live-parity",
   "operationNames": ["orderEditBegin"],
-  "scenarioStatus": "planned",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/order-edit-existing-order-happy-path.json"
+  ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/orderEditBegin-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/orderEditBegin-parity-plan.variables.json"
+    "documentPath": "config/parity-requests/orderEditExistingWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables"
   },
-  "comparisonMode": "planned",
-  "blocker": {
-    "kind": "missing-live-order-edit-begin-access",
-    "blockerPath": null,
-    "details": {
-      "linearIssue": "HAR-115",
-      "requiredScopes": ["write_order_edits"],
-      "probeRoots": ["orderEditBegin"],
-      "blockedMutations": ["orderEditBegin"],
-      "failingMessage": "Access denied for orderEditBegin field. Required access: Requires `write_order_edits` access scope.",
-      "activeCredentialTokenFamily": "shpca",
-      "activeCredentialHeaderMode": "raw-x-shopify-access-token",
-      "activeCredentialSummary": "the active conformance credential is a Shopify user access token (`shpca_...`) sent as raw `X-Shopify-Access-Token` on this host",
-      "manualStoreAuthStatus": "missing",
-      "manualStoreAuthTokenPath": ".manual-store-auth-token.json",
-      "manualStoreAuthCachedScopes": [],
-      "manualStoreAuthAssociatedUserScopes": []
-    }
-  },
-  "notes": "First order-edit parity scaffold for `orderEditBegin`. Live capture stays blocked until the conformance credential can write order edits."
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable replacement for the old single-root `orderEditBegin` access-scope plan. It runs the local begin handler against the captured existing-order workflow fixture and compares stable selected original-order and userErrors semantics.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-original-order",
+        "capturePath": "$.mutation.response.data.orderEditBegin.calculatedOrder.originalOrder",
+        "proxyPath": "$.data.orderEditBegin.calculatedOrder.originalOrder"
+      },
+      {
+        "name": "begin-user-errors",
+        "capturePath": "$.mutation.response.data.orderEditBegin.userErrors",
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      }
+    ]
+  }
 }

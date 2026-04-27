@@ -18,6 +18,69 @@ describe('product query shapes', () => {
     vi.restoreAllMocks();
   });
 
+  it('serves Shopify-like empty product feed reads in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot product feed reads should not proxy upstream');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query ProductFeedsEmpty($missingProductFeedId: ID!) {
+            missingProductFeed: productFeed(id: $missingProductFeedId) {
+              id
+              country
+              language
+              status
+            }
+            productFeeds(first: 10) {
+              nodes {
+                id
+                country
+                language
+                status
+              }
+              edges {
+                cursor
+                node {
+                  id
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        `,
+        variables: {
+          missingProductFeedId: 'gid://shopify/ProductFeed/999999999999999',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        missingProductFeed: null,
+        productFeeds: {
+          nodes: [],
+          edges: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('serves products edges and pageInfo from staged local state', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
