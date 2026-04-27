@@ -43,6 +43,7 @@ import type {
   ProductMediaRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
+  ProductOperationRecord,
   ProductRecord,
   ProductVariantRecord,
   PriceListRecord,
@@ -72,6 +73,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   products: {},
   productVariants: {},
   productOptions: {},
+  productOperations: {},
   locations: {},
   locationOrder: [],
   fulfillmentServices: {},
@@ -2613,6 +2615,11 @@ export class InMemoryStore {
     }
   }
 
+  stageProductOperation(operation: ProductOperationRecord): ProductOperationRecord {
+    this.stagedState.productOperations[operation.id] = structuredClone(operation);
+    return structuredClone(operation);
+  }
+
   replaceBaseCollectionsForProduct(productId: string, collections: ProductCollectionRecord[]): void {
     const previousCollections = Object.values(this.baseState.productCollections)
       .filter((collection) => collection.productId === productId)
@@ -3215,6 +3222,11 @@ export class InMemoryStore {
     }
 
     return structuredClone(baseVariant);
+  }
+
+  getEffectiveProductOperationById(operationId: string): ProductOperationRecord | null {
+    const operation = this.stagedState.productOperations[operationId] ?? this.baseState.productOperations[operationId];
+    return operation ? structuredClone(operation) : null;
   }
 
   findEffectiveVariantByInventoryItemId(inventoryItemId: string): ProductVariantRecord | null {
