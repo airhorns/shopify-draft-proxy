@@ -12,7 +12,7 @@ import {
 } from '../search-query-parser.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { MarketingRecord } from '../state/types.js';
+import type { MarketingEngagementRecord, MarketingRecord } from '../state/types.js';
 import {
   buildSyntheticCursor,
   getDocumentFragments,
@@ -36,17 +36,20 @@ type MarketingConnectionItem = {
 const ACTIVITY_ID_PREFIX = 'gid://shopify/MarketingActivity/';
 const EVENT_ID_PREFIX = 'gid://shopify/MarketingEvent/';
 
-const MARKETING_ACTIVITY_MUTATION_ROOTS = new Set([
+export const MARKETING_MUTATION_ROOTS = new Set([
   'marketingActivityCreateExternal',
   'marketingActivityUpdateExternal',
   'marketingActivityUpsertExternal',
   'marketingActivityDeleteExternal',
   'marketingActivitiesDeleteAllExternal',
+  'marketingEngagementCreate',
+  'marketingEngagementsDelete',
 ]);
 
 type MarketingMutationResult = {
   response: { data: Record<string, unknown> };
   stagedResourceIds: string[];
+  shouldLog: boolean;
   notes: string;
 };
 
@@ -55,6 +58,11 @@ type MarketingUserError = {
   message: string;
   code: string | null;
 };
+
+type MarketingEngagementIdentifier =
+  | { kind: 'activityId'; value: string; activity: MarketingRecord }
+  | { kind: 'remoteId'; value: string; activity: MarketingRecord }
+  | { kind: 'channelHandle'; value: string; activity: null };
 
 function collectConnectionCandidates(value: unknown): Array<{ data: unknown; cursor?: string | null }> {
   if (!isPlainObject(value) || !Array.isArray(value['edges'])) {
@@ -425,6 +433,10 @@ function buildConnection(
 
 function marketingValidationPayload(rootField: string, userErrors: MarketingUserError[]): Record<string, unknown> {
   switch (rootField) {
+    case 'marketingEngagementCreate':
+      return { marketingEngagement: null, userErrors };
+    case 'marketingEngagementsDelete':
+      return { result: null, userErrors };
     case 'marketingActivityDeleteExternal':
       return { deletedMarketingActivityId: null, userErrors };
     case 'marketingActivitiesDeleteAllExternal':
@@ -463,6 +475,41 @@ function duplicateExternalActivityError(): MarketingUserError {
     field: ['input'],
     message: 'Validation failed: Remote ID has already been taken, Utm campaign has already been taken',
     code: null,
+  };
+}
+
+function engagementMissingIdentifierError(): MarketingUserError {
+  return {
+    field: null,
+    message:
+      'No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.',
+    code: 'INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING',
+  };
+}
+
+function engagementInvalidIdentifierError(): MarketingUserError {
+  return {
+    field: null,
+    message:
+      'For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.',
+    code: 'INVALID_MARKETING_ENGAGEMENT_ARGUMENTS',
+  };
+}
+
+function invalidChannelHandleError(): MarketingUserError {
+  return {
+    field: ['channelHandle'],
+    message: 'The channel handle is not recognized. Please contact your partner manager for more information.',
+    code: 'INVALID_CHANNEL_HANDLE',
+  };
+}
+
+function invalidDeleteEngagementsArgumentsError(): MarketingUserError {
+  return {
+    field: null,
+    message:
+      'Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.',
+    code: 'INVALID_DELETE_ENGAGEMENTS_ARGUMENTS',
   };
 }
 
@@ -614,17 +661,151 @@ function stageMarketingRecords(records: { activity: MarketingRecord; event: Mark
   store.stageMarketingActivity(records.activity);
 }
 
+function readMoneyInput(input: Record<string, unknown>, field: string): Record<string, unknown> | null {
+  const money = readObject(input, field);
+  if (!money) {
+    return null;
+  }
+
+  const amount = money['amount'];
+  const currencyCode = readString(money, 'currencyCode');
+  if ((typeof amount !== 'string' && typeof amount !== 'number') || !currencyCode) {
+    return null;
+  }
+
+  return {
+    amount: String(amount),
+    currencyCode,
+  };
+}
+
+function readDecimalInput(input: Record<string, unknown>, field: string): string | null {
+  const value = input[field];
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+
+  return null;
+}
+
+function engagementRecordId(identifier: MarketingEngagementIdentifier, occurredOn: string): string {
+  const target =
+    identifier.kind === 'channelHandle' ? `channel:${identifier.value}` : `activity:${identifier.activity.id}`;
+  return `gid://shopify/MarketingEngagement/${encodeURIComponent(`${target}:${occurredOn}`)}`;
+}
+
+function resolveMarketingEngagementIdentifier(
+  args: Record<string, unknown>,
+): { ok: true; identifier: MarketingEngagementIdentifier } | { ok: false; error: MarketingUserError } {
+  const marketingActivityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
+  const remoteId = typeof args['remoteId'] === 'string' ? args['remoteId'] : null;
+  const channelHandle = typeof args['channelHandle'] === 'string' ? args['channelHandle'] : null;
+  const identifierCount = [marketingActivityId, remoteId, channelHandle].filter((value) => value !== null).length;
+
+  if (identifierCount === 0) {
+    return { ok: false, error: engagementMissingIdentifierError() };
+  }
+
+  if (identifierCount > 1) {
+    return { ok: false, error: engagementInvalidIdentifierError() };
+  }
+
+  if (marketingActivityId) {
+    const activity = store.getEffectiveMarketingActivityRecordById(marketingActivityId);
+    return activity
+      ? { ok: true, identifier: { kind: 'activityId', value: marketingActivityId, activity } }
+      : { ok: false, error: marketingActivityMissingError() };
+  }
+
+  if (remoteId) {
+    const activity = store.getEffectiveMarketingActivityByRemoteId(remoteId);
+    return activity
+      ? { ok: true, identifier: { kind: 'remoteId', value: remoteId, activity } }
+      : { ok: false, error: marketingActivityMissingError() };
+  }
+
+  if (channelHandle && store.hasKnownMarketingChannelHandle(channelHandle)) {
+    return { ok: true, identifier: { kind: 'channelHandle', value: channelHandle, activity: null } };
+  }
+
+  return { ok: false, error: invalidChannelHandleError() };
+}
+
+function buildMarketingEngagementRecord(
+  identifier: MarketingEngagementIdentifier,
+  input: Record<string, unknown>,
+): MarketingEngagementRecord {
+  const occurredOn = readString(input, 'occurredOn') ?? '';
+  const data: Record<string, unknown> = {
+    __typename: 'MarketingEngagement',
+    occurredOn,
+    utcOffset: readString(input, 'utcOffset') ?? '+00:00',
+    isCumulative: input['isCumulative'] === true,
+    channelHandle: identifier.kind === 'channelHandle' ? identifier.value : null,
+    marketingActivity: identifier.activity ? structuredClone(identifier.activity.data) : null,
+  };
+  const integerFields = [
+    'impressionsCount',
+    'viewsCount',
+    'clicksCount',
+    'sharesCount',
+    'favoritesCount',
+    'commentsCount',
+    'unsubscribesCount',
+    'complaintsCount',
+    'failsCount',
+    'sendsCount',
+    'uniqueViewsCount',
+    'uniqueClicksCount',
+    'sessionsCount',
+  ];
+  for (const field of integerFields) {
+    const value = input[field];
+    if (typeof value === 'number' && Number.isInteger(value)) {
+      data[field] = value;
+    }
+  }
+
+  for (const field of ['adSpend', 'sales']) {
+    const money = readMoneyInput(input, field);
+    if (money) {
+      data[field] = money;
+    }
+  }
+
+  for (const field of ['orders', 'firstTimeCustomers', 'returningCustomers']) {
+    const decimal = readDecimalInput(input, field);
+    if (decimal !== null) {
+      data[field] = decimal;
+    }
+  }
+
+  return {
+    id: engagementRecordId(identifier, occurredOn),
+    marketingActivityId: identifier.activity?.id ?? null,
+    remoteId: identifier.kind === 'remoteId' ? identifier.value : marketingRemoteId(identifier.activity?.data ?? {}),
+    channelHandle: identifier.kind === 'channelHandle' ? identifier.value : null,
+    occurredOn,
+    data: toMarketingData(data),
+  };
+}
+
 function buildMutationRootPayload(
   rootField: string,
   args: Record<string, unknown>,
 ): {
   payload: Record<string, unknown>;
   stagedResourceIds: string[];
+  shouldLog: boolean;
 } {
   if (rootField === 'marketingActivityCreateExternal') {
     const input = readInput(args['input']);
     if (!hasAttribution(input)) {
-      return { payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]), stagedResourceIds: [] };
+      return {
+        payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]),
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
     }
 
     const remoteId = readString(input, 'remoteId');
@@ -632,6 +813,7 @@ function buildMutationRootPayload(
       return {
         payload: marketingValidationPayload(rootField, [duplicateExternalActivityError()]),
         stagedResourceIds: [],
+        shouldLog: false,
       };
     }
 
@@ -640,6 +822,7 @@ function buildMutationRootPayload(
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
+      shouldLog: true,
     };
   }
 
@@ -657,6 +840,7 @@ function buildMutationRootPayload(
       return {
         payload: marketingValidationPayload(rootField, [marketingActivityMissingError()]),
         stagedResourceIds: [],
+        shouldLog: false,
       };
     }
 
@@ -665,7 +849,11 @@ function buildMutationRootPayload(
       Object.keys(requestedUtm).length > 0 &&
       !sameUtm(readObject(activity.data, 'utmParameters'), readUtm(requestedUtm))
     ) {
-      return { payload: marketingValidationPayload(rootField, [immutableUtmError()]), stagedResourceIds: [] };
+      return {
+        payload: marketingValidationPayload(rootField, [immutableUtmError()]),
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
     }
 
     const records = applyExternalActivityUpdate(activity, input);
@@ -673,6 +861,7 @@ function buildMutationRootPayload(
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
+      shouldLog: true,
     };
   }
 
@@ -683,7 +872,11 @@ function buildMutationRootPayload(
 
     if (!existing) {
       if (!hasAttribution(input)) {
-        return { payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]), stagedResourceIds: [] };
+        return {
+          payload: marketingValidationPayload(rootField, [nonHierarchicalUtmError()]),
+          stagedResourceIds: [],
+          shouldLog: false,
+        };
       }
 
       const records = buildMarketingRecordsFromCreateInput(input);
@@ -691,11 +884,16 @@ function buildMutationRootPayload(
       return {
         payload: { marketingActivity: records.activity.data, userErrors: [] },
         stagedResourceIds: [records.activity.id, records.event.id],
+        shouldLog: true,
       };
     }
 
     if (!sameUtm(readObject(existing.data, 'utmParameters'), readUtm(input))) {
-      return { payload: marketingValidationPayload(rootField, [immutableUtmError()]), stagedResourceIds: [] };
+      return {
+        payload: marketingValidationPayload(rootField, [immutableUtmError()]),
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
     }
 
     const records = applyExternalActivityUpdate(existing, input);
@@ -703,6 +901,7 @@ function buildMutationRootPayload(
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
+      shouldLog: true,
     };
   }
 
@@ -719,6 +918,7 @@ function buildMutationRootPayload(
       return {
         payload: marketingValidationPayload(rootField, [marketingActivityMissingError()]),
         stagedResourceIds: [],
+        shouldLog: false,
       };
     }
 
@@ -726,6 +926,7 @@ function buildMutationRootPayload(
     return {
       payload: { deletedMarketingActivityId: activity.id, userErrors: [] },
       stagedResourceIds: [activity.id],
+      shouldLog: true,
     };
   }
 
@@ -742,10 +943,72 @@ function buildMutationRootPayload(
         userErrors: [],
       },
       stagedResourceIds: [jobId, ...deletedIds],
+      shouldLog: true,
     };
   }
 
-  return { payload: {}, stagedResourceIds: [] };
+  if (rootField === 'marketingEngagementCreate') {
+    const input = readInput(args['marketingEngagement']);
+    const resolved = resolveMarketingEngagementIdentifier(args);
+    if (!resolved.ok) {
+      return {
+        payload: marketingValidationPayload(rootField, [resolved.error]),
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
+    }
+
+    const engagement = store.stageMarketingEngagement(buildMarketingEngagementRecord(resolved.identifier, input));
+    return {
+      payload: { marketingEngagement: engagement.data, userErrors: [] },
+      stagedResourceIds: [engagement.id],
+      shouldLog: true,
+    };
+  }
+
+  if (rootField === 'marketingEngagementsDelete') {
+    const channelHandle = typeof args['channelHandle'] === 'string' ? args['channelHandle'] : null;
+    const deleteAll = args['deleteEngagementsForAllChannels'] === true;
+    if ((channelHandle && deleteAll) || (!channelHandle && !deleteAll)) {
+      return {
+        payload: marketingValidationPayload(rootField, [invalidDeleteEngagementsArgumentsError()]),
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
+    }
+
+    if (channelHandle) {
+      if (!store.hasKnownMarketingChannelHandle(channelHandle)) {
+        return {
+          payload: marketingValidationPayload(rootField, [invalidChannelHandleError()]),
+          stagedResourceIds: [],
+          shouldLog: false,
+        };
+      }
+
+      const deletedIds = store.stageDeleteMarketingEngagementsByChannelHandle(channelHandle);
+      return {
+        payload: { result: 'Engagement data marked for deletion for 1 channel(s)', userErrors: [] },
+        stagedResourceIds: deletedIds,
+        shouldLog: true,
+      };
+    }
+
+    const channelHandles = new Set(
+      store
+        .listEffectiveMarketingEngagements()
+        .map((engagement) => engagement.channelHandle)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0),
+    );
+    const deletedIds = store.stageDeleteAllChannelMarketingEngagements();
+    return {
+      payload: { result: `Engagement data marked for deletion for ${channelHandles.size} channel(s)`, userErrors: [] },
+      stagedResourceIds: deletedIds,
+      shouldLog: true,
+    };
+  }
+
+  return { payload: {}, stagedResourceIds: [], shouldLog: false };
 }
 
 export function handleMarketingMutation(
@@ -756,17 +1019,23 @@ export function handleMarketingMutation(
   const fragments = getDocumentFragments(document);
   const stagedResourceIds: string[] = [];
   let handled = false;
+  let shouldLog = false;
 
   for (const field of getRootFields(document)) {
     const rootField = field.name.value;
-    if (!MARKETING_ACTIVITY_MUTATION_ROOTS.has(rootField)) {
+    if (!MARKETING_MUTATION_ROOTS.has(rootField)) {
       continue;
     }
 
     handled = true;
     const args = getFieldArguments(field, variables);
-    const { payload, stagedResourceIds: rootStagedResourceIds } = buildMutationRootPayload(rootField, args);
+    const {
+      payload,
+      stagedResourceIds: rootStagedResourceIds,
+      shouldLog: rootShouldLog,
+    } = buildMutationRootPayload(rootField, args);
     stagedResourceIds.push(...rootStagedResourceIds);
+    shouldLog = shouldLog || rootShouldLog;
     data[getFieldResponseKey(field)] = field.selectionSet
       ? projectGraphqlValue(payload, field.selectionSet.selections, fragments)
       : payload;
@@ -776,7 +1045,8 @@ export function handleMarketingMutation(
     ? {
         response: { data },
         stagedResourceIds: [...new Set(stagedResourceIds)],
-        notes: 'Staged locally in the in-memory marketing activity draft store.',
+        shouldLog,
+        notes: 'Staged locally in the in-memory marketing draft store.',
       }
     : null;
 }

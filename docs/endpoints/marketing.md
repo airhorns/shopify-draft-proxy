@@ -14,6 +14,8 @@
 - `marketingActivityUpsertExternal`
 - `marketingActivityDeleteExternal`
 - `marketingActivitiesDeleteAllExternal`
+- `marketingEngagementCreate`
+- `marketingEngagementsDelete`
 
 Deprecated/non-external `marketingActivityCreate` and `marketingActivityUpdate` remain registered gaps, not implemented support. They are still explicit in the operation registry so unsupported runtime passthrough is observable, but the proxy does not claim local emulation for them.
 
@@ -49,6 +51,15 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 The HAR-213 parity spec replays the external lifecycle through the local proxy parity harness. It compares stable selected mutation/read fields and captured userErrors against the live fixture; synthetic IDs and timestamps remain covered by runtime integration tests because local staging intentionally does not reuse live Shopify identifiers.
 
 Local staging intentionally uses stable synthetic IDs and timestamps instead of replaying live Shopify IDs. The raw original mutation body is retained in the meta log for successful staged lifecycle mutations so commit replay can preserve request order.
+
+HAR-214 captures marketing engagement write evidence with `write_marketing_events`:
+
+- `marketingEngagementCreate` accepts activity-level identifiers by either `marketingActivityId` or external activity `remoteId`; missing identifiers return `INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING`, multiple identifiers return `INVALID_MARKETING_ENGAGEMENT_ARGUMENTS`, and missing activity/remote IDs return `MARKETING_ACTIVITY_DOES_NOT_EXIST`
+- duplicate same-day activity-level engagement writes are accepted and the latest returned metric values replace the local engagement record
+- metric counts are not validated as non-negative by Shopify; negative counts are returned without userErrors in the captured activity-level branch
+- unrecognized `channelHandle` values return `INVALID_CHANNEL_HANDLE`; this proxy only stages channel-level engagement records when the channel handle is already known from hydrated marketing event data
+- `marketingEngagementsDelete` has no activity-level selector; missing delete selectors return `INVALID_DELETE_ENGAGEMENTS_ARGUMENTS`, `deleteEngagementsForAllChannels: true` returns the captured result string and removes known local channel-level engagement records, and activity-level engagement records are retained
+- immediate downstream `marketingActivity.adSpend` reads remained `null` after captured activity-level engagement writes, so local staging records the engagement in meta state but does not invent activity/event aggregate attribution
 
 ## Local filtering and ordering
 
