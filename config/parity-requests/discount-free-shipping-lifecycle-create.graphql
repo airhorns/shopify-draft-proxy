@@ -1,0 +1,103 @@
+mutation DiscountFreeShippingLifecycleCreate(
+  $codeInput: DiscountCodeFreeShippingInput!
+  $automaticInput: DiscountAutomaticFreeShippingInput!
+) {
+  discountCodeFreeShippingCreate(freeShippingCodeDiscount: $codeInput) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeFreeShipping {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 2) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          destinationSelection {
+            __typename
+            ... on DiscountCountryAll {
+              allCountries
+            }
+            ... on DiscountCountries {
+              countries
+              includeRestOfWorld
+            }
+          }
+          maximumShippingPrice {
+            amount
+            currencyCode
+          }
+          appliesOncePerCustomer
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+          recurringCycleLimit
+          usageLimit
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $automaticInput) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          summary
+          startsAt
+          endsAt
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          destinationSelection {
+            __typename
+            ... on DiscountCountryAll {
+              allCountries
+            }
+            ... on DiscountCountries {
+              countries
+              includeRestOfWorld
+            }
+          }
+          maximumShippingPrice {
+            amount
+            currencyCode
+          }
+          appliesOnOneTimePurchase
+          appliesOnSubscription
+          recurringCycleLimit
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

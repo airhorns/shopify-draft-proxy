@@ -1,0 +1,21 @@
+mutation DiscountAutomaticFreeShippingLifecycleDeactivate($id: ID!) {
+  discountAutomaticDeactivate(id: $id) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticFreeShipping {
+          title
+          status
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

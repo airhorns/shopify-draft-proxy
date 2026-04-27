@@ -31,7 +31,9 @@ import {
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
+import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
+import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
 import { handleFunctionMutation, handleFunctionQuery } from '../src/proxy/functions.js';
@@ -63,6 +65,11 @@ import {
   hydrateProductsFromUpstreamResponse,
 } from '../src/proxy/products.js';
 import {
+  handleSavedSearchMutation,
+  handleSavedSearchQuery,
+  hydrateSavedSearchesFromUpstreamResponse,
+} from '../src/proxy/saved-searches.js';
+import {
   handleMetafieldDefinitionMutation,
   handleMetafieldDefinitionQuery,
 } from '../src/proxy/metafield-definitions.js';
@@ -85,6 +92,7 @@ import type {
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
+  BulkOperationRecord,
   BusinessEntityRecord,
   CarrierServiceRecord,
   CollectionRecord,
@@ -738,9 +746,9 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unknown {
+function materializeValue(rawValue: unknown, proxyResponses: Record<string, unknown>, capture?: unknown): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, primaryProxyResponse));
+    return rawValue.map((item) => materializeValue(item, proxyResponses, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -748,16 +756,28 @@ function materializeValue(rawValue: unknown, primaryProxyResponse: unknown): unk
   }
 
   if (typeof rawValue['fromPrimaryProxyPath'] === 'string') {
-    return readJsonPath(primaryProxyResponse, rawValue['fromPrimaryProxyPath']);
+    return readJsonPath(proxyResponses['primary'], rawValue['fromPrimaryProxyPath']);
+  }
+
+  if (typeof rawValue['fromProxyResponse'] === 'string' && typeof rawValue['path'] === 'string') {
+    return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
+  }
+
+  if (typeof rawValue['fromCapturePath'] === 'string') {
+    return readJsonPath(capture, rawValue['fromCapturePath']);
   }
 
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, primaryProxyResponse)]),
+    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, proxyResponses, capture)]),
   );
 }
 
-function materializeVariables(rawVariables: unknown, primaryProxyResponse: unknown): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, primaryProxyResponse);
+function materializeVariables(
+  rawVariables: unknown,
+  proxyResponses: Record<string, unknown>,
+  capture?: unknown,
+): Record<string, unknown> {
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -1050,6 +1070,35 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
+    const savedSearchMutation = handleSavedSearchMutation(document, variables);
+    if (!savedSearchMutation) {
+      throw new Error(
+        `Registered saved-search parity request was not handled locally: ${
+          capability.operationName ?? parsed.rootFields.join(', ')
+        }`,
+      );
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      stagedResourceIds: savedSearchMutation.stagedResourceIds,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: savedSearchMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'marketing') {
     const marketingMutation = handleMarketingMutation(document, variables);
     if (!marketingMutation) {
@@ -1074,6 +1123,31 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: marketingMutation.response,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
+    const bulkOperationMutation = handleBulkOperationMutation(document, variables);
+    if (!bulkOperationMutation) {
+      throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      stagedResourceIds: bulkOperationMutation.stagedResourceIds,
+      notes: bulkOperationMutation.notes,
+    });
+
+    return {
+      status: 200,
+      body: bulkOperationMutation.response,
     };
   }
 
@@ -1355,6 +1429,15 @@ async function executeGraphQLAgainstLocalProxy(
 
   if (capability.execution === 'overlay-read' && capability.domain === 'shipping-fulfillments') {
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    if (
+      parsed.rootFields.some((rootField) => rootField === 'deliverySettings' || rootField === 'deliveryPromiseSettings')
+    ) {
+      return {
+        status: 200,
+        body: handleDeliverySettingsQuery(document),
+      };
+    }
+
     if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
       return {
         status: 200,
@@ -1432,6 +1515,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
+    if (upstreamPayload !== undefined) {
+      hydrateSavedSearchesFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleSavedSearchQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
     if (upstreamPayload !== undefined) {
       hydrateMarketingFromUpstreamResponse(document, variables, upstreamPayload);
@@ -1454,6 +1548,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleB2BQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'bulk-operations') {
+    return {
+      status: 200,
+      body: handleBulkOperationQuery(document, variables),
     };
   }
 
@@ -2297,6 +2398,47 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
       balance,
     },
   ]);
+
+  return true;
+}
+
+function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
+  const seedOrder = readArrayField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'seedOrder'), 'response'),
+        'data',
+      ),
+      'orders',
+    ),
+    'nodes',
+  )
+    .filter(isPlainObject)
+    .at(0);
+  const seedOrderId = readStringField(seedOrder, 'id');
+  if (!seedOrder || !seedOrderId) {
+    return false;
+  }
+
+  store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+
+  const beforeSetCount = readNumberField(
+    readRecordField(
+      readRecordField(
+        readRecordField(readRecordField(capture as Record<string, unknown>, 'beforeSet'), 'response'),
+        'data',
+      ),
+      'customersCount',
+    ),
+    'count',
+  );
+  if (beforeSetCount !== null) {
+    const placeholders = [];
+    for (let index = 0; index < Math.max(0, beforeSetCount - 1); index += 1) {
+      placeholders.push(makePlaceholderCustomer(index));
+    }
+    store.upsertBaseCustomers(placeholders);
+  }
 
   return true;
 }
@@ -4587,6 +4729,51 @@ function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
   }
 }
 
+function readDraftOrderInvoiceSendSeedSource(
+  capture: Record<string, unknown>,
+  pathSegments: string[],
+  payloadName: string,
+): Record<string, unknown> | null {
+  let current: Record<string, unknown> | null = capture;
+  for (const segment of pathSegments) {
+    current = readRecordField(current, segment);
+  }
+
+  const payload = readRecordField(
+    readRecordField(readRecordField(readRecordField(current, 'mutation'), 'response'), 'data'),
+    payloadName,
+  );
+  return readRecordField(payload, 'draftOrder');
+}
+
+function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean {
+  if (!isPlainObject(capture) || capture['safetyPolicy'] === undefined) {
+    return false;
+  }
+
+  const openDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['recipient', 'openNoRecipient', 'setup', 'draftOrderCreate'],
+    'draftOrderCreate',
+  );
+  const openDraftOrderId = readStringField(openDraftOrder, 'id');
+  if (openDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(openDraftOrderId, openDraftOrder));
+  }
+
+  const completedDraftOrder = readDraftOrderInvoiceSendSeedSource(
+    capture,
+    ['lifecycle', 'completedNoRecipient', 'setup', 'draftOrderComplete'],
+    'draftOrderComplete',
+  );
+  const completedDraftOrderId = readStringField(completedDraftOrder, 'id');
+  if (completedDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(completedDraftOrderId, completedDraftOrder));
+  }
+
+  return Boolean(openDraftOrderId || completedDraftOrderId);
+}
+
 function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): void {
   for (const value of Object.values(data ?? {})) {
     const connection = isPlainObject(value) ? value : null;
@@ -6205,8 +6392,147 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
   return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
 }
 
+const bulkOperationStatuses = new Set([
+  'CANCELED',
+  'CANCELING',
+  'COMPLETED',
+  'CREATED',
+  'EXPIRED',
+  'FAILED',
+  'RUNNING',
+]);
+const bulkOperationTypes = new Set(['MUTATION', 'QUERY']);
+
+function readBulkOperationRecord(value: Record<string, unknown> | null | undefined): BulkOperationRecord | null {
+  const id = readStringField(value, 'id');
+  const status = readStringField(value, 'status');
+  const type = readStringField(value, 'type');
+  const createdAt = readStringField(value, 'createdAt');
+  if (
+    !id?.startsWith('gid://shopify/BulkOperation/') ||
+    !status ||
+    !bulkOperationStatuses.has(status) ||
+    !type ||
+    !bulkOperationTypes.has(type) ||
+    !createdAt
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    status: status as BulkOperationRecord['status'],
+    type: type as BulkOperationRecord['type'],
+    errorCode: readNullableStringField(value, 'errorCode') as BulkOperationRecord['errorCode'],
+    createdAt,
+    completedAt: readNullableStringField(value, 'completedAt'),
+    objectCount: readStringField(value, 'objectCount') ?? '0',
+    rootObjectCount: readStringField(value, 'rootObjectCount') ?? '0',
+    fileSize: readNullableStringField(value, 'fileSize'),
+    url: readNullableStringField(value, 'url'),
+    partialDataUrl: readNullableStringField(value, 'partialDataUrl'),
+    query: readNullableStringField(value, 'query'),
+  };
+}
+
+function readBulkOperationFromInteraction(
+  interaction: Record<string, unknown> | null | undefined,
+  responseField: string,
+): BulkOperationRecord | null {
+  return readBulkOperationRecord(
+    readRecordField(readRecordField(readRecordField(interaction, 'response'), 'data'), responseField),
+  );
+}
+
+function readBulkOperationPayloadFromInteraction(
+  interaction: Record<string, unknown> | null | undefined,
+  payloadField: string,
+): BulkOperationRecord | null {
+  return readBulkOperationRecord(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(interaction, 'response'), 'data'), payloadField),
+      'bulkOperation',
+    ),
+  );
+}
+
+function seedBulkOperationPreconditions(capture: unknown): boolean {
+  const captureRecord = isPlainObject(capture) ? capture : {};
+  const reads = readRecordField(captureRecord, 'reads');
+  const lifecycle = readRecordField(captureRecord, 'lifecycle');
+  if (!reads && !lifecycle) {
+    return false;
+  }
+
+  const baseOperations = new Map<string, BulkOperationRecord>();
+  const addBaseOperation = (operation: BulkOperationRecord | null): void => {
+    if (operation) {
+      baseOperations.set(operation.id, operation);
+    }
+  };
+
+  for (const key of ['catalogDefault', 'catalogEmptyRunningQuery', 'catalogEmptyRunningMutation'] as const) {
+    const nodes = readArrayField(
+      readRecordField(
+        readRecordField(readRecordField(readRecordField(reads, key), 'response'), 'data'),
+        'bulkOperations',
+      ),
+      'nodes',
+    );
+    for (const node of nodes.filter(isPlainObject)) {
+      addBaseOperation(readBulkOperationRecord(node));
+    }
+  }
+
+  addBaseOperation(readBulkOperationFromInteraction(readRecordField(reads, 'currentQuery'), 'currentBulkOperation'));
+  addBaseOperation(readBulkOperationFromInteraction(readRecordField(reads, 'currentMutation'), 'currentBulkOperation'));
+
+  const terminalLifecycle = readRecordField(lifecycle, 'queryExportToTerminal');
+  addBaseOperation(
+    readBulkOperationPayloadFromInteraction(readRecordField(terminalLifecycle, 'run'), 'bulkOperationRunQuery'),
+  );
+  for (const poll of readArrayField(terminalLifecycle, 'statusPolls').filter(isPlainObject)) {
+    addBaseOperation(readBulkOperationFromInteraction(poll, 'bulkOperation'));
+  }
+  const terminalCatalogNode = readArrayField(
+    readRecordField(
+      readRecordField(readRecordField(readRecordField(terminalLifecycle, 'catalogById'), 'response'), 'data'),
+      'bulkOperations',
+    ),
+    'nodes',
+  )
+    .filter(isPlainObject)
+    .map(readBulkOperationRecord)
+    .find((operation): operation is BulkOperationRecord => operation !== null);
+  addBaseOperation(terminalCatalogNode ?? null);
+  addBaseOperation(
+    readBulkOperationFromInteraction(
+      readRecordField(terminalLifecycle, 'currentQueryOperation'),
+      'currentBulkOperation',
+    ),
+  );
+
+  const stagedImmediateCancelOperation = readBulkOperationPayloadFromInteraction(
+    readRecordField(readRecordField(lifecycle, 'queryExportImmediateCancel'), 'run'),
+    'bulkOperationRunQuery',
+  );
+
+  if (baseOperations.size > 0) {
+    store.upsertBaseBulkOperations([...baseOperations.values()]);
+  }
+  if (stagedImmediateCancelOperation) {
+    store.stageBulkOperation(stagedImmediateCancelOperation);
+  }
+
+  return baseOperations.size > 0 || stagedImmediateCancelOperation !== null;
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
+    return;
+  }
+
+  if (seedBulkOperationPreconditions(capture)) {
     return;
   }
 
@@ -6304,11 +6630,19 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  if (seedDraftOrderInvoiceSendSafetyPreconditions(capture)) {
+    return;
+  }
+
   if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
     return;
   }
 
   if (seedCustomerInputValidationPreconditions(capture)) {
+    return;
+  }
+
+  if (seedCustomerOrderSummaryPreconditions(capture)) {
     return;
   }
 
@@ -6940,16 +7274,16 @@ function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
   capture: unknown,
-  primaryProxyResponse: unknown,
+  proxyResponses: Record<string, unknown>,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), primaryProxyResponse);
+    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), proxyResponses, capture);
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, primaryProxyResponse);
+  return materializeVariables(rawVariables, proxyResponses, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -7014,13 +7348,15 @@ export async function executeParityScenario({
 
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, {});
+  const proxyResponses: Record<string, unknown> = {};
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses);
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
   );
+  proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
   for (const target of readComparisonTargets(paritySpec.comparison)) {
@@ -7032,7 +7368,7 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, primaryProxyResponse.body);
+      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, proxyResponses);
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
@@ -7041,6 +7377,7 @@ export async function executeParityScenario({
             : undefined;
       const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
       proxyResponseBody = proxyResponse.body;
+      proxyResponses[target.name] = proxyResponse.body;
     }
 
     const actual = readJsonPath(proxyResponseBody, target.proxyPath);

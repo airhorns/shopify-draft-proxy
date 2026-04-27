@@ -1,0 +1,22 @@
+mutation BulkOperationCancelParity($id: ID!) {
+  bulkOperationCancel(id: $id) {
+    bulkOperation {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

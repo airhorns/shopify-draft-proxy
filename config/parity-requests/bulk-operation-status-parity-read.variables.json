@@ -1,0 +1,8 @@
+{
+  "unknownId": "gid://shopify/BulkOperation/0",
+  "first": 5,
+  "runningQuery": "status:running operation_type:query",
+  "runningMutation": "status:running operation_type:mutation",
+  "sortKey": "CREATED_AT",
+  "reverse": true
+}
