@@ -885,6 +885,306 @@ describe('draft-order mutation family flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('models residual draft-order helper reads, calculate, and invoice preview locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order helper roots should not hit upstream in live-hybrid mode');
+    });
+    const app = createApp(liveHybridConfig).callback();
+
+    const createResponse = await createDraftOrder(app);
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id as string;
+
+    const helperReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query HelperReads($deliveryInput: DraftOrderAvailableDeliveryOptionsInput!, $tagId: ID!) {
+          draftOrderSavedSearches(first: 2) {
+            nodes {
+              id
+              name
+              query
+              resourceType
+              searchTerms
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          draftOrderAvailableDeliveryOptions(input: $deliveryInput) {
+            availableShippingRates { handle title }
+            availableLocalDeliveryRates { handle title }
+            availableLocalPickupOptions { handle title }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          draftOrderTag(id: $tagId) {
+            id
+            handle
+            title
+          }
+        }`,
+        variables: {
+          deliveryInput: {
+            lineItems: [
+              {
+                title: 'Local delivery probe',
+                quantity: 1,
+                originalUnitPrice: '4.00',
+              },
+            ],
+          },
+          tagId: 'gid://shopify/DraftOrderTag/draft',
+        },
+      });
+
+    expect(helperReadResponse.status).toBe(200);
+    expect(helperReadResponse.body.data.draftOrderSavedSearches).toEqual({
+      nodes: [
+        {
+          id: 'gid://shopify/SavedSearch/3634390597938',
+          name: 'Open and invoice sent',
+          query: 'status:open_and_invoice_sent',
+          resourceType: 'DRAFT_ORDER',
+          searchTerms: '',
+        },
+        {
+          id: 'gid://shopify/SavedSearch/3634390630706',
+          name: 'Open',
+          query: 'status:open',
+          resourceType: 'DRAFT_ORDER',
+          searchTerms: '',
+        },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/SavedSearch/3634390597938',
+        endCursor: 'cursor:gid://shopify/SavedSearch/3634390630706',
+      },
+    });
+    expect(helperReadResponse.body.data.draftOrderAvailableDeliveryOptions).toEqual({
+      availableShippingRates: [],
+      availableLocalDeliveryRates: [],
+      availableLocalPickupOptions: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(helperReadResponse.body.data.draftOrderTag).toEqual({
+      id: 'gid://shopify/DraftOrderTag/draft',
+      handle: 'draft',
+      title: 'draft',
+    });
+
+    const calculateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CalculateDraft($input: DraftOrderInput!) {
+          draftOrderCalculate(input: $input) {
+            calculatedDraftOrder {
+              currencyCode
+              totalQuantityOfLineItems
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalDiscountsSet { shopMoney { amount currencyCode } }
+              totalShippingPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              lineItems {
+                title
+                quantity
+                custom
+                originalUnitPriceSet { shopMoney { amount currencyCode } }
+                originalTotalSet { shopMoney { amount currencyCode } }
+                discountedTotalSet { shopMoney { amount currencyCode } }
+                totalDiscountSet { shopMoney { amount currencyCode } }
+              }
+              availableShippingRates { handle title }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            lineItems: [
+              {
+                title: 'Calculated custom item',
+                quantity: 2,
+                originalUnitPrice: '6.25',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(calculateResponse.status).toBe(200);
+    expect(calculateResponse.body.data.draftOrderCalculate).toEqual({
+      calculatedDraftOrder: {
+        currencyCode: 'CAD',
+        totalQuantityOfLineItems: 2,
+        subtotalPriceSet: { shopMoney: { amount: '12.5', currencyCode: 'CAD' } },
+        totalDiscountsSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+        totalShippingPriceSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+        totalPriceSet: { shopMoney: { amount: '12.5', currencyCode: 'CAD' } },
+        lineItems: [
+          {
+            title: 'Calculated custom item',
+            quantity: 2,
+            custom: true,
+            originalUnitPriceSet: { shopMoney: { amount: '6.25', currencyCode: 'CAD' } },
+            originalTotalSet: { shopMoney: { amount: '12.5', currencyCode: 'CAD' } },
+            discountedTotalSet: { shopMoney: { amount: '12.5', currencyCode: 'CAD' } },
+            totalDiscountSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+          },
+        ],
+        availableShippingRates: [],
+      },
+      userErrors: [],
+    });
+
+    const previewResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation PreviewDraftInvoice($id: ID!, $email: EmailInput) {
+          draftOrderInvoicePreview(id: $id, email: $email) {
+            previewSubject
+            previewHtml
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: draftOrderId,
+          email: {
+            subject: 'Custom invoice subject',
+            customMessage: 'Please review this local invoice preview.',
+          },
+        },
+      });
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.body.data.draftOrderInvoicePreview).toMatchObject({
+      previewSubject: 'Custom invoice subject',
+      userErrors: [],
+    });
+    expect(previewResponse.body.data.draftOrderInvoicePreview.previewHtml).toContain('Custom invoice subject');
+    expect(previewResponse.body.data.draftOrderInvoicePreview.previewHtml).toContain(
+      'Please review this local invoice preview.',
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages residual draft-order bulk tag and delete helpers with downstream reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order bulk helpers should not hit upstream in live-hybrid mode');
+    });
+    const app = createApp(liveHybridConfig).callback();
+
+    const createResponse = await createDraftOrder(app);
+    const draftOrderId = createResponse.body.data.draftOrderCreate.draftOrder.id as string;
+
+    const addResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkAdd($ids: [ID!], $tags: [String!]!) {
+          draftOrderBulkAddTags(ids: $ids, tags: $tags) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          ids: [draftOrderId],
+          tags: ['bulk-added'],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body.data.draftOrderBulkAddTags).toEqual({
+      job: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Job\//),
+        done: false,
+      },
+      userErrors: [],
+    });
+
+    const afterAddResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadDraft($id: ID!) {
+          draftOrder(id: $id) { id tags }
+          draftOrderTag(id: "gid://shopify/DraftOrderTag/bulk-added") { id handle title }
+        }`,
+        variables: { id: draftOrderId },
+      });
+
+    expect(afterAddResponse.body.data.draftOrder.tags).toEqual(['bulk-added', 'draft', 'initial']);
+    expect(afterAddResponse.body.data.draftOrderTag).toEqual({
+      id: 'gid://shopify/DraftOrderTag/bulk-added',
+      handle: 'bulk-added',
+      title: 'bulk-added',
+    });
+
+    const removeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkRemove($ids: [ID!], $tags: [String!]!) {
+          draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          ids: [draftOrderId],
+          tags: ['initial'],
+        },
+      });
+
+    expect(removeResponse.status).toBe(200);
+    expect(removeResponse.body.data.draftOrderBulkRemoveTags.userErrors).toEqual([]);
+
+    const afterRemoveResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadDraft($id: ID!) {
+          draftOrder(id: $id) { id tags }
+        }`,
+        variables: { id: draftOrderId },
+      });
+
+    expect(afterRemoveResponse.body.data.draftOrder.tags).toEqual(['bulk-added', 'draft']);
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkDelete($ids: [ID!]) {
+          draftOrderBulkDelete(ids: $ids) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          ids: [draftOrderId],
+        },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.draftOrderBulkDelete.userErrors).toEqual([]);
+
+    const afterDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadDraft($id: ID!) {
+          draftOrder(id: $id) { id tags }
+        }`,
+        variables: { id: draftOrderId },
+      });
+
+    expect(afterDeleteResponse.body.data.draftOrder).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('short-circuits safe draft-order mutation validation branches locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('draft-order validation branches should not hit upstream in snapshot mode');

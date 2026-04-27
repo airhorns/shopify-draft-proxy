@@ -1,0 +1,1073 @@
+{
+  "capturedAt": "2026-04-26T01:30:18.648Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "roots": [
+    "productByIdentifier",
+    "productVariantByIdentifier",
+    "productVariants",
+    "productVariantsCount",
+    "productTags",
+    "productTypes",
+    "productVendors",
+    "productSavedSearches",
+    "productOperation",
+    "productDuplicateJob",
+    "productResourceFeedback",
+    "bulkProductResourceFeedbackCreate",
+    "shopResourceFeedbackCreate"
+  ],
+  "schema": {
+    "queryRoot": {
+      "fields": [
+        {
+          "name": "productByIdentifier",
+          "args": [
+            {
+              "name": "identifier",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "ProductIdentifierInput",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Product",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productDuplicateJob",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "ProductDuplicateJob",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "productOperation",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "INTERFACE",
+            "name": "ProductOperation",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productResourceFeedback",
+          "args": [
+            {
+              "name": "id",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ProductResourceFeedback",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productSavedSearches",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              },
+              "defaultValue": "false"
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "SavedSearchConnection",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "productTags",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              },
+              "defaultValue": "false"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "StringConnection",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productTypes",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              },
+              "defaultValue": "false"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "StringConnection",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productVariantByIdentifier",
+          "args": [
+            {
+              "name": "identifier",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "ProductVariantIdentifierInput",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ProductVariant",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productVariants",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              },
+              "defaultValue": "false"
+            },
+            {
+              "name": "sortKey",
+              "type": {
+                "kind": "ENUM",
+                "name": "ProductVariantSortKeys",
+                "ofType": null
+              },
+              "defaultValue": "ID"
+            },
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "savedSearchId",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "ProductVariantConnection",
+              "ofType": null
+            }
+          }
+        },
+        {
+          "name": "productVariantsCount",
+          "args": [
+            {
+              "name": "query",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "limit",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": "10000"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Count",
+            "ofType": null
+          }
+        },
+        {
+          "name": "productVendors",
+          "args": [
+            {
+              "name": "first",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "after",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "last",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Int",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "before",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "reverse",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              },
+              "defaultValue": "false"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "StringConnection",
+            "ofType": null
+          }
+        }
+      ]
+    },
+    "mutationRoot": {
+      "fields": [
+        {
+          "name": "bulkProductResourceFeedbackCreate",
+          "args": [
+            {
+              "name": "feedbackInput",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "INPUT_OBJECT",
+                      "name": "ProductResourceFeedbackInput"
+                    }
+                  }
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "BulkProductResourceFeedbackCreatePayload",
+            "ofType": null
+          }
+        },
+        {
+          "name": "shopResourceFeedbackCreate",
+          "args": [
+            {
+              "name": "input",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "ResourceFeedbackCreateInput",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "ShopResourceFeedbackCreatePayload",
+            "ofType": null
+          }
+        }
+      ]
+    }
+  },
+  "seed": {
+    "query": "#graphql\n  query ProductHelperSeed {\n    products(first: 3, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        id\n        legacyResourceId\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        totalInventory\n        tracksInventory\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        onlineStorePreviewUrl\n        templateSuffix\n        seo {\n          title\n          description\n        }\n        category {\n          id\n          fullName\n        }\n        variants(first: 3) {\n          nodes {\n            id\n            title\n            sku\n            barcode\n            price\n            compareAtPrice\n            taxable\n            inventoryPolicy\n            inventoryQuantity\n            selectedOptions {\n              name\n              value\n            }\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n              measurement {\n                weight {\n                  unit\n                  value\n                }\n              }\n              countryCodeOfOrigin\n              provinceCodeOfOrigin\n              harmonizedSystemCode\n            }\n          }\n        }\n      }\n    }\n  }\n",
+    "response": {
+      "data": {
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/9801098789170",
+              "legacyResourceId": "9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "handle": "the-inventory-not-tracked-snowboard",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "snowboard",
+              "tags": ["Accessory", "Sport", "Winter"],
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "createdAt": "2025-03-26T19:51:37Z",
+              "updatedAt": "2026-04-25T23:58:27Z",
+              "publishedAt": "2025-03-26T19:51:38Z",
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://harry-test-heelo.myshopify.com/products/the-inventory-not-tracked-snowboard",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": null,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/49875425296690",
+                    "title": "Default Title",
+                    "sku": "sku-untracked-1",
+                    "barcode": null,
+                    "price": "949.95",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": -20,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/51930318700850",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "gid://shopify/Product/10170561036594",
+              "legacyResourceId": "10170561036594",
+              "title": "Hermes Variant Search Conformance 1777150673975",
+              "handle": "hermes-variant-search-conformance-1777150673975",
+              "status": "DRAFT",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "createdAt": "2026-04-25T20:57:54Z",
+              "updatedAt": "2026-04-25T20:58:07Z",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://9ublbrty8ydjyl72-92891250994.shopifypreview.com/products_preview?preview_key=8ea76fb63a5720e2604379fc17a48224&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNC0yNlQwMjozMDoxOC4zMzVaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6edf03556c3585e795fb2580bf37722905e4a250",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": null,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51098706739506",
+                    "title": "Default Title",
+                    "sku": "HERMES-VARIANT-SEARCH-50673975",
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Title",
+                        "value": "Default Title"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53201476452658",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "gid://shopify/Product/9899735613746",
+              "legacyResourceId": "9899735613746",
+              "title": "Test Product - 8127",
+              "handle": "test-product-8127",
+              "status": "ACTIVE",
+              "vendor": "harry-test-heelo",
+              "productType": "",
+              "tags": [],
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "createdAt": "2025-07-01T22:34:57Z",
+              "updatedAt": "2025-07-01T22:35:16Z",
+              "publishedAt": null,
+              "descriptionHtml": "",
+              "onlineStorePreviewUrl": "https://9ublbrty8ydjyl72-92891250994.shopifypreview.com/products_preview?preview_key=9a65de6cd24708cb8af792b47f365931&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNC0yNlQwMjozMDoxOC4zNjNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--04400ef967e177168409e143aa2fbe2abd5487e3",
+              "templateSuffix": null,
+              "seo": {
+                "title": null,
+                "description": null
+              },
+              "category": null,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/50173032300850",
+                    "title": "Polyester / Sport",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Material",
+                        "value": "Polyester"
+                      },
+                      {
+                        "name": "Style",
+                        "value": "Sport"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/52227574399282",
+                      "tracked": false,
+                      "requiresShipping": true,
+                      "measurement": {
+                        "weight": {
+                          "unit": "KILOGRAMS",
+                          "value": 0
+                        }
+                      },
+                      "countryCodeOfOrigin": null,
+                      "provinceCodeOfOrigin": null,
+                      "harmonizedSystemCode": null
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 24,
+          "actualQueryCost": 18,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1976,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9801098789170",
+      "legacyResourceId": "9801098789170",
+      "title": "The Inventory Not Tracked Snowboard",
+      "handle": "the-inventory-not-tracked-snowboard",
+      "status": "ACTIVE",
+      "vendor": "harry-test-heelo",
+      "productType": "snowboard",
+      "tags": ["Accessory", "Sport", "Winter"],
+      "totalInventory": 0,
+      "tracksInventory": false,
+      "createdAt": "2025-03-26T19:51:37Z",
+      "updatedAt": "2026-04-25T23:58:27Z",
+      "publishedAt": "2025-03-26T19:51:38Z",
+      "descriptionHtml": "",
+      "onlineStorePreviewUrl": "https://harry-test-heelo.myshopify.com/products/the-inventory-not-tracked-snowboard",
+      "templateSuffix": null,
+      "seo": {
+        "title": null,
+        "description": null
+      },
+      "category": null,
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Default Title",
+            "sku": "sku-untracked-1",
+            "barcode": null,
+            "price": "949.95",
+            "compareAtPrice": null,
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": -20,
+            "selectedOptions": [
+              {
+                "name": "Title",
+                "value": "Default Title"
+              }
+            ],
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/51930318700850",
+              "tracked": false,
+              "requiresShipping": true,
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 0
+                }
+              },
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "gid://shopify/Product/10170561036594",
+      "legacyResourceId": "10170561036594",
+      "title": "Hermes Variant Search Conformance 1777150673975",
+      "handle": "hermes-variant-search-conformance-1777150673975",
+      "status": "DRAFT",
+      "vendor": "harry-test-heelo",
+      "productType": "",
+      "tags": [],
+      "totalInventory": 0,
+      "tracksInventory": false,
+      "createdAt": "2026-04-25T20:57:54Z",
+      "updatedAt": "2026-04-25T20:58:07Z",
+      "publishedAt": null,
+      "descriptionHtml": "",
+      "onlineStorePreviewUrl": "https://9ublbrty8ydjyl72-92891250994.shopifypreview.com/products_preview?preview_key=8ea76fb63a5720e2604379fc17a48224&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNC0yNlQwMjozMDoxOC4zMzVaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--6edf03556c3585e795fb2580bf37722905e4a250",
+      "templateSuffix": null,
+      "seo": {
+        "title": null,
+        "description": null
+      },
+      "category": null,
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51098706739506",
+            "title": "Default Title",
+            "sku": "HERMES-VARIANT-SEARCH-50673975",
+            "barcode": null,
+            "price": "0.00",
+            "compareAtPrice": null,
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [
+              {
+                "name": "Title",
+                "value": "Default Title"
+              }
+            ],
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53201476452658",
+              "tracked": false,
+              "requiresShipping": true,
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 0
+                }
+              },
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "gid://shopify/Product/9899735613746",
+      "legacyResourceId": "9899735613746",
+      "title": "Test Product - 8127",
+      "handle": "test-product-8127",
+      "status": "ACTIVE",
+      "vendor": "harry-test-heelo",
+      "productType": "",
+      "tags": [],
+      "totalInventory": 0,
+      "tracksInventory": false,
+      "createdAt": "2025-07-01T22:34:57Z",
+      "updatedAt": "2025-07-01T22:35:16Z",
+      "publishedAt": null,
+      "descriptionHtml": "",
+      "onlineStorePreviewUrl": "https://9ublbrty8ydjyl72-92891250994.shopifypreview.com/products_preview?preview_key=9a65de6cd24708cb8af792b47f365931&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNC0yNlQwMjozMDoxOC4zNjNaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--04400ef967e177168409e143aa2fbe2abd5487e3",
+      "templateSuffix": null,
+      "seo": {
+        "title": null,
+        "description": null
+      },
+      "category": null,
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/50173032300850",
+            "title": "Polyester / Sport",
+            "sku": null,
+            "barcode": null,
+            "price": "0.00",
+            "compareAtPrice": null,
+            "taxable": true,
+            "inventoryPolicy": "DENY",
+            "inventoryQuantity": 0,
+            "selectedOptions": [
+              {
+                "name": "Material",
+                "value": "Polyester"
+              },
+              {
+                "name": "Style",
+                "value": "Sport"
+              }
+            ],
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/52227574399282",
+              "tracked": false,
+              "requiresShipping": true,
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 0
+                }
+              },
+              "countryCodeOfOrigin": null,
+              "provinceCodeOfOrigin": null,
+              "harmonizedSystemCode": null
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "request": {
+    "query": "#graphql\n  query ProductHelperRoots(\n    $productId: ID!\n    $productHandle: String!\n    $variantId: ID!\n    $missingProductId: ID!\n    $missingVariantId: ID!\n    $missingJobId: ID!\n    $missingOperationId: ID!\n  ) {\n    byId: productByIdentifier(identifier: { id: $productId }) {\n      id\n      handle\n      title\n    }\n    byHandle: productByIdentifier(identifier: { handle: $productHandle }) {\n      id\n      handle\n      title\n    }\n    missingProduct: productByIdentifier(identifier: { id: $missingProductId }) {\n      id\n      handle\n      title\n    }\n    variantById: productVariantByIdentifier(identifier: { id: $variantId }) {\n      id\n      title\n      sku\n      product {\n        id\n      }\n    }\n    missingVariant: productVariantByIdentifier(identifier: { id: $missingVariantId }) {\n      id\n      title\n    }\n    productVariants(first: 2, sortKey: ID) {\n      nodes {\n        id\n        title\n        sku\n        product {\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    productVariantsCount {\n      count\n      precision\n    }\n    productTags(first: 3) {\n      nodes\n      edges {\n        cursor\n        node\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    productTypes(first: 3) {\n      nodes\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    productVendors(first: 3) {\n      nodes\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    productSavedSearches(first: 3) {\n      nodes {\n        id\n        name\n        query\n        searchTerms\n        resourceType\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    productResourceFeedback(id: $productId) {\n      productId\n      state\n      messages\n      feedbackGeneratedAt\n      productUpdatedAt\n    }\n    productOperation(id: $missingOperationId) {\n      __typename\n      status\n      product {\n        id\n      }\n      ... on ProductSetOperation {\n        id\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n    productDuplicateJob(id: $missingJobId) {\n      id\n      done\n    }\n  }\n",
+    "variables": {
+      "productId": "gid://shopify/Product/9801098789170",
+      "productHandle": "the-inventory-not-tracked-snowboard",
+      "variantId": "gid://shopify/ProductVariant/49875425296690",
+      "missingProductId": "gid://shopify/Product/999999999999",
+      "missingVariantId": "gid://shopify/ProductVariant/999999999999",
+      "missingJobId": "gid://shopify/ProductDuplicateJob/999999999999",
+      "missingOperationId": "gid://shopify/ProductSetOperation/999999999999"
+    }
+  },
+  "response": {
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Access denied for productResourceFeedback field. Required access: `read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
+          "locations": [
+            {
+              "line": 104,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes",
+            "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
+          },
+          "path": ["productResourceFeedback"]
+        }
+      ],
+      "data": {
+        "byId": {
+          "id": "gid://shopify/Product/9801098789170",
+          "handle": "the-inventory-not-tracked-snowboard",
+          "title": "The Inventory Not Tracked Snowboard"
+        },
+        "byHandle": {
+          "id": "gid://shopify/Product/9801098789170",
+          "handle": "the-inventory-not-tracked-snowboard",
+          "title": "The Inventory Not Tracked Snowboard"
+        },
+        "missingProduct": null,
+        "variantById": {
+          "id": "gid://shopify/ProductVariant/49875425296690",
+          "title": "Default Title",
+          "sku": "sku-untracked-1",
+          "product": {
+            "id": "gid://shopify/Product/9801098789170"
+          }
+        },
+        "missingVariant": null,
+        "productVariants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "product": {
+                "id": "gid://shopify/Product/9801098789170"
+              }
+            },
+            {
+              "id": "gid://shopify/ProductVariant/49875425329458",
+              "title": "$10",
+              "sku": null,
+              "product": {
+                "id": "gid://shopify/Product/9801098821938"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+            "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0="
+          }
+        },
+        "productVariantsCount": {
+          "count": 2279,
+          "precision": "EXACT"
+        },
+        "productTags": {
+          "nodes": ["1/8\"", "10mm", "14mm"],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
+              "node": "1/8\""
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoiMTBtbSIsImxhc3RfdmFsdWUiOiIxMG1tIn0=",
+              "node": "10mm"
+            },
+            {
+              "cursor": "eyJsYXN0X2lkIjoiMTRtbSIsImxhc3RfdmFsdWUiOiIxNG1tIn0=",
+              "node": "14mm"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
+            "endCursor": "eyJsYXN0X2lkIjoiMTRtbSIsImxhc3RfdmFsdWUiOiIxNG1tIn0="
+          }
+        },
+        "productTypes": {
+          "nodes": ["accessories", "Apparel", "Badge"],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoiYWNjZXNzb3JpZXMiLCJsYXN0X3ZhbHVlIjowfQ==",
+            "endCursor": "eyJsYXN0X2lkIjoiQmFkZ2UiLCJsYXN0X3ZhbHVlIjoyfQ=="
+          }
+        },
+        "productVendors": {
+          "nodes": ["ACS", "Aerospoke", "Bookman"],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoiQUNTIiwibGFzdF92YWx1ZSI6MH0=",
+            "endCursor": "eyJsYXN0X2lkIjoiQm9va21hbiIsImxhc3RfdmFsdWUiOjJ9"
+          }
+        },
+        "productSavedSearches": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "productResourceFeedback": null,
+        "productOperation": null,
+        "productDuplicateJob": {
+          "id": "gid://shopify/ProductDuplicateJob/999999999999",
+          "done": true
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 35,
+          "actualQueryCost": 33,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1967,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
