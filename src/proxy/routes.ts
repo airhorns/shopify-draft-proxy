@@ -4,13 +4,17 @@ import { logger } from '../logger.js';
 import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
 import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { MutationLogInterpretedMetadata } from '../state/types.js';
+import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
-import { handleBulkOperationMutation, handleBulkOperationQuery } from './bulk-operations.js';
+import {
+  handleBulkOperationMutation,
+  handleBulkOperationQuery,
+  type BulkOperationImportLogEntry,
+} from './bulk-operations.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation, handleMediaQuery } from './media.js';
@@ -525,6 +529,7 @@ interface StagedMutationLogOptions {
   operationName?: string | null | undefined;
   responseBody?: unknown;
   stagedResourceIds?: string[] | undefined;
+  status?: MutationLogEntry['status'] | undefined;
   interpreted?: MutationLogInterpretedMetadata | undefined;
   notes?: string | null | undefined;
 }
@@ -665,9 +670,43 @@ function appendStagedMutationLog(request: ProxyDispatchRequest, options: StagedM
       : options.responseBody !== undefined
         ? { stagedResourceIds: collectProxySyntheticGids(options.responseBody) }
         : {}),
-    status: 'staged',
+    status: options.status ?? 'staged',
     interpreted: options.interpreted ?? interpretMutationLogEntry(request.parsed, request.capability),
     ...(options.notes ? { notes: options.notes } : {}),
+  });
+}
+
+function appendBulkOperationImportLog(request: ProxyDispatchRequest, entry: BulkOperationImportLogEntry): void {
+  store.appendLog({
+    id: makeSyntheticGid('MutationLogEntry'),
+    receivedAt: makeSyntheticTimestamp(),
+    operationName: entry.operationName,
+    path: request.ctx.path,
+    query: entry.query,
+    variables: entry.variables,
+    requestBody: entry.requestBody,
+    stagedResourceIds: entry.stagedResourceIds,
+    status: 'staged',
+    interpreted: {
+      operationType: 'mutation',
+      operationName: entry.operationName,
+      rootFields: [entry.rootField],
+      primaryRootField: entry.rootField,
+      capability: {
+        operationName: entry.operationName,
+        domain: 'products',
+        execution: 'stage-locally',
+      },
+      bulkOperationImport: {
+        bulkOperationId: entry.bulkOperationId,
+        lineNumber: entry.lineNumber,
+        stagedUploadPath: entry.stagedUploadPath,
+        outerRequestBody: request.requestBody,
+        innerMutation: entry.innerMutation,
+      },
+    },
+    notes:
+      'Staged locally from bulkOperationRunMutation JSONL import; commit replay uses this original inner mutation and line variables.',
   });
 }
 
@@ -754,20 +793,38 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     handleMutation(request) {
       if (
         request.capability.execution !== 'stage-locally' ||
-        (request.primaryRootField !== 'bulkOperationCancel' && request.primaryRootField !== 'bulkOperationRunQuery')
+        (request.primaryRootField !== 'bulkOperationCancel' &&
+          request.primaryRootField !== 'bulkOperationRunQuery' &&
+          request.primaryRootField !== 'bulkOperationRunMutation')
       ) {
         return false;
       }
 
-      const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables);
+      const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables, {
+        readMode: request.config.readMode,
+      });
       if (!bulkOperationMutation) {
         return false;
       }
 
-      appendStagedMutationLog(request, {
-        stagedResourceIds: bulkOperationMutation.stagedResourceIds,
-        notes: bulkOperationMutation.notes,
-      });
+      for (const entry of bulkOperationMutation.innerMutationLogs ?? []) {
+        appendBulkOperationImportLog(request, entry);
+      }
+
+      if (request.primaryRootField === 'bulkOperationRunMutation') {
+        if ((bulkOperationMutation.innerMutationLogs ?? []).length === 0) {
+          appendStagedMutationLog(request, {
+            stagedResourceIds: bulkOperationMutation.stagedResourceIds,
+            status: 'failed',
+            notes: bulkOperationMutation.notes,
+          });
+        }
+      } else {
+        appendStagedMutationLog(request, {
+          stagedResourceIds: bulkOperationMutation.stagedResourceIds,
+          notes: bulkOperationMutation.notes,
+        });
+      }
       setGraphQLResponse(request, 200, bulkOperationMutation.response);
       return true;
     },
@@ -825,7 +882,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       setGraphQLResponse(
         request,
         upstreamResponse.status,
-        store.hasStagedProducts() || store.hasStagedSellingPlanGroups()
+        store.hasStagedProducts() ||
+          store.hasStagedSellingPlanGroups() ||
+          store.hasStagedInventoryTransfers() ||
+          store.hasInventoryShipments()
           ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );

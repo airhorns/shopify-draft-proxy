@@ -2850,3 +2850,23 @@ Practical rule:
 - do not invent financial, KYC, dispute, POS cash, tender transaction, Shop Pay receipt, payout, or risk records
 - do not select or check in tender IDs, payment methods, amounts, remote references, user links, KYC details, dispute evidence content, or payout details unless the capture is intentionally scrubbed and justified
 - keep mutation roots scaffold-only until local staging preserves userErrors, downstream read-after-write effects, and original raw mutation commit replay without runtime Shopify writes
+
+## 73. Inventory transfers reserve origin inventory when ready, not on draft create
+
+HAR-307 captured inventory transfer evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` after the conformance grant gained the transfer read/write scopes.
+
+Captured facts:
+
+- `InventoryTransferLineItem` does not expose a generic `quantity` field. The useful quantity fields are `totalQuantity`, `shippableQuantity`, `shippedQuantity`, `processableQuantity`, and `pickedForShipmentQuantity`.
+- `inventoryTransfers(first:)` on the clean test shop returned an empty connection with false page booleans and null cursors.
+- creating a draft transfer with an untracked inventory item returned `userErrors[{ field: ["input", "lineItems", "0", "inventoryItemId"], message: "The inventory item does not track inventory." }]`.
+- creating a draft transfer with a tracked item did not make the line item shippable: `shippableQuantity` stayed `0` while `processableQuantity` matched `totalQuantity`.
+- `inventoryTransferMarkAsReadyToShip` requires the item to be stocked at the origin location. When the origin level had `available: 5`, a quantity-2 transfer became `READY_TO_SHIP`, line-item `shippableQuantity` became `2`, and the downstream inventory level changed to `available: 3`, `reserved: 2`, `on_hand: 5`.
+- canceling a ready transfer returned `status: CANCELED`. Shopify then rejected `inventoryTransferDelete` for that transfer with `Can't delete the transfer if it's not in the draft status.`
+
+Practical rule:
+
+- model draft transfer create/edit/item mutations as transfer-record changes only
+- model ready transitions as an origin-level reservation: subtract from `available`, add to `reserved`, and leave `on_hand` plus product-level `totalInventory` unchanged
+- model canceling a ready transfer as releasing the local reservation before setting `CANCELED`
+- keep shipment/receive/in-progress behavior out of transfer lifecycle support until shipment roots and downstream inventory effects are captured
