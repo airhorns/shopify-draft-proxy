@@ -2428,20 +2428,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptCancellationRequest", "FulfillmentOrderAcceptCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service cancellation request lifecycle, status/requestStatus transitions, merchant request history, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service cancellation request acceptance for order-backed fulfillment orders, closes the accepted fulfillment order, preserves merchant request history, and exposes the staged requestStatus through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderAcceptFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderAcceptFulfillmentRequest", "FulfillmentOrderAcceptFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillment-service acceptance semantics, estimated shipped timestamps, request status transitions, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages fulfillment-service acceptance for submitted fulfillment requests, transitions requestStatus to ACCEPTED/status to IN_PROGRESS, and keeps downstream fulfillment-order reads consistent without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderCancel",
@@ -2518,20 +2518,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectCancellationRequest", "FulfillmentOrderRejectCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request rejection lifecycle, merchant request records, and post-rejection fulfillment-order status behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request rejection for accepted order-backed fulfillment orders, transitions requestStatus to CANCELLATION_REJECTED, and preserves merchant request history without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderRejectFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderRejectFulfillmentRequest", "FulfillmentOrderRejectFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires rejection reasons, rejected line-item semantics, merchant request records, and unfulfillable-line behavior before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages rejection for submitted order-backed fulfillment requests, transitions requestStatus to REJECTED, preserves requested line-item quantities, and keeps downstream reads local without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderReleaseHold",
@@ -2598,20 +2598,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitCancellationRequest", "FulfillmentOrderSubmitCancellationRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires cancellation request creation, merchant request history, notification semantics, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages cancellation request creation for accepted order-backed fulfillment orders, records a CANCELLATION_REQUEST merchant request/message, and exposes it through downstream fulfillment-order reads without invoking service callbacks."
   },
   {
     "name": "fulfillmentOrderSubmitFulfillmentRequest",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSubmitFulfillmentRequest", "FulfillmentOrderSubmitFulfillmentRequest"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires full and partial fulfillment request semantics, split-on-partial behavior, notifyCustomer handling, and requestStatus transitions before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "Locally stages full and partial fulfillment requests for order-backed fulfillment orders, records FULFILLMENT_REQUEST merchant request messages/options, splits partial line-item quantities into submitted and unsubmitted fulfillment-order records, and avoids service callback side effects."
   },
   {
     "name": "fulfillmentService",

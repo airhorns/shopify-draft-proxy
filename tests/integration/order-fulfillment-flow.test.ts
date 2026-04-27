@@ -18,6 +18,55 @@ const liveHybridConfig: AppConfig = {
   readMode: 'live-hybrid',
 };
 
+function makeOrder(id: string, name: string, createdAt: string, overrides: Partial<OrderRecord> = {}): OrderRecord {
+  return {
+    id,
+    name,
+    createdAt,
+    updatedAt: createdAt,
+    displayFinancialStatus: 'PAID',
+    displayFulfillmentStatus: 'UNFULFILLED',
+    note: null,
+    tags: [],
+    customAttributes: [],
+    billingAddress: null,
+    shippingAddress: null,
+    subtotalPriceSet: {
+      shopMoney: {
+        amount: '30.0',
+        currencyCode: 'CAD',
+      },
+    },
+    currentTotalPriceSet: {
+      shopMoney: {
+        amount: '30.0',
+        currencyCode: 'CAD',
+      },
+    },
+    totalPriceSet: {
+      shopMoney: {
+        amount: '30.0',
+        currencyCode: 'CAD',
+      },
+    },
+    totalRefundedSet: {
+      shopMoney: {
+        amount: '0.0',
+        currencyCode: 'CAD',
+      },
+    },
+    customer: null,
+    shippingLines: [],
+    lineItems: [],
+    fulfillments: [],
+    fulfillmentOrders: [],
+    transactions: [],
+    refunds: [],
+    returns: [],
+    ...overrides,
+  };
+}
+
 describe('order fulfillment flow', () => {
   beforeEach(() => {
     store.reset();
@@ -835,6 +884,371 @@ describe('order fulfillment flow', () => {
     expect(stagedFulfillment.trackingInfo).toEqual([
       { number: 'HAR235-UPDATED', url: 'https://example.com/track/HAR235-UPDATED', company: 'Hermes Updated' },
     ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages fulfillment-order request and cancellation workflows with downstream reads and meta inspection', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillment-order request lifecycle should not hit upstream in snapshot mode');
+    });
+
+    const makeFulfillmentOrder = (suffix: string, quantity: number) => ({
+      id: `gid://shopify/FulfillmentOrder/${suffix}`,
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      assignedLocation: { name: 'HAR233 Local Service' },
+      merchantRequests: [],
+      lineItems: [
+        {
+          id: `gid://shopify/FulfillmentOrderLineItem/${suffix}`,
+          lineItemId: `gid://shopify/LineItem/${suffix}`,
+          title: `HAR-233 ${suffix}`,
+          totalQuantity: quantity,
+          remainingQuantity: quantity,
+        },
+      ],
+    });
+    const order = makeOrder('gid://shopify/Order/fulfillment-order-requests', '#FO-REQUESTS', '2026-04-26T00:00:00Z', {
+      lineItems: [
+        {
+          id: 'gid://shopify/LineItem/partial',
+          title: 'HAR-233 partial',
+          quantity: 2,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+        {
+          id: 'gid://shopify/LineItem/reject',
+          title: 'HAR-233 reject',
+          quantity: 1,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+        {
+          id: 'gid://shopify/LineItem/cancel',
+          title: 'HAR-233 cancel',
+          quantity: 1,
+          sku: null,
+          variantTitle: null,
+          originalUnitPriceSet: null,
+        },
+      ],
+      fulfillmentOrders: [
+        makeFulfillmentOrder('partial', 2),
+        makeFulfillmentOrder('reject', 1),
+        makeFulfillmentOrder('cancel', 1),
+      ],
+    });
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const fulfillmentOrderFields = `
+      id
+      status
+      requestStatus
+      merchantRequests(first: 10) {
+        nodes { id kind message requestOptions responseData sentAt }
+      }
+      lineItems(first: 5) {
+        nodes { id totalQuantity remainingQuantity lineItem { id title } }
+      }
+    `;
+    const submitMutation = `mutation SubmitRequest($id: ID!, $lineItems: [FulfillmentOrderLineItemInput!]) {
+      fulfillmentOrderSubmitFulfillmentRequest(
+        id: $id
+        message: "HAR-233 partial submit"
+        notifyCustomer: false
+        fulfillmentOrderLineItems: $lineItems
+      ) {
+        originalFulfillmentOrder { ${fulfillmentOrderFields} }
+        submittedFulfillmentOrder { ${fulfillmentOrderFields} }
+        unsubmittedFulfillmentOrder { ${fulfillmentOrderFields} }
+        userErrors { field message }
+      }
+    }`;
+    const submitPartialResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: submitMutation,
+        variables: {
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          lineItems: [{ id: 'gid://shopify/FulfillmentOrderLineItem/partial', quantity: 1 }],
+        },
+      });
+
+    expect(submitPartialResponse.status).toBe(200);
+    const partialPayload = submitPartialResponse.body.data.fulfillmentOrderSubmitFulfillmentRequest;
+    expect(partialPayload.userErrors).toEqual([]);
+    expect(partialPayload.submittedFulfillmentOrder).toMatchObject({
+      id: 'gid://shopify/FulfillmentOrder/partial',
+      status: 'OPEN',
+      requestStatus: 'SUBMITTED',
+      merchantRequests: {
+        nodes: [
+          expect.objectContaining({
+            kind: 'FULFILLMENT_REQUEST',
+            message: 'HAR-233 partial submit',
+            requestOptions: { notify_customer: false },
+            responseData: null,
+          }),
+        ],
+      },
+      lineItems: { nodes: [expect.objectContaining({ totalQuantity: 1, remainingQuantity: 1 })] },
+    });
+    const unsubmittedId = partialPayload.unsubmittedFulfillmentOrder.id;
+    expect(partialPayload.unsubmittedFulfillmentOrder).toMatchObject({
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      lineItems: { nodes: [expect.objectContaining({ totalQuantity: 1, remainingQuantity: 1 })] },
+    });
+
+    const acceptResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AcceptRequest($id: ID!, $eta: DateTime!) {
+          fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: "HAR-233 accepted", estimatedShippedAt: $eta) {
+            fulfillmentOrder { ${fulfillmentOrderFields} }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          eta: '2026-04-27T00:00:00Z',
+        },
+      });
+
+    expect(acceptResponse.body.data.fulfillmentOrderAcceptFulfillmentRequest).toMatchObject({
+      fulfillmentOrder: {
+        id: 'gid://shopify/FulfillmentOrder/partial',
+        status: 'IN_PROGRESS',
+        requestStatus: 'ACCEPTED',
+      },
+      userErrors: [],
+    });
+
+    const submitCancellationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SubmitCancellation($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "HAR-233 cancel requested") {
+            fulfillmentOrder { ${fulfillmentOrderFields} }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/partial' },
+      });
+
+    expect(
+      submitCancellationResponse.body.data.fulfillmentOrderSubmitCancellationRequest.fulfillmentOrder.merchantRequests
+        .nodes,
+    ).toEqual([
+      expect.objectContaining({ kind: 'FULFILLMENT_REQUEST', message: 'HAR-233 partial submit' }),
+      expect.objectContaining({ kind: 'CANCELLATION_REQUEST', message: 'HAR-233 cancel requested' }),
+    ]);
+
+    const rejectCancellationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation RejectCancellation($id: ID!) {
+          fulfillmentOrderRejectCancellationRequest(id: $id, message: "HAR-233 cancel rejected") {
+            fulfillmentOrder { ${fulfillmentOrderFields} }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/partial' },
+      });
+
+    expect(rejectCancellationResponse.body.data.fulfillmentOrderRejectCancellationRequest).toMatchObject({
+      fulfillmentOrder: {
+        id: 'gid://shopify/FulfillmentOrder/partial',
+        status: 'IN_PROGRESS',
+        requestStatus: 'CANCELLATION_REJECTED',
+      },
+      userErrors: [],
+    });
+
+    const submitRejectResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: submitMutation,
+        variables: {
+          id: 'gid://shopify/FulfillmentOrder/reject',
+          lineItems: null,
+        },
+      });
+    expect(submitRejectResponse.body.data.fulfillmentOrderSubmitFulfillmentRequest.userErrors).toEqual([]);
+
+    const rejectFulfillmentResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation RejectFulfillment($id: ID!) {
+          fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: "HAR-233 rejected") {
+            fulfillmentOrder { ${fulfillmentOrderFields} }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/reject' },
+      });
+
+    expect(rejectFulfillmentResponse.body.data.fulfillmentOrderRejectFulfillmentRequest).toMatchObject({
+      fulfillmentOrder: {
+        id: 'gid://shopify/FulfillmentOrder/reject',
+        status: 'OPEN',
+        requestStatus: 'REJECTED',
+      },
+      userErrors: [],
+    });
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: submitMutation,
+        variables: {
+          id: 'gid://shopify/FulfillmentOrder/cancel',
+          lineItems: null,
+        },
+      });
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AcceptRequest($id: ID!) {
+          fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: "HAR-233 accepted") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/cancel' },
+      });
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation SubmitCancellation($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "HAR-233 cancel accepted") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/cancel' },
+      });
+    const acceptCancellationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AcceptCancellation($id: ID!) {
+          fulfillmentOrderAcceptCancellationRequest(id: $id, message: "HAR-233 accepted cancellation") {
+            fulfillmentOrder { ${fulfillmentOrderFields} }
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: 'gid://shopify/FulfillmentOrder/cancel' },
+      });
+
+    expect(acceptCancellationResponse.body.data.fulfillmentOrderAcceptCancellationRequest).toMatchObject({
+      fulfillmentOrder: {
+        id: 'gid://shopify/FulfillmentOrder/cancel',
+        status: 'CLOSED',
+        requestStatus: 'CANCELLATION_ACCEPTED',
+        lineItems: { nodes: [expect.objectContaining({ totalQuantity: 0, remainingQuantity: 0 })] },
+      },
+      userErrors: [],
+    });
+
+    const downstreamReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query Downstream($orderId: ID!, $submittedId: ID!, $unsubmittedId: ID!) {
+          submitted: fulfillmentOrder(id: $submittedId) { ${fulfillmentOrderFields} }
+          unsubmitted: fulfillmentOrder(id: $unsubmittedId) { ${fulfillmentOrderFields} }
+          fulfillmentOrders(first: 10, includeClosed: true, sortKey: ID) {
+            nodes { id status requestStatus }
+          }
+          assignedFulfillmentOrders(first: 10, sortKey: ID) {
+            nodes { id status requestStatus }
+          }
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 10) {
+              nodes { id status requestStatus }
+            }
+          }
+        }`,
+        variables: {
+          orderId: order.id,
+          submittedId: 'gid://shopify/FulfillmentOrder/partial',
+          unsubmittedId,
+        },
+      });
+
+    expect(downstreamReadResponse.body.data.submitted.requestStatus).toBe('CANCELLATION_REJECTED');
+    expect(downstreamReadResponse.body.data.unsubmitted.requestStatus).toBe('UNSUBMITTED');
+    expect(downstreamReadResponse.body.data.fulfillmentOrders.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          requestStatus: 'CANCELLATION_REJECTED',
+        }),
+        expect.objectContaining({ id: unsubmittedId, requestStatus: 'UNSUBMITTED' }),
+        expect.objectContaining({ id: 'gid://shopify/FulfillmentOrder/reject', requestStatus: 'REJECTED' }),
+        expect.objectContaining({
+          id: 'gid://shopify/FulfillmentOrder/cancel',
+          requestStatus: 'CANCELLATION_ACCEPTED',
+        }),
+      ]),
+    );
+    expect(downstreamReadResponse.body.data.assignedFulfillmentOrders.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          requestStatus: 'CANCELLATION_REJECTED',
+        }),
+        expect.objectContaining({ id: unsubmittedId, requestStatus: 'UNSUBMITTED' }),
+      ]),
+    );
+    expect(downstreamReadResponse.body.data.order.fulfillmentOrders.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          requestStatus: 'CANCELLATION_REJECTED',
+        }),
+        expect.objectContaining({ id: unsubmittedId, requestStatus: 'UNSUBMITTED' }),
+        expect.objectContaining({ id: 'gid://shopify/FulfillmentOrder/reject', requestStatus: 'REJECTED' }),
+      ]),
+    );
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(
+      logResponse.body.entries.map(
+        (entry: { interpreted: { primaryRootField: string } }) => entry.interpreted.primaryRootField,
+      ),
+    ).toEqual([
+      'fulfillmentOrderSubmitFulfillmentRequest',
+      'fulfillmentOrderAcceptFulfillmentRequest',
+      'fulfillmentOrderSubmitCancellationRequest',
+      'fulfillmentOrderRejectCancellationRequest',
+      'fulfillmentOrderSubmitFulfillmentRequest',
+      'fulfillmentOrderRejectFulfillmentRequest',
+      'fulfillmentOrderSubmitFulfillmentRequest',
+      'fulfillmentOrderAcceptFulfillmentRequest',
+      'fulfillmentOrderSubmitCancellationRequest',
+      'fulfillmentOrderAcceptCancellationRequest',
+    ]);
+    expect(logResponse.body.entries[0].query).toContain('fulfillmentOrderSubmitFulfillmentRequest');
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.orders[order.id].fulfillmentOrders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'gid://shopify/FulfillmentOrder/partial',
+          requestStatus: 'CANCELLATION_REJECTED',
+          merchantRequests: expect.arrayContaining([
+            expect.objectContaining({ kind: 'FULFILLMENT_REQUEST', message: 'HAR-233 partial submit' }),
+            expect.objectContaining({ kind: 'CANCELLATION_REQUEST', message: 'HAR-233 cancel requested' }),
+          ]),
+        }),
+        expect.objectContaining({ id: unsubmittedId, requestStatus: 'UNSUBMITTED' }),
+      ]),
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

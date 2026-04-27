@@ -947,6 +947,26 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
+    const orderMutation = handleOrderMutation(document, variables, 'snapshot');
+    if (orderMutation) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: 'Staged locally in the conformance parity proxy harness.',
+      });
+
+      return {
+        status: 200,
+        body: orderMutation,
+      };
+    }
+
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
@@ -3129,6 +3149,192 @@ function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | nul
     }));
 }
 
+function readCapturedFulfillmentOrderMerchantRequests(
+  fulfillmentOrder: Record<string, unknown> | null,
+): NonNullable<OrderFulfillmentOrderRecord['merchantRequests']> {
+  return readArrayField(readRecordField(fulfillmentOrder, 'merchantRequests'), 'nodes')
+    .filter(isPlainObject)
+    .map((merchantRequest, index) => ({
+      id:
+        readStringField(merchantRequest, 'id') ?? `gid://shopify/FulfillmentOrderMerchantRequest/conformance-${index}`,
+      kind: readStringField(merchantRequest, 'kind') ?? 'FULFILLMENT_REQUEST',
+      message: readNullableStringField(merchantRequest, 'message'),
+      requestOptions: isPlainObject(merchantRequest['requestOptions'])
+        ? (merchantRequest['requestOptions'] as Record<string, unknown>)
+        : {},
+      responseData: isPlainObject(merchantRequest['responseData'])
+        ? (merchantRequest['responseData'] as Record<string, unknown>)
+        : null,
+      sentAt: readStringField(merchantRequest, 'sentAt') ?? '2026-04-26T01:06:46Z',
+    }));
+}
+
+function buildSeedFulfillmentOrderLineItemsFromPartialSubmit(
+  variables: Record<string, unknown> | null,
+  originalFulfillmentOrder: Record<string, unknown> | null,
+  unsubmittedFulfillmentOrder: Record<string, unknown> | null,
+): OrderFulfillmentOrderLineItemRecord[] {
+  const requestedQuantitiesById = new Map(
+    readArrayField(variables, 'fulfillmentOrderLineItems')
+      .filter(isPlainObject)
+      .map((lineItem) => [readStringField(lineItem, 'id') ?? '', readNumberField(lineItem, 'quantity') ?? 0] as const)
+      .filter(([lineItemId]) => lineItemId.length > 0),
+  );
+  const unsubmittedQuantitiesByLineItemId = new Map<string, number>();
+  for (const node of readArrayField(readRecordField(unsubmittedFulfillmentOrder, 'lineItems'), 'nodes').filter(
+    isPlainObject,
+  )) {
+    const lineItemId = readStringField(readRecordField(node, 'lineItem'), 'id');
+    if (lineItemId) {
+      unsubmittedQuantitiesByLineItemId.set(lineItemId, readNumberField(node, 'remainingQuantity') ?? 0);
+    }
+  }
+
+  return readArrayField(readRecordField(originalFulfillmentOrder, 'lineItems'), 'nodes')
+    .filter(isPlainObject)
+    .map((node, index) => {
+      const lineItem = readRecordField(node, 'lineItem');
+      const fulfillmentOrderLineItemId =
+        readStringField(node, 'id') ??
+        [...requestedQuantitiesById.keys()][index] ??
+        `gid://shopify/FulfillmentOrderLineItem/conformance-request-${index}`;
+      const lineItemId = readStringField(lineItem, 'id');
+      const submittedQuantity =
+        requestedQuantitiesById.get(fulfillmentOrderLineItemId) ?? readNumberField(node, 'remainingQuantity') ?? 0;
+      const unsubmittedQuantity = lineItemId ? (unsubmittedQuantitiesByLineItemId.get(lineItemId) ?? 0) : 0;
+      const initialQuantity = submittedQuantity + unsubmittedQuantity;
+
+      return {
+        id: fulfillmentOrderLineItemId,
+        lineItemId,
+        title: readStringField(lineItem, 'title'),
+        totalQuantity: initialQuantity,
+        remainingQuantity: initialQuantity,
+      };
+    });
+}
+
+function makeMinimalFulfillmentOrder(
+  id: string,
+  requestStatus: string,
+  status: string,
+  merchantRequests: NonNullable<OrderFulfillmentOrderRecord['merchantRequests']> = [],
+): OrderFulfillmentOrderRecord {
+  return {
+    id,
+    status,
+    requestStatus,
+    assignedLocation: null,
+    lineItems: [
+      {
+        id: `${id}/line-item-1`,
+        lineItemId: `${id}/order-line-item-1`,
+        title: 'HAR-233 conformance fulfillment item',
+        totalQuantity: 1,
+        remainingQuantity: 1,
+      },
+    ],
+    merchantRequests,
+  };
+}
+
+function seedFulfillmentOrderRequestLifecyclePreconditions(capture: unknown): boolean {
+  const partialSubmit = readRecordField(capture as Record<string, unknown>, 'partialSubmit');
+  if (!partialSubmit) {
+    return false;
+  }
+
+  const partialSubmitPayload = readRecordField(
+    readRecordField(readRecordField(partialSubmit, 'response'), 'data'),
+    'fulfillmentOrderSubmitFulfillmentRequest',
+  );
+  const originalFulfillmentOrder = readRecordField(partialSubmitPayload, 'originalFulfillmentOrder');
+  const unsubmittedFulfillmentOrder = readRecordField(partialSubmitPayload, 'unsubmittedFulfillmentOrder');
+  const variables = readRecordField(partialSubmit, 'variables');
+  const submittedFulfillmentOrderId =
+    readStringField(variables, 'id') ?? readStringField(originalFulfillmentOrder, 'id');
+  if (!submittedFulfillmentOrderId) {
+    return false;
+  }
+
+  const requestOrder = makeSeedOrder('gid://shopify/Order/conformance-fulfillment-order-request', {
+    id: 'gid://shopify/Order/conformance-fulfillment-order-request',
+    name: '#HAR233-FO-REQUEST',
+  });
+  requestOrder.fulfillmentOrders = [
+    {
+      id: submittedFulfillmentOrderId,
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      assignedLocation: null,
+      merchantRequests: [],
+      lineItems: buildSeedFulfillmentOrderLineItemsFromPartialSubmit(
+        variables,
+        originalFulfillmentOrder,
+        unsubmittedFulfillmentOrder,
+      ),
+    },
+  ];
+
+  const rejectFulfillmentOrder = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'rejectFulfillmentRequest'), 'response'),
+      'data',
+    ),
+    'fulfillmentOrderRejectFulfillmentRequest',
+  );
+  const rejectFulfillmentOrderId = readStringField(readRecordField(rejectFulfillmentOrder, 'fulfillmentOrder'), 'id');
+
+  const rejectCancellationOrder = readRecordField(
+    readRecordField(
+      readRecordField(readRecordField(capture as Record<string, unknown>, 'rejectCancellationRequest'), 'response'),
+      'data',
+    ),
+    'fulfillmentOrderRejectCancellationRequest',
+  );
+  const rejectCancellationFulfillmentOrder = readRecordField(rejectCancellationOrder, 'fulfillmentOrder');
+  const rejectCancellationOrderId = readStringField(rejectCancellationFulfillmentOrder, 'id');
+
+  const supportingFulfillmentOrders: OrderFulfillmentOrderRecord[] = [];
+  if (rejectFulfillmentOrderId) {
+    supportingFulfillmentOrders.push(
+      makeMinimalFulfillmentOrder(rejectFulfillmentOrderId, 'SUBMITTED', 'OPEN', [
+        {
+          id: 'gid://shopify/FulfillmentOrderMerchantRequest/conformance-reject-fulfillment',
+          kind: 'FULFILLMENT_REQUEST',
+          message: 'HAR-233 rejection request',
+          requestOptions: { notify_customer: false },
+          responseData: null,
+          sentAt: '2026-04-26T01:06:46Z',
+        },
+      ]),
+    );
+  }
+  if (rejectCancellationOrderId) {
+    supportingFulfillmentOrders.push(
+      makeMinimalFulfillmentOrder(
+        rejectCancellationOrderId,
+        'ACCEPTED',
+        'IN_PROGRESS',
+        readCapturedFulfillmentOrderMerchantRequests(rejectCancellationFulfillmentOrder),
+      ),
+    );
+  }
+
+  if (supportingFulfillmentOrders.length > 0) {
+    const supportOrder = makeSeedOrder('gid://shopify/Order/conformance-fulfillment-order-request-support', {
+      id: 'gid://shopify/Order/conformance-fulfillment-order-request-support',
+      name: '#HAR233-FO-SUPPORT',
+    });
+    supportOrder.fulfillmentOrders = supportingFulfillmentOrders;
+    store.upsertBaseOrders([requestOrder, supportOrder]);
+    return true;
+  }
+
+  store.upsertBaseOrders([requestOrder]);
+  return true;
+}
+
 function readCapturedOrderRefundLineItems(
   source: Record<string, unknown> | null,
 ): OrderRecord['refunds'][number]['refundLineItems'] {
@@ -4824,6 +5030,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const payload = mutationPayloadFromCapture(capture);
   const mutationName = mutationNameFromCapture(capture);
   if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
+    return;
+  }
+
+  if (seedFulfillmentOrderRequestLifecyclePreconditions(capture)) {
     return;
   }
 
