@@ -711,7 +711,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   },
   {
     name: 'shipping-fulfillments',
-    canHandle: (request) => request.capability.domain === 'shipping-fulfillments',
+    canHandle: (request) =>
+      request.capability.domain === 'shipping-fulfillments' ||
+      (request.primaryRootField !== null && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(request.primaryRootField)),
     handleMutation(request) {
       if (request.primaryRootField && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(request.primaryRootField)) {
         const responseBody = handleOrderMutation(
@@ -1124,8 +1126,6 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.capability.domain === 'payments' &&
         ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')
       ) {
-        const logEntryId = makeSyntheticGid('MutationLogEntry');
-        const receivedAt = makeSyntheticTimestamp();
         const responseBody = handleOrderMutation(
           request.body.query,
           request.variables,
@@ -1136,6 +1136,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           return false;
         }
 
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const receivedAt = makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
           appendStagedMutationLog(request, {
             id: logEntryId,
@@ -1184,8 +1186,6 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
           (request.primaryRootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(request.primaryRootField)))
       ) {
-        const logEntryId = makeSyntheticGid('MutationLogEntry');
-        const receivedAt = makeSyntheticTimestamp();
         const responseBody = handleOrderMutation(
           request.body.query,
           request.variables,
@@ -1196,6 +1196,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           return false;
         }
 
+        const logEntryId = makeSyntheticGid('MutationLogEntry');
+        const receivedAt = makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
           appendStagedMutationLog(request, {
             id: logEntryId,
