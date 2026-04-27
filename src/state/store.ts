@@ -135,6 +135,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedPriceListIds: {},
   deletedWebPresenceIds: {},
   deletedDeliveryProfileIds: {},
+  deletedMetafieldDefinitionIds: {},
   mergedCustomerIds: {},
   customerMergeRequests: {},
 };
@@ -2239,13 +2240,44 @@ export class InMemoryStore {
 
   upsertBaseMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.baseState.deletedMetafieldDefinitionIds[definition.id];
+      delete this.stagedState.deletedMetafieldDefinitionIds[definition.id];
       this.baseState.metafieldDefinitions[definition.id] = structuredClone(definition);
     }
   }
 
   upsertStagedMetafieldDefinitions(definitions: MetafieldDefinitionRecord[]): void {
     for (const definition of definitions) {
+      delete this.stagedState.deletedMetafieldDefinitionIds[definition.id];
       this.stagedState.metafieldDefinitions[definition.id] = structuredClone(definition);
+    }
+  }
+
+  stageDeleteMetafieldDefinition(definitionId: string): void {
+    delete this.stagedState.metafieldDefinitions[definitionId];
+    this.stagedState.deletedMetafieldDefinitionIds[definitionId] = true;
+  }
+
+  deleteProductMetafieldsForDefinition(definition: {
+    ownerType: string;
+    namespace: string;
+    key: string;
+  }): void {
+    if (definition.ownerType !== 'PRODUCT') {
+      return;
+    }
+
+    for (const metafields of [this.baseState.productMetafields, this.stagedState.productMetafields]) {
+      for (const [metafieldId, metafield] of Object.entries(metafields)) {
+        const ownerType = metafield.ownerType ?? (metafield.productId ? 'PRODUCT' : null);
+        if (
+          ownerType === 'PRODUCT' &&
+          metafield.namespace === definition.namespace &&
+          metafield.key === definition.key
+        ) {
+          delete metafields[metafieldId];
+        }
+      }
     }
   }
 
@@ -2893,10 +2925,18 @@ export class InMemoryStore {
     const definitionsById = new Map<string, MetafieldDefinitionRecord>();
 
     for (const definition of Object.values(this.baseState.metafieldDefinitions)) {
+      if (this.stagedState.deletedMetafieldDefinitionIds[definition.id]) {
+        continue;
+      }
+
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
     for (const definition of Object.values(this.stagedState.metafieldDefinitions)) {
+      if (this.stagedState.deletedMetafieldDefinitionIds[definition.id]) {
+        continue;
+      }
+
       definitionsById.set(definition.id, structuredClone(definition));
     }
 
@@ -2910,6 +2950,10 @@ export class InMemoryStore {
   }
 
   getEffectiveMetafieldDefinitionById(definitionId: string): MetafieldDefinitionRecord | null {
+    if (this.stagedState.deletedMetafieldDefinitionIds[definitionId]) {
+      return null;
+    }
+
     const definition =
       this.stagedState.metafieldDefinitions[definitionId] ?? this.baseState.metafieldDefinitions[definitionId];
     return definition ? structuredClone(definition) : null;
@@ -3008,6 +3052,7 @@ export class InMemoryStore {
       this.stagedMediaFamilies.size > 0 ||
       Object.keys(this.stagedState.productMetafields).length > 0 ||
       Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
+      Object.keys(this.stagedState.deletedMetafieldDefinitionIds).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0
     );

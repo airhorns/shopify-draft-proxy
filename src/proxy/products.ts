@@ -21,6 +21,7 @@ import type {
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
+  MetafieldDefinitionRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductRecord,
@@ -3469,6 +3470,22 @@ function readMetafieldsSetIdentity(input: Record<string, unknown>): {
   return { ownerId, namespace, key };
 }
 
+function findMetafieldsSetDefinition(
+  owner: ProductMetafieldOwner,
+  namespace: string | null,
+  key: string | null,
+): MetafieldDefinitionRecord | null {
+  if (!namespace || !key) {
+    return null;
+  }
+
+  return store.findEffectiveMetafieldDefinition({
+    ownerType: owner.ownerType,
+    namespace,
+    key,
+  });
+}
+
 function makeMetafieldsSetUserError(
   index: number | null,
   fieldName: string | null,
@@ -3524,7 +3541,9 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
     const existing = effectiveMetafields.find(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
-    const type = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : existing?.type;
+    const definition = findMetafieldsSetDefinition(owner, namespace, key);
+    const inputType = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : null;
+    const type = inputType ?? definition?.type.name ?? existing?.type;
     const value = typeof input['value'] === 'string' ? input['value'] : null;
 
     if (!type) {
@@ -3538,6 +3557,53 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
 
     if (value === null) {
       errors.push(makeMetafieldsSetUserError(index, 'value', 'Value is required.', 'BLANK'));
+    }
+
+    if (definition && inputType && inputType !== definition.type.name) {
+      errors.push(
+        makeMetafieldsSetUserError(
+          index,
+          'type',
+          `Type must be ${definition.type.name} for this metafield definition.`,
+          'INVALID_TYPE',
+        ),
+      );
+    }
+
+    if (definition && value !== null) {
+      for (const validation of definition.validations) {
+        if (validation.name === 'max') {
+          const max = Number.parseInt(validation.value ?? '', 10);
+          if (Number.isFinite(max) && value.length > max) {
+            errors.push(
+              makeMetafieldsSetUserError(
+                index,
+                'value',
+                `Value must be ${max} characters or fewer for this metafield definition.`,
+                'LESS_THAN_OR_EQUAL_TO',
+              ),
+            );
+          }
+        }
+
+        if (validation.name === 'regex' && validation.value) {
+          try {
+            const pattern = new RegExp(validation.value, 'u');
+            if (!pattern.test(value)) {
+              errors.push(
+                makeMetafieldsSetUserError(
+                  index,
+                  'value',
+                  'Value does not match the validation pattern for this metafield definition.',
+                  'INVALID',
+                ),
+              );
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
     }
 
     if (!hasOwnField(input, 'compareDigest')) {
@@ -3573,15 +3639,25 @@ function getDefaultAppMetafieldNamespace(): string {
   return `app--${appIdTail && /^\d+$/u.test(appIdTail) ? appIdTail : '347082227713'}`;
 }
 
-function normalizeMetafieldsSetInput(input: Record<string, unknown>): Record<string, unknown> {
-  if (typeof input['namespace'] === 'string' && input['namespace'].trim()) {
-    return input;
+function normalizeMetafieldsSetInput(
+  input: Record<string, unknown>,
+  owner: ProductMetafieldOwner,
+): Record<string, unknown> {
+  const normalizedInput =
+    typeof input['namespace'] === 'string' && input['namespace'].trim()
+      ? input
+      : {
+          ...input,
+          namespace: getDefaultAppMetafieldNamespace(),
+        };
+
+  if (typeof normalizedInput['type'] === 'string' && normalizedInput['type'].trim()) {
+    return normalizedInput;
   }
 
-  return {
-    ...input,
-    namespace: getDefaultAppMetafieldNamespace(),
-  };
+  const { namespace, key } = readMetafieldsSetIdentity(normalizedInput);
+  const definition = findMetafieldsSetDefinition(owner, namespace, key);
+  return definition ? { ...normalizedInput, type: definition.type.name } : normalizedInput;
 }
 
 function getRootFieldArgumentVariableName(field: FieldNode, argumentName: string): string | null {
@@ -8926,8 +9002,12 @@ export function handleProductMutation(
       const inputsByOwnerId = new Map<string, Record<string, unknown>[]>();
       for (const input of inputs) {
         const ownerId = input['ownerId'] as string;
+        const owner = resolveProductMetafieldOwner(ownerId);
+        if (!owner) {
+          continue;
+        }
         const ownerInputs = inputsByOwnerId.get(ownerId) ?? [];
-        ownerInputs.push(normalizeMetafieldsSetInput(input));
+        ownerInputs.push(normalizeMetafieldsSetInput(input, owner));
         inputsByOwnerId.set(ownerId, ownerInputs);
       }
 

@@ -37,6 +37,14 @@ function readNullableBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
+function readObject(value: unknown): Record<string, unknown> | null {
+  return isObject(value) ? value : null;
+}
+
+function readArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 type StandardMetafieldDefinitionTemplate = {
   id: string;
   namespace: string;
@@ -54,6 +62,12 @@ type StandardMetafieldDefinitionTemplate = {
 
 type StandardMetafieldDefinitionEnableUserError = {
   field: string[] | null;
+  message: string;
+  code: string;
+};
+
+type MetafieldDefinitionUserError = {
+  field: string[];
   message: string;
   code: string;
 };
@@ -777,6 +791,350 @@ function serializeStandardMetafieldDefinitionEnableMutation(
   return serializeStandardMetafieldDefinitionEnablePayload(field, variables, definition, []);
 }
 
+function inferDefinitionTypeCategory(typeName: string): string | null {
+  if (typeName.includes('text') || typeName === 'url' || typeName === 'color') {
+    return 'TEXT';
+  }
+  if (typeName.startsWith('number_') || typeName === 'rating' || typeName === 'boolean') {
+    return 'NUMBER';
+  }
+  if (typeName === 'dimension' || typeName === 'volume' || typeName === 'weight') {
+    return 'MEASUREMENT';
+  }
+  if (typeName === 'date' || typeName === 'date_time') {
+    return 'DATE_TIME';
+  }
+  if (typeName.includes('reference')) {
+    return 'REFERENCE';
+  }
+
+  return null;
+}
+
+function readDefinitionValidationRecords(rawValidations: unknown): MetafieldDefinitionValidationRecord[] {
+  return readArray(rawValidations)
+    .map((value) => readObject(value))
+    .filter((value): value is Record<string, unknown> => value !== null)
+    .map((value) => ({
+      name: readString(value['name']) ?? '',
+      value: readString(value['value']),
+    }))
+    .filter((validation) => validation.name.length > 0);
+}
+
+function buildDefinitionAccessFromInput(rawAccess: unknown): Record<string, JsonValue> {
+  const access = isObject(rawAccess) ? rawAccess : {};
+  return {
+    admin: readString(access['admin']) ?? 'PUBLIC_READ_WRITE',
+    storefront: readString(access['storefront']) ?? 'NONE',
+    customerAccount: readString(access['customerAccount']) ?? 'NONE',
+  };
+}
+
+function readDefinitionInput(args: Record<string, unknown>): Record<string, unknown> {
+  return readObject(args['definition']) ?? {};
+}
+
+function makeDefinitionUserError(
+  field: string[],
+  message: string,
+  code: string,
+): MetafieldDefinitionUserError {
+  return { field, message, code };
+}
+
+function validateProductOwnerDefinitionInput(
+  definitionInput: Record<string, unknown>,
+  mode: 'create' | 'update',
+): MetafieldDefinitionUserError[] {
+  const errors: MetafieldDefinitionUserError[] = [];
+
+  for (const fieldName of ['namespace', 'key', 'ownerType'] as const) {
+    if (!readString(definitionInput[fieldName])) {
+      errors.push(makeDefinitionUserError(['definition', fieldName], `${fieldName} is required.`, 'BLANK'));
+    }
+  }
+
+  if (mode === 'create') {
+    for (const fieldName of ['name', 'type'] as const) {
+      if (!readString(definitionInput[fieldName])) {
+        errors.push(makeDefinitionUserError(['definition', fieldName], `${fieldName} is required.`, 'BLANK'));
+      }
+    }
+  }
+
+  const ownerType = readString(definitionInput['ownerType']);
+  if (ownerType && ownerType !== 'PRODUCT') {
+    errors.push(
+      makeDefinitionUserError(
+        ['definition', 'ownerType'],
+        'Only PRODUCT metafield definitions are supported locally.',
+        'UNSUPPORTED_OWNER_TYPE',
+      ),
+    );
+  }
+
+  return errors;
+}
+
+function serializeDefinitionUserErrors(
+  errors: MetafieldDefinitionUserError[],
+  selections: readonly SelectionNode[],
+): Array<Record<string, unknown>> {
+  return errors.map((error) => serializeUserError(selections, error));
+}
+
+function serializeDefinitionMutationPayload(
+  definitionFieldName: 'createdDefinition' | 'updatedDefinition',
+  definition: MetafieldDefinitionRecord | null,
+  userErrors: MetafieldDefinitionUserError[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case definitionFieldName:
+        result[key] = definition
+          ? serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeDefinitionUserErrors(userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      case 'validationJob':
+        result[key] = null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeDeletedDefinitionIdentifier(
+  definition: MetafieldDefinitionRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'ownerType':
+        result[key] = definition.ownerType;
+        break;
+      case 'namespace':
+        result[key] = definition.namespace;
+        break;
+      case 'key':
+        result[key] = definition.key;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeDefinitionDeletePayload(
+  deletedDefinition: MetafieldDefinitionRecord | null,
+  userErrors: MetafieldDefinitionUserError[],
+  field: FieldNode,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'deletedDefinitionId':
+        result[key] = deletedDefinition?.id ?? null;
+        break;
+      case 'deletedDefinition':
+        result[key] = deletedDefinition
+          ? serializeDeletedDefinitionIdentifier(deletedDefinition, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      case 'userErrors':
+        result[key] = serializeDefinitionUserErrors(userErrors, selection.selectionSet?.selections ?? []);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function buildMetafieldDefinitionFromInput(definitionInput: Record<string, unknown>): MetafieldDefinitionRecord {
+  const typeName = readString(definitionInput['type']) ?? 'single_line_text_field';
+  const ownerType = readString(definitionInput['ownerType']) ?? 'PRODUCT';
+  const pinnedPosition = readBoolean(definitionInput['pin'])
+    ? listPinnedDefinitions(ownerType).reduce(
+        (highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0),
+        0,
+      ) + 1
+    : null;
+
+  return {
+    id: makeSyntheticGid('MetafieldDefinition'),
+    name: readString(definitionInput['name']) ?? '',
+    namespace: readString(definitionInput['namespace']) ?? '',
+    key: readString(definitionInput['key']) ?? '',
+    ownerType,
+    type: {
+      name: typeName,
+      category: inferDefinitionTypeCategory(typeName),
+    },
+    description: readString(definitionInput['description']),
+    validations: readDefinitionValidationRecords(definitionInput['validations']),
+    access: buildDefinitionAccessFromInput(definitionInput['access']),
+    capabilities: buildDefinitionCapabilities(definitionInput['capabilities']),
+    constraints: {
+      key: null,
+      values: [],
+    },
+    pinnedPosition,
+    validationStatus: 'ALL_VALID',
+  };
+}
+
+function serializeDefinitionCreateRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const definitionInput = readDefinitionInput(getFieldArguments(field, variables));
+  const inputErrors = validateProductOwnerDefinitionInput(definitionInput, 'create');
+  if (inputErrors.length > 0) {
+    return serializeDefinitionMutationPayload('createdDefinition', null, inputErrors, field, variables);
+  }
+
+  const existingDefinition = store.findEffectiveMetafieldDefinition({
+    ownerType: readString(definitionInput['ownerType']) ?? 'PRODUCT',
+    namespace: readString(definitionInput['namespace']) ?? '',
+    key: readString(definitionInput['key']) ?? '',
+  });
+  if (existingDefinition) {
+    return serializeDefinitionMutationPayload(
+      'createdDefinition',
+      null,
+      [
+        makeDefinitionUserError(
+          ['definition'],
+          'A metafield definition already exists for this owner type, namespace, and key.',
+          'TAKEN',
+        ),
+      ],
+      field,
+      variables,
+    );
+  }
+
+  const definition = buildMetafieldDefinitionFromInput(definitionInput);
+  store.upsertStagedMetafieldDefinitions([definition]);
+  return serializeDefinitionMutationPayload('createdDefinition', definition, [], field, variables);
+}
+
+function serializeDefinitionUpdateRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const definitionInput = readDefinitionInput(getFieldArguments(field, variables));
+  const inputErrors = validateProductOwnerDefinitionInput(definitionInput, 'update');
+  if (inputErrors.length > 0) {
+    return serializeDefinitionMutationPayload('updatedDefinition', null, inputErrors, field, variables);
+  }
+
+  const existingDefinition = store.findEffectiveMetafieldDefinition({
+    ownerType: readString(definitionInput['ownerType']) ?? 'PRODUCT',
+    namespace: readString(definitionInput['namespace']) ?? '',
+    key: readString(definitionInput['key']) ?? '',
+  });
+  if (!existingDefinition) {
+    return serializeDefinitionMutationPayload(
+      'updatedDefinition',
+      null,
+      [makeDefinitionUserError(['definition'], 'Definition not found.', 'NOT_FOUND')],
+      field,
+      variables,
+    );
+  }
+
+  const requestedType = readString(definitionInput['type']);
+  if (requestedType && requestedType !== existingDefinition.type.name) {
+    return serializeDefinitionMutationPayload(
+      'updatedDefinition',
+      null,
+      [makeDefinitionUserError(['definition', 'type'], "Type can't be changed.", 'IMMUTABLE')],
+      field,
+      variables,
+    );
+  }
+
+  const updatedDefinition: MetafieldDefinitionRecord = {
+    ...existingDefinition,
+    name: readString(definitionInput['name']) ?? existingDefinition.name,
+    description: Object.prototype.hasOwnProperty.call(definitionInput, 'description')
+      ? readString(definitionInput['description'])
+      : existingDefinition.description,
+    validations: Object.prototype.hasOwnProperty.call(definitionInput, 'validations')
+      ? readDefinitionValidationRecords(definitionInput['validations'])
+      : existingDefinition.validations,
+    access: Object.prototype.hasOwnProperty.call(definitionInput, 'access')
+      ? buildDefinitionAccessFromInput(definitionInput['access'])
+      : existingDefinition.access,
+    capabilities: Object.prototype.hasOwnProperty.call(definitionInput, 'capabilities')
+      ? buildDefinitionCapabilities(definitionInput['capabilities'])
+      : existingDefinition.capabilities,
+  };
+
+  store.upsertStagedMetafieldDefinitions([updatedDefinition]);
+  return serializeDefinitionMutationPayload('updatedDefinition', updatedDefinition, [], field, variables);
+}
+
+function deleteProductMetafieldsForDefinition(definition: MetafieldDefinitionRecord): void {
+  store.deleteProductMetafieldsForDefinition(definition);
+}
+
+function stageDeleteDefinition(definition: MetafieldDefinitionRecord): void {
+  if (definition.pinnedPosition !== null) {
+    const removedPosition = definition.pinnedPosition;
+    const compactedDefinitions = listPinnedDefinitions(definition.ownerType)
+      .filter((candidate) => candidate.id !== definition.id && (candidate.pinnedPosition ?? 0) > removedPosition)
+      .map((candidate) => ({
+        ...candidate,
+        pinnedPosition: (candidate.pinnedPosition ?? 1) - 1,
+      }));
+    updatePinnedDefinitions(compactedDefinitions);
+  }
+
+  store.stageDeleteMetafieldDefinition(definition.id);
+}
+
+function serializeDefinitionDeleteRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const definition = findDefinitionFromMutationArgs(args);
+  if (!definition) {
+    return serializeDefinitionDeletePayload(
+      null,
+      [makeDefinitionUserError(getDefinitionReferenceField(args), 'Definition not found.', 'NOT_FOUND')],
+      field,
+    );
+  }
+
+  if (readBoolean(args['deleteAllAssociatedMetafields'])) {
+    deleteProductMetafieldsForDefinition(definition);
+  }
+  stageDeleteDefinition(definition);
+
+  return serializeDefinitionDeletePayload(definition, [], field);
+}
+
 function readDefinitionIdentifier(
   args: Record<string, unknown>,
 ): { ownerType: string; namespace: string; key: string } | null {
@@ -799,12 +1157,15 @@ function getDefinitionReferenceField(args: Record<string, unknown>): string[] {
   if (typeof args['definitionId'] === 'string') {
     return ['definitionId'];
   }
+  if (typeof args['id'] === 'string') {
+    return ['id'];
+  }
 
   return ['identifier'];
 }
 
 function findDefinitionFromMutationArgs(args: Record<string, unknown>): MetafieldDefinitionRecord | null {
-  const definitionId = readString(args['definitionId']);
+  const definitionId = readString(args['definitionId']) ?? readString(args['id']);
   if (definitionId) {
     return store.getEffectiveMetafieldDefinitionById(definitionId);
   }
@@ -1088,6 +1449,15 @@ export function handleMetafieldDefinitionMutation(
   for (const field of getRootFields(document)) {
     const responseKey = getFieldResponseKey(field);
     switch (field.name.value) {
+      case 'metafieldDefinitionCreate':
+        data[responseKey] = serializeDefinitionCreateRoot(field, variables);
+        break;
+      case 'metafieldDefinitionUpdate':
+        data[responseKey] = serializeDefinitionUpdateRoot(field, variables);
+        break;
+      case 'metafieldDefinitionDelete':
+        data[responseKey] = serializeDefinitionDeleteRoot(field, variables);
+        break;
       case 'standardMetafieldDefinitionEnable':
         data[responseKey] = serializeStandardMetafieldDefinitionEnableMutation(field, variables);
         break;

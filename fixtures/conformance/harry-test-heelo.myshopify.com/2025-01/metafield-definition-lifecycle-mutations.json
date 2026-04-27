@@ -1,0 +1,372 @@
+{
+  "capturedAt": "2026-04-27T00:43:41.798Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespace": "har145_mogh4quq",
+  "key": "definition_lifecycle",
+  "captures": [
+    {
+      "label": "productCreate setup",
+      "request": {
+        "query": "#graphql\n  mutation CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-145 definition lifecycle mogh4quq"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10171265024306",
+              "title": "HAR-145 definition lifecycle mogh4quq"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate success",
+      "request": {
+        "query": "#graphql\n  mutation CreateDefinition($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-145 lifecycle definition",
+            "namespace": "har145_mogh4quq",
+            "key": "definition_lifecycle",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field",
+            "description": "Temporary conformance definition for HAR-145",
+            "validations": [
+              {
+                "name": "max",
+                "value": "8"
+              }
+            ],
+            "pin": true
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/203970543922",
+              "name": "HAR-145 lifecycle definition",
+              "namespace": "har145_mogh4quq",
+              "key": "definition_lifecycle",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary conformance definition for HAR-145",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "8"
+                }
+              ],
+              "pinnedPosition": 3,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldsSet matching definition",
+      "request": {
+        "query": "#graphql\n  mutation SetMetafield($metafields: [MetafieldsSetInput!]!) {\n    metafieldsSet(metafields: $metafields) {\n      metafields { id namespace key type value owner { ... on Product { id } } }\n      userErrors { field message code elementIndex }\n    }\n  }\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10171265024306",
+              "namespace": "har145_mogh4quq",
+              "key": "definition_lifecycle",
+              "type": "single_line_text_field",
+              "value": "ABCDEFGH"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/42965134115122",
+                "namespace": "har145_mogh4quq",
+                "key": "definition_lifecycle",
+                "type": "single_line_text_field",
+                "value": "ABCDEFGH",
+                "owner": {
+                  "id": "gid://shopify/Product/10171265024306"
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "downstream read after create and metafieldsSet",
+      "request": {
+        "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) { id namespace key type value }\n    }\n  }\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10171265024306",
+          "namespace": "har145_mogh4quq",
+          "key": "definition_lifecycle"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "definition": {
+            "id": "gid://shopify/MetafieldDefinition/203970543922",
+            "name": "HAR-145 lifecycle definition",
+            "namespace": "har145_mogh4quq",
+            "key": "definition_lifecycle",
+            "ownerType": "PRODUCT",
+            "validations": [
+              {
+                "name": "max",
+                "value": "8"
+              }
+            ],
+            "metafieldsCount": 1
+          },
+          "definitions": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MetafieldDefinition/203970543922",
+                "namespace": "har145_mogh4quq",
+                "key": "definition_lifecycle",
+                "name": "HAR-145 lifecycle definition"
+              }
+            ]
+          },
+          "product": {
+            "id": "gid://shopify/Product/10171265024306",
+            "metafield": {
+              "id": "gid://shopify/Metafield/42965134115122",
+              "namespace": "har145_mogh4quq",
+              "key": "definition_lifecycle",
+              "type": "single_line_text_field",
+              "value": "ABCDEFGH"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9,
+            "actualQueryCost": 7,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1993,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionUpdate success",
+      "request": {
+        "query": "#graphql\n  mutation UpdateDefinition($definition: MetafieldDefinitionUpdateInput!) {\n    metafieldDefinitionUpdate(definition: $definition) {\n      updatedDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n      validationJob { id }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-145 lifecycle definition updated",
+            "namespace": "har145_mogh4quq",
+            "key": "definition_lifecycle",
+            "ownerType": "PRODUCT",
+            "description": "Updated temporary conformance definition for HAR-145"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/203970543922",
+              "name": "HAR-145 lifecycle definition updated",
+              "namespace": "har145_mogh4quq",
+              "key": "definition_lifecycle",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Updated temporary conformance definition for HAR-145",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "8"
+                }
+              ],
+              "pinnedPosition": 3,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": [],
+            "validationJob": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionDelete deleteAllAssociatedMetafields",
+      "request": {
+        "query": "#graphql\n  mutation DeleteDefinition($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/203970543922",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/203970543922",
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "har145_mogh4quq",
+              "key": "definition_lifecycle"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "downstream read immediately after delete",
+      "request": {
+        "query": "#graphql\n  query DownstreamDefinitionRead($productId: ID!, $namespace: String!, $key: String!) {\n    definition: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      validations { name value }\n      metafieldsCount\n    }\n    definitions: metafieldDefinitions(ownerType: PRODUCT, namespace: $namespace, first: 5) {\n      nodes { id namespace key name }\n    }\n    product(id: $productId) {\n      id\n      metafield(namespace: $namespace, key: $key) { id namespace key type value }\n    }\n  }\n",
+        "variables": {
+          "productId": "gid://shopify/Product/10171265024306",
+          "namespace": "har145_mogh4quq",
+          "key": "definition_lifecycle"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "definition": null,
+          "definitions": {
+            "nodes": []
+          },
+          "product": {
+            "id": "gid://shopify/Product/10171265024306",
+            "metafield": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 9,
+            "actualQueryCost": 8,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "label": "cleanup productDelete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10171265024306"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10171265024306",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}
