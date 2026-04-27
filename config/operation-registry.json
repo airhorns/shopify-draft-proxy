@@ -2478,30 +2478,30 @@
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperation", "BulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API read gap. Requires a local BulkOperation job model for query exports and mutation imports, missing-id/null behavior, and status/result fields before overlay-read support; this is separate from product variant, inventory, discount, and metaobject bulk roots."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: reads BulkOperation records from the normalized in-memory job model with Shopify-like missing-id/null behavior; query export and mutation import execution remain unsupported."
   },
   {
     "name": "bulkOperations",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperations", "BulkOperations"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API catalog read gap. Requires captured pagination, filtering by id/status/operation_type, CREATED_AT sorting, empty connection behavior, and app-scoped job visibility before overlay-read support."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: lists effective in-memory BulkOperation jobs with shared connection helpers, cursor windows, CREATED_AT/ID sorting, reverse, and captured id/status/operation_type/created_at query filters."
   },
   {
     "name": "currentBulkOperation",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["currentBulkOperation", "CurrentBulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 deprecated root-level Bulk Operations read gap. Keep unimplemented until the proxy can derive the most recent query or mutation BulkOperation from local job state; current Shopify docs point new callers to bulkOperations with a status filter."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: derives the deprecated currentBulkOperation root from the newest local BulkOperation for the requested type, defaulting to QUERY."
   },
   {
     "name": "bulkOperationRunQuery",
@@ -2528,10 +2528,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationCancel", "BulkOperationCancel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations cancellation gap. Future support must stage canceling/canceled transitions against local BulkOperation jobs and downstream reads without treating this declared root as a permanent passthrough capability."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: cancels staged BulkOperation jobs locally, returns captured unknown-id and terminal-state userErrors without proxying supported cancel attempts upstream, and records the local cancel attempt in the meta log."
   },
   {
     "name": "productOptionsCreate",

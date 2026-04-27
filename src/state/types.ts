@@ -1018,6 +1018,23 @@ export const discountBulkOperationRecordSchema = z.strictObject({
 });
 export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 
+export const bulkOperationRecordSchema = z.strictObject({
+  id: z.string(),
+  status: z.enum(['CANCELED', 'CANCELING', 'COMPLETED', 'CREATED', 'EXPIRED', 'FAILED', 'RUNNING']),
+  type: z.enum(['MUTATION', 'QUERY']),
+  errorCode: z.enum(['ACCESS_DENIED', 'INTERNAL_SERVER_ERROR', 'TIMEOUT']).nullable(),
+  createdAt: z.string(),
+  completedAt: nullableStringSchema,
+  objectCount: z.string(),
+  rootObjectCount: z.string(),
+  fileSize: nullableStringSchema,
+  url: nullableStringSchema,
+  partialDataUrl: nullableStringSchema,
+  query: nullableStringSchema,
+  cursor: nullableStringSchema.optional(),
+});
+export type BulkOperationRecord = z.infer<typeof bulkOperationRecordSchema>;
+
 export const discountRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
@@ -2055,6 +2072,8 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStorePageOrder: z.array(z.string()).default([]),
   onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreCommentOrder: z.array(z.string()).default([]),
+  bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
+  bulkOperationOrder: z.array(z.string()).default([]),
   discounts: z.record(z.string(), discountRecordSchema).default({}),
   discountBulkOperations: z.record(z.string(), discountBulkOperationRecordSchema).default({}),
   paymentCustomizations: z.record(z.string(), paymentCustomizationRecordSchema).default({}),
