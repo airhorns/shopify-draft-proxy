@@ -2718,6 +2718,24 @@ export class InMemoryStore {
     );
   }
 
+  listEffectiveFiles(): FileRecord[] {
+    const byId = new Map<string, FileRecord>();
+
+    for (const file of Object.values(this.baseState.files)) {
+      if (!this.stagedState.deletedFileIds[file.id]) {
+        byId.set(file.id, structuredClone(file));
+      }
+    }
+
+    for (const file of Object.values(this.stagedState.files)) {
+      if (!this.stagedState.deletedFileIds[file.id]) {
+        byId.set(file.id, structuredClone(file));
+      }
+    }
+
+    return [...byId.values()];
+  }
+
   replaceBaseMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
     for (const metafield of Object.values(this.baseState.productMetafields)) {
       if (readProductMetafieldOwnerId(metafield) === ownerId) {

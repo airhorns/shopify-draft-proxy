@@ -1,0 +1,36 @@
+query FilesUploadLocalRuntimeRead {
+  files(first: 10) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      filename
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  fileSavedSearches(first: 5) {
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
