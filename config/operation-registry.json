@@ -147,6 +147,26 @@
     "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
   },
   {
+    "name": "sellingPlanGroup",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroup", "SellingPlanGroup"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local detail reads for staged selling-plan groups, including unknown-id null behavior and product/product-variant membership connections."
+  },
+  {
+    "name": "sellingPlanGroups",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroups", "SellingPlanGroups"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 models local catalog reads for staged selling-plan groups with connection pagination and downstream product/variant membership visibility."
+  },
+  {
     "name": "publicApiVersions",
     "type": "query",
     "domain": "admin-platform",
@@ -1516,6 +1536,76 @@
     "runtimeTests": ["tests/integration/customer-draft-flow.test.ts"]
   },
   {
+    "name": "sellingPlanGroupCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupCreate", "SellingPlanGroupCreate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages selling-plan group create locally, including nested sellingPlansToCreate and initial product/product-variant resources, without runtime Shopify writes."
+  },
+  {
+    "name": "sellingPlanGroupUpdate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupUpdate", "SellingPlanGroupUpdate"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group scalar updates, selling plan updates/creates/deletes, and unknown-id GROUP_DOES_NOT_EXIST userErrors locally."
+  },
+  {
+    "name": "sellingPlanGroupDelete",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupDelete", "SellingPlanGroupDelete"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages group deletion locally; downstream detail/catalog/product/variant reads omit deleted groups and unknown deletes return Shopify-like GROUP_DOES_NOT_EXIST userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProducts", "SellingPlanGroupAddProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership locally and makes product.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProducts",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProducts", "SellingPlanGroupRemoveProducts"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product membership removal locally and returns removedProductIds with Shopify-like unknown-id userErrors."
+  },
+  {
+    "name": "sellingPlanGroupAddProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupAddProductVariants", "SellingPlanGroupAddProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership locally and makes ProductVariant.sellingPlanGroups reads observe the membership."
+  },
+  {
+    "name": "sellingPlanGroupRemoveProductVariants",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["sellingPlanGroupRemoveProductVariants", "SellingPlanGroupRemoveProductVariants"],
+    "runtimeTests": ["tests/integration/selling-plan-group-flow.test.ts"],
+    "supportNotes": "HAR-308 stages product variant membership removal locally and returns removedProductVariantIds with Shopify-like unknown-id userErrors."
+  },
+  {
     "name": "tagsAdd",
     "type": "mutation",
     "domain": "products",
@@ -2478,30 +2568,30 @@
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperation", "BulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API read gap. Requires a local BulkOperation job model for query exports and mutation imports, missing-id/null behavior, and status/result fields before overlay-read support; this is separate from product variant, inventory, discount, and metaobject bulk roots."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: reads BulkOperation records from the normalized in-memory job model with Shopify-like missing-id/null behavior; query export and mutation import execution remain unsupported."
   },
   {
     "name": "bulkOperations",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperations", "BulkOperations"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations API catalog read gap. Requires captured pagination, filtering by id/status/operation_type, CREATED_AT sorting, empty connection behavior, and app-scoped job visibility before overlay-read support."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: lists effective in-memory BulkOperation jobs with shared connection helpers, cursor windows, CREATED_AT/ID sorting, reverse, and captured id/status/operation_type/created_at query filters."
   },
   {
     "name": "currentBulkOperation",
     "type": "query",
     "domain": "bulk-operations",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["currentBulkOperation", "CurrentBulkOperation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 deprecated root-level Bulk Operations read gap. Keep unimplemented until the proxy can derive the most recent query or mutation BulkOperation from local job state; current Shopify docs point new callers to bulkOperations with a status filter."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: derives the deprecated currentBulkOperation root from the newest local BulkOperation for the requested type, defaulting to QUERY."
   },
   {
     "name": "bulkOperationRunQuery",
@@ -2528,10 +2618,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationCancel", "BulkOperationCancel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations cancellation gap. Future support must stage canceling/canceled transitions against local BulkOperation jobs and downstream reads without treating this declared root as a permanent passthrough capability."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-263: cancels staged BulkOperation jobs locally, returns captured unknown-id and terminal-state userErrors without proxying supported cancel attempts upstream, and records the local cancel attempt in the meta log."
   },
   {
     "name": "productOptionsCreate",
@@ -3898,10 +3988,10 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["availableCarrierServices", "AvailableCarrierServices"],
-    "runtimeTests": [],
-    "supportNotes": "Admin GraphQL carrier-service availability root. Registry-only declared gap until active carrier service/location pairing and empty-list behavior are captured."
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Admin GraphQL carrier-service availability root. Snapshot/local reads pair active local DeliveryCarrierService records with active merchant-managed locations and return an empty list when no local carrier services are available; local staging never invokes rate or service-discovery callbacks."
   },
   {
     "name": "carrierService",
@@ -4088,13 +4178,103 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": [
       "locationsAvailableForDeliveryProfilesConnection",
       "LocationsAvailableForDeliveryProfilesConnection"
     ],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Delivery-profile origin-location helper root. Snapshot/local reads serialize active local locations through the shared connection helpers, including cursor pagination, reverse ordering, empty/no-data behavior, and local-pickup settings staged by locationLocalPickupEnable/Disable."
+  },
+  {
+    "name": "locationLocalPickupDisable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupDisable", "LocationLocalPickupDisable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally disables local pickup for active local Location records, returns captured ACTIVE_LOCATION_NOT_FOUND userErrors for unknown/inactive locations, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "locationLocalPickupEnable",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["locationLocalPickupEnable", "LocationLocalPickupEnable"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally enables local pickup for active local Location records using captured DeliveryLocalPickupSettings payload shape, updates downstream location(id:) and delivery-profile location reads, and preserves the original raw mutation for commit replay."
+  },
+  {
+    "name": "shippingPackageDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageDelete", "ShippingPackageDelete"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages deletion of normalized shipping packages and returns deletedId plus empty userErrors for known local package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "shippingPackageMakeDefault",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageMakeDefault", "ShippingPackageMakeDefault"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages default package selection across normalized shipping packages and preserves raw mutation order for commit replay. Admin GraphQL exposes no package read root in this schema, so local visibility is through meta state and downstream package bookkeeping."
+  },
+  {
+    "name": "shippingPackageUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["shippingPackageUpdate", "ShippingPackageUpdate"],
+    "runtimeTests": ["tests/integration/shipping-settings-flow.test.ts"],
+    "supportNotes": "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape."
+  },
+  {
+    "name": "fulfillmentConstraintRules",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRules", "FulfillmentConstraintRules"],
     "runtimeTests": [],
-    "supportNotes": "Delivery-profile origin-location helper root. Registry-only declared gap until active origin location eligibility, pickup/local-delivery/shipping-rate configuration, and cursor behavior are captured."
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring read_fulfillment_constraint_rules. Keep registry-only until rule visibility, Shopify Function shape, and scope requirements can be captured and modeled."
+  },
+  {
+    "name": "fulfillmentConstraintRuleCreate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleCreate", "FulfillmentConstraintRuleCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Do not mark supported until Shopify Function ownership, metafield side effects, and downstream rule reads are captured."
+  },
+  {
+    "name": "fulfillmentConstraintRuleDelete",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleDelete", "FulfillmentConstraintRuleDelete"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Delete semantics remain registry-only until a scoped test app can capture success and downstream absence behavior."
+  },
+  {
+    "name": "fulfillmentConstraintRuleUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fulfillmentConstraintRuleUpdate", "FulfillmentConstraintRuleUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "Captured blocker: the current conformance credential receives ACCESS_DENIED requiring write_fulfillment_constraint_rules. Update semantics remain registry-only until delivery-method and downstream read behavior are captured."
   },
   {
     "name": "deliveryProfileCreate",

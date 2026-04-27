@@ -7,6 +7,7 @@ import {
   classifyParityScenarioState,
   compareJsonPayloads,
   executeParityScenario,
+  excludeComparisonPaths,
   summarizeParityResults,
   validateComparisonContract,
   validateParityScenarioInventoryEntry,
@@ -310,6 +311,42 @@ describe('validateComparisonContract', () => {
     ]);
   });
 
+  it('validates excluded comparison paths on comparison targets', () => {
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        expectedDifferences: [],
+        targets: [
+          {
+            name: 'node',
+            capturePath: '$.data.node',
+            proxyPath: '$.data.node',
+            excludedPaths: ['$.id', '$.createdAt'],
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(
+      validateComparisonContract({
+        mode: 'strict-json',
+        expectedDifferences: [],
+        targets: [
+          {
+            name: 'node',
+            capturePath: '$.data.node',
+            proxyPath: '$.data.node',
+            selectedPaths: ['$.name'],
+            excludedPaths: [],
+          },
+        ],
+      }),
+    ).toEqual([
+      'targets[0] excludedPaths, when declared, must be a non-empty array.',
+      'targets[0] must not declare both selectedPaths and excludedPaths.',
+    ]);
+  });
+
   it('requires every repository ignore rule to be explicitly regrettable', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const paritySpecRoot = resolve(repoRoot, 'config/parity-specs');
@@ -560,6 +597,30 @@ describe('compareJsonPayloads', () => {
         actual: 'Shade',
       },
     ]);
+  });
+});
+
+describe('excludeComparisonPaths', () => {
+  it('removes ignored fields from cloned payloads without mutating the source', () => {
+    const payload = {
+      data: {
+        nodes: [
+          { id: 'gid://shopify/Product/1', title: 'Hat', createdAt: '2026-04-27T00:00:00Z' },
+          { id: 'gid://shopify/Product/2', title: 'Shirt', createdAt: '2026-04-27T00:00:01Z' },
+        ],
+      },
+    };
+
+    expect(excludeComparisonPaths(payload, ['$.data.nodes[*].id', '$.data.nodes[*].createdAt'])).toEqual({
+      data: {
+        nodes: [{ title: 'Hat' }, { title: 'Shirt' }],
+      },
+    });
+    expect(payload.data.nodes[0]).toEqual({
+      id: 'gid://shopify/Product/1',
+      title: 'Hat',
+      createdAt: '2026-04-27T00:00:00Z',
+    });
   });
 });
 

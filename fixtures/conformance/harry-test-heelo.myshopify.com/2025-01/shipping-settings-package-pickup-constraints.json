@@ -1,0 +1,551 @@
+{
+  "capturedAt": "2026-04-27T16:34:30.329Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "captureType": "shipping-settings-replayable-parity",
+  "rootShapes": {
+    "availableCarrierServices": "returns [DeliveryCarrierServiceAndLocations!]!",
+    "locationsAvailableForDeliveryProfilesConnection": "returns LocationConnection! with first/after/last/before/reverse",
+    "locationLocalPickupEnable": "localPickupSettings: DeliveryLocationLocalPickupEnableInput!",
+    "locationLocalPickupDisable": "locationId: ID!",
+    "shippingPackageUpdate": "id: ID!, shippingPackage: CustomShippingPackageInput!",
+    "shippingPackageMakeDefault": "id: ID!",
+    "shippingPackageDelete": "id: ID!",
+    "fulfillmentConstraintRules": "blocked by read_fulfillment_constraint_rules scope",
+    "fulfillmentConstraintRuleCreateUpdateDelete": "blocked by write_fulfillment_constraint_rules scope"
+  },
+  "fulfillmentConstraintScopeBlockers": {
+    "read": "Access denied for fulfillmentConstraintRules field. Required access: `read_fulfillment_constraint_rules` access scope.",
+    "write": "Access denied for fulfillmentConstraintRuleCreate/Update/Delete fields. Required access: `write_fulfillment_constraint_rules` access scope."
+  },
+  "seed": {
+    "carrierServices": [
+      {
+        "id": "gid://shopify/DeliveryCarrierService/95194480946",
+        "name": "canada_post",
+        "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
+        "active": true,
+        "supportsServiceDiscovery": true
+      },
+      {
+        "id": "gid://shopify/DeliveryCarrierService/97859273010",
+        "name": "dhl_express",
+        "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
+        "active": true,
+        "supportsServiceDiscovery": true
+      },
+      {
+        "id": "gid://shopify/DeliveryCarrierService/95194513714",
+        "name": "purolator",
+        "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
+        "active": true,
+        "supportsServiceDiscovery": true
+      }
+    ],
+    "locations": [
+      {
+        "id": "gid://shopify/Location/106318430514",
+        "name": "Shop location",
+        "localPickupSettingsV2": null,
+        "isActive": true,
+        "isFulfillmentService": false,
+        "localPickupSettings": null
+      },
+      {
+        "id": "gid://shopify/Location/106318463282",
+        "name": "My Custom Location",
+        "localPickupSettingsV2": null,
+        "isActive": true,
+        "isFulfillmentService": false,
+        "localPickupSettings": null
+      },
+      {
+        "id": "gid://shopify/Location/106318496050",
+        "name": "Snow City Warehouse",
+        "localPickupSettingsV2": null,
+        "isActive": true,
+        "isFulfillmentService": false,
+        "localPickupSettings": null
+      }
+    ]
+  },
+  "captures": {
+    "availability": {
+      "query": "#graphql\n  query ShippingSettingsAvailability {\n    availableCarrierServices {\n      carrierService {\n        id\n        name\n        formattedName\n        active\n        supportsServiceDiscovery\n      }\n    }\n    locationsAvailableForDeliveryProfilesConnection(first: 3) {\n      nodes {\n        id\n        name\n        localPickupSettingsV2 {\n          pickupTime\n          instructions\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {},
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "availableCarrierServices": [
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194480946",
+                  "name": "canada_post",
+                  "formattedName": "Canada Post (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/97859273010",
+                  "name": "dhl_express",
+                  "formattedName": "DHL Express (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              },
+              {
+                "carrierService": {
+                  "id": "gid://shopify/DeliveryCarrierService/95194513714",
+                  "name": "purolator",
+                  "formattedName": "Purolator (Discounted rates from Shopify Shipping)",
+                  "active": true,
+                  "supportsServiceDiscovery": true
+                }
+              }
+            ],
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 8,
+              "actualQueryCost": 8,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "beforePickupRead": {
+      "query": "#graphql\n  query ShippingLocalPickupRead($locationId: ID!) {\n    location(id: $locationId) {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "localPickupSettingsV2": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "enable": {
+      "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "localPickupSettings": {
+          "locationId": "gid://shopify/Location/106318496050",
+          "pickupTime": "TWO_HOURS",
+          "instructions": "HAR-320 parity pickup instructions"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationLocalPickupEnable": {
+              "localPickupSettings": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "HAR-320 parity pickup instructions"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterEnableRead": {
+      "query": "#graphql\n  query ShippingLocalPickupRead($locationId: ID!) {\n    location(id: $locationId) {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "localPickupSettingsV2": {
+                "pickupTime": "TWO_HOURS",
+                "instructions": "HAR-320 parity pickup instructions"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "disable": {
+      "query": "#graphql\n  mutation ShippingLocalPickupDisable($locationId: ID!) {\n    locationLocalPickupDisable(locationId: $locationId) {\n      locationId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationLocalPickupDisable": {
+              "locationId": "gid://shopify/Location/106318496050",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "afterDisableRead": {
+      "query": "#graphql\n  query ShippingLocalPickupRead($locationId: ID!) {\n    location(id: $locationId) {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/106318496050"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318496050",
+              "name": "Snow City Warehouse",
+              "localPickupSettingsV2": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownLocationEnable": {
+      "query": "#graphql\n  mutation ShippingLocalPickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {\n    locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {\n      localPickupSettings {\n        pickupTime\n        instructions\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "localPickupSettings": {
+          "locationId": "gid://shopify/Location/999999999999",
+          "pickupTime": "ONE_HOUR"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationLocalPickupEnable": {
+              "localPickupSettings": null,
+              "userErrors": [
+                {
+                  "field": ["localPickupSettings"],
+                  "message": "Unable to find an active location for location ID 999999999999",
+                  "code": "ACTIVE_LOCATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageUpdateUnknown": {
+      "query": "#graphql\n  mutation ShippingPackageUpdateUnknown($id: ID!, $shippingPackage: CustomShippingPackageInput!) {\n    shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999",
+        "shippingPackage": {
+          "name": "HAR-320 unknown package",
+          "type": "BOX",
+          "default": false,
+          "weight": {
+            "value": 2.5,
+            "unit": "POUNDS"
+          },
+          "dimensions": {
+            "length": 12,
+            "width": 9,
+            "height": 5,
+            "unit": "INCHES"
+          }
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageUpdate"]
+            }
+          ],
+          "data": {
+            "shippingPackageUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageMakeDefaultUnknown": {
+      "query": "#graphql\n  mutation ShippingPackageMakeDefaultUnknown($id: ID!) {\n    shippingPackageMakeDefault(id: $id) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageMakeDefault"]
+            }
+          ],
+          "data": {
+            "shippingPackageMakeDefault": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "shippingPackageDeleteUnknown": {
+      "query": "#graphql\n  mutation ShippingPackageDeleteUnknown($id: ID!) {\n    shippingPackageDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/999999999999"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "invalid id",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["shippingPackageDelete"]
+            }
+          ],
+          "data": {
+            "shippingPackageDelete": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentConstraintReadBlocker": {
+      "query": "#graphql\n  query FulfillmentConstraintRulesScopeBlocker {\n    fulfillmentConstraintRules {\n      id\n    }\n  }\n",
+      "variables": {},
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for fulfillmentConstraintRules field. Required access: `read_fulfillment_constraint_rules` access scope.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`read_fulfillment_constraint_rules` access scope."
+              },
+              "path": ["fulfillmentConstraintRules"]
+            }
+          ],
+          "data": null,
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentConstraintWriteBlocker": {
+      "query": "#graphql\n  mutation FulfillmentConstraintRuleCreateScopeBlocker {\n    fulfillmentConstraintRuleCreate(\n      functionId: \"gid://shopify/ShopifyFunction/0\"\n      deliveryMethodTypes: [SHIPPING]\n    ) {\n      fulfillmentConstraintRule {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {},
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Access denied for fulfillmentConstraintRuleCreate field. Required access: `write_fulfillment_constraint_rules` access scope.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 5
+                }
+              ],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": "`write_fulfillment_constraint_rules` access scope."
+              },
+              "path": ["fulfillmentConstraintRuleCreate"]
+            }
+          ],
+          "data": {
+            "fulfillmentConstraintRuleCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
