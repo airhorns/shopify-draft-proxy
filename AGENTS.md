@@ -108,6 +108,12 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   for `.mts`, `.cjs` for `.cts`). Do not import local modules with source
   extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces this with
   oxlint's `import/extensions` rule.
+- Search implementations must use the shared helpers in
+  `src/search-query-parser.ts` for Shopify Admin `query:` parsing, execution,
+  AST traversal, term-list guards, and primitive term matching. Endpoint modules
+  should provide only the domain-specific positive term matcher and documented
+  Shopify quirks; do not add new resource-local query parsers or duplicated
+  `matches*QueryNode` traversal helpers.
 - Connection implementations must use the shared helpers in
   `src/proxy/graphql-helpers.ts` for cursor windowing, `nodes`/`edges`
   serialization, and selected `pageInfo` fields. Keep resource-specific sorting,
