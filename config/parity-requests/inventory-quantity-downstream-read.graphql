@@ -1,0 +1,24 @@
+query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    variant {
+      inventoryQuantity
+      product {
+        totalInventory
+      }
+    }
+    inventoryLevels(first: 10) {
+      nodes {
+        location {
+          id
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+  product(id: $productId) {
+    totalInventory
+  }
+}

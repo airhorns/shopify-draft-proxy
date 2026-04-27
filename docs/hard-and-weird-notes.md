@@ -2188,6 +2188,13 @@ Captured mutation behavior:
 - `customerSmsMarketingConsentUpdate` maps input `consentUpdatedAt` to `defaultPhoneNumber.marketingUpdatedAt` and returns `marketingCollectedFrom: "OTHER"` for the captured Admin API update
 - an unknown email-consent customer id returns `userErrors: [{ field: ["input", "customerId"], message: "Customer not found", code: "INVALID" }]`
 - an unknown SMS-consent customer id returns `userErrors: [{ field: null, message: "Customer not found", code: null }]`
+- HAR-287 expanded the 2026-04 validation matrix:
+  - missing/null nested consent payloads, null `marketingState`, invalid enum values, unknown input fields such as SMS `consentCollectedFrom`, and malformed `consentUpdatedAt` values are GraphQL `INVALID_VARIABLE` failures before resolver execution
+  - `NOT_SUBSCRIBED`, `REDACTED`, and email `INVALID` are enum values in schema exposure, but the resolver rejects them as input states with top-level `INVALID` errors
+  - `PENDING` requires `marketingOptInLevel: CONFIRMED_OPT_IN`; using `SINGLE_OPT_IN` returns a mutation `userErrors` entry at `["input", <consentKey>, "marketingOptInLevel"]` without changing stored consent
+  - future `consentUpdatedAt` returns a mutation `userErrors` entry at `["input", <consentKey>, "consentUpdatedAt"]`; email returns the unchanged customer payload, while SMS returns `customer: null`
+  - SMS consent update requires an existing default phone number and returns `field: ["input", "smsMarketingConsent"]`, message `A phone number is required to set the SMS consent state.`, code `INVALID` when absent
+  - email consent update against a customer without an email/default email address succeeds as a no-contact-method no-op for selected default email fields
 
 Practical rule:
 
@@ -2603,6 +2610,27 @@ Practical rule:
 
 - model `productSet` inventory inputs as inventory item location-level rows, then derive variant `inventoryQuantity` from those rows
 - do not use the generic eager product inventory-summary recomputation path for `productSet`; preserve the captured create/update product total behavior until fresher evidence shows Shopify has changed it
+
+## 66a. `inventorySetQuantities` / `inventoryMoveQuantities` use the inventory-level graph and product totals still lag
+
+Live HAR-305 probes against `harry-test-heelo.myshopify.com` on 2026-04-27 covered the current 2025-01 schema and a disposable product cleanup flow.
+
+Captured facts:
+
+- `inventoryItems(first:, after:, last:, before:, reverse:, query:)` is a non-null `InventoryItemConnection`; `query: "id:0"` returned an empty connection plus a Shopify search warning rather than null data
+- `inventoryProperties.quantityNames` returned `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`; `on_hand` is composed from the component names while `incoming` is separate
+- `inventorySetQuantities` in 2025-01 still exposes deprecated `ignoreCompareQuantity`; omitting both compare data and `ignoreCompareQuantity: true` returns a user error at `["input", "ignoreCompareQuantity"]`
+- a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
+- immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
+- `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
+- same-location available-to-damaged move succeeded, returned a negative `available` change and a positive `damaged` change, accepted a ledger URI on the damaged terminal, kept `on_hand` unchanged, reduced variant available quantity, and left product total stale
+- ledger URIs are not allowed for the `available` terminal; non-available terminals should carry ledger evidence until a broader capture proves otherwise
+
+Practical rule:
+
+- model both roots over the existing inventory-level rows, not a detached quantity ledger table
+- update variant available totals immediately while preserving product total lag, matching `inventoryAdjustQuantities` and `productSet` timing
+- keep shipment and transfer workflows out of this family; `inventoryMoveQuantities` moves between quantity names at one location, not between locations
 
 ## 67. Draft-order create validation differs from early local guesses
 

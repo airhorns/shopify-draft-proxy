@@ -1,0 +1,13 @@
+query InventoryItemsEmptyRead {
+  inventoryItems(first: 1, query: "id:0") {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

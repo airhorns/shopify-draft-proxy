@@ -9,6 +9,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts"]
   },
   {
+    "name": "productByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productByIdentifier", "ProductByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id and handle identifier branches against effective local product state. customId returns null until product unique-metafield evidence exists."
+  },
+  {
     "name": "products",
     "type": "query",
     "domain": "products",
@@ -25,6 +35,96 @@
     "implemented": true,
     "matchNames": ["productsCount", "ProductsCount"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "productVariants",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariants", "ProductVariants"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Top-level variant helper connection resolves from effective local product variants, with local pagination, reverse, basic sort keys, and Shopify-style query filtering for id/product_id/title/sku/barcode/vendor/product_type/tag terms."
+  },
+  {
+    "name": "productVariantsCount",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantsCount", "ProductVariantsCount"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Counts effective local product variants with the same supported query terms as productVariants; limit precision remains exact for the in-memory model."
+  },
+  {
+    "name": "productTags",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTags", "ProductTags"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local product tags; absent product data returns an empty connection."
+  },
+  {
+    "name": "productTypes",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productTypes", "ProductTypes"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local productType values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productVendors",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVendors", "ProductVendors"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Serializes a distinct sorted StringConnection from effective local vendor values; absent product data returns an empty connection."
+  },
+  {
+    "name": "productSavedSearches",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productSavedSearches", "ProductSavedSearches"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Snapshot/local support currently returns Shopify-like empty SavedSearchConnection behavior; saved search CRUD/storage remains unsupported."
+  },
+  {
+    "name": "productOperation",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productOperation", "ProductOperation"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false); unknown operation IDs return null."
+  },
+  {
+    "name": "productDuplicateJob",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productDuplicateJob", "ProductDuplicateJob"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. productDuplicate itself remains locally synchronous and does not create a long-running job."
+  },
+  {
+    "name": "productResourceFeedback",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productResourceFeedback", "ProductResourceFeedback"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Returns null for absent local feedback. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so feedback mutation-created records are not claimed."
   },
   {
     "name": "productFeed",
@@ -236,6 +336,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "productVariantByIdentifier",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["productVariantByIdentifier", "ProductVariantByIdentifier"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Supports id identifier lookups against effective local variant state. customId returns null until product-variant unique-metafield evidence exists."
+  },
+  {
     "name": "inventoryItem",
     "type": "query",
     "domain": "products",
@@ -245,6 +355,16 @@
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventoryItems",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryItems", "InventoryItems"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Lists the effective product-backed inventory items from normalized product variant state, including empty no-data connections and a narrow id/sku/tracked search slice."
+  },
+  {
     "name": "inventoryLevel",
     "type": "query",
     "domain": "products",
@@ -252,6 +372,16 @@
     "implemented": true,
     "matchNames": ["inventoryLevel", "InventoryLevel"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts", "tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "inventoryProperties",
+    "type": "query",
+    "domain": "products",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["inventoryProperties", "InventoryProperties"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Returns the captured 2025-01 quantity-name catalog used by inventory-level reads and staged quantity mutations."
   },
   {
     "name": "collection",
@@ -1135,6 +1265,26 @@
     "implemented": true,
     "matchNames": ["tagsRemove"],
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+  },
+  {
+    "name": "bulkProductResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["bulkProductResourceFeedbackCreate", "BulkProductResourceFeedbackCreate"],
+    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
+    "supportNotes": "Registered unsupported feedback mutation. Future support must stage ProductResourceFeedback records locally, preserve raw mutation order for commit, and expose downstream productResourceFeedback reads without runtime Shopify writes. Until then, runtime passthrough remains the unsupported escape hatch and is logged as proxied."
+  },
+  {
+    "name": "shopResourceFeedbackCreate",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
+    "runtimeTests": [],
+    "supportNotes": "Registered unsupported shop feedback mutation. Future support requires an app/shop feedback state model, access-scope-backed conformance, local staging, and downstream read effects before this root can be supported without runtime Shopify writes."
   },
   {
     "name": "productCreate",
@@ -2243,6 +2393,26 @@
     "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
   },
   {
+    "name": "inventorySetQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventorySetQuantities", "InventorySetQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging."
+  },
+  {
+    "name": "inventoryMoveQuantities",
+    "type": "mutation",
+    "domain": "products",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["inventoryMoveQuantities", "InventoryMoveQuantities"],
+    "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
+    "supportNotes": "Stages same-location quantity moves locally over product-backed inventory levels. Captured 2025-01 available-to-damaged moves update named level quantities and variant inventoryQuantity while preserving on_hand and product totalInventory lag."
+  },
+  {
     "name": "inventoryActivate",
     "type": "mutation",
     "domain": "products",
@@ -2606,6 +2776,16 @@
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
   },
   {
+    "name": "return",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["return", "Return"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed Return detail lookup. Snapshot and local live-hybrid reads resolve returns already present on the local order graph, return null for missing IDs, and keep top-level Return serialization aligned with nested Order.returns after staged returnCreate/returnRequest/lifecycle mutations."
+  },
+  {
     "name": "orders",
     "type": "query",
     "domain": "orders",
@@ -2622,6 +2802,56 @@
     "implemented": true,
     "matchNames": ["ordersCount", "OrdersCount"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"]
+  },
+  {
+    "name": "returnCalculate",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnCalculate", "ReturnCalculate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Live introspection captured CalculateReturnInput/CalculatedReturn shape, but local support needs calculation parity for restocking fees, exchange lines, shipping fees, tax/discount totals, and error behavior before this root can be implemented."
+  },
+  {
+    "name": "returnableFulfillment",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillment", "ReturnableFulfillment"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires returnable-fulfillment identity, eligibility, and line-item quantity parity over fulfilled order state before local reads can be supported."
+  },
+  {
+    "name": "returnableFulfillments",
+    "type": "query",
+    "domain": "orders",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["returnableFulfillments", "ReturnableFulfillments"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured order eligibility, pagination, reverse ordering, and returnable line-item quantity behavior before local catalog support."
+  },
+  {
+    "name": "reverseDelivery",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseDelivery", "ReverseDelivery"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires a normalized reverse-delivery graph linked to reverse fulfillment orders, labels/tracking, and return line items before local detail reads can be supported."
+  },
+  {
+    "name": "reverseFulfillmentOrder",
+    "type": "query",
+    "domain": "shipping-fulfillments",
+    "execution": "overlay-read",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires reverse fulfillment order lifecycle, status, line items, reverse deliveries, and order linkage parity before local detail reads can be supported."
   },
   {
     "name": "abandonedCheckouts",
@@ -3466,6 +3696,106 @@
     "implemented": true,
     "matchNames": ["refundCreate", "RefundCreate"],
     "runtimeTests": ["tests/integration/order-refund-flow.test.ts"]
+  },
+  {
+    "name": "returnCreate",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCreate", "ReturnCreate"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed local return creation. Stages Return rows against locally known orders/fulfillment line items, preserves original raw mutation for commit replay, and exposes staged returns through top-level return(id:) and nested Order.returns without runtime Shopify writes."
+  },
+  {
+    "name": "returnRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnRequest", "ReturnRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes."
+  },
+  {
+    "name": "returnCancel",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnCancel", "ReturnCancel"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CANCELED and exposes the status through top-level and nested return reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnClose",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnClose", "ReturnClose"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Updates known local returns to CLOSED, records a local closedAt timestamp, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "returnReopen",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnReopen", "ReturnReopen"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-311 local lifecycle slice. Reopens known local returns to OPEN, clears closedAt, and exposes the status through downstream reads without runtime Shopify writes."
+  },
+  {
+    "name": "removeFromReturn",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["removeFromReturn", "RemoveFromReturn"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured removal semantics for return and exchange line items, quantity recomputation, validation errors, and downstream Return/Order.returns read effects before support."
+  },
+  {
+    "name": "returnProcess",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["returnProcess", "ReturnProcess"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires processing semantics for return/exchange line items, refund duties/shipping, financial transfers, notifications, and downstream refund/return/order effects before support."
+  },
+  {
+    "name": "reverseDeliveryCreateWithShipping",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires normalized reverse fulfillment orders, reverse delivery line items, tracking/label payload behavior, notifications, and downstream reverseDelivery reads before support."
+  },
+  {
+    "name": "reverseDeliveryShippingUpdate",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseDeliveryShippingUpdate", "ReverseDeliveryShippingUpdate"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires captured reverse-delivery tracking/label update semantics and downstream reverseDelivery read effects before support."
+  },
+  {
+    "name": "reverseFulfillmentOrderDispose",
+    "type": "mutation",
+    "domain": "shipping-fulfillments",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["reverseFulfillmentOrderDispose", "ReverseFulfillmentOrderDispose"],
+    "runtimeTests": [],
+    "supportNotes": "HAR-311 declared blocker. Requires disposition semantics, inventory/location effects, reverse fulfillment order status updates, and downstream reads before support."
   },
   {
     "name": "draftOrder",
@@ -4617,6 +4947,46 @@
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
     "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+  },
+  {
+    "name": "files",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["files", "Files"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Serves snapshot and locally staged Files API records from normalized file state; live-hybrid overlay currently prefers local file state when present rather than merging upstream file catalogs."
+  },
+  {
+    "name": "fileSavedSearches",
+    "type": "query",
+    "domain": "media",
+    "execution": "overlay-read",
+    "implemented": true,
+    "matchNames": ["fileSavedSearches", "FileSavedSearches"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns Shopify-like empty saved-search connections in snapshot mode; saved search records are not modeled yet."
+  },
+  {
+    "name": "stagedUploadsCreate",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["stagedUploadsCreate", "StagedUploadsCreate"],
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Returns inert draft-proxy staged upload target metadata without creating external upload storage or acknowledging uploaded content."
+  },
+  {
+    "name": "fileAcknowledgeUpdateFailed",
+    "type": "mutation",
+    "domain": "media",
+    "execution": "stage-locally",
+    "implemented": false,
+    "matchNames": ["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
+    "runtimeTests": [],
+    "supportNotes": "Explicitly unsupported because acknowledging upload failure is an external Files API side effect; this registry entry is a commitment to model failure state locally before support, not a permanent passthrough capability."
   },
   {
     "name": "fileCreate",

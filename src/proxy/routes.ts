@@ -11,7 +11,7 @@ import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
-import { handleMediaMutation } from './media.js';
+import { handleMediaMutation, handleMediaQuery } from './media.js';
 import {
   handleMarketingMutation,
   handleMarketingQuery,
@@ -74,6 +74,13 @@ const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const ORDER_RETURN_MUTATION_ROOTS = new Set([
+  'returnCreate',
+  'returnRequest',
+  'returnCancel',
+  'returnClose',
+  'returnReopen',
+]);
 const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCapture',
   'transactionVoid',
@@ -86,6 +93,11 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCustomerRemove',
   'taxSummaryCreate',
   'orderCancel',
+  'returnCreate',
+  'returnRequest',
+  'returnCancel',
+  'returnClose',
+  'returnReopen',
 ]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
@@ -651,6 +663,20 @@ export function createProxyRouter(config: AppConfig): Router {
       return;
     }
 
+    if (capability.execution === 'overlay-read' && capability.domain === 'media') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid' && store.listEffectiveFiles().length > 0) {
+        ctx.status = 200;
+        ctx.body = handleMediaQuery(body.query, variables);
+        return;
+      }
+    }
+
     if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
       const responseBody = handleMetafieldDefinitionMutation(body.query, variables);
 
@@ -1040,6 +1066,10 @@ export function createProxyRouter(config: AppConfig): Router {
         const hasLocalAbandonedCheckouts = store.getAbandonedCheckouts().length > 0;
         const canServeLocalOrderDetail =
           primaryRootField === 'order' && liveHybridOrderId !== null && store.getOrderById(liveHybridOrderId) !== null;
+        const canServeLocalReturnDetail =
+          primaryRootField === 'return' &&
+          liveHybridOrderId !== null &&
+          store.getOrders().some((order) => order.returns.some((orderReturn) => orderReturn.id === liveHybridOrderId));
         const canServeLocalOrderCatalog =
           (primaryRootField === 'orders' || primaryRootField === 'ordersCount') &&
           hasStagedOrders &&
@@ -1068,6 +1098,7 @@ export function createProxyRouter(config: AppConfig): Router {
 
         if (
           canServeLocalOrderDetail ||
+          canServeLocalReturnDetail ||
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
           canServeLocalDraftOrderCatalog ||
@@ -1542,7 +1573,8 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'fulfillmentOrderAcceptCancellationRequest' ||
         primaryRootField === 'fulfillmentOrderRejectCancellationRequest' ||
         primaryRootField === 'fulfillmentTrackingInfoUpdate' ||
-        primaryRootField === 'fulfillmentCancel')
+        primaryRootField === 'fulfillmentCancel' ||
+        (primaryRootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(primaryRootField)))
     ) {
       const orderMutationResponse = handleOrderMutation(
         body.query,
@@ -1607,6 +1639,11 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally staged fulfillment-order cancellation request acceptance without invoking fulfillment-service callbacks.',
           fulfillmentOrderRejectCancellationRequest:
             'Locally staged fulfillment-order cancellation request rejection without invoking fulfillment-service callbacks.',
+          returnCreate: 'Locally staged returnCreate in live-hybrid mode for a synthetic/local order.',
+          returnRequest: 'Locally staged returnRequest in live-hybrid mode for a synthetic/local order.',
+          returnCancel: 'Locally staged returnCancel in live-hybrid mode for a synthetic/local return.',
+          returnClose: 'Locally staged returnClose in live-hybrid mode for a synthetic/local return.',
+          returnReopen: 'Locally staged returnReopen in live-hybrid mode for a synthetic/local return.',
         };
 
         if (shouldAppendLocalMutationLog(primaryRootField, orderMutationResponse)) {
