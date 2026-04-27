@@ -1,0 +1,6 @@
+{
+  "first": 5,
+  "query": "status:running operation_type:mutation",
+  "sortKey": "CREATED_AT",
+  "reverse": true
+}
