@@ -2518,10 +2518,10 @@
     "type": "mutation",
     "domain": "bulk-operations",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkOperationRunMutation", "BulkOperationRunMutation"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-261 root-level Bulk Operations import mutation gap. Future support must stage a local asynchronous mutation-import job from stagedUploadPath/clientIdentifier inputs, model BulkOperation results and failures, and avoid runtime Shopify writes until explicit commit replay."
+    "runtimeTests": ["tests/integration/bulk-operation-conformance-flow.test.ts"],
+    "supportNotes": "HAR-265: stages mutation imports locally only for single-root product inner mutations that are already locally implemented. Uploaded JSONL variables must come from the proxy's staged upload handoff; unsupported inner roots create an explicit failed local BulkOperation and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata."
   },
   {
     "name": "bulkOperationCancel",

@@ -1,5 +1,7 @@
 import type { FieldNode } from 'graphql';
 
+import type { ReadMode } from '../config.js';
+import { parseOperation } from '../graphql/parse-operation.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
   applySearchQuery,
@@ -10,8 +12,10 @@ import {
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
+import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { BulkOperationRecord } from '../state/types.js';
+import { getOperationCapability } from './capabilities.js';
 import {
   getFieldResponseKey,
   getNodeLocation,
@@ -20,6 +24,7 @@ import {
   paginateConnectionItems,
   serializeConnection,
 } from './graphql-helpers.js';
+import { handleProductMutation } from './products.js';
 
 type BulkOperationUserError = {
   field: string[] | null;
@@ -35,6 +40,24 @@ type BulkOperationMutationResult = {
   response: GraphqlResponseBody;
   stagedResourceIds: string[];
   notes: string;
+  innerMutationLogs?: BulkOperationImportLogEntry[];
+};
+
+type BulkOperationMutationOptions = {
+  readMode: ReadMode;
+};
+
+export type BulkOperationImportLogEntry = {
+  operationName: string | null;
+  rootField: string;
+  query: string;
+  variables: Record<string, unknown>;
+  requestBody: Record<string, unknown>;
+  stagedResourceIds: string[];
+  bulkOperationId: string;
+  lineNumber: number;
+  stagedUploadPath: string;
+  innerMutation: string;
 };
 
 const BULK_OPERATION_TERMINAL_STATUSES = new Set(['CANCELED', 'COMPLETED', 'EXPIRED', 'FAILED']);
@@ -48,18 +71,22 @@ function getArgumentVariableName(field: FieldNode, argumentName: string): string
   return argument?.value.kind === 'Variable' ? argument.value.name.value : null;
 }
 
-function missingRequiredArgumentResponse(field: FieldNode, operationLabel: string): GraphqlResponseBody {
+function missingRequiredArgumentResponse(
+  field: FieldNode,
+  operationLabel: string,
+  argumentName = 'id',
+): GraphqlResponseBody {
   return {
     errors: [
       {
-        message: `Field '${field.name.value}' is missing required arguments: id`,
+        message: `Field '${field.name.value}' is missing required arguments: ${argumentName}`,
         locations: getNodeLocation(field),
         path: [operationLabel, field.name.value],
         extensions: {
           code: 'missingRequiredArguments',
           className: 'Field',
           name: field.name.value,
-          arguments: 'id',
+          arguments: argumentName,
         },
       },
     ],
@@ -351,6 +378,332 @@ function missingBulkOperationUserError(): BulkOperationUserError {
   };
 }
 
+function readStringArgument(args: Record<string, unknown>, name: string): string | null {
+  const value = args[name];
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function buildBulkOperationResultUrl(operationId: string): string {
+  return `https://shopify-draft-proxy.local/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`;
+}
+
+function buildMutationImportOperation(
+  status: BulkOperationRecord['status'],
+  mutation: string,
+  resultJsonl: string,
+  counts: { objectCount: number; rootObjectCount: number },
+): BulkOperationRecord {
+  const completedAt = makeSyntheticTimestamp();
+  const id = makeSyntheticGid('BulkOperation');
+  return {
+    id,
+    status,
+    type: 'MUTATION',
+    errorCode: null,
+    createdAt: completedAt,
+    completedAt,
+    objectCount: String(counts.objectCount),
+    rootObjectCount: String(counts.rootObjectCount),
+    fileSize: String(Buffer.byteLength(resultJsonl, 'utf8')),
+    url: buildBulkOperationResultUrl(id),
+    partialDataUrl: null,
+    query: mutation,
+    resultJsonl,
+  };
+}
+
+function withStableBulkOperationUrl(operation: BulkOperationRecord): BulkOperationRecord {
+  return {
+    ...operation,
+    url: buildBulkOperationResultUrl(operation.id),
+  };
+}
+
+function serializeRunMutationPayload(
+  field: FieldNode,
+  operation: BulkOperationRecord | null,
+  userErrors: BulkOperationUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'bulkOperation':
+        payload[key] = operation ? serializeBulkOperation(operation, selection) : null;
+        break;
+      case 'userErrors':
+        payload[key] = serializeBulkOperationUserErrors(userErrors, selection);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+
+  return payload;
+}
+
+function parseJsonlVariables(uploadContent: string): Array<
+  | { lineNumber: number; variables: Record<string, unknown> }
+  | {
+      lineNumber: number;
+      error: string;
+    }
+> {
+  const lines = uploadContent.split(/\r?\n/u);
+  const parsedLines: Array<
+    { lineNumber: number; variables: Record<string, unknown> } | { lineNumber: number; error: string }
+  > = [];
+
+  for (const [index, line] of lines.entries()) {
+    if (line.trim().length === 0) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(line) as unknown;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        parsedLines.push({ lineNumber: index + 1, error: 'Bulk mutation variables line must be a JSON object.' });
+        continue;
+      }
+      parsedLines.push({ lineNumber: index + 1, variables: parsed as Record<string, unknown> });
+    } catch (error) {
+      parsedLines.push({
+        lineNumber: index + 1,
+        error: error instanceof Error ? error.message : 'Invalid JSONL variables line.',
+      });
+    }
+  }
+
+  return parsedLines;
+}
+
+function collectResponseGids(value: unknown, gids = new Set<string>()): string[] {
+  if (typeof value === 'string') {
+    if (value.startsWith('gid://shopify/')) {
+      gids.add(value);
+    }
+    return [...gids];
+  }
+
+  if (!value || typeof value !== 'object') {
+    return [...gids];
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectResponseGids(item, gids);
+    }
+    return [...gids];
+  }
+
+  for (const item of Object.values(value)) {
+    collectResponseGids(item, gids);
+  }
+  return [...gids];
+}
+
+function hasMutationUserErrors(responseBody: unknown, rootField: string): boolean {
+  if (!responseBody || typeof responseBody !== 'object') {
+    return false;
+  }
+  const data = (responseBody as Record<string, unknown>)['data'];
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
+  const payload = (data as Record<string, unknown>)[rootField];
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  const userErrors = (payload as Record<string, unknown>)['userErrors'];
+  return Array.isArray(userErrors) && userErrors.length > 0;
+}
+
+function isSupportedBulkImportInnerMutation(
+  mutation: string,
+): { operationName: string | null; rootField: string } | null {
+  let parsed: ReturnType<typeof parseOperation>;
+  try {
+    parsed = parseOperation(mutation);
+  } catch {
+    return null;
+  }
+  if (parsed.type !== 'mutation' || parsed.rootFields.length !== 1) {
+    return null;
+  }
+
+  const capability = getOperationCapability(parsed);
+  if (capability.domain !== 'products' || capability.execution !== 'stage-locally') {
+    return null;
+  }
+
+  return {
+    operationName: capability.operationName,
+    rootField: parsed.rootFields[0]!,
+  };
+}
+
+function makeJsonl(rows: Array<Record<string, unknown>>): string {
+  return rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length > 0 ? '\n' : '');
+}
+
+function handleBulkOperationRunMutation(
+  field: FieldNode,
+  args: Record<string, unknown>,
+  options: BulkOperationMutationOptions,
+): BulkOperationMutationResult {
+  const key = getFieldResponseKey(field);
+  const mutation = readStringArgument(args, 'mutation');
+  const stagedUploadPath = readStringArgument(args, 'stagedUploadPath');
+  const emptyResult = makeJsonl([]);
+
+  if (!mutation) {
+    return {
+      response: missingRequiredArgumentResponse(field, 'mutation BulkOperationRunMutation', 'mutation'),
+      stagedResourceIds: [],
+      notes: 'Rejected bulkOperationRunMutation locally because the required mutation argument was missing.',
+    };
+  }
+
+  if (!stagedUploadPath) {
+    return {
+      response: missingRequiredArgumentResponse(field, 'mutation BulkOperationRunMutation', 'stagedUploadPath'),
+      stagedResourceIds: [],
+      notes: 'Rejected bulkOperationRunMutation locally because the required stagedUploadPath argument was missing.',
+    };
+  }
+
+  const uploadContent = store.getStagedUploadContent(stagedUploadPath);
+  if (uploadContent === null) {
+    const failedOperation = store.stageBulkOperation(
+      withStableBulkOperationUrl(
+        buildMutationImportOperation('FAILED', mutation, emptyResult, { objectCount: 0, rootObjectCount: 0 }),
+      ),
+    );
+    return {
+      response: {
+        data: {
+          [key]: serializeRunMutationPayload(field, failedOperation, [
+            {
+              field: ['stagedUploadPath'],
+              message: 'Staged upload content was not found for the provided stagedUploadPath.',
+            },
+          ]),
+        },
+      },
+      stagedResourceIds: [failedOperation.id],
+      notes: 'Rejected bulkOperationRunMutation locally because the staged upload content was missing.',
+    };
+  }
+
+  const innerMutation = isSupportedBulkImportInnerMutation(mutation);
+  if (!innerMutation) {
+    const resultJsonl = makeJsonl([
+      {
+        line: null,
+        errors: [
+          {
+            message:
+              'bulkOperationRunMutation locally supports only single-root product mutations that are already staged by the proxy.',
+          },
+        ],
+      },
+    ]);
+    const failedOperation = store.stageBulkOperation(
+      withStableBulkOperationUrl(
+        buildMutationImportOperation('FAILED', mutation, resultJsonl, { objectCount: 0, rootObjectCount: 0 }),
+      ),
+    );
+    return {
+      response: {
+        data: {
+          [key]: serializeRunMutationPayload(field, failedOperation, [
+            {
+              field: ['mutation'],
+              message:
+                'Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.',
+            },
+          ]),
+        },
+      },
+      stagedResourceIds: [failedOperation.id],
+      notes:
+        'Rejected bulkOperationRunMutation locally because the inner mutation root is not supported for local bulk imports.',
+    };
+  }
+
+  const parsedLines = parseJsonlVariables(uploadContent);
+  const rows: Array<Record<string, unknown>> = [];
+  const innerMutationLogs: BulkOperationImportLogEntry[] = [];
+  let objectCount = 0;
+  let hasFatalLineError = false;
+
+  for (const parsedLine of parsedLines) {
+    if ('error' in parsedLine) {
+      hasFatalLineError = true;
+      rows.push({
+        line: parsedLine.lineNumber,
+        errors: [{ message: parsedLine.error }],
+      });
+      continue;
+    }
+
+    const responseBody = handleProductMutation(mutation, parsedLine.variables, options.readMode);
+    const stagedResourceIds = collectResponseGids(responseBody).filter((id) => {
+      return isProxySyntheticGid(id) || store.getEffectiveProductById(id) !== null;
+    });
+    const hadUserErrors = hasMutationUserErrors(responseBody, innerMutation.rootField);
+
+    if (!hadUserErrors) {
+      objectCount += 1;
+    }
+
+    rows.push({
+      line: parsedLine.lineNumber,
+      response: responseBody,
+    });
+    innerMutationLogs.push({
+      operationName: innerMutation.operationName,
+      rootField: innerMutation.rootField,
+      query: mutation,
+      variables: parsedLine.variables,
+      requestBody: {
+        query: mutation,
+        variables: parsedLine.variables,
+      },
+      stagedResourceIds,
+      bulkOperationId: '',
+      lineNumber: parsedLine.lineNumber,
+      stagedUploadPath,
+      innerMutation: mutation,
+    });
+  }
+
+  const resultJsonl = makeJsonl(rows);
+  const operation = store.stageBulkOperation(
+    withStableBulkOperationUrl(
+      buildMutationImportOperation(hasFatalLineError ? 'FAILED' : 'COMPLETED', mutation, resultJsonl, {
+        objectCount,
+        rootObjectCount: objectCount,
+      }),
+    ),
+  );
+
+  return {
+    response: {
+      data: {
+        [key]: serializeRunMutationPayload(field, operation, []),
+      },
+    },
+    stagedResourceIds: [operation.id],
+    innerMutationLogs: innerMutationLogs.map((entry) => ({ ...entry, bulkOperationId: operation.id })),
+    notes: hasFatalLineError
+      ? 'Handled bulkOperationRunMutation locally, but one or more JSONL variable lines failed before mutation staging.'
+      : 'Handled bulkOperationRunMutation locally by replaying supported product inner mutation lines into the in-memory draft store.',
+  };
+}
+
 export function handleBulkOperationQuery(document: string, variables: Record<string, unknown>): GraphqlResponseBody {
   const data: Record<string, unknown> = {};
 
@@ -396,6 +749,7 @@ export function handleBulkOperationQuery(document: string, variables: Record<str
 export function handleBulkOperationMutation(
   document: string,
   variables: Record<string, unknown>,
+  options: BulkOperationMutationOptions,
 ): BulkOperationMutationResult | null {
   const data: Record<string, unknown> = {};
   const stagedResourceIds: string[] = [];
@@ -404,6 +758,11 @@ export function handleBulkOperationMutation(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
+
+    if (field.name.value === 'bulkOperationRunMutation') {
+      handled = true;
+      return handleBulkOperationRunMutation(field, args, options);
+    }
 
     if (field.name.value !== 'bulkOperationCancel') {
       data[key] = null;

@@ -580,6 +580,7 @@ export class InMemoryStore {
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
   private deletedDraftOrderIds = new Set<string>();
   private orderMandatePayments: Record<string, OrderMandatePaymentRecord> = {};
+  private stagedUploadContents = new Map<string, string>();
 
   installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
     this.initialBaseState = cloneSnapshot(snapshotFile.baseState);
@@ -613,6 +614,7 @@ export class InMemoryStore {
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
     this.deletedDraftOrderIds = new Set<string>();
     this.orderMandatePayments = {};
+    this.stagedUploadContents = new Map<string, string>();
   }
 
   reset(): void {
@@ -645,6 +647,16 @@ export class InMemoryStore {
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
+  }
+
+  stageUploadContent(keys: string[], content: string): void {
+    for (const key of keys) {
+      this.stagedUploadContents.set(key, content);
+    }
+  }
+
+  getStagedUploadContent(key: string): string | null {
+    return this.stagedUploadContents.get(key) ?? null;
   }
 
   updateLogEntry(
