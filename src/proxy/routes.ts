@@ -8,6 +8,7 @@ import type { MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
+import { handleB2BQuery } from './b2b.js';
 import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { findOperationRegistryEntry } from './operation-registry.js';
 import { handleMediaMutation, handleMediaQuery } from './media.js';
@@ -1043,8 +1044,11 @@ export function createProxyRouter(config: AppConfig): Router {
 
       if (config.readMode === 'live-hybrid') {
         const liveHybridOrderId = typeof variables['id'] === 'string' ? variables['id'] : null;
+        const liveHybridAbandonedCheckoutId =
+          typeof variables['abandonedCheckoutId'] === 'string' ? variables['abandonedCheckoutId'] : null;
         const hasStagedOrders = store.getOrders().length > 0;
         const hasStagedDraftOrders = store.getDraftOrders().length > 0;
+        const hasLocalAbandonedCheckouts = store.getAbandonedCheckouts().length > 0;
         const canServeLocalOrderDetail =
           primaryRootField === 'order' && liveHybridOrderId !== null && store.getOrderById(liveHybridOrderId) !== null;
         const canServeLocalOrderCatalog =
@@ -1059,12 +1063,28 @@ export function createProxyRouter(config: AppConfig): Router {
           (primaryRootField === 'draftOrders' || primaryRootField === 'draftOrdersCount') &&
           hasStagedDraftOrders &&
           shouldServeDraftOrderCatalogLocally(variables['query'], variables['savedSearchId']);
+        const canServeLocalAbandonedCheckoutCatalog =
+          (primaryRootField === 'abandonedCheckouts' || primaryRootField === 'abandonedCheckoutsCount') &&
+          hasLocalAbandonedCheckouts &&
+          typeof variables['query'] !== 'string' &&
+          typeof variables['savedSearchId'] !== 'string';
+        const canServeLocalAbandonmentDetail =
+          primaryRootField === 'abandonment' &&
+          liveHybridOrderId !== null &&
+          store.getAbandonmentById(liveHybridOrderId) !== null;
+        const canServeLocalAbandonmentByCheckout =
+          primaryRootField === 'abandonmentByAbandonedCheckoutId' &&
+          liveHybridAbandonedCheckoutId !== null &&
+          store.getAbandonmentByAbandonedCheckoutId(liveHybridAbandonedCheckoutId) !== null;
 
         if (
           canServeLocalOrderDetail ||
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
-          canServeLocalDraftOrderCatalog
+          canServeLocalDraftOrderCatalog ||
+          canServeLocalAbandonedCheckoutCatalog ||
+          canServeLocalAbandonmentDetail ||
+          canServeLocalAbandonmentByCheckout
         ) {
           ctx.status = 200;
           ctx.body = handleOrderQuery(body.query, variables);
@@ -1102,6 +1122,27 @@ export function createProxyRouter(config: AppConfig): Router {
       if (config.readMode === 'snapshot') {
         ctx.status = 200;
         ctx.body = handleEventsQuery(body.query);
+        return;
+      }
+    }
+
+    if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
+      if (config.readMode === 'snapshot') {
+        ctx.status = 200;
+        ctx.body = handleB2BQuery(body.query, variables);
+        return;
+      }
+
+      if (config.readMode === 'live-hybrid') {
+        const response = await requestUpstreamGraphQL(upstream, ctx, {
+          body: {
+            query: body.query,
+            variables,
+          },
+        });
+
+        ctx.status = response.status;
+        ctx.body = await response.json();
         return;
       }
     }
@@ -1323,6 +1364,18 @@ export function createProxyRouter(config: AppConfig): Router {
       }
 
       if (config.readMode === 'live-hybrid') {
+        if (
+          primaryRootField !== null &&
+          ['customerSegmentMembers', 'customerSegmentMembersQuery', 'customerSegmentMembership'].includes(
+            primaryRootField,
+          ) &&
+          (store.hasCustomerSegmentMembersQueries() || store.hasStagedSegments() || store.hasStagedCustomers())
+        ) {
+          ctx.status = 200;
+          ctx.body = handleSegmentsQuery(body.query, variables);
+          return;
+        }
+
         const response = await requestUpstreamGraphQL(upstream, ctx, {
           body: {
             query: body.query,
@@ -1490,6 +1543,7 @@ export function createProxyRouter(config: AppConfig): Router {
         primaryRootField === 'draftOrderDelete' ||
         primaryRootField === 'draftOrderInvoiceSend' ||
         primaryRootField === 'draftOrderCreateFromOrder' ||
+        primaryRootField === 'abandonmentUpdateActivitiesDeliveryStatuses' ||
         primaryRootField === 'fulfillmentCreate' ||
         primaryRootField === 'fulfillmentEventCreate' ||
         primaryRootField === 'fulfillmentOrderSubmitFulfillmentRequest' ||
@@ -1547,6 +1601,8 @@ export function createProxyRouter(config: AppConfig): Router {
             'Locally handled draftOrderInvoiceSend in live-hybrid mode without sending invoice email.',
           draftOrderCreateFromOrder:
             'Locally staged draftOrderCreateFromOrder in live-hybrid mode for a synthetic/local order.',
+          abandonmentUpdateActivitiesDeliveryStatuses:
+            'Locally staged abandonmentUpdateActivitiesDeliveryStatuses in live-hybrid mode for a synthetic/local abandonment.',
           fulfillmentCreate: 'Locally short-circuited captured fulfillmentCreate validation in live-hybrid mode.',
           fulfillmentEventCreate:
             'Locally staged fulfillmentEventCreate in live-hybrid mode for an order-backed local fulfillment.',

@@ -594,6 +594,15 @@ export const segmentRecordSchema = z.strictObject({
 });
 export type SegmentRecord = z.infer<typeof segmentRecordSchema>;
 
+export const customerSegmentMembersQueryRecordSchema = z.strictObject({
+  id: z.string(),
+  query: nullableStringSchema,
+  segmentId: nullableStringSchema,
+  currentCount: z.number(),
+  done: z.boolean(),
+});
+export type CustomerSegmentMembersQueryRecord = z.infer<typeof customerSegmentMembersQueryRecordSchema>;
+
 export const webhookSubscriptionEndpointRecordSchema = z.strictObject({
   __typename: z.enum(['WebhookHttpEndpoint', 'WebhookEventBridgeEndpoint', 'WebhookPubSubEndpoint']),
   callbackUrl: nullableStringSchema.optional(),
@@ -676,6 +685,40 @@ export const businessEntityRecordSchema = z.strictObject({
   shopifyPaymentsAccount: shopifyPaymentsAccountRecordSchema.nullable(),
 });
 export type BusinessEntityRecord = z.infer<typeof businessEntityRecordSchema>;
+
+export const b2bCompanyContactRoleRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyContactRoleRecord = z.infer<typeof b2bCompanyContactRoleRecordSchema>;
+
+export const b2bCompanyContactRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyContactRecord = z.infer<typeof b2bCompanyContactRecordSchema>;
+
+export const b2bCompanyLocationRecordSchema = z.strictObject({
+  id: z.string(),
+  companyId: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type B2BCompanyLocationRecord = z.infer<typeof b2bCompanyLocationRecordSchema>;
+
+export const b2bCompanyRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+  contactIds: z.array(z.string()).default([]),
+  locationIds: z.array(z.string()).default([]),
+  contactRoleIds: z.array(z.string()).default([]),
+});
+export type B2BCompanyRecord = z.infer<typeof b2bCompanyRecordSchema>;
 
 export const productCatalogPageInfoRecordSchema = z.strictObject({
   hasNextPage: z.boolean(),
@@ -1602,6 +1645,30 @@ export const calculatedOrderRecordSchema = orderRecordSchema.extend({
 });
 export type CalculatedOrderRecord = z.infer<typeof calculatedOrderRecordSchema>;
 
+export const abandonedCheckoutRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type AbandonedCheckoutRecord = z.infer<typeof abandonedCheckoutRecordSchema>;
+
+export const abandonmentDeliveryActivityRecordSchema = z.strictObject({
+  marketingActivityId: z.string(),
+  deliveryStatus: z.string(),
+  deliveredAt: nullableStringSchema.optional(),
+  deliveryStatusChangeReason: nullableStringSchema.optional(),
+});
+export type AbandonmentDeliveryActivityRecord = z.infer<typeof abandonmentDeliveryActivityRecordSchema>;
+
+export const abandonmentRecordSchema = z.strictObject({
+  id: z.string(),
+  abandonedCheckoutId: nullableStringSchema.optional(),
+  cursor: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+  deliveryActivities: z.record(z.string(), abandonmentDeliveryActivityRecordSchema).default({}),
+});
+export type AbandonmentRecord = z.infer<typeof abandonmentRecordSchema>;
+
 export const stateSnapshotSchema = z.strictObject({
   shop: shopRecordSchema.nullable().default(null),
   products: z.record(z.string(), productRecordSchema),
@@ -1619,6 +1686,7 @@ export const stateSnapshotSchema = z.strictObject({
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
+  customerSegmentMembersQueries: z.record(z.string(), customerSegmentMembersQueryRecordSchema).default({}),
   webhookSubscriptions: z.record(z.string(), webhookSubscriptionRecordSchema).default({}),
   webhookSubscriptionOrder: z.array(z.string()).default([]),
   marketingActivities: z.record(z.string(), marketingRecordSchema).default({}),
@@ -1644,6 +1712,14 @@ export const stateSnapshotSchema = z.strictObject({
   paymentCustomizationOrder: z.array(z.string()).default([]),
   businessEntities: z.record(z.string(), businessEntityRecordSchema).default({}),
   businessEntityOrder: z.array(z.string()).default([]),
+  b2bCompanies: z.record(z.string(), b2bCompanyRecordSchema).default({}),
+  b2bCompanyOrder: z.array(z.string()).default([]),
+  b2bCompanyContacts: z.record(z.string(), b2bCompanyContactRecordSchema).default({}),
+  b2bCompanyContactOrder: z.array(z.string()).default([]),
+  b2bCompanyContactRoles: z.record(z.string(), b2bCompanyContactRoleRecordSchema).default({}),
+  b2bCompanyContactRoleOrder: z.array(z.string()).default([]),
+  b2bCompanyLocations: z.record(z.string(), b2bCompanyLocationRecordSchema).default({}),
+  b2bCompanyLocationOrder: z.array(z.string()).default([]),
   markets: z.record(z.string(), marketRecordSchema).default({}),
   marketOrder: z.array(z.string()).default([]),
   webPresences: z.record(z.string(), webPresenceRecordSchema).default({}),
@@ -1655,6 +1731,10 @@ export const stateSnapshotSchema = z.strictObject({
   priceListOrder: z.array(z.string()).default([]),
   deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
   deliveryProfileOrder: z.array(z.string()).default([]),
+  abandonedCheckouts: z.record(z.string(), abandonedCheckoutRecordSchema).default({}),
+  abandonedCheckoutOrder: z.array(z.string()).default([]),
+  abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
+  abandonmentOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
@@ -1684,6 +1764,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
   deletedWebPresenceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),

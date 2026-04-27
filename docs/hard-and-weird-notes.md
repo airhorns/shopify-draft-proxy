@@ -1158,6 +1158,19 @@ HAR-256 captured `metafieldDefinitionPin` and `metafieldDefinitionUnpin` against
 
 The implemented local slice is intentionally limited to existing normalized definitions. Keep create/update/delete and app-configuration-managed or unsupported-owner pinning branches separate until they have their own evidence.
 
+## 19c. Product definition lifecycle deletes make matching product metafields disappear immediately
+
+HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`.
+
+Useful behavior:
+
+- create returns a concrete `createdDefinition` with the selected identity, type, validation, pinned position, and `validationStatus`
+- update is identity-based: `ownerType`, `namespace`, and `key` identify the definition, while fields such as name and description can change
+- delete accepts the definition `id`, returns both `deletedDefinitionId` and the deleted identity payload, and `deleteAllAssociatedMetafields: true` returned no user errors in the product-owner capture
+- immediate downstream reads after delete returned `metafieldDefinition: null`, an empty matching `metafieldDefinitions` connection, and `product.metafield(namespace:, key:)`: `null`
+
+The local model mirrors the immediate no-data effect for product-owned metafields only. It does not model a generalized async deletion job or broaden associated-metafield deletion to unsupported owner families without separate evidence.
+
 ## 20. Metaobject read no-data behavior is clean, but setup access has a trap
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
@@ -1985,6 +1998,30 @@ The first Store properties inventory for Admin GraphQL 2026-04 exposed several r
 Current scaffold decision:
 
 - `shop`, `location`, `locationByIdentifier`, `businessEntities`, and `businessEntity` now have narrow Store properties overlay-read support backed by captured fixtures; `cashManagementLocationSummary` remains a registry-tracked planned overlay read
+
+## B2B company roots
+
+HAR-302 captured the first B2B company/contact/location read slice against
+`harry-test-heelo.myshopify.com` on Admin GraphQL 2025-01. The app credential
+can read the B2B company roots on that store. The capture showed:
+
+- `companies(first:)` returns a non-null connection, and `companiesCount`
+  returned `{ count: 2 }`.
+- Unknown `company`, `companyContact`, `companyContactRole`, and
+  `companyLocation` IDs returned `null`.
+- Company records exposed `contactsCount`, `locationsCount`,
+  `contactRoles(first:)`, `locations(first:)`, `contacts(first:)`,
+  `mainContact`, and `defaultRole` in the safe selected slice.
+- `companyLocations(first:)` returned locations with their parent `company`.
+- Safe unknown-ID `companyUpdate`, `companyLocationUpdate`, and
+  `companyContactUpdate` returned `RESOURCE_NOT_FOUND` userErrors. The field
+  paths differ: `companyId`, `input`, and `companyContactId` respectively.
+
+The mutation roots are only inventoried as B2B blockers. Do not mark them
+supported from validation-only evidence; company/contact/location create,
+update, delete, assignment, revoke, address, tax, staff, and welcome-email
+behavior needs local lifecycle modeling before runtime support.
+
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only

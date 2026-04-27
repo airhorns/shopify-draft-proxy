@@ -1,0 +1,150 @@
+query B2BCompanyRootsRead(
+  $first: Int!
+  $companyId: ID!
+  $contactId: ID!
+  $roleId: ID!
+  $locationId: ID!
+  $unknownCompanyId: ID!
+  $unknownContactId: ID!
+  $unknownRoleId: ID!
+  $unknownLocationId: ID!
+) {
+  companies(first: $first) {
+    nodes {
+      id
+      name
+      note
+      externalId
+      createdAt
+      updatedAt
+      contactsCount {
+        count
+      }
+      locationsCount {
+        count
+      }
+      mainContact {
+        id
+        title
+        locale
+        isMainContact
+      }
+      defaultRole {
+        id
+        name
+        note
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+          note
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          externalId
+          locale
+          phone
+          note
+          createdAt
+          updatedAt
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      contacts(first: 5) {
+        nodes {
+          id
+          title
+          locale
+          isMainContact
+          createdAt
+          updatedAt
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  companiesCount {
+    count
+  }
+  company(id: $companyId) {
+    id
+    name
+    note
+    externalId
+  }
+  companyContact(id: $contactId) {
+    id
+    title
+    locale
+    isMainContact
+    company {
+      id
+      name
+    }
+  }
+  companyContactRole(id: $roleId) {
+    id
+    name
+    note
+  }
+  companyLocation(id: $locationId) {
+    id
+    name
+    externalId
+    locale
+    phone
+    note
+    company {
+      id
+      name
+    }
+  }
+  companyLocations(first: $first) {
+    nodes {
+      id
+      name
+      externalId
+      locale
+      phone
+      note
+      company {
+        id
+        name
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  unknownCompany: company(id: $unknownCompanyId) {
+    id
+  }
+  unknownContact: companyContact(id: $unknownContactId) {
+    id
+  }
+  unknownRole: companyContactRole(id: $unknownRoleId) {
+    id
+  }
+  unknownLocation: companyLocation(id: $unknownLocationId) {
+    id
+  }
+}
