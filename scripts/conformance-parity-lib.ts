@@ -34,6 +34,7 @@ import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
 import { handleEventsQuery } from '../src/proxy/events.js';
+import { handleGiftCardMutation, handleGiftCardQuery } from '../src/proxy/gift-cards.js';
 import { getOperationCapability, type OperationCapability } from '../src/proxy/capabilities.js';
 import {
   handleMarketingMutation,
@@ -95,6 +96,8 @@ import type {
   DraftOrderLineItemRecord,
   DraftOrderRecord,
   DraftOrderShippingLineRecord,
+  GiftCardConfigurationRecord,
+  GiftCardRecord,
   InventoryLevelRecord,
   LocaleRecord,
   LocationRecord,
@@ -119,6 +122,7 @@ import type {
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
+  MoneyV2Record,
 } from '../src/state/types.js';
 
 function interpretMutationLogEntry(
@@ -872,6 +876,25 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: handleGiftCardMutation(document, variables),
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1188,6 +1211,13 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'gift-cards') {
+    return {
+      status: 200,
+      body: handleGiftCardQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'orders') {
     const upstreamPayloadIsResponseEnvelope =
       isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
@@ -1362,7 +1392,9 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.deletedDiscountIds).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
     Object.keys(stagedState.draftOrders).length > 0 ||
-    Object.keys(stagedState.calculatedOrders).length > 0
+    Object.keys(stagedState.calculatedOrders).length > 0 ||
+    Object.keys(stagedState.giftCards).length > 0 ||
+    Object.keys(stagedState.deletedGiftCardIds).length > 0
   );
 }
 
@@ -1432,6 +1464,114 @@ function readArrayField(value: Record<string, unknown> | null | undefined, key: 
 function readNullableStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
   const fieldValue = value?.[key];
   return typeof fieldValue === 'string' ? fieldValue : null;
+}
+
+function giftCardTail(id: string): string {
+  return id.split('/').at(-1)?.split('?')[0] ?? id;
+}
+
+function readMoneyRecord(value: Record<string, unknown> | null | undefined): MoneyV2Record {
+  return {
+    amount: readStringField(value, 'amount') ?? '0.0',
+    currencyCode: readStringField(value, 'currencyCode') ?? 'CAD',
+  };
+}
+
+function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/GiftCard/')) {
+    return null;
+  }
+
+  const lastCharacters = readStringField(source, 'lastCharacters') ?? giftCardTail(id).slice(-4).padStart(4, '0');
+  const initialValue = readMoneyRecord(readRecordField(source, 'initialValue'));
+  const balance = readMoneyRecord(readRecordField(source, 'balance') ?? readRecordField(source, 'initialValue'));
+  const transactionNodes = readArrayField(readRecordField(source, 'transactions'), 'nodes').filter(isPlainObject);
+
+  return {
+    id,
+    legacyResourceId: readNullableStringField(source, 'legacyResourceId') ?? giftCardTail(id),
+    lastCharacters,
+    maskedCode: readStringField(source, 'maskedCode') ?? `**** **** **** ${lastCharacters}`,
+    enabled: readBooleanField(source, 'enabled') ?? true,
+    deactivatedAt: readNullableStringField(source, 'deactivatedAt'),
+    expiresOn: readNullableStringField(source, 'expiresOn'),
+    note: readNullableStringField(source, 'note'),
+    templateSuffix: readNullableStringField(source, 'templateSuffix'),
+    createdAt: readStringField(source, 'createdAt') ?? '2026-01-01T00:00:00Z',
+    updatedAt: readStringField(source, 'updatedAt') ?? '2026-01-01T00:00:00Z',
+    initialValue,
+    balance,
+    customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
+    recipientId: readNullableStringField(readRecordField(source, 'recipient'), 'id'),
+    transactions: transactionNodes.map((transaction) => {
+      const amount = readMoneyRecord(readRecordField(transaction, 'amount'));
+      return {
+        id: readStringField(transaction, 'id') ?? makeSyntheticGid('GiftCardTransaction'),
+        kind: (amount.amount ?? '0.0').startsWith('-') ? ('DEBIT' as const) : ('CREDIT' as const),
+        amount,
+        processedAt: readStringField(transaction, 'processedAt') ?? '2026-01-01T00:00:00Z',
+        note: readNullableStringField(transaction, 'note'),
+      };
+    }),
+  };
+}
+
+function makeSeedGiftCardConfiguration(
+  source: Record<string, unknown> | null | undefined,
+): GiftCardConfigurationRecord | null {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    issueLimit: readMoneyRecord(readRecordField(source, 'issueLimit')),
+    purchaseLimit: readMoneyRecord(readRecordField(source, 'purchaseLimit')),
+  };
+}
+
+function seedGiftCardLifecyclePreconditions(capture: unknown): boolean {
+  const recordsById = new Map<string, GiftCardRecord>();
+  const addGiftCard = (source: unknown): void => {
+    if (!isPlainObject(source)) {
+      return;
+    }
+    const record = makeSeedGiftCard(source);
+    if (record) {
+      recordsById.set(record.id, record);
+    }
+  };
+
+  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'));
+  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'));
+
+  const emptyReadNodes = readJsonPath(capture, '$.operations.emptyRead.response.payload.data.giftCards.nodes');
+  for (const node of (Array.isArray(emptyReadNodes) ? emptyReadNodes : []).filter(isPlainObject)) {
+    addGiftCard(node);
+  }
+
+  const configuration =
+    makeSeedGiftCardConfiguration(
+      readJsonPath(capture, '$.operations.configurationRead.response.payload.data.giftCardConfiguration') as Record<
+        string,
+        unknown
+      > | null,
+    ) ??
+    makeSeedGiftCardConfiguration(
+      readJsonPath(capture, '$.configurationRead.response.payload.data.giftCardConfiguration') as Record<
+        string,
+        unknown
+      > | null,
+    );
+
+  if (recordsById.size > 0) {
+    store.upsertBaseGiftCards([...recordsById.values()]);
+  }
+  if (configuration) {
+    store.upsertBaseGiftCardConfiguration(configuration);
+  }
+
+  return recordsById.size > 0 || configuration !== null;
 }
 
 function readStringArrayField(value: Record<string, unknown> | null | undefined, key: string): string[] {
@@ -5843,6 +5983,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedInventoryQuantityRootPreconditions(capture)) {
+    return;
+  }
+
+  if (seedGiftCardLifecyclePreconditions(capture)) {
     return;
   }
 
