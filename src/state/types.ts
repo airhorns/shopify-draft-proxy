@@ -1153,6 +1153,18 @@ export const orderFulfillmentOrderLineItemRecordSchema = z.strictObject({
 });
 export type OrderFulfillmentOrderLineItemRecord = z.infer<typeof orderFulfillmentOrderLineItemRecordSchema>;
 
+export const orderFulfillmentOrderMerchantRequestRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: z.string(),
+  message: nullableStringSchema.optional(),
+  requestOptions: z.record(z.string(), z.unknown()).optional(),
+  responseData: z.record(z.string(), z.unknown()).nullable().optional(),
+  sentAt: z.string(),
+});
+export type OrderFulfillmentOrderMerchantRequestRecord = z.infer<
+  typeof orderFulfillmentOrderMerchantRequestRecordSchema
+>;
+
 export const orderFulfillmentOrderDeliveryMethodRecordSchema = z.strictObject({
   id: z.string(),
   methodType: z.string(),
@@ -1186,6 +1198,7 @@ export const orderFulfillmentOrderRecordSchema = z.strictObject({
     .optional(),
   assignedLocation: orderFulfillmentOrderAssignedLocationRecordSchema.nullable().optional(),
   deliveryMethod: orderFulfillmentOrderDeliveryMethodRecordSchema.nullable().optional(),
+  merchantRequests: z.array(orderFulfillmentOrderMerchantRequestRecordSchema).optional(),
   lineItems: z.array(orderFulfillmentOrderLineItemRecordSchema).optional(),
 });
 export type OrderFulfillmentOrderRecord = z.infer<typeof orderFulfillmentOrderRecordSchema>;
