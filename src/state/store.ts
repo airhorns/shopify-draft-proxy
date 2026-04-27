@@ -1,3 +1,4 @@
+import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from './types.js';
 import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
@@ -47,6 +48,7 @@ import type {
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
+  PaymentTermsTemplateRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
   ProductMediaRecord,
@@ -132,6 +134,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   discountBulkOperations: {},
   paymentCustomizations: {},
   paymentCustomizationOrder: [],
+  paymentTermsTemplates: structuredClone(defaultPaymentTermsTemplateRecordMap),
+  paymentTermsTemplateOrder: [...defaultPaymentTermsTemplateOrder],
   shopifyFunctions: {},
   shopifyFunctionOrder: [],
   validations: {},
@@ -1310,6 +1314,15 @@ export class InMemoryStore {
       this.baseState.paymentCustomizations[customization.id] = structuredClone(customization);
       if (!this.baseState.paymentCustomizationOrder.includes(customization.id)) {
         this.baseState.paymentCustomizationOrder.push(customization.id);
+      }
+    }
+  }
+
+  upsertBasePaymentTermsTemplates(paymentTermsTemplates: PaymentTermsTemplateRecord[]): void {
+    for (const template of paymentTermsTemplates) {
+      this.baseState.paymentTermsTemplates[template.id] = structuredClone(template);
+      if (!this.baseState.paymentTermsTemplateOrder.includes(template.id)) {
+        this.baseState.paymentTermsTemplateOrder.push(template.id);
       }
     }
   }
@@ -3769,6 +3782,23 @@ export class InMemoryStore {
     return structuredClone([...orderedCustomizations, ...unorderedCustomizations]);
   }
 
+  getEffectivePaymentTermsTemplateById(paymentTermsTemplateId: string): PaymentTermsTemplateRecord | null {
+    const template = this.baseState.paymentTermsTemplates[paymentTermsTemplateId] ?? null;
+    return template ? structuredClone(template) : null;
+  }
+
+  listEffectivePaymentTermsTemplates(): PaymentTermsTemplateRecord[] {
+    const orderedIds = new Set(this.baseState.paymentTermsTemplateOrder);
+    const orderedTemplates = Array.from(orderedIds)
+      .map((id) => this.baseState.paymentTermsTemplates[id] ?? null)
+      .filter((template): template is PaymentTermsTemplateRecord => template !== null);
+    const unorderedTemplates = Object.values(this.baseState.paymentTermsTemplates)
+      .filter((template) => !orderedIds.has(template.id))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+
+    return structuredClone([...orderedTemplates, ...unorderedTemplates]);
+  }
+
   hasBaseCustomers(): boolean {
     return Object.keys(this.baseState.customers).length > 0;
   }
@@ -3807,6 +3837,10 @@ export class InMemoryStore {
       Object.keys(this.stagedState.paymentCustomizations).length > 0 ||
       Object.keys(this.stagedState.deletedPaymentCustomizationIds).length > 0
     );
+  }
+
+  hasPaymentTermsTemplates(): boolean {
+    return Object.keys(this.baseState.paymentTermsTemplates).length > 0;
   }
 
   hasFunctionMetadata(): boolean {

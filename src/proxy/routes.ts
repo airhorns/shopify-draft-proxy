@@ -1315,7 +1315,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return true;
       }
 
-      if (request.config.readMode === 'live-hybrid' && store.hasPaymentCustomizations()) {
+      if (
+        request.config.readMode === 'live-hybrid' &&
+        (store.hasPaymentCustomizations() || request.primaryRootField === 'paymentTermsTemplates')
+      ) {
         setGraphQLResponse(request, 200, handlePaymentQuery(request.body.query, request.variables));
         return true;
       }
