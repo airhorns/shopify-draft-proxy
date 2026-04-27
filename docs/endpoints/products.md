@@ -133,7 +133,7 @@ These product-adjacent roots are registered in the operation registry as product
 - Collection reads and mutations: `tests/integration/collection-query-shapes.test.ts`, `tests/integration/collection-draft-flow.test.ts`
 - Location and publication reads: `tests/integration/location-query-shapes.test.ts`, `tests/integration/publication-query-shapes.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/product*.json`, `config/parity-specs/products*.json`, `config/parity-specs/collection*.json`, `config/parity-specs/metafieldsSet-owner-expansion.json`, and matching files under `config/parity-requests/`
-- Product helper roots fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-helper-roots-read.json`, captured by `corepack pnpm conformance:capture-product-helper-reads`
+- Product helper roots parity: `config/parity-specs/product-helper-roots-read.json`, `config/parity-requests/product-helper-roots-read.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-helper-roots-read.json`, captured by `corepack pnpm conformance:capture-product-helper-reads`
 - Product merchandising read fixture: `config/parity-specs/product-feeds-empty-read.json`, `config/parity-requests/product-feeds-empty-read.graphql`, and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-feeds-empty-read.json`
 - Product merchandising mutation guardrail fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-merchandising-mutation-probes.json`
 - Product handle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-handle-validation-parity.json`

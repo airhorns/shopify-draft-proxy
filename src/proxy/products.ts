@@ -4,8 +4,10 @@ import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields }
 import {
   applySearchQuery,
   matchesSearchQueryString,
+  parseSearchQuery,
   searchQueryTermValue,
   stripSearchQueryValueQuotes,
+  type SearchQueryNode,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
@@ -6771,7 +6773,7 @@ function matchesPositiveProductVariantQueryTerm(variant: ProductVariantRecord, t
   }
 
   const field = term.field.toLowerCase();
-  const value = searchTermValue(term);
+  const value = searchQueryTermValue(term);
   const product = store.getEffectiveProductById(variant.productId);
 
   switch (field) {
