@@ -1,0 +1,50 @@
+query PublicationLifecycleDownstreamRead($publicationId: ID!, $productId: ID!, $collectionId: ID!) {
+  publication(id: $publicationId) {
+    id
+    name
+    products(first: 5) {
+      nodes {
+        id
+        title
+      }
+    }
+    publishedProductsCount {
+      count
+      precision
+    }
+    collectionsCount {
+      count
+      precision
+    }
+    channel {
+      id
+      name
+      productsCount {
+        count
+        precision
+      }
+    }
+  }
+  publicationsCount {
+    count
+    precision
+  }
+  publishedProductsCount(publicationId: $publicationId) {
+    count
+    precision
+  }
+  product(id: $productId) {
+    publishedOnPublication(publicationId: $publicationId)
+    resourcePublicationsCount {
+      count
+      precision
+    }
+  }
+  collection(id: $collectionId) {
+    publishedOnPublication(publicationId: $publicationId)
+    publicationCount {
+      count
+      precision
+    }
+  }
+}

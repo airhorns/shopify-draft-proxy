@@ -1,14 +1,274 @@
 {
   "fixtureKind": "local-runtime-publication-roots",
   "apiVersion": "2026-04",
-  "evidence": {
-    "existingLiveFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json",
-    "rootIntrospectionFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json",
-    "runtimeTest": "tests/integration/publication-query-shapes.test.ts"
+  "seedPublications": [
+    {
+      "id": "gid://shopify/Publication/1",
+      "name": "Online Store"
+    }
+  ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/1",
+      "title": "Published Product",
+      "status": "ACTIVE",
+      "publicationIds": ["gid://shopify/Publication/1"]
+    }
+  ],
+  "seedCollections": [
+    {
+      "id": "gid://shopify/Collection/1",
+      "title": "Published Collection",
+      "publicationIds": ["gid://shopify/Publication/1"]
+    }
+  ],
+  "create": {
+    "variables": {
+      "input": {
+        "name": "Codex Sales Channel",
+        "autoPublish": true
+      }
+    },
+    "response": {
+      "data": {
+        "publicationCreate": {
+          "publication": {
+            "id": "gid://shopify/Publication/2",
+            "name": "Codex Sales Channel",
+            "autoPublish": true,
+            "supportsFuturePublishing": false,
+            "channel": {
+              "id": "gid://shopify/Channel/2",
+              "name": "Codex Sales Channel",
+              "publication": {
+                "id": "gid://shopify/Publication/2",
+                "name": "Codex Sales Channel"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
   },
-  "notes": [
-    "The live publications catalog fixture captures non-empty Publication id/name and opaque cursor behavior for top-level publications.",
-    "The root introspection fixture confirms channel, channels, publication, publicationsCount, publishedProductsCount, publicationCreate, publicationUpdate, and publicationDelete exist in Admin GraphQL 2025-01.",
-    "Runtime parity is enforced by the publication query-shapes integration test because publication lifecycle replay is a multi-step local staging flow."
-  ]
+  "update": {
+    "response": {
+      "data": {
+        "publicationUpdate": {
+          "publication": {
+            "id": "gid://shopify/Publication/2",
+            "name": "Codex Updated Channel",
+            "autoPublish": false,
+            "channel": {
+              "id": "gid://shopify/Channel/2",
+              "name": "Codex Updated Channel"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "rootRead": {
+    "response": {
+      "data": {
+        "publication": {
+          "id": "gid://shopify/Publication/2",
+          "name": "Codex Updated Channel",
+          "autoPublish": false,
+          "supportsFuturePublishing": false,
+          "channel": {
+            "id": "gid://shopify/Channel/2",
+            "name": "Codex Updated Channel"
+          }
+        },
+        "channel": {
+          "id": "gid://shopify/Channel/2",
+          "name": "Codex Updated Channel",
+          "publication": {
+            "id": "gid://shopify/Publication/2",
+            "name": "Codex Updated Channel"
+          },
+          "productsCount": {
+            "count": 0,
+            "precision": "EXACT"
+          }
+        },
+        "channels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Channel/1",
+              "name": "Online Store",
+              "publication": {
+                "id": "gid://shopify/Publication/1",
+                "name": "Online Store"
+              }
+            },
+            {
+              "id": "gid://shopify/Channel/2",
+              "name": "Codex Updated Channel",
+              "publication": {
+                "id": "gid://shopify/Publication/2",
+                "name": "Codex Updated Channel"
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/Channel/1",
+            "endCursor": "cursor:gid://shopify/Channel/2"
+          }
+        },
+        "publicationsCount": {
+          "count": 2,
+          "precision": "EXACT"
+        },
+        "publishedProductsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        }
+      }
+    }
+  },
+  "publishProduct": {
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/1",
+            "publishedOnPublication": true,
+            "resourcePublicationsCount": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "publishCollection": {
+    "response": {
+      "data": {
+        "publishablePublish": {
+          "publishable": {
+            "id": "gid://shopify/Collection/1",
+            "publishedOnPublication": true,
+            "publicationCount": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "response": {
+      "data": {
+        "publication": {
+          "id": "gid://shopify/Publication/2",
+          "name": "Codex Updated Channel",
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/1",
+                "title": "Published Product"
+              }
+            ]
+          },
+          "publishedProductsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "collectionsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "channel": {
+            "id": "gid://shopify/Channel/2",
+            "name": "Codex Updated Channel",
+            "productsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "publicationsCount": {
+          "count": 2,
+          "precision": "EXACT"
+        },
+        "publishedProductsCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "product": {
+          "publishedOnPublication": true,
+          "resourcePublicationsCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        },
+        "collection": {
+          "publishedOnPublication": true,
+          "publicationCount": {
+            "count": 2,
+            "precision": "EXACT"
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "response": {
+      "data": {
+        "publicationDelete": {
+          "deletedId": "gid://shopify/Publication/2",
+          "publication": {
+            "id": "gid://shopify/Publication/2",
+            "name": "Codex Updated Channel"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "afterDeleteRead": {
+    "response": {
+      "data": {
+        "publication": null,
+        "channel": null,
+        "channels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Channel/1",
+              "name": "Online Store"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/Channel/1",
+            "endCursor": "cursor:gid://shopify/Channel/1"
+          }
+        },
+        "publicationsCount": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "publishedProductsCount": {
+          "count": 0,
+          "precision": "EXACT"
+        },
+        "product": {
+          "publishedOnPublication": false
+        },
+        "collection": {
+          "publishedOnPublication": false
+        }
+      }
+    }
+  }
 }

@@ -110,6 +110,8 @@ import type {
   OrderShippingLineRecord,
   ProductCollectionRecord,
   MetafieldDefinitionRecord,
+  ChannelRecord,
+  PublicationRecord,
   ProductMetafieldRecord,
   ProductMediaRecord,
   ProductOptionRecord,
@@ -4444,6 +4446,38 @@ function makeSeedCollection(collectionId: string, source: Record<string, unknown
   };
 }
 
+function readSeedPublication(source: Record<string, unknown>): PublicationRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/Publication/')) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readStringField(source, 'name'),
+    autoPublish: readBooleanField(source, 'autoPublish') ?? undefined,
+    supportsFuturePublishing: readBooleanField(source, 'supportsFuturePublishing') ?? undefined,
+    catalogId: readStringField(source, 'catalogId') ?? undefined,
+    channelId: readStringField(source, 'channelId') ?? undefined,
+    cursor: readStringField(source, 'cursor') ?? undefined,
+  };
+}
+
+function readSeedChannel(source: Record<string, unknown>): ChannelRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id?.startsWith('gid://shopify/Channel/')) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readStringField(source, 'name'),
+    handle: readStringField(source, 'handle') ?? undefined,
+    publicationId: readStringField(source, 'publicationId') ?? undefined,
+    cursor: readStringField(source, 'cursor') ?? undefined,
+  };
+}
+
 function seedProductOptionState(productId: string, variables: Record<string, unknown>, capture?: unknown): void {
   const preMutationProduct = capture === undefined ? null : readPreMutationProduct(capture, productId);
   if (preMutationProduct) {
@@ -5751,6 +5785,27 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (variants.length > 0) {
       store.replaceBaseVariantsForProduct(productId, variants);
     }
+  }
+  const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
+  for (const seedCollection of seedCollections) {
+    const collectionId = readStringField(seedCollection, 'id');
+    if (collectionId?.startsWith('gid://shopify/Collection/')) {
+      store.upsertBaseCollections([makeSeedCollection(collectionId, seedCollection)]);
+    }
+  }
+  const seedPublications = readArrayField(capture as Record<string, unknown>, 'seedPublications')
+    .filter(isPlainObject)
+    .map(readSeedPublication)
+    .filter((publication): publication is PublicationRecord => publication !== null);
+  if (seedPublications.length > 0) {
+    store.upsertBasePublications(seedPublications);
+  }
+  const seedChannels = readArrayField(capture as Record<string, unknown>, 'seedChannels')
+    .filter(isPlainObject)
+    .map(readSeedChannel)
+    .filter((channel): channel is ChannelRecord => channel !== null);
+  if (seedChannels.length > 0) {
+    store.upsertBaseChannels(seedChannels);
   }
   seedExplicitProductMediaPreconditions(capture);
   seedLocalizationPreconditions(capture);

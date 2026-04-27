@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "oxlint --import-plugin -D no-console . && oxfmt --check .",
+    "perf:smoke": "vitest run tests/integration/performance-smoke.test.ts",
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
     "conformance:parity": "vitest run tests/unit/conformance-parity-scenarios.test.ts",
