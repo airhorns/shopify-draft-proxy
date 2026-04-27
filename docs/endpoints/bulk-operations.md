@@ -18,9 +18,9 @@ Local-staging mutations:
 - `bulkOperationRunQuery` for supported `products` and `productVariants` query exports
 - `bulkOperationRunMutation` for supported product inner mutation roots only
 
-Unsupported execution roots:
+Unsupported execution posture:
 
-- None for this root group in the checked-in registry slice. Unsupported query export shapes and unsafe mutation import roots fail locally with explicit `userErrors` and must not be normalized as permanent passthrough support.
+- There is no intentional passthrough posture for this root group in the checked-in registry slice. Every known Bulk Operations root is intercepted locally, but support remains product-first and bounded by the behavior below. Unsupported query export shapes and unsafe mutation import roots fail locally with explicit `userErrors`; they must not be normalized as permanent passthrough support or described as broad Shopify import/export support.
 
 ## Current 2026-04 behavior and local coverage
 
@@ -62,6 +62,14 @@ Mutation log semantics are intentionally commit-oriented:
 Unsupported or unsafe imports fail locally. If the staged upload content is missing, the inner mutation is not a supported product local root, or the inner document is malformed/multi-root, the proxy stages a failed local `BulkOperation`, returns explicit `userErrors`, records a failed observability log entry, and does not call upstream Shopify at runtime. Unsupported inner roots are not permanent passthrough support.
 
 Per-line result behavior is locally modeled but still needs deeper live Shopify evidence for every branch. Product mutation validation userErrors are represented in the corresponding result JSONL row and do not increment `objectCount`; invalid JSONL lines create result rows with `errors` and mark the local job `FAILED`. Dedicated live conformance for Shopify's exact import result-file schema, partial failure status semantics, and counter/file-size edge cases remains needed before broadening this beyond already supported product mutation roots.
+
+## Parity promotion status
+
+The checked-in executable parity scenario is `config/parity-specs/bulk-operation-status-catalog-cancel.json`, backed by the 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`. It is a `captured-vs-proxy-request` scenario with `strict-json` comparison targets, so it is discovered and run by the generic `tests/unit/conformance-parity-scenarios.test.ts` iterator and `corepack pnpm conformance:parity`.
+
+The scenario compares whole selected BulkOperation payload slices for empty reads, empty filtered connections, current-operation null behavior, cancel userErrors, local staged cancel, product query export completion, and read-after-local-run behavior. It does not add planned-only, blocked-only, or capture-only scenario files for broader mutation import behavior.
+
+Path-scoped expected differences are limited to local infrastructure differences for staged query exports: synthetic BulkOperation IDs, local timestamps, local result URLs, and generated JSONL byte-size reporting. Those differences are not accepted at the scenario level and are checked per target.
 
 ## Version drift
 
@@ -116,6 +124,16 @@ Local `bulkOperationCancel` supports:
 - terminal jobs returning the selected existing job plus a `field: null` userError such as `A bulk operation cannot be canceled when it is completed`
 - meta log entries with original raw mutation bodies and staged BulkOperation IDs for observability
 
+## Meta API observability
+
+BulkOperation jobs are inspectable through the standard meta surfaces:
+
+- `GET /__meta/state` returns `baseState.bulkOperations`, `baseState.bulkOperationOrder`, `stagedState.bulkOperations`, `stagedState.bulkOperationOrder`, and the generated query-export `bulkOperationResults` map. Mutation import jobs also store `resultJsonl` on the staged BulkOperation record so the result artifact is visible next to the job metadata.
+- `GET /__meta/log` returns the original staged mutation log in replay order. Query exports and cancel attempts appear as their original root mutation request. Mutation imports appear as one staged inner mutation entry per JSONL line, preserving the original line variables and carrying `interpreted.bulkOperationImport` metadata for the outer bulk request, staged upload path, inner mutation text, and line number.
+- `GET /__bulk_operations/<numeric-id>/result.jsonl` serves generated query-export JSONL from the in-memory `bulkOperationResults` map. `GET /__meta/bulk-operations/<encoded-gid>/result.jsonl` serves mutation-import result JSONL from the staged BulkOperation record.
+- `POST /__meta/reset` restores the startup snapshot and clears staged BulkOperation jobs, generated result records, staged uploads, and mutation logs.
+- `POST /__meta/commit` replays only staged mutation-log entries. For mutation imports, that means the inner mutation entries are sent upstream in JSONL line order; the outer `bulkOperationRunMutation` request is not replayed because it is stored as audit metadata for commit review.
+
 ## Conformance evidence still needed
 
 - Validation/userErrors for malformed export queries, unsupported connections, nesting limits, overlapping active jobs, missing staged upload paths, and invalid mutation documents.
@@ -149,3 +167,5 @@ The fixture also captures two safe no-write product export lifecycles:
 - Registry and schema checks: `tests/unit/operation-registry.test.ts`, `tests/unit/json-file-schemas.test.ts`
 - Root inventory discovery: `tests/unit/graphql-operation-coverage.test.ts`
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
+- Strict parity runner: `tests/unit/conformance-parity-scenarios.test.ts` via `corepack pnpm conformance:parity`
+- Bulk Operations local runtime and meta observability: `tests/integration/bulk-operation-conformance-flow.test.ts`

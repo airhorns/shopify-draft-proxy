@@ -1131,6 +1131,116 @@ describe('BulkOperation conformance fixture and local model', () => {
     ]);
   });
 
+  it('replays bulk import inner mutations through meta commit in JSONL line order', async () => {
+    const upstreamBodies: unknown[] = [];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      upstreamBodies.push(body);
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            productCreate: {
+              product: {
+                id: `gid://shopify/Product/${9000 + upstreamBodies.length}`,
+              },
+              userErrors: [],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    });
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/commit-order.jsonl';
+    const innerMutation = `mutation ProductCreate($product: ProductCreateInput!) {
+      productCreate(product: $product) {
+        product {
+          id
+          title
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const firstVariables = { product: { title: 'Bulk Commit One', status: 'DRAFT' } };
+    const secondVariables = { product: { title: 'Bulk Commit Two', status: 'ACTIVE' } };
+    store.stageUploadContent(
+      [stagedUploadPath],
+      `${JSON.stringify(firstVariables)}\n${JSON.stringify(secondVariables)}\n`,
+    );
+
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+    const logBeforeCommit = await request(app).get('/__meta/log');
+
+    expect(bulkResponse.status).toBe(200);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(logBeforeCommit.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'ProductCreate',
+      'ProductCreate',
+    ]);
+    expect(logBeforeCommit.body.entries.map((entry: { variables: unknown }) => entry.variables)).toEqual([
+      firstVariables,
+      secondVariables,
+    ]);
+
+    const commitResponse = await request(app)
+      .post('/__meta/commit')
+      .set('x-shopify-access-token', 'shpat_bulk_commit')
+      .set('authorization', 'Bearer bulk_commit_authorization');
+    const logAfterCommit = await request(app).get('/__meta/log');
+
+    expect(commitResponse.status).toBe(200);
+    expect(commitResponse.body).toMatchObject({
+      ok: true,
+      stopIndex: null,
+      attempts: [
+        { operationName: 'ProductCreate', path: '/admin/api/2026-04/graphql.json', success: true },
+        { operationName: 'ProductCreate', path: '/admin/api/2026-04/graphql.json', success: true },
+      ],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(upstreamBodies).toEqual([
+      {
+        query: innerMutation,
+        variables: firstVariables,
+      },
+      {
+        query: innerMutation,
+        variables: secondVariables,
+      },
+    ]);
+    expect(JSON.stringify(upstreamBodies)).not.toContain('bulkOperationRunMutation');
+    expect(logAfterCommit.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'committed',
+      'committed',
+    ]);
+  });
+
   it('fails unsupported bulk mutation import roots locally without upstream passthrough', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
