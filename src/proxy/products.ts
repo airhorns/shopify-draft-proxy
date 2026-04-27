@@ -1,4 +1,4 @@
-import { getLocation, Kind, parse, type ASTNode, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, parse, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -8,7 +8,13 @@ import {
   stripSearchQueryValueQuotes,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
-import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
+import {
+  getNodeLocation,
+  getVariableDefinitionLocation,
+  paginateConnectionItems,
+  serializeConnection,
+  type GraphqlErrorLocation,
+} from './graphql-helpers.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -98,31 +104,6 @@ function makeMetafieldCompareDigest(metafield: {
       metafield.updatedAt ?? null,
     ]),
   ).toString('base64url')}`;
-}
-
-type GraphqlErrorLocation = { line: number; column: number };
-
-function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
-  const token = node.loc?.startToken;
-  return token ? [{ line: token.line, column: token.column }] : [];
-}
-
-function getVariableDefinitionLocation(document: string, variableName: string): GraphqlErrorLocation[] {
-  const ast = parse(document);
-  for (const definition of ast.definitions) {
-    if (definition.kind !== Kind.OPERATION_DEFINITION) {
-      continue;
-    }
-
-    const variableDefinition = definition.variableDefinitions?.find(
-      (candidate) => candidate.variable.name.value === variableName,
-    );
-    if (variableDefinition) {
-      return getNodeLocation(variableDefinition);
-    }
-  }
-
-  return [];
 }
 
 function getOperationPathLabel(document: string): string {
