@@ -1,0 +1,39 @@
+mutation ReturnCreate($returnInput: ReturnInput!) {
+  returnCreate(returnInput: $returnInput) {
+    return {
+      id
+      name
+      status
+      totalQuantity
+      order {
+        id
+      }
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          returnReason
+          returnReasonNote
+          fulfillmentLineItem {
+            id
+            lineItem {
+              id
+              title
+            }
+          }
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

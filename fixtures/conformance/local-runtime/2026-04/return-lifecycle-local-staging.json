@@ -1,0 +1,234 @@
+{
+  "capturedAt": "2026-04-27T20:05:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime parity fixture for the supported order-backed return lifecycle. Live no-side-effect schema evidence remains in fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json; this fixture supplies the fulfilled order graph needed to replay returnCreate, returnRequest, returnClose, returnReopen, returnCancel, return(id:), and Order.returns locally.",
+  "seedOrder": {
+    "id": "gid://shopify/Order/return-flow",
+    "name": "#RETURN-FLOW",
+    "createdAt": "2026-04-25T00:00:00.000Z",
+    "updatedAt": "2026-04-25T00:00:00.000Z",
+    "displayFinancialStatus": "PAID",
+    "displayFulfillmentStatus": "FULFILLED",
+    "subtotalPriceSet": {
+      "shopMoney": {
+        "amount": "20.0",
+        "currencyCode": "CAD"
+      }
+    },
+    "currentTotalPriceSet": {
+      "shopMoney": {
+        "amount": "20.0",
+        "currencyCode": "CAD"
+      }
+    },
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "20.0",
+        "currencyCode": "CAD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "0.0",
+        "currencyCode": "CAD"
+      }
+    },
+    "lineItems": {
+      "nodes": [
+        {
+          "id": "gid://shopify/LineItem/return-flow",
+          "title": "Return flow item",
+          "quantity": 2
+        }
+      ]
+    },
+    "fulfillments": [
+      {
+        "id": "gid://shopify/Fulfillment/return-flow",
+        "status": "SUCCESS",
+        "displayStatus": "FULFILLED",
+        "createdAt": "2026-04-25T01:00:00.000Z",
+        "updatedAt": "2026-04-25T01:00:00.000Z",
+        "fulfillmentLineItems": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentLineItem/return-flow",
+              "quantity": 2,
+              "lineItem": {
+                "id": "gid://shopify/LineItem/return-flow",
+                "title": "Return flow item"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "returnCreate": {
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/return-flow",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+            "quantity": 1,
+            "returnReason": "UNWANTED",
+            "returnReasonNote": "Changed mind"
+          }
+        ]
+      }
+    }
+  },
+  "returnRequest": {
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/return-flow",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    }
+  },
+  "invalidReturnCreate": {
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/return-flow",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/missing",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "create": {
+      "data": {
+        "returnCreate": {
+          "return": {
+            "name": "#RETURN-FLOW-R1",
+            "status": "OPEN",
+            "totalQuantity": 1,
+            "order": {
+              "id": "gid://shopify/Order/return-flow"
+            },
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "quantity": 1,
+                  "processedQuantity": 0,
+                  "returnReason": "UNWANTED",
+                  "returnReasonNote": "Changed mind",
+                  "fulfillmentLineItem": {
+                    "id": "gid://shopify/FulfillmentLineItem/return-flow",
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/return-flow",
+                      "title": "Return flow item"
+                    }
+                  },
+                  "id": "gid://shopify/ReturnLineItem/1"
+                }
+              ]
+            },
+            "reverseFulfillmentOrders": {
+              "nodes": []
+            },
+            "id": "gid://shopify/Return/2"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "close": {
+      "data": {
+        "returnClose": {
+          "return": {
+            "status": "CLOSED",
+            "closedAt": "2024-01-01T00:00:03.000Z",
+            "id": "gid://shopify/Return/2"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "reopen": {
+      "data": {
+        "returnReopen": {
+          "return": {
+            "status": "OPEN",
+            "closedAt": null,
+            "id": "gid://shopify/Return/2"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "cancel": {
+      "data": {
+        "returnCancel": {
+          "return": {
+            "status": "CANCELED",
+            "id": "gid://shopify/Return/2"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "readAfterCancel": {
+      "data": {
+        "return": {
+          "status": "CANCELED",
+          "totalQuantity": 1,
+          "order": {
+            "id": "gid://shopify/Order/return-flow"
+          },
+          "id": "gid://shopify/Return/2"
+        },
+        "order": {
+          "id": "gid://shopify/Order/return-flow",
+          "returns": {
+            "nodes": [
+              {
+                "status": "CANCELED",
+                "totalQuantity": 1,
+                "id": "gid://shopify/Return/2"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "request": {
+      "data": {
+        "returnRequest": {
+          "return": {
+            "status": "REQUESTED",
+            "id": "gid://shopify/Return/8"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "invalidCreate": {
+      "data": {
+        "returnCreate": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnLineItems", "0", "fulfillmentLineItemId"],
+              "message": "Fulfillment line item does not exist.",
+              "code": null
+            }
+          ]
+        }
+      }
+    }
+  }
+}

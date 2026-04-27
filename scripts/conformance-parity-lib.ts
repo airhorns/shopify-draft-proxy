@@ -58,7 +58,12 @@ import {
 } from '../src/proxy/localization.js';
 import { handleMediaMutation, handleMediaQuery } from '../src/proxy/media.js';
 import { handleOrderMutation, handleOrderQuery } from '../src/proxy/orders.js';
-import { findOperationRegistryEntry } from '../src/proxy/operation-registry.js';
+import {
+  handleOnlineStoreMutation,
+  handleOnlineStoreQuery,
+  hydrateOnlineStoreFromUpstreamResponse,
+} from '../src/proxy/online-store.js';
+import { findOperationRegistryEntry, listOperationRegistryEntries } from '../src/proxy/operation-registry.js';
 import {
   handleProductMutation,
   handleProductQuery,
@@ -204,6 +209,21 @@ interface Difference {
   actual: unknown;
 }
 
+export interface ExecutedOperation {
+  type: ParsedOperation['type'];
+  name: string | null;
+  rootFields: string[];
+}
+
+export interface OperationNameValidationResult {
+  declaredMutationOperationNames: string[];
+  actualMutationOperationNames: string[];
+  runtimeTestBackedMutationOperationNames: string[];
+  missingMutationOperationNames: string[];
+  unexpectedMutationOperationNames: string[];
+  errors: string[];
+}
+
 interface CompiledRule extends ExpectedDifference {
   index: number;
   segments: PathSegment[];
@@ -217,6 +237,13 @@ const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
 ]);
+const operationRegistryEntries = listOperationRegistryEntries();
+const registeredMutationOperationNames = new Set(
+  operationRegistryEntries
+    .filter((entry) => entry.type === 'mutation')
+    .flatMap((entry) => [entry.name, ...entry.matchNames]),
+);
+const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -751,9 +778,14 @@ export function readJsonPath(value: unknown, pathValue: string): unknown {
   return current;
 }
 
-function materializeValue(rawValue: unknown, proxyResponses: Record<string, unknown>, capture?: unknown): unknown {
+function materializeValue(
+  rawValue: unknown,
+  proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
+  capture?: unknown,
+): unknown {
   if (Array.isArray(rawValue)) {
-    return rawValue.map((item) => materializeValue(item, proxyResponses, capture));
+    return rawValue.map((item) => materializeValue(item, proxyResponses, previousProxyResponse, capture));
   }
 
   if (!isPlainObject(rawValue)) {
@@ -768,21 +800,29 @@ function materializeValue(rawValue: unknown, proxyResponses: Record<string, unkn
     return readJsonPath(proxyResponses[rawValue['fromProxyResponse']], rawValue['path']);
   }
 
+  if (typeof rawValue['fromPreviousProxyPath'] === 'string') {
+    return readJsonPath(previousProxyResponse, rawValue['fromPreviousProxyPath']);
+  }
+
   if (typeof rawValue['fromCapturePath'] === 'string') {
     return readJsonPath(capture, rawValue['fromCapturePath']);
   }
 
   return Object.fromEntries(
-    Object.entries(rawValue).map(([key, value]) => [key, materializeValue(value, proxyResponses, capture)]),
+    Object.entries(rawValue).map(([key, value]) => [
+      key,
+      materializeValue(value, proxyResponses, previousProxyResponse, capture),
+    ]),
   );
 }
 
 function materializeVariables(
   rawVariables: unknown,
   proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
   capture?: unknown,
 ): Record<string, unknown> {
-  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, capture);
+  const materialized = materializeValue(rawVariables ?? {}, proxyResponses, previousProxyResponse, capture);
   return isPlainObject(materialized) ? materialized : {};
 }
 
@@ -790,6 +830,85 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right));
+}
+
+function hasRuntimeTestEvidence(operationName: string, paritySpec: Pick<ParitySpec, 'runtimeTestFiles'>): boolean {
+  const declaredRuntimeTestFiles = new Set(paritySpec.runtimeTestFiles ?? []);
+  if (declaredRuntimeTestFiles.size === 0) {
+    return false;
+  }
+
+  const registryEntry = operationRegistryEntries.find(
+    (entry) => entry.type === 'mutation' && entry.matchNames.includes(operationName),
+  );
+  return registryEntry?.runtimeTests.some((runtimeTestFile) => declaredRuntimeTestFiles.has(runtimeTestFile)) ?? false;
+}
+
+export function validateParityScenarioOperationNames({
+  scenario,
+  paritySpec,
+  executedOperations,
+}: {
+  scenario: Scenario;
+  paritySpec: Pick<ParitySpec, 'operationNames' | 'runtimeTestFiles'>;
+  executedOperations: ExecutedOperation[];
+}): OperationNameValidationResult {
+  const actualMutationOperationNames = uniqueSorted(
+    executedOperations.flatMap((operation) => (operation.type === 'mutation' ? operation.rootFields : [])),
+  );
+  const actualMutationOperationNameSet = new Set(actualMutationOperationNames);
+  const declaredMutationOperationNames = uniqueSorted(
+    (scenario.operationNames ?? paritySpec.operationNames ?? []).filter(
+      (operationName) =>
+        registeredMutationOperationNames.has(operationName) || actualMutationOperationNameSet.has(operationName),
+    ),
+  );
+  const declaredMutationOperationNameSet = new Set(declaredMutationOperationNames);
+  const runtimeTestBackedMutationOperationNames = declaredMutationOperationNames.filter((operationName) =>
+    hasRuntimeTestEvidence(operationName, paritySpec),
+  );
+  const runtimeTestBackedMutationOperationNameSet = new Set(runtimeTestBackedMutationOperationNames);
+  const missingMutationOperationNames = declaredMutationOperationNames.filter(
+    (operationName) =>
+      !actualMutationOperationNameSet.has(operationName) &&
+      !runtimeTestBackedMutationOperationNameSet.has(operationName),
+  );
+  const unexpectedMutationOperationNames = actualMutationOperationNames.filter(
+    (operationName) => !declaredMutationOperationNameSet.has(operationName),
+  );
+  const errors = [
+    ...(missingMutationOperationNames.length > 0
+      ? [
+          `Scenario ${scenario.id} declares mutation operation(s) ${missingMutationOperationNames.join(
+            ', ',
+          )} in operationNames but did not execute them. Actual executed mutation operation(s): ${
+            actualMutationOperationNames.join(', ') || '(none)'
+          }.`,
+        ]
+      : []),
+    ...(unexpectedMutationOperationNames.length > 0
+      ? [
+          `Scenario ${scenario.id} executed mutation operation(s) ${unexpectedMutationOperationNames.join(
+            ', ',
+          )} but does not declare them in operationNames. Declared mutation operation(s): ${
+            declaredMutationOperationNames.join(', ') || '(none)'
+          }.`,
+        ]
+      : []),
+  ];
+
+  return {
+    declaredMutationOperationNames,
+    actualMutationOperationNames,
+    runtimeTestBackedMutationOperationNames,
+    missingMutationOperationNames,
+    unexpectedMutationOperationNames,
+    errors,
+  };
 }
 
 const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
@@ -808,8 +927,14 @@ async function executeGraphQLAgainstLocalProxy(
   document: string,
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
+  onExecutedOperation?: (operation: ExecutedOperation) => void,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
+  onExecutedOperation?.({
+    type: parsed.type,
+    name: parsed.name,
+    rootFields: [...parsed.rootFields],
+  });
   const capability = getOperationCapability(parsed);
   const registeredCapability = readRegisteredParityCapability(parsed, capability);
 
@@ -1131,6 +1256,31 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
+    const onlineStoreMutation = handleOnlineStoreMutation(document, variables);
+    if (!onlineStoreMutation) {
+      throw new Error(`Online-store parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      stagedResourceIds: onlineStoreMutation.stagedResourceIds,
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: onlineStoreMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
     const bulkOperationMutation = handleBulkOperationMutation(document, variables);
     if (!bulkOperationMutation) {
@@ -1331,6 +1481,34 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handlePaymentMutation(document, variables),
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'payments' &&
+    parsed.rootFields.some((rootField) => ORDER_PAYMENT_MUTATION_ROOTS.has(rootField))
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Order-payment parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
     };
   }
 
@@ -1566,6 +1744,17 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleMarketingQuery(document, variables),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
+    if (upstreamPayload !== undefined) {
+      hydrateOnlineStoreFromUpstreamResponse(document, upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleOnlineStoreQuery(document, variables),
     };
   }
 
@@ -6488,6 +6677,23 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
   return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
 }
 
+function seedOnlineStoreContentPreconditions(capture: unknown): void {
+  const interactions = readArrayField(capture as Record<string, unknown>, 'interactions').filter(isPlainObject);
+  for (const interaction of interactions) {
+    if (interaction['name'] !== 'baseline-catalog-detail-empty') {
+      continue;
+    }
+
+    const request = readRecordField(interaction, 'request');
+    const response = readRecordField(interaction, 'response');
+    const query = readStringField(request, 'query');
+    if (query && response) {
+      hydrateOnlineStoreFromUpstreamResponse(query, response);
+    }
+    return;
+  }
+}
+
 const bulkOperationStatuses = new Set([
   'CANCELED',
   'CANCELING',
@@ -6627,6 +6833,8 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;
   }
+
+  seedOnlineStoreContentPreconditions(capture);
 
   if (seedBulkOperationPreconditions(capture)) {
     return;
@@ -6784,6 +6992,12 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (seedDiscountCatalogPreconditions(capture)) {
     return;
+  }
+
+  const explicitSeedOrder = readRecordField(capture as Record<string, unknown>, 'seedOrder');
+  const explicitSeedOrderId = readStringField(explicitSeedOrder, 'id');
+  if (explicitSeedOrder && explicitSeedOrderId) {
+    store.upsertBaseOrders([makeSeedOrder(explicitSeedOrderId, explicitSeedOrder)]);
   }
 
   const readOrderPayload =
@@ -7375,15 +7589,21 @@ function readRequestVariables(
   request: ProxyRequestSpec,
   capture: unknown,
   proxyResponses: Record<string, unknown>,
+  previousProxyResponse: unknown,
 ): Record<string, unknown> {
   if (request.variablesCapturePath) {
-    return materializeVariables(readJsonPath(capture, request.variablesCapturePath), proxyResponses, capture);
+    return materializeVariables(
+      readJsonPath(capture, request.variablesCapturePath),
+      proxyResponses,
+      previousProxyResponse,
+      capture,
+    );
   }
 
   const rawVariables = request.variablesPath
     ? parseJsonFileWithSchema(path.join(repoRoot, request.variablesPath), graphqlVariablesSchema)
     : request.variables;
-  return materializeVariables(rawVariables, proxyResponses, capture);
+  return materializeVariables(rawVariables, proxyResponses, previousProxyResponse, capture);
 }
 
 function readPrimaryUpstreamPayload(capture: unknown, comparison: ComparisonContract, document: string): unknown {
@@ -7425,6 +7645,7 @@ export async function executeParityScenario({
   ok: boolean;
   primaryProxyStatus: number;
   comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
+  operationNameValidation: OperationNameValidationResult;
 }> {
   if (!paritySpec.proxyRequest?.documentPath) {
     throw new Error(`Scenario ${scenario.id} does not define a proxy request.`);
@@ -7449,16 +7670,19 @@ export async function executeParityScenario({
   const capture = readJsonFile(repoRoot, capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
   const proxyResponses: Record<string, unknown> = {};
-  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses);
+  const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
+  const executedOperations: ExecutedOperation[] = [];
   seedPreconditionsFromCapture(capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
+    (operation) => executedOperations.push(operation),
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
   const comparisons = [];
+  let previousProxyResponseBody: unknown = primaryProxyResponse.body;
   for (const target of readComparisonTargets(paritySpec.comparison)) {
     const expected = readJsonPath(capture, target.capturePath);
     let proxyResponseBody: unknown = primaryProxyResponse.body;
@@ -7468,15 +7692,24 @@ export async function executeParityScenario({
         await sleep(target.proxyRequest.waitBeforeMs);
       }
       const document = readTextFile(repoRoot, target.proxyRequest.documentPath);
-      const variables = readRequestVariables(repoRoot, target.proxyRequest, capture, proxyResponses);
+      const variables = readRequestVariables(
+        repoRoot,
+        target.proxyRequest,
+        capture,
+        proxyResponses,
+        previousProxyResponseBody,
+      );
       const upstreamPayload =
         target.upstreamCapturePath === null
           ? undefined
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload);
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
+        executedOperations.push(operation),
+      );
       proxyResponseBody = proxyResponse.body;
+      previousProxyResponseBody = proxyResponse.body;
       proxyResponses[target.name] = proxyResponse.body;
     }
 
@@ -7497,9 +7730,16 @@ export async function executeParityScenario({
     });
   }
 
+  const operationNameValidation = validateParityScenarioOperationNames({
+    scenario,
+    paritySpec,
+    executedOperations,
+  });
+
   return {
-    ok: comparisons.every((comparison) => comparison.ok),
+    ok: comparisons.every((comparison) => comparison.ok) && operationNameValidation.errors.length === 0,
     primaryProxyStatus: primaryProxyResponse.status,
     comparisons,
+    operationNameValidation,
   };
 }

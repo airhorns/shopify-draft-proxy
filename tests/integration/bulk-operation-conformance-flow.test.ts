@@ -149,13 +149,7 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     expect(scenario).toMatchObject({
       status: 'captured',
-      operationNames: [
-        'bulkOperation',
-        'bulkOperations',
-        'currentBulkOperation',
-        'bulkOperationRunQuery',
-        'bulkOperationCancel',
-      ],
+      operationNames: ['bulkOperation', 'bulkOperations', 'currentBulkOperation', 'bulkOperationCancel'],
       captureFiles: [fixturePath],
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');

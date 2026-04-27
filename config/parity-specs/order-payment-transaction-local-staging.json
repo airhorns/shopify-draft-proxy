@@ -1,14 +1,126 @@
 {
   "scenarioId": "order-payment-transaction-local-staging",
-  "operationNames": ["orderCapture", "transactionVoid", "orderCreateMandatePayment"],
+  "operationNames": ["orderCreate", "orderCapture", "transactionVoid", "orderCreateMandatePayment"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/order-payment-transaction-local-staging.json"],
   "runtimeTestFiles": ["tests/integration/order-payment-transaction-flow.test.ts"],
-  "comparisonMode": "captured-fixture",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/order-payment-create-local-staging.graphql",
+    "variablesCapturePath": "$.paymentCaptureFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": []
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "authorization-order-create-baseline",
+        "capturePath": "$.paymentCaptureFlow.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "over-capture-validation",
+        "capturePath": "$.paymentCaptureFlow.expected.overCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-capture-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "30.00",
+              "currency": "CAD"
+            }
+          }
+        }
+      },
+      {
+        "name": "partial-capture-stages-payment-state",
+        "capturePath": "$.paymentCaptureFlow.expected.firstCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-capture-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "10.00",
+              "currency": "CAD",
+              "finalCapture": false
+            }
+          }
+        }
+      },
+      {
+        "name": "final-capture-closes-capturable-balance",
+        "capturePath": "$.paymentCaptureFlow.expected.finalCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-capture-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "15.00",
+              "currency": "CAD",
+              "finalCapture": true
+            }
+          }
+        }
+      },
+      {
+        "name": "capture-downstream-order-read",
+        "capturePath": "$.paymentCaptureFlow.expected.readAfterFinal",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-read-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "void-after-capture-validation",
+        "capturePath": "$.paymentCaptureFlow.expected.voidAfterCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-void-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mandate-missing-idempotency-validation",
+        "capturePath": "$.paymentCaptureFlow.expected.missingMandateIdempotency",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/order-payment-mandate-local-staging.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      }
+    ]
   },
-  "notes": "Runtime evidence for HAR-226 local order payment staging plus HAR-278 validation guardrails. The covered happy paths and validation branches intentionally use synthetic/local order transactions rather than live gateway-affecting captures, voids, or mandate payments; permission-specific and Plus-only live branches remain documented as future conformance expansion. The referenced integration test verifies over-capture, invalid void, void-after-capture, and missing mandate idempotency branches leave downstream order state and mutation logs unchanged until the generic parity runner can replay the multi-operation local payment staging flow directly."
+  "notes": "Promoted from captured-fixture to executable strict local parity for order payment staging. The primary replay creates a synthetic authorized order, then compares over-capture validation, partial and final orderCapture staging, downstream financial/transaction reads, void-after-capture validation, and missing idempotency-key mandate validation. Successful transactionVoid and idempotent mandate-payment branches are split into sibling scenarios because they require mutually exclusive order payment state."
 }

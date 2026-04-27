@@ -7,10 +7,7 @@
     "customer",
     "customerByIdentifier",
     "customers",
-    "customersCount",
-    "customerAddressCreate",
-    "orderCreate",
-    "draftOrderCreate"
+    "customersCount"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
