@@ -29,6 +29,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
+import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDiscountMutation, handleDiscountQuery } from '../src/proxy/discounts.js';
@@ -1139,6 +1140,13 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
+    };
+  }
+
+  if (capability.execution === 'overlay-read' && capability.domain === 'admin-platform') {
+    return {
+      status: 200,
+      body: handleAdminPlatformQuery(document, variables),
     };
   }
 
