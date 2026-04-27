@@ -1,0 +1,14 @@
+mutation CustomerInputValidationMerge($customerOneId: ID!, $customerTwoId: ID!) {
+  customerMerge(customerOneId: $customerOneId, customerTwoId: $customerTwoId) {
+    resultingCustomerId
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
