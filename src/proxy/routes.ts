@@ -718,8 +718,7 @@ export function createProxyRouter(config: AppConfig): Router {
         stagedResourceIds: collectProxySyntheticGids(responseBody),
         status: 'staged',
         interpreted: interpretMutationLogEntry(parsed, capability),
-        notes:
-          'Staged locally in the in-memory metaobject definition draft store; associated metaobject entry cascade is not modeled until entry lifecycle support exists.',
+        notes: 'Staged locally in the in-memory metaobject definition/entry draft store.',
       });
 
       ctx.status = 200;

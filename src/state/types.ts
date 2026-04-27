@@ -1879,6 +1879,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedDeliveryProfileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetafieldDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMetaobjectDefinitionIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedMetaobjectIds: z.record(z.string(), z.literal(true)).default({}),
   mergedCustomerIds: z.record(z.string(), z.string()).default({}),
   customerMergeRequests: z.record(z.string(), customerMergeRequestRecordSchema).default({}),
 });

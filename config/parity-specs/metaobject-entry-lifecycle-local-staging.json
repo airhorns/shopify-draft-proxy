@@ -1,0 +1,24 @@
+{
+  "scenarioId": "metaobject-entry-lifecycle-local-staging",
+  "operationNames": [
+    "metaobjectCreate",
+    "metaobjectUpdate",
+    "metaobjectUpsert",
+    "metaobjectDelete",
+    "metaobjectBulkDelete",
+    "metaobject",
+    "metaobjectByHandle",
+    "metaobjects",
+    "metaobjectDefinitionByType"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "mutation-log-replay", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json"],
+  "runtimeTestFiles": ["tests/integration/metaobject-draft-flow.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "notes": "HAR-244 uses the captured 2026-04 metaobjects read fixture for create/delete payload shape evidence and enforces the local entry lifecycle through runtime tests. The generic parity runner does not yet chain multi-step local create/update/upsert/delete/bulk-delete flows with downstream ID, handle, catalog, meta state, and mutation-log assertions.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  }
+}
