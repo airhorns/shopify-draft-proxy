@@ -1,0 +1,14 @@
+{
+  "fixtureKind": "local-runtime-publication-roots",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "existingLiveFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json",
+    "rootIntrospectionFixture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json",
+    "runtimeTest": "tests/integration/publication-query-shapes.test.ts"
+  },
+  "notes": [
+    "The live publications catalog fixture captures non-empty Publication id/name and opaque cursor behavior for top-level publications.",
+    "The root introspection fixture confirms channel, channels, publication, publicationsCount, publishedProductsCount, publicationCreate, publicationUpdate, and publicationDelete exist in Admin GraphQL 2025-01.",
+    "Runtime parity is enforced by the publication query-shapes integration test because publication lifecycle replay is a multi-step local staging flow."
+  ]
+}

@@ -30,6 +30,7 @@ import type {
   CollectionImageRecord,
   CollectionRecord,
   CollectionRuleSetRecord,
+  ChannelRecord,
   InventoryLevelRecord,
   LocationRecord,
   ProductCatalogConnectionRecord,
@@ -367,6 +368,10 @@ function readEffectiveInventoryLevelLocation(
 
 function listEffectivePublications(): PublicationRecord[] {
   return store.listEffectivePublications();
+}
+
+function listEffectiveChannels(): ChannelRecord[] {
+  return store.listEffectiveChannels();
 }
 
 function listEffectiveProductsForCollection(collectionId: string): ProductRecord[] {
@@ -1018,6 +1023,37 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   return next;
 }
 
+function removePublicationFromPublishables(publicationId: string): void {
+  for (const product of store.listEffectiveProducts()) {
+    if (product.publicationIds.includes(publicationId)) {
+      store.stageUpdateProduct(
+        makeProductRecord(
+          {
+            id: product.id,
+            publicationIds: removePublicationTargets(product.publicationIds, [publicationId]),
+          },
+          product,
+        ),
+      );
+    }
+  }
+
+  for (const collection of listEffectiveCollections()) {
+    const publicationIds = collection.publicationIds ?? [];
+    if (publicationIds.includes(publicationId)) {
+      store.stageUpdateCollection(
+        makeCollectionRecord(
+          {
+            id: collection.id,
+            publicationIds: removePublicationTargets(publicationIds, [publicationId]),
+          },
+          collection,
+        ),
+      );
+    }
+  }
+}
+
 function getPublishableProductId(rawId: unknown): string | null {
   return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
@@ -1242,6 +1278,29 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
       : hasOwnField(input, 'ruleSet') && rawRuleSet !== null && rawRuleSet !== undefined
         ? { isSmart: true }
         : {}),
+  };
+}
+
+function makePublicationRecord(input: Record<string, unknown>, existing?: PublicationRecord): PublicationRecord {
+  const rawId = input['id'];
+  const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : (existing?.id ?? makeSyntheticGid('Publication'));
+  const rawName = input['name'] ?? input['title'];
+  const rawAutoPublish = input['autoPublish'];
+  const rawSupportsFuturePublishing = input['supportsFuturePublishing'];
+  const rawCatalogId = input['catalogId'];
+  const rawChannelId = input['channelId'];
+
+  return {
+    id,
+    name: typeof rawName === 'string' ? rawName : (existing?.name ?? null),
+    autoPublish: typeof rawAutoPublish === 'boolean' ? rawAutoPublish : existing?.autoPublish,
+    supportsFuturePublishing:
+      typeof rawSupportsFuturePublishing === 'boolean'
+        ? rawSupportsFuturePublishing
+        : existing?.supportsFuturePublishing,
+    catalogId: typeof rawCatalogId === 'string' ? rawCatalogId : existing?.catalogId,
+    channelId: typeof rawChannelId === 'string' ? rawChannelId : existing?.channelId,
+    cursor: existing?.cursor,
   };
 }
 
@@ -5360,6 +5419,36 @@ function serializeProductMutationPayload(
   return result;
 }
 
+function serializePublicationMutationPayload(
+  field: FieldNode,
+  payload: {
+    publication: PublicationRecord | null;
+    deletedId?: string | null;
+    userErrors: Array<{ field: string[]; message: string }>;
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  const publicationField = getChildField(field, 'publication');
+  if (publicationField) {
+    result[getResponseKey(publicationField)] = payload.publication
+      ? serializePublicationSelectionSet(payload.publication, publicationField.selectionSet?.selections ?? [])
+      : null;
+  }
+
+  const deletedIdField = getChildField(field, 'deletedId');
+  if (deletedIdField) {
+    result[getResponseKey(deletedIdField)] = payload.deletedId ?? null;
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
+  }
+
+  return result;
+}
+
 function serializePublishableSelectionSet(
   publishable: ProductRecord | CollectionRecord | null,
   selections: readonly SelectionNode[],
@@ -6634,24 +6723,195 @@ function serializeTopLevelLocationsConnection(
   });
 }
 
-function serializePublicationSelectionSet(
-  publication: PublicationRecord,
+function listProductsPublishedToPublication(publicationId: string): ProductRecord[] {
+  return store
+    .listEffectiveProducts()
+    .filter((product) => product.status === 'ACTIVE' && product.publicationIds.includes(publicationId));
+}
+
+function countCollectionsPublishedToPublication(publicationId: string): number {
+  return listEffectiveCollections().filter((collection) => (collection.publicationIds ?? []).includes(publicationId))
+    .length;
+}
+
+function serializeChannelSelectionSet(
+  channel: ChannelRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const publicationId = channel.publicationId ?? null;
 
   for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Channel' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(result, serializeChannelSelectionSet(channel, selection.selectionSet.selections, variables));
+      continue;
+    }
+
     if (selection.kind !== Kind.FIELD) {
       continue;
     }
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Channel';
+        break;
+      case 'id':
+        result[key] = channel.id;
+        break;
+      case 'name':
+        result[key] = channel.name;
+        break;
+      case 'handle':
+        result[key] = channel.handle ?? null;
+        break;
+      case 'publication':
+        result[key] = publicationId
+          ? serializePublicationSelectionSet(
+              store.getEffectivePublicationById(publicationId) ?? { id: publicationId, name: channel.name },
+              selection.selectionSet?.selections ?? [],
+              variables,
+            )
+          : null;
+        break;
+      case 'productsCount':
+        result[key] = serializeCountValue(
+          selection,
+          publicationId ? listProductsPublishedToPublication(publicationId).length : 0,
+        );
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTopLevelChannelsConnection(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const allChannels = listEffectiveChannels();
+  const {
+    items: channels,
+    hasNextPage,
+    hasPreviousPage,
+  } = paginateConnectionItems(allChannels, field, variables, (channel) => channel.cursor ?? channel.id, {
+    parseCursor: (raw) => raw,
+  });
+  return serializeConnection(field, {
+    items: channels,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (channel) => channel.cursor ?? `cursor:${channel.id}`,
+    serializeNode: (channel, selection) =>
+      serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables),
+    pageInfoOptions: {
+      prefixCursors: false,
+    },
+  });
+}
+
+function serializePublicationSelectionSet(
+  publication: PublicationRecord,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      const typeName = selection.typeCondition?.name.value;
+      if (typeName && typeName !== 'Publication' && typeName !== 'Node') {
+        continue;
+      }
+
+      Object.assign(
+        result,
+        serializePublicationSelectionSet(publication, selection.selectionSet.selections, variables),
+      );
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Publication';
+        break;
       case 'id':
         result[key] = publication.id;
         break;
       case 'name':
         result[key] = publication.name;
+        break;
+      case 'autoPublish':
+        result[key] = publication.autoPublish ?? false;
+        break;
+      case 'supportsFuturePublishing':
+        result[key] = publication.supportsFuturePublishing ?? false;
+        break;
+      case 'catalog':
+        result[key] = publication.catalogId
+          ? Object.fromEntries(
+              (selection.selectionSet?.selections ?? [])
+                .filter((catalogSelection): catalogSelection is FieldNode => catalogSelection.kind === Kind.FIELD)
+                .map((catalogSelection) => {
+                  const catalogKey = catalogSelection.alias?.value ?? catalogSelection.name.value;
+                  switch (catalogSelection.name.value) {
+                    case '__typename':
+                      return [catalogKey, 'MarketCatalog'];
+                    case 'id':
+                      return [catalogKey, publication.catalogId];
+                    default:
+                      return [catalogKey, null];
+                  }
+                }),
+            )
+          : null;
+        break;
+      case 'channel': {
+        const channel =
+          store.listEffectiveChannels().find((candidate) => candidate.publicationId === publication.id) ?? null;
+        result[key] = channel
+          ? serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'products': {
+        const args = getFieldArguments(selection, variables);
+        const rawFirst = args['first'];
+        const rawLast = args['last'];
+        result[key] = serializeProductsConnection(
+          listProductsPublishedToPublication(publication.id),
+          selection,
+          typeof rawFirst === 'number' ? rawFirst : null,
+          typeof rawLast === 'number' ? rawLast : null,
+          args['after'],
+          args['before'],
+          args['query'],
+          args['sortKey'],
+          args['reverse'],
+          variables,
+        );
+        break;
+      }
+      case 'productsCount':
+      case 'publishedProductsCount':
+        result[key] = serializeCountValue(selection, listProductsPublishedToPublication(publication.id).length);
+        break;
+      case 'collectionsCount':
+        result[key] = serializeCountValue(selection, countCollectionsPublishedToPublication(publication.id));
         break;
       default:
         result[key] = null;
@@ -8084,6 +8344,35 @@ function normalizeUpstreamPublication(value: unknown, cursor?: string | null): P
   return {
     id: rawId,
     name: typeof value['name'] === 'string' ? value['name'] : null,
+    autoPublish: typeof value['autoPublish'] === 'boolean' ? value['autoPublish'] : undefined,
+    supportsFuturePublishing:
+      typeof value['supportsFuturePublishing'] === 'boolean' ? value['supportsFuturePublishing'] : undefined,
+    catalogId:
+      isObject(value['catalog']) && typeof value['catalog']['id'] === 'string' ? value['catalog']['id'] : undefined,
+    channelId:
+      isObject(value['channel']) && typeof value['channel']['id'] === 'string' ? value['channel']['id'] : undefined,
+    cursor: typeof cursor === 'string' && cursor.length > 0 ? cursor : null,
+  };
+}
+
+function normalizeUpstreamChannel(value: unknown, cursor?: string | null): ChannelRecord | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const rawId = value['id'];
+  if (typeof rawId !== 'string') {
+    return null;
+  }
+
+  return {
+    id: rawId,
+    name: typeof value['name'] === 'string' ? value['name'] : null,
+    handle: typeof value['handle'] === 'string' ? value['handle'] : null,
+    publicationId:
+      isObject(value['publication']) && typeof value['publication']['id'] === 'string'
+        ? value['publication']['id']
+        : null,
     cursor: typeof cursor === 'string' && cursor.length > 0 ? cursor : null,
   };
 }
@@ -8110,6 +8399,33 @@ function readPublicationRecords(value: unknown): PublicationRecord[] {
     return value['nodes']
       .map((publication) => normalizeUpstreamPublication(publication))
       .filter((publication): publication is PublicationRecord => publication !== null);
+  }
+
+  return [];
+}
+
+function readChannelRecords(value: unknown): ChannelRecord[] {
+  if (!isObject(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value['edges'])) {
+    return value['edges']
+      .map((edge) => {
+        if (!isObject(edge)) {
+          return null;
+        }
+
+        const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
+        return normalizeUpstreamChannel(edge['node'], cursor);
+      })
+      .filter((channel): channel is ChannelRecord => channel !== null);
+  }
+
+  if (Array.isArray(value['nodes'])) {
+    return value['nodes']
+      .map((channel) => normalizeUpstreamChannel(channel))
+      .filter((channel): channel is ChannelRecord => channel !== null);
   }
 
   return [];
@@ -8272,6 +8588,21 @@ export function hydrateProductsFromUpstreamResponse(
   const publications = readPublicationRecords(rawData['publications']);
   if (publications.length > 0) {
     store.upsertBasePublications(publications);
+  }
+
+  const maybePublication = normalizeUpstreamPublication(rawData['publication']);
+  if (maybePublication) {
+    store.upsertBasePublications([maybePublication]);
+  }
+
+  const channels = readChannelRecords(rawData['channels']);
+  if (channels.length > 0) {
+    store.upsertBaseChannels(channels);
+  }
+
+  const maybeChannel = normalizeUpstreamChannel(rawData['channel']);
+  if (maybeChannel) {
+    store.upsertBaseChannels([maybeChannel]);
   }
 
   const maybeProduct = normalizeUpstreamProduct(rawData['product']);
@@ -9133,6 +9464,98 @@ export function handleProductMutation(
         data: {
           [responseKey]: serializeProductMutationPayload(field, variables, {
             product,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationCreate': {
+      const input = readProductInput(args['input'] ?? args['publication']);
+      const publication = store.stageCreatePublication(makePublicationRecord(input));
+
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationUpdate': {
+      const input = readProductInput(args['input'] ?? args['publication']);
+      const rawId = args['id'] ?? input['id'];
+      const publicationId = typeof rawId === 'string' ? rawId : null;
+      if (!publicationId) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              userErrors: [{ field: ['id'], message: 'Publication id is required' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectivePublicationById(publicationId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              userErrors: [{ field: ['id'], message: 'Publication not found' }],
+            }),
+          },
+        };
+      }
+
+      const publication = store.stageUpdatePublication(
+        makePublicationRecord({ ...input, id: publicationId }, existing),
+      );
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication,
+            userErrors: [],
+          }),
+        },
+      };
+    }
+    case 'publicationDelete': {
+      const rawId = args['id'];
+      const publicationId = typeof rawId === 'string' ? rawId : null;
+      if (!publicationId) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              deletedId: null,
+              userErrors: [{ field: ['id'], message: 'Publication id is required' }],
+            }),
+          },
+        };
+      }
+
+      const existing = store.getEffectivePublicationById(publicationId);
+      if (!existing) {
+        return {
+          data: {
+            [responseKey]: serializePublicationMutationPayload(field, {
+              publication: null,
+              deletedId: null,
+              userErrors: [{ field: ['id'], message: 'Publication not found' }],
+            }),
+          },
+        };
+      }
+
+      removePublicationFromPublishables(publicationId);
+      store.stageDeletePublication(publicationId);
+      return {
+        data: {
+          [responseKey]: serializePublicationMutationPayload(field, {
+            publication: existing,
+            deletedId: publicationId,
             userErrors: [],
           }),
         },
@@ -11124,8 +11547,45 @@ export function handleProductQuery(
         data[responseKey] = serializeTopLevelLocationsConnection(field, variables);
         break;
       }
+      case 'channel': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const channel = id ? store.getEffectiveChannelById(id) : null;
+        data[responseKey] = channel
+          ? serializeChannelSelectionSet(channel, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
+      case 'channels': {
+        data[responseKey] = serializeTopLevelChannelsConnection(field, variables);
+        break;
+      }
+      case 'publication': {
+        const rawId = args['id'];
+        const id = typeof rawId === 'string' ? rawId : null;
+        const publication = id ? store.getEffectivePublicationById(id) : null;
+        data[responseKey] = publication
+          ? serializePublicationSelectionSet(publication, field.selectionSet?.selections ?? [], variables)
+          : null;
+        break;
+      }
       case 'publications': {
         data[responseKey] = serializeTopLevelPublicationsConnection(field, variables);
+        break;
+      }
+      case 'publicationsCount': {
+        data[responseKey] = serializeCountValue(field, listEffectivePublications().length);
+        break;
+      }
+      case 'publishedProductsCount': {
+        const rawPublicationId = args['publicationId'];
+        const publicationId = typeof rawPublicationId === 'string' ? rawPublicationId : null;
+        const count = publicationId
+          ? listProductsPublishedToPublication(publicationId).length
+          : store
+              .listEffectiveProducts()
+              .filter((product) => product.status === 'ACTIVE' && product.publicationIds.length > 0).length;
+        data[responseKey] = serializeCountValue(field, count);
         break;
       }
       default:

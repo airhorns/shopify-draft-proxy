@@ -291,9 +291,22 @@ export type CollectionRecord = z.infer<typeof collectionRecordSchema>;
 export const publicationRecordSchema = z.strictObject({
   id: z.string(),
   name: nullableStringSchema,
+  autoPublish: nullableBooleanSchema.optional(),
+  supportsFuturePublishing: nullableBooleanSchema.optional(),
+  catalogId: nullableStringSchema.optional(),
+  channelId: nullableStringSchema.optional(),
   cursor: nullableStringSchema.optional(),
 });
 export type PublicationRecord = z.infer<typeof publicationRecordSchema>;
+
+export const channelRecordSchema = z.strictObject({
+  id: z.string(),
+  name: nullableStringSchema,
+  handle: nullableStringSchema.optional(),
+  publicationId: nullableStringSchema.optional(),
+  cursor: nullableStringSchema.optional(),
+});
+export type ChannelRecord = z.infer<typeof channelRecordSchema>;
 
 export const productCollectionRecordSchema = collectionRecordSchema.extend({
   productId: z.string(),
@@ -1789,6 +1802,7 @@ export const stateSnapshotSchema = z.strictObject({
   carrierServiceOrder: z.array(z.string()).default([]),
   collections: z.record(z.string(), collectionRecordSchema),
   publications: z.record(z.string(), publicationRecordSchema).default({}),
+  channels: z.record(z.string(), channelRecordSchema).default({}),
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
@@ -1856,6 +1870,7 @@ export const stateSnapshotSchema = z.strictObject({
   deletedProductIds: z.record(z.string(), z.literal(true)),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),
+  deletedPublicationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedLocationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedFulfillmentServiceIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCarrierServiceIds: z.record(z.string(), z.literal(true)).default({}),

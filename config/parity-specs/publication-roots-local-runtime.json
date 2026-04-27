@@ -1,0 +1,26 @@
+{
+  "scenarioId": "publication-roots-local-runtime",
+  "operationNames": [
+    "channel",
+    "channels",
+    "publication",
+    "publicationsCount",
+    "publishedProductsCount",
+    "publicationCreate",
+    "publicationUpdate",
+    "publicationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "empty-state-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/publication-roots-local-runtime.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/publications-catalog.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/publication-query-shapes.test.ts"],
+  "comparisonMode": "captured-fixture",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": []
+  },
+  "notes": "HAR-319 models the publication/channel root family with runtime-test-backed local staging. Existing live evidence captures top-level publication catalog id/name/cursor shape, and root introspection confirms this root set exists. Empty-state query behavior, publicationCreate/update/delete local staging, no upstream passthrough, and product/collection visibility read-after-write effects are enforced by the integration test because the generic parity runner does not yet chain this publication lifecycle flow."
+}
