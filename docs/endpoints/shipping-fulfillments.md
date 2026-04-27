@@ -72,6 +72,8 @@ Delete support covers unknown-id userErrors and inventory actions at the local s
 
 Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
 
+Executable parity evidence for the fulfillment-service lifecycle lives in `config/parity-specs/fulfillment-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream `fulfillmentService(id:)` and `location(id:)` reads, after-delete absence, and validation branches through local proxy requests. It compares the created service/location directly instead of the full captured `shop.fulfillmentServices` catalog because the disposable live store contained unrelated pre-existing services that are not required preconditions for isolated local staging.
+
 Carrier service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they affect checkout rate-provider configuration:
 
 - `availableCarrierServices`
@@ -92,6 +94,8 @@ Create/update support covers `input.name`, `input.callbackUrl`, `input.active`, 
 Delete support is enabled because the 2026-04 schema exposes `carrierServiceDelete(id:)` and the live lifecycle capture verified `deletedId` plus downstream detail/catalog absence after cleanup. Local delete only removes the staged/local record; it does not call Shopify or any external callback.
 
 Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
+
+Executable parity evidence for the carrier-service lifecycle lives in `config/parity-specs/carrier-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream detail and active-filter catalog reads, after-delete absence, and validation branches through local proxy requests. It omits the captured opaque id-filter cursor branch from the replay comparison because the isolated proxy execution uses synthetic carrier-service IDs, while runtime coverage still exercises id-filter behavior directly.
 
 Delivery-profile reads are implemented as fixture-backed snapshot reads:
 
