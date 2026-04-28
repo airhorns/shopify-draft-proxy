@@ -587,9 +587,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'DeleteAutomaticDiscounts',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountAutomaticBulkDelete',
       type: 'mutation',
     });
   });
