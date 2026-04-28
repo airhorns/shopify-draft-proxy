@@ -296,40 +296,208 @@ describe('media draft flow', () => {
     });
   });
 
-  it('keeps fileAcknowledgeUpdateFailed as an explicit unsupported passthrough side effect', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ data: { fileAcknowledgeUpdateFailed: null } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+  it('stages fileAcknowledgeUpdateFailed locally and preserves downstream file reads', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileAcknowledgeUpdateFailed should not hit upstream fetch');
+    });
     const app = createApp(config).callback();
 
-    const acknowledgeResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
-      query:
-        'mutation { fileAcknowledgeUpdateFailed(id: "gid://shopify/MediaImage/1") { file { id } userErrors { field message } } }',
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id alt filename fileStatus } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Failure acknowledgement source',
+              contentType: 'IMAGE',
+              filename: 'ack-source.jpg',
+              originalSource: 'https://cdn.example.com/ack-source.jpg',
+            },
+          ],
+        },
+      });
+    const fileId = createResponse.body.data.fileCreate.files[0].id as string;
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: fileId,
+              alt: 'Failure acknowledgement ready state',
+              originalSource: 'https://cdn.example.com/ack-ready.jpg',
+            },
+          ],
+        },
+      });
+    expect(updateResponse.body.data.fileUpdate.userErrors).toEqual([]);
+    expect(updateResponse.body.data.fileUpdate.files[0]).toMatchObject({
+      id: fileId,
+      alt: 'Failure acknowledgement ready state',
+      fileStatus: 'READY',
+      image: {
+        url: 'https://cdn.example.com/ack-ready.jpg',
+      },
     });
 
+    const acknowledgeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileAcknowledgeUpdateFailed($fileIds: [ID!]!) { fileAcknowledgeUpdateFailed(fileIds: $fileIds) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: { fileIds: [fileId] },
+      });
+
     expect(acknowledgeResponse.status).toBe(200);
-    expect(acknowledgeResponse.body).toEqual({ data: { fileAcknowledgeUpdateFailed: null } });
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(store.getState().stagedState.files).toEqual({});
+    expect(acknowledgeResponse.body.data.fileAcknowledgeUpdateFailed).toEqual({
+      files: [
+        {
+          id: fileId,
+          alt: 'Failure acknowledgement ready state',
+          fileStatus: 'READY',
+          image: {
+            url: 'https://cdn.example.com/ack-ready.jpg',
+          },
+        },
+      ],
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.files[fileId]).toMatchObject({
+      id: fileId,
+      fileStatus: 'READY',
+      updateFailureAcknowledgedAt: expect.any(String),
+    });
+
+    const filesResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'query FilesAfterAck { files(first: 10) { nodes { id alt fileStatus ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
+    expect(filesResponse.body.data.files.nodes).toEqual([
+      {
+        id: fileId,
+        alt: 'Failure acknowledgement ready state',
+        fileStatus: 'READY',
+        image: {
+          url: 'https://cdn.example.com/ack-ready.jpg',
+        },
+      },
+    ]);
 
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries.at(-1)).toMatchObject({
-      operationName: 'fileAcknowledgeUpdateFailed',
-      status: 'proxied',
+      operationName: 'FileAcknowledgeUpdateFailed',
+      query: expect.stringContaining('mutation FileAcknowledgeUpdateFailed'),
+      variables: { fileIds: [fileId] },
+      status: 'staged',
       interpreted: {
         primaryRootField: 'fileAcknowledgeUpdateFailed',
-        registeredOperation: {
-          name: 'fileAcknowledgeUpdateFailed',
+        capability: {
           domain: 'media',
           execution: 'stage-locally',
-          implemented: false,
         },
       },
-      notes: 'Mutation passthrough placeholder until supported local staging is implemented.',
+      notes: 'Staged locally in the in-memory media draft store.',
     });
+  });
+
+  it('returns fileAcknowledgeUpdateFailed user errors for unknown, stale, and non-ready files', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid fileAcknowledgeUpdateFailed should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const unknownResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { fileAcknowledgeUpdateFailed(fileIds: ["gid://shopify/MediaImage/999999"]) { files { id } userErrors { field message code } } }',
+    });
+    expect(unknownResponse.body.data.fileAcknowledgeUpdateFailed).toEqual({
+      files: null,
+      userErrors: [
+        {
+          field: ['fileIds'],
+          message: 'File id gid://shopify/MediaImage/999999 does not exist.',
+          code: 'FILE_DOES_NOT_EXIST',
+        },
+      ],
+    });
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id fileStatus } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              contentType: 'IMAGE',
+              originalSource: 'https://cdn.example.com/non-ready.jpg',
+            },
+          ],
+        },
+      });
+    const fileId = createResponse.body.data.fileCreate.files[0].id as string;
+    expect(createResponse.body.data.fileCreate.files[0].fileStatus).toBe('UPLOADED');
+
+    const nonReadyResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileAcknowledgeUpdateFailed($fileIds: [ID!]!) { fileAcknowledgeUpdateFailed(fileIds: $fileIds) { files { id } userErrors { field message code } } }',
+        variables: { fileIds: [fileId] },
+      });
+    expect(nonReadyResponse.body.data.fileAcknowledgeUpdateFailed).toEqual({
+      files: null,
+      userErrors: [
+        {
+          field: ['fileIds'],
+          message: `File with id ${fileId} is not in the READY state.`,
+          code: 'NON_READY_STATE',
+        },
+      ],
+    });
+    expect(store.getState().stagedState.files[fileId]).not.toHaveProperty('updateFailureAcknowledgedAt');
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id fileStatus } userErrors { field message code } } }',
+        variables: { files: [{ id: fileId, alt: 'Ready before delete' }] },
+      });
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileDelete($fileIds: [ID!]!) { fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } } }',
+        variables: { fileIds: [fileId] },
+      });
+
+    const staleResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileAcknowledgeUpdateFailed($fileIds: [ID!]!) { fileAcknowledgeUpdateFailed(fileIds: $fileIds) { files { id } userErrors { field message code } } }',
+        variables: { fileIds: [fileId] },
+      });
+    expect(staleResponse.body.data.fileAcknowledgeUpdateFailed).toEqual({
+      files: null,
+      userErrors: [
+        {
+          field: ['fileIds'],
+          message: `File id ${fileId} does not exist.`,
+          code: 'FILE_DOES_NOT_EXIST',
+        },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages fileUpdate locally for Files API records without proxying upstream', async () => {

@@ -19,9 +19,6 @@ Local staged mutations:
 - `fileCreate`
 - `fileUpdate`
 - `fileDelete`
-
-Explicitly unsupported:
-
 - `fileAcknowledgeUpdateFailed`
 
 ### Behavior notes
@@ -45,10 +42,19 @@ Explicitly unsupported:
 - `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion.
-- `fileAcknowledgeUpdateFailed` remains registered but unimplemented. It is a
-  Files API side-effect root tied to upload/failure state that is not modeled
-  locally yet, so runtime requests still use the unsupported mutation
-  passthrough escape hatch and are logged as proxied with registry metadata.
+- `fileAcknowledgeUpdateFailed(fileIds:)` stages a local acknowledgement for
+  existing `READY` Files API records and does not proxy supported requests
+  upstream at runtime. The mutation returns selected `files` and `userErrors`
+  from the local file model, records `updateFailureAcknowledgedAt` in meta state
+  for inspection/commit context, and preserves downstream `files` read payloads.
+- Acknowledgement validation follows captured Shopify behavior for the supported
+  local subset: unknown or deleted IDs return `files: null` with
+  `FILE_DOES_NOT_EXIST`, and non-ready file states such as failed file creation
+  return `NON_READY_STATE`.
+- The proxy still does not accept staged upload bytes or independently perform
+  Shopify's asynchronous external media processing. It can acknowledge a local
+  failure/update state once represented in normalized file state, but generating
+  real storage-transfer failures remains outside the supported runtime boundary.
 - Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
 
 ## Historical and developer notes
@@ -58,10 +64,18 @@ Explicitly unsupported:
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
 - HAR-313 adds local executable coverage for `files`, `fileSavedSearches`,
-  `stagedUploadsCreate`, and the explicit `fileAcknowledgeUpdateFailed`
-  unsupported boundary. Live staged-upload target payload capture is still
-  needed before the inert metadata is tightened to exact Shopify upload
-  parameter parity.
+  `stagedUploadsCreate`, and the former explicit
+  `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
+  payload capture is still needed before the inert metadata is tightened to
+  exact Shopify upload parameter parity.
+- HAR-375 adds local executable coverage for `fileAcknowledgeUpdateFailed`
+  acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
+  live capture records that the mutation takes `fileIds`, returns a `files`
+  list, accepts READY files, reports `FILE_DOES_NOT_EXIST` for unknown/deleted
+  IDs, and reports `NON_READY_STATE` for FAILED files produced by a bad-source
+  create. A safely staged bad-source update stayed READY in the capture and was
+  accepted by acknowledgement, so richer external update-failure generation is
+  documented as an upload boundary rather than fabricated locally.
 
 ### Validation anchors
 

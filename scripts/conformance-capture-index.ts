@@ -127,6 +127,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'files',
+    packageScript: 'conformance:capture-file-acknowledge-update-failed',
+    scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
+    purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
+      `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
+      'config/parity-specs/fileAcknowledgeUpdateFailed-local-staging.json',
+    ],
+    cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     packageScript: 'conformance:capture-product-option-mutations',
     scriptPath: 'scripts/capture-product-option-mutation-conformance.mts',
