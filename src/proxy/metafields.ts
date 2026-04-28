@@ -247,6 +247,9 @@ export function serializeMetafieldSelectionSet(
 
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Metafield';
+        break;
       case 'id':
         result[key] = metafield.id;
         break;

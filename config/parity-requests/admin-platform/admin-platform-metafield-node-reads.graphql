@@ -1,0 +1,22 @@
+query AdminPlatformMetafieldNodeReads($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Node {
+      id
+    }
+    ... on Metafield {
+      namespace
+      key
+      type
+      value
+      compareDigest
+      jsonValue
+      createdAt
+      updatedAt
+      ownerType
+      definition {
+        id
+        name
+      }
+    }
+  }
+}

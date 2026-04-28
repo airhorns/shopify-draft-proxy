@@ -1,0 +1,86 @@
+{
+  "scenarioId": "admin-platform-product-option-node-reads",
+  "operationNames": ["productOptionsReorder", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-relationship-product-options-reorder.graphql",
+    "variablesCapturePath": "$.productOptionsReorder.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-424 executable parity for generic Relay Node reads of product option records. The scenario replays the captured productOptionsReorder lifecycle locally, then resolves ProductOption and ProductOptionValue GIDs through nodes(ids:) and compares those selected payloads to the captured downstream product.options read. ProductOption/ProductOptionValue IDs are supported only when the owning product/options are present in normalized local state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-option-nodes",
+        "capturePath": "$.optionDownstreamRead.response.data.product.options",
+        "proxyPath": "$.data.nodes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-product-option-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.optionDownstreamRead.response.data.product.options[0].id"
+              },
+              {
+                "fromCapturePath": "$.optionDownstreamRead.response.data.product.options[1].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "size-product-option-value-node",
+        "capturePath": "$.optionDownstreamRead.response.data.product.options[0].optionValues[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-product-option-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.optionDownstreamRead.response.data.product.options[0].optionValues[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "color-red-product-option-value-node",
+        "capturePath": "$.optionDownstreamRead.response.data.product.options[1].optionValues[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-product-option-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.optionDownstreamRead.response.data.product.options[1].optionValues[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "color-blue-product-option-value-node",
+        "capturePath": "$.optionDownstreamRead.response.data.product.options[1].optionValues[1]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-product-option-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.optionDownstreamRead.response.data.product.options[1].optionValues[1].id"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

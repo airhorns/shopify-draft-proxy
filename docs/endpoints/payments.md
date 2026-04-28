@@ -74,6 +74,7 @@ The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025
 Current 2025-01 implemented no-data coverage:
 
 - `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` return `null` for unknown identifiers.
+- Generic `node(id:)` / `nodes(ids:)` dispatch also returns Shopify-like `null` entries for unknown `CashTrackingSession`, `PointOfSaleDevice`, and `ShopifyPaymentsDispute` GIDs. This is no-data behavior only; non-empty finance, POS, and dispute Node payloads remain unsupported until scrubbed fixtures and local state models exist.
 - `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` return empty connections with false `pageInfo` flags on the current store.
 - `disputes(first: 1)` returns an empty connection.
 - `shopifyPaymentsAccount` returns `null` in the captured access-denied/no-account branch. When a normalized Business Entity fixture includes a Shopify Payments account, the direct root serializes only captured-safe account scalars and empty no-data account connections shared with `BusinessEntity.shopifyPaymentsAccount`.
