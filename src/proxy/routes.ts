@@ -698,7 +698,7 @@ function appendBulkOperationImportLog(request: ProxyDispatchRequest, entry: Bulk
       primaryRootField: entry.rootField,
       capability: {
         operationName: entry.operationName,
-        domain: 'products',
+        domain: entry.domain,
         execution: 'stage-locally',
       },
       bulkOperationImport: {
@@ -806,6 +806,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables, {
         readMode: request.config.readMode,
+        shopifyAdminOrigin: request.config.shopifyAdminOrigin,
       });
       if (!bulkOperationMutation) {
         return false;
