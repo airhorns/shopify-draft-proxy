@@ -250,7 +250,7 @@ describe('BulkOperation conformance fixture and local model', () => {
         'bulkOperationCancel',
         'bulkOperationRunQuery',
       ],
-      runtimeBackedOperationNames: ['bulkOperationRunMutation'],
+      runtimeTestFiles: ['tests/integration/bulk-operation-conformance-flow.test.ts'],
       captureFiles: [fixturePath],
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');

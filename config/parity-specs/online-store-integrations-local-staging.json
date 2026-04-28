@@ -18,22 +18,6 @@
     "storefrontAccessTokenCreate",
     "mobilePlatformApplicationCreate"
   ],
-  "runtimeBackedOperationNames": [
-    "themeUpdate",
-    "themeDelete",
-    "themePublish",
-    "themeFilesCopy",
-    "themeFilesUpsert",
-    "themeFilesDelete",
-    "scriptTagUpdate",
-    "scriptTagDelete",
-    "webPixelUpdate",
-    "webPixelDelete",
-    "serverPixelDelete",
-    "storefrontAccessTokenDelete",
-    "mobilePlatformApplicationUpdate",
-    "mobilePlatformApplicationDelete"
-  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "schema-introspection",

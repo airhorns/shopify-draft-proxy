@@ -8,13 +8,6 @@
     "inventoryTransferCancel",
     "inventoryTransferDelete"
   ],
-  "runtimeBackedOperationNames": [
-    "inventoryTransferCreateAsReadyToShip",
-    "inventoryTransferEdit",
-    "inventoryTransferSetItems",
-    "inventoryTransferRemoveItems",
-    "inventoryTransferDuplicate"
-  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",

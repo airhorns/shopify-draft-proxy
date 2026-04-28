@@ -8,11 +8,6 @@
     "combinedListingUpdate",
     "productVariantRelationshipBulkUpdate"
   ],
-  "runtimeBackedOperationNames": [
-    "productFeedCreate",
-    "bulkProductResourceFeedbackCreate",
-    "shopResourceFeedbackCreate"
-  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
   "liveCaptureFiles": [

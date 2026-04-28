@@ -24,10 +24,6 @@ function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
 }
 
-function scenarioCoverageOperationNames(scenarios: ReturnType<typeof loadConformanceScenarios>): string[] {
-  return scenarios.flatMap((scenario) => [...scenario.operationNames, ...scenario.runtimeBackedOperationNames]);
-}
-
 describe('conformance scenario discovery', () => {
   const paritySpecPaths = listConformanceParitySpecPaths(repoRoot);
   const scenarioOverrides = loadConformanceScenarioOverrides(repoRoot);
@@ -66,10 +62,10 @@ describe('conformance scenario discovery', () => {
       const paritySpec = readJson<ParitySpec>(scenario.paritySpecPath);
       expect(paritySpec.scenarioId).toBe(scenario.id);
       expect(paritySpec.operationNames).toEqual(scenario.operationNames);
-      expect(paritySpec.runtimeBackedOperationNames ?? []).toEqual(scenario.runtimeBackedOperationNames);
       expect(paritySpec.scenarioStatus).toBe(scenario.status);
       expect(paritySpec.assertionKinds).toEqual(scenario.assertionKinds);
       expect(paritySpec.liveCaptureFiles).toEqual(scenario.captureFiles);
+      expect(paritySpec.runtimeTestFiles ?? []).toEqual(scenario.runtimeTestFiles);
 
       for (const captureFile of paritySpec.liveCaptureFiles ?? []) {
         expect(existsSync(resolve(repoRoot, captureFile)), `${captureFile} should exist`).toBe(true);
@@ -92,9 +88,7 @@ describe('conformance scenario discovery', () => {
 
   it.each(
     scenarios.flatMap((scenario) =>
-      [...scenario.operationNames, ...scenario.runtimeBackedOperationNames].map(
-        (operationName) => [`${scenario.id} -> ${operationName}`, operationName] as const,
-      ),
+      scenario.operationNames.map((operationName) => [`${scenario.id} -> ${operationName}`, operationName] as const),
     ),
   )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
     const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
@@ -102,12 +96,16 @@ describe('conformance scenario discovery', () => {
   });
 
   it('keeps every implemented operation covered by at least one discovered scenario', () => {
-    const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
-    const scenarioOperationNames = new Set(scenarioCoverageOperationNames(scenarios));
+    const statusDocument = buildConformanceStatusDocument(repoRoot);
+    const coveredOperationNames = new Set(statusDocument.coveredOperationNames);
 
-    for (const entry of registry.filter((candidate) => candidate.implemented)) {
+    for (const entry of readJson<OperationRegistryEntry[]>('config/operation-registry.json').filter(
+      (candidate) => candidate.implemented,
+    )) {
       expect(entry.runtimeTests?.length ?? 0).toBeGreaterThan(0);
-      expect(scenarioOperationNames.has(entry.name), `${entry.name} should have a parity spec`).toBe(true);
+      expect(coveredOperationNames.has(entry.name), `${entry.name} should have scenario or runtime-test coverage`).toBe(
+        true,
+      );
     }
   });
 

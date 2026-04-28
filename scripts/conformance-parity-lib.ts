@@ -221,7 +221,6 @@ export interface ExecutedOperation {
 export interface OperationNameValidationResult {
   declaredMutationOperationNames: string[];
   actualMutationOperationNames: string[];
-  runtimeTestBackedMutationOperationNames: string[];
   missingMutationOperationNames: string[];
   unexpectedMutationOperationNames: string[];
   errors: string[];
@@ -840,25 +839,13 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
-function hasRuntimeTestEvidence(operationName: string, paritySpec: Pick<ParitySpec, 'runtimeTestFiles'>): boolean {
-  const declaredRuntimeTestFiles = new Set(paritySpec.runtimeTestFiles ?? []);
-  if (declaredRuntimeTestFiles.size === 0) {
-    return false;
-  }
-
-  const registryEntry = operationRegistryEntries.find(
-    (entry) => entry.type === 'mutation' && entry.matchNames.includes(operationName),
-  );
-  return registryEntry?.runtimeTests.some((runtimeTestFile) => declaredRuntimeTestFiles.has(runtimeTestFile)) ?? false;
-}
-
 export function validateParityScenarioOperationNames({
   scenario,
   paritySpec,
   executedOperations,
 }: {
   scenario: Scenario;
-  paritySpec: Pick<ParitySpec, 'operationNames' | 'runtimeTestFiles'>;
+  paritySpec: Pick<ParitySpec, 'operationNames'>;
   executedOperations: ExecutedOperation[];
 }): OperationNameValidationResult {
   const actualMutationOperationNames = uniqueSorted(
@@ -872,9 +859,6 @@ export function validateParityScenarioOperationNames({
     ),
   );
   const declaredMutationOperationNameSet = new Set(declaredMutationOperationNames);
-  const runtimeTestBackedMutationOperationNames = declaredMutationOperationNames.filter((operationName) =>
-    hasRuntimeTestEvidence(operationName, paritySpec),
-  );
   const missingMutationOperationNames = declaredMutationOperationNames.filter(
     (operationName) => !actualMutationOperationNameSet.has(operationName),
   );
@@ -905,7 +889,6 @@ export function validateParityScenarioOperationNames({
   return {
     declaredMutationOperationNames,
     actualMutationOperationNames,
-    runtimeTestBackedMutationOperationNames,
     missingMutationOperationNames,
     unexpectedMutationOperationNames,
     errors,

@@ -10,11 +10,6 @@
     "giftCardDebit",
     "giftCardDeactivate"
   ],
-  "runtimeBackedOperationNames": [
-    "giftCardCreate",
-    "giftCardSendNotificationToCustomer",
-    "giftCardSendNotificationToRecipient"
-  ],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "schema-access-evidence",
