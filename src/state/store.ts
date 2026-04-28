@@ -3,16 +3,20 @@ import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
   AbandonmentRecord,
+  AdminPlatformFlowSignatureRecord,
+  AdminPlatformFlowTriggerRecord,
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
+  BackupRegionRecord,
   BulkOperationRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
   CarrierServiceRecord,
   CartTransformRecord,
   ChannelRecord,
+  CombinedListingChildRecord,
   CatalogRecord,
   CollectionRecord,
   CustomerAddressRecord,
@@ -50,18 +54,24 @@ import type {
   NormalizedStateSnapshotFile,
   OnlineStoreContentKind,
   OnlineStoreContentRecord,
+  OnlineStoreIntegrationKind,
+  OnlineStoreIntegrationRecord,
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
   PaymentReminderSendRecord,
   PaymentTermsTemplateRecord,
   ProductCatalogConnectionRecord,
+  ProductBundleComponentRecord,
   ProductCollectionRecord,
+  ProductFeedRecord,
   ProductMediaRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
   ProductOperationRecord,
+  ProductResourceFeedbackRecord,
   ProductRecord,
+  ProductVariantComponentRecord,
   ProductVariantRecord,
   PriceListRecord,
   PublicationRecord,
@@ -70,6 +80,7 @@ import type {
   ShippingPackageRecord,
   SellingPlanGroupRecord,
   ShopRecord,
+  ShopResourceFeedbackRecord,
   ShopifyFunctionRecord,
   ShopLocaleRecord,
   StateSnapshot,
@@ -99,6 +110,12 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productVariants: {},
   productOptions: {},
   productOperations: {},
+  productFeeds: {},
+  productResourceFeedback: {},
+  shopResourceFeedback: {},
+  productBundleComponents: {},
+  productVariantComponents: {},
+  combinedListingChildren: {},
   inventoryTransfers: {},
   inventoryTransferOrder: [],
   locations: {},
@@ -148,6 +165,18 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  onlineStoreThemes: {},
+  onlineStoreThemeOrder: [],
+  onlineStoreScriptTags: {},
+  onlineStoreScriptTagOrder: [],
+  onlineStoreWebPixels: {},
+  onlineStoreWebPixelOrder: [],
+  onlineStoreServerPixels: {},
+  onlineStoreServerPixelOrder: [],
+  onlineStoreStorefrontAccessTokens: {},
+  onlineStoreStorefrontAccessTokenOrder: [],
+  onlineStoreMobilePlatformApplications: {},
+  onlineStoreMobilePlatformApplicationOrder: [],
   savedSearches: {},
   savedSearchOrder: [],
   bulkOperations: {},
@@ -196,6 +225,11 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   abandonedCheckoutOrder: [],
   abandonments: {},
   abandonmentOrder: [],
+  backupRegion: null,
+  adminPlatformFlowSignatures: {},
+  adminPlatformFlowSignatureOrder: [],
+  adminPlatformFlowTriggers: {},
+  adminPlatformFlowTriggerOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -205,6 +239,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   metaobjects: {},
   customerMetafields: {},
   deletedProductIds: {},
+  deletedProductFeedIds: {},
   deletedInventoryTransferIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
@@ -224,6 +259,12 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedOnlineStoreBlogIds: {},
   deletedOnlineStorePageIds: {},
   deletedOnlineStoreCommentIds: {},
+  deletedOnlineStoreThemeIds: {},
+  deletedOnlineStoreScriptTagIds: {},
+  deletedOnlineStoreWebPixelIds: {},
+  deletedOnlineStoreServerPixelIds: {},
+  deletedOnlineStoreStorefrontAccessTokenIds: {},
+  deletedOnlineStoreMobilePlatformApplicationIds: {},
   deletedSavedSearchIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
@@ -535,6 +576,7 @@ function mergeProductRecords(base: ProductRecord | null, staged: ProductRecord |
     title: staged.title,
     handle: staged.handle || base.handle,
     status: staged.status,
+    combinedListingRole: staged.combinedListingRole ?? base.combinedListingRole ?? null,
     publicationIds: structuredClone(staged.publicationIds),
     createdAt: base.createdAt,
     updatedAt: ensureUpdatedAtAfterBase(base.updatedAt, staged.updatedAt),
@@ -620,6 +662,7 @@ export class InMemoryStore {
   private baseMarketsRootPayloads: Record<string, unknown> = {};
   private baseSegmentsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
+  private deletedOrderIds = new Set<string>();
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
   private deletedDraftOrderIds = new Set<string>();
@@ -654,6 +697,7 @@ export class InMemoryStore {
     this.baseMarketsRootPayloads = {};
     this.baseSegmentsRootPayloads = {};
     this.stagedOrders = {};
+    this.deletedOrderIds = new Set<string>();
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
     this.deletedDraftOrderIds = new Set<string>();
@@ -691,6 +735,31 @@ export class InMemoryStore {
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
+  }
+
+  getEffectiveBackupRegion(): BackupRegionRecord | null {
+    return structuredClone(this.stagedState.backupRegion ?? this.baseState.backupRegion ?? null);
+  }
+
+  stageBackupRegion(region: BackupRegionRecord): BackupRegionRecord {
+    this.stagedState.backupRegion = structuredClone(region);
+    return structuredClone(region);
+  }
+
+  stageAdminPlatformFlowSignature(signature: AdminPlatformFlowSignatureRecord): AdminPlatformFlowSignatureRecord {
+    this.stagedState.adminPlatformFlowSignatures[signature.id] = structuredClone(signature);
+    if (!this.stagedState.adminPlatformFlowSignatureOrder.includes(signature.id)) {
+      this.stagedState.adminPlatformFlowSignatureOrder.push(signature.id);
+    }
+    return structuredClone(signature);
+  }
+
+  stageAdminPlatformFlowTrigger(trigger: AdminPlatformFlowTriggerRecord): AdminPlatformFlowTriggerRecord {
+    this.stagedState.adminPlatformFlowTriggers[trigger.id] = structuredClone(trigger);
+    if (!this.stagedState.adminPlatformFlowTriggerOrder.includes(trigger.id)) {
+      this.stagedState.adminPlatformFlowTriggerOrder.push(trigger.id);
+    }
+    return structuredClone(trigger);
   }
 
   stageUploadContent(keys: string[], content: string): void {
@@ -1382,6 +1451,168 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedOnlineStoreBlogIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
+    );
+  }
+
+  private onlineStoreIntegrationBucket(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreIntegrationKind,
+  ): Record<string, OnlineStoreIntegrationRecord> {
+    switch (kind) {
+      case 'theme':
+        return snapshot.onlineStoreThemes;
+      case 'scriptTag':
+        return snapshot.onlineStoreScriptTags;
+      case 'webPixel':
+        return snapshot.onlineStoreWebPixels;
+      case 'serverPixel':
+        return snapshot.onlineStoreServerPixels;
+      case 'storefrontAccessToken':
+        return snapshot.onlineStoreStorefrontAccessTokens;
+      case 'mobilePlatformApplication':
+        return snapshot.onlineStoreMobilePlatformApplications;
+    }
+  }
+
+  private onlineStoreIntegrationOrder(snapshot: StateSnapshot, kind: OnlineStoreIntegrationKind): string[] {
+    switch (kind) {
+      case 'theme':
+        return snapshot.onlineStoreThemeOrder;
+      case 'scriptTag':
+        return snapshot.onlineStoreScriptTagOrder;
+      case 'webPixel':
+        return snapshot.onlineStoreWebPixelOrder;
+      case 'serverPixel':
+        return snapshot.onlineStoreServerPixelOrder;
+      case 'storefrontAccessToken':
+        return snapshot.onlineStoreStorefrontAccessTokenOrder;
+      case 'mobilePlatformApplication':
+        return snapshot.onlineStoreMobilePlatformApplicationOrder;
+    }
+  }
+
+  private onlineStoreIntegrationDeletedIds(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreIntegrationKind,
+  ): Record<string, true> {
+    switch (kind) {
+      case 'theme':
+        return snapshot.deletedOnlineStoreThemeIds;
+      case 'scriptTag':
+        return snapshot.deletedOnlineStoreScriptTagIds;
+      case 'webPixel':
+        return snapshot.deletedOnlineStoreWebPixelIds;
+      case 'serverPixel':
+        return snapshot.deletedOnlineStoreServerPixelIds;
+      case 'storefrontAccessToken':
+        return snapshot.deletedOnlineStoreStorefrontAccessTokenIds;
+      case 'mobilePlatformApplication':
+        return snapshot.deletedOnlineStoreMobilePlatformApplicationIds;
+    }
+  }
+
+  upsertBaseOnlineStoreIntegrations(records: OnlineStoreIntegrationRecord[]): void {
+    for (const record of records) {
+      const bucket = this.onlineStoreIntegrationBucket(this.baseState, record.kind);
+      const order = this.onlineStoreIntegrationOrder(this.baseState, record.kind);
+      const baseDeletedIds = this.onlineStoreIntegrationDeletedIds(this.baseState, record.kind);
+      const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, record.kind);
+
+      delete baseDeletedIds[record.id];
+      delete stagedDeletedIds[record.id];
+      bucket[record.id] = structuredClone(record);
+      if (!order.includes(record.id)) {
+        order.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedOnlineStoreIntegration(record: OnlineStoreIntegrationRecord): void {
+    const bucket = this.onlineStoreIntegrationBucket(this.stagedState, record.kind);
+    const baseOrder = this.onlineStoreIntegrationOrder(this.baseState, record.kind);
+    const stagedOrder = this.onlineStoreIntegrationOrder(this.stagedState, record.kind);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, record.kind);
+
+    delete stagedDeletedIds[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!baseOrder.includes(record.id) && !stagedOrder.includes(record.id)) {
+      stagedOrder.push(record.id);
+    }
+  }
+
+  deleteStagedOnlineStoreIntegration(kind: OnlineStoreIntegrationKind, id: string): void {
+    const bucket = this.onlineStoreIntegrationBucket(this.stagedState, kind);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    delete bucket[id];
+    stagedDeletedIds[id] = true;
+  }
+
+  getEffectiveOnlineStoreIntegrationById(
+    kind: OnlineStoreIntegrationKind,
+    id: string,
+  ): OnlineStoreIntegrationRecord | null {
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    if (stagedDeletedIds[id]) {
+      return null;
+    }
+
+    const record =
+      this.onlineStoreIntegrationBucket(this.stagedState, kind)[id] ??
+      this.onlineStoreIntegrationBucket(this.baseState, kind)[id];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveOnlineStoreIntegrations(kind: OnlineStoreIntegrationKind): OnlineStoreIntegrationRecord[] {
+    const orderedIds = new Set([
+      ...this.onlineStoreIntegrationOrder(this.baseState, kind),
+      ...this.onlineStoreIntegrationOrder(this.stagedState, kind),
+    ]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveOnlineStoreIntegrationById(kind, id))
+      .filter((record): record is OnlineStoreIntegrationRecord => record !== null);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    const unorderedRecords = Object.values({
+      ...this.onlineStoreIntegrationBucket(this.baseState, kind),
+      ...this.onlineStoreIntegrationBucket(this.stagedState, kind),
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .filter((record) => !stagedDeletedIds[record.id])
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') ||
+          (right.createdAt ?? '').localeCompare(left.createdAt ?? '') ||
+          compareShopifyResourceIds(left.id, right.id),
+      );
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasOnlineStoreIntegrations(): boolean {
+    return (
+      Object.keys(this.baseState.onlineStoreThemes).length > 0 ||
+      Object.keys(this.baseState.onlineStoreScriptTags).length > 0 ||
+      Object.keys(this.baseState.onlineStoreWebPixels).length > 0 ||
+      Object.keys(this.baseState.onlineStoreServerPixels).length > 0 ||
+      Object.keys(this.baseState.onlineStoreStorefrontAccessTokens).length > 0 ||
+      Object.keys(this.baseState.onlineStoreMobilePlatformApplications).length > 0 ||
+      this.hasStagedOnlineStoreIntegrations()
+    );
+  }
+
+  hasStagedOnlineStoreIntegrations(): boolean {
+    return (
+      Object.keys(this.stagedState.onlineStoreThemes).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreScriptTags).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreWebPixels).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreServerPixels).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreStorefrontAccessTokens).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreMobilePlatformApplications).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreThemeIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreScriptTagIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreWebPixelIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreServerPixelIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreStorefrontAccessTokenIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreMobilePlatformApplicationIds).length > 0
     );
   }
 
@@ -3447,13 +3678,21 @@ export class InMemoryStore {
   }
 
   stageCreateOrder(order: OrderRecord): OrderRecord {
+    this.deletedOrderIds.delete(order.id);
     this.stagedOrders[order.id] = structuredClone(order);
     return structuredClone(order);
   }
 
   getOrderById(orderId: string): OrderRecord | null {
+    if (this.deletedOrderIds.has(orderId)) {
+      return null;
+    }
     const order = this.stagedOrders[orderId] ?? this.baseOrders[orderId];
     return order ? structuredClone(order) : null;
+  }
+
+  hasDeletedOrder(orderId: string): boolean {
+    return this.deletedOrderIds.has(orderId);
   }
 
   hasStagedOrder(orderId: string): boolean {
@@ -3463,9 +3702,15 @@ export class InMemoryStore {
   getOrders(): OrderRecord[] {
     const mergedOrders = new Map<string, OrderRecord>();
     for (const order of Object.values(this.baseOrders)) {
+      if (this.deletedOrderIds.has(order.id)) {
+        continue;
+      }
       mergedOrders.set(order.id, structuredClone(order));
     }
     for (const order of Object.values(this.stagedOrders)) {
+      if (this.deletedOrderIds.has(order.id)) {
+        continue;
+      }
       mergedOrders.set(order.id, structuredClone(order));
     }
 
@@ -3494,8 +3739,14 @@ export class InMemoryStore {
   }
 
   updateOrder(order: OrderRecord): OrderRecord {
+    this.deletedOrderIds.delete(order.id);
     this.stagedOrders[order.id] = structuredClone(order);
     return structuredClone(order);
+  }
+
+  deleteOrder(orderId: string): void {
+    delete this.stagedOrders[orderId];
+    this.deletedOrderIds.add(orderId);
   }
 
   stageOrderMandatePayment(record: OrderMandatePaymentRecord): OrderMandatePaymentRecord {
@@ -3738,6 +3989,67 @@ export class InMemoryStore {
   stageProductOperation(operation: ProductOperationRecord): ProductOperationRecord {
     this.stagedState.productOperations[operation.id] = structuredClone(operation);
     return structuredClone(operation);
+  }
+
+  upsertStagedProductFeed(productFeed: ProductFeedRecord): ProductFeedRecord {
+    delete this.stagedState.deletedProductFeedIds[productFeed.id];
+    this.stagedState.productFeeds[productFeed.id] = structuredClone(productFeed);
+    return structuredClone(productFeed);
+  }
+
+  deleteStagedProductFeed(productFeedId: string): void {
+    delete this.stagedState.productFeeds[productFeedId];
+    this.stagedState.deletedProductFeedIds[productFeedId] = true;
+  }
+
+  upsertStagedProductResourceFeedback(feedback: ProductResourceFeedbackRecord): ProductResourceFeedbackRecord {
+    this.stagedState.productResourceFeedback[feedback.productId] = structuredClone(feedback);
+    return structuredClone(feedback);
+  }
+
+  upsertStagedShopResourceFeedback(feedback: ShopResourceFeedbackRecord): ShopResourceFeedbackRecord {
+    this.stagedState.shopResourceFeedback[feedback.id] = structuredClone(feedback);
+    return structuredClone(feedback);
+  }
+
+  replaceStagedBundleComponentsForProduct(productId: string, components: ProductBundleComponentRecord[]): void {
+    for (const [componentId, component] of Object.entries(this.stagedState.productBundleComponents)) {
+      if (component.bundleProductId === productId) {
+        delete this.stagedState.productBundleComponents[componentId];
+      }
+    }
+
+    for (const component of components) {
+      this.stagedState.productBundleComponents[component.id] = structuredClone(component);
+    }
+  }
+
+  replaceStagedVariantComponentsForParentVariant(
+    parentProductVariantId: string,
+    components: ProductVariantComponentRecord[],
+  ): void {
+    for (const [componentId, component] of Object.entries(this.stagedState.productVariantComponents)) {
+      if (component.parentProductVariantId === parentProductVariantId) {
+        delete this.stagedState.productVariantComponents[componentId];
+      }
+    }
+
+    for (const component of components) {
+      this.stagedState.productVariantComponents[component.id] = structuredClone(component);
+    }
+  }
+
+  replaceStagedCombinedListingChildren(parentProductId: string, children: CombinedListingChildRecord[]): void {
+    for (const [storageKey, child] of Object.entries(this.stagedState.combinedListingChildren)) {
+      if (child.parentProductId === parentProductId) {
+        delete this.stagedState.combinedListingChildren[storageKey];
+      }
+    }
+
+    for (const child of children) {
+      this.stagedState.combinedListingChildren[`${child.parentProductId}:${child.childProductId}`] =
+        structuredClone(child);
+    }
   }
 
   replaceBaseCollectionsForProduct(productId: string, collections: ProductCollectionRecord[]): void {
@@ -4459,6 +4771,98 @@ export class InMemoryStore {
     return operation ? structuredClone(operation) : null;
   }
 
+  getEffectiveProductFeedById(productFeedId: string): ProductFeedRecord | null {
+    if (this.stagedState.deletedProductFeedIds[productFeedId]) {
+      return null;
+    }
+
+    const productFeed = this.stagedState.productFeeds[productFeedId] ?? this.baseState.productFeeds[productFeedId];
+    return productFeed ? structuredClone(productFeed) : null;
+  }
+
+  listEffectiveProductFeeds(): ProductFeedRecord[] {
+    const feedIds = new Set([
+      ...Object.keys(this.baseState.productFeeds),
+      ...Object.keys(this.stagedState.productFeeds),
+    ]);
+    return Array.from(feedIds)
+      .filter((feedId) => !this.stagedState.deletedProductFeedIds[feedId])
+      .map((feedId) => this.stagedState.productFeeds[feedId] ?? this.baseState.productFeeds[feedId])
+      .filter((productFeed): productFeed is ProductFeedRecord => productFeed !== undefined)
+      .map((productFeed) => structuredClone(productFeed))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+  }
+
+  getEffectiveProductResourceFeedback(productId: string): ProductResourceFeedbackRecord | null {
+    const feedback =
+      this.stagedState.productResourceFeedback[productId] ?? this.baseState.productResourceFeedback[productId];
+    return feedback ? structuredClone(feedback) : null;
+  }
+
+  getEffectiveBundleComponentsByProductId(productId: string): ProductBundleComponentRecord[] {
+    const componentIds = new Set([
+      ...Object.keys(this.baseState.productBundleComponents),
+      ...Object.keys(this.stagedState.productBundleComponents),
+    ]);
+    return Array.from(componentIds)
+      .map(
+        (componentId) =>
+          this.stagedState.productBundleComponents[componentId] ?? this.baseState.productBundleComponents[componentId],
+      )
+      .filter(
+        (component): component is ProductBundleComponentRecord =>
+          component !== undefined && component.bundleProductId === productId,
+      )
+      .map((component) => structuredClone(component))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+  }
+
+  getEffectiveVariantComponentsByParentVariantId(parentProductVariantId: string): ProductVariantComponentRecord[] {
+    const componentIds = new Set([
+      ...Object.keys(this.baseState.productVariantComponents),
+      ...Object.keys(this.stagedState.productVariantComponents),
+    ]);
+    return Array.from(componentIds)
+      .map(
+        (componentId) =>
+          this.stagedState.productVariantComponents[componentId] ??
+          this.baseState.productVariantComponents[componentId],
+      )
+      .filter(
+        (component): component is ProductVariantComponentRecord =>
+          component !== undefined && component.parentProductVariantId === parentProductVariantId,
+      )
+      .map((component) => structuredClone(component))
+      .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
+  }
+
+  getEffectiveCombinedListingChildrenByParentId(parentProductId: string): CombinedListingChildRecord[] {
+    const storageKeys = new Set([
+      ...Object.keys(this.baseState.combinedListingChildren),
+      ...Object.keys(this.stagedState.combinedListingChildren),
+    ]);
+    return Array.from(storageKeys)
+      .map(
+        (storageKey) =>
+          this.stagedState.combinedListingChildren[storageKey] ?? this.baseState.combinedListingChildren[storageKey],
+      )
+      .filter(
+        (child): child is CombinedListingChildRecord =>
+          child !== undefined && child.parentProductId === parentProductId,
+      )
+      .map((child) => structuredClone(child))
+      .sort((left, right) => compareShopifyResourceIds(left.childProductId, right.childProductId));
+  }
+
+  getEffectiveCombinedListingParentByChildId(childProductId: string): CombinedListingChildRecord | null {
+    return (
+      Object.values({
+        ...this.baseState.combinedListingChildren,
+        ...this.stagedState.combinedListingChildren,
+      }).find((child) => child.childProductId === childProductId) ?? null
+    );
+  }
+
   getEffectiveInventoryTransferById(transferId: string): InventoryTransferRecord | null {
     if (this.stagedState.deletedInventoryTransferIds[transferId]) {
       return null;
@@ -4984,6 +5388,12 @@ export class InMemoryStore {
       Object.keys(this.stagedState.collections).length > 0 ||
       Object.keys(this.stagedState.productVariants).length > 0 ||
       Object.keys(this.stagedState.productOptions).length > 0 ||
+      Object.keys(this.stagedState.productFeeds).length > 0 ||
+      Object.keys(this.stagedState.productResourceFeedback).length > 0 ||
+      Object.keys(this.stagedState.shopResourceFeedback).length > 0 ||
+      Object.keys(this.stagedState.productBundleComponents).length > 0 ||
+      Object.keys(this.stagedState.productVariantComponents).length > 0 ||
+      Object.keys(this.stagedState.combinedListingChildren).length > 0 ||
       Object.keys(this.stagedState.productCollections).length > 0 ||
       Object.keys(this.stagedState.publications).length > 0 ||
       Object.keys(this.stagedState.channels).length > 0 ||
@@ -4994,6 +5404,7 @@ export class InMemoryStore {
       Object.keys(this.stagedState.metafieldDefinitions).length > 0 ||
       Object.keys(this.stagedState.deletedMetafieldDefinitionIds).length > 0 ||
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
+      Object.keys(this.stagedState.deletedProductFeedIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0 ||
       Object.keys(this.stagedState.deletedPublicationIds).length > 0
     );

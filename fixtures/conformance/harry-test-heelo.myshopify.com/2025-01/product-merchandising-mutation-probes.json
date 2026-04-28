@@ -3,9 +3,9 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
-    "These probes document product merchandising mutation payload and blocker shapes only. They are not parity specs and do not mark these roots as locally implemented.",
+    "These probes document product merchandising mutation payload and blocker shapes used by the HAR-362 guardrail parity spec.",
     "productFeedCreate could not capture a success branch on this store because Shopify returned a top-level channel lookup error.",
-    "productBundleCreate/productBundleUpdate and combinedListingUpdate success paths still need dedicated component/combined-listing setup evidence before local staging can be implemented."
+    "Local success-path staging for bundle, variant relationship, combined-listing, and feed behavior is covered by runtime tests; this capture file preserves the Shopify validation/userError branches that can be replayed without live writes."
   ],
   "schemaEvidence": {
     "ProductFeed": {
@@ -170,6 +170,37 @@
                 "field": ["parentProductId"],
                 "message": "Product does not exist",
                 "code": "PARENT_PRODUCT_NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "productVariantRelationshipBulkUpdate-unknown-variants",
+      "operationNames": ["productVariantRelationshipBulkUpdate"],
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/999999999",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/999999998",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "The product variants with ID(s) [\"gid://shopify/ProductVariant/999999999\",\"gid://shopify/ProductVariant/999999998\"] could not be found.",
+                "code": "PRODUCT_VARIANTS_NOT_FOUND"
               }
             ]
           }

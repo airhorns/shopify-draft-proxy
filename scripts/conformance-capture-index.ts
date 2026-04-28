@@ -128,6 +128,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    packageScript: 'conformance:capture-staged-upload-targets',
+    scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
+    purpose: 'Representative stagedUploadsCreate target metadata for IMAGE, FILE, VIDEO, and MODEL_3D.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [`${CAPTURE_ROOT}staged-upload-targets-parity.json`],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     packageScript: 'conformance:capture-file-acknowledge-update-failed',
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
     purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
@@ -367,6 +377,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'inventory',
+    packageScript: 'conformance:capture-inventory-quantity-contracts-2026',
+    scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
+    purpose: 'Admin GraphQL 2026-04 inventory quantity mutation request contracts.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
+      'config/parity-specs/inventory-quantity-contracts-2026-04.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     packageScript: 'conformance:capture-markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
@@ -376,6 +399,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Read/validation oriented; do not run market lifecycle writes without disposable setup and cleanup.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'markets',
+    packageScript: 'conformance:capture-product-contextual-pricing',
+    scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
+    purpose: 'Product and variant contextual pricing reads tied to Markets price-list fixed prices.',
+    requiredAuthScopes: ['read_markets', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-contextual-pricing-price-list-parity.json`,
+      'config/parity-specs/product-contextual-pricing-price-list-read.json',
+    ],
+    cleanupBehavior: 'Adds a disposable product fixed price to the Mexico price list, then deletes it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'marketing',

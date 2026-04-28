@@ -37,6 +37,7 @@ Local staged mutations:
 - `orderInvoiceSend`
 - `taxSummaryCreate`
 - `orderCancel`
+- `orderDelete`
 - `fulfillmentCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
@@ -68,6 +69,9 @@ Local staged mutations:
 - `draftOrderCreateFromOrder`
 - `orderEditBegin`
 - `orderEditAddVariant`
+- `orderEditAddCustomItem`
+- `orderEditAddLineItemDiscount`
+- `orderEditRemoveDiscount`
 - `orderEditSetQuantity`
 - `orderEditCommit`
 
@@ -98,7 +102,8 @@ Local staged mutations:
 - Local `Order.paymentTerms` and `DraftOrder.paymentTerms` reads preserve `null` for orders/drafts without terms. When normalized payment terms are present in the local graph, the serializer exposes selected scalar fields plus the nested `paymentSchedules` connection with shared cursor/window/pageInfo handling and schedule money fields (`amount`, `balanceDue`, `totalBalance`). The standalone `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` roots now stage against this same order/draft-order graph, so downstream reads observe creates, updates, and deletes immediately without runtime Shopify writes. The executable 2026-04 parity fixture uses a disposable draft order and confirms NET `dueAt` derivation, replacement schedule IDs on update, and null downstream terms after delete.
 - Shopify normalizes draft-order shipping lines created with `priceWithCurrency` to `code: "custom"`, `custom: true`, and matching `originalPriceSet` / `discountedPriceSet` shop-money amounts. The local serializer mirrors that shape and uses `null` for absent shipping lines after duplicate/create-from-order flows.
 - The captured DraftOrder detail read surface does not select `note`; local mutation payloads and downstream local reads still preserve staged note values, but live detail parity keeps note out of the strict object contract until Shopify exposes a selectable note field for this surface.
-- Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The order-edit conformance anchors are the captured existing-order workflow specs plus executable single-root begin/add/set/commit parity slices backed by those same workflow fixtures, so stale access-scope-only plans should not be reintroduced as blockers.
+- Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. Current local staging covers variant additions, custom item additions, line-item discount add/remove, quantity edits, and shipping-line add/update/remove. The order-edit conformance anchors are the captured existing-order workflow specs, executable single-root begin/add/set/commit parity slices backed by those workflow fixtures, and the HAR-369 local-runtime residual edit/delete spec for roots that must not write to Shopify during runtime.
+- `orderDelete` stages an order tombstone locally. Downstream `order(id:)` returns `null`, and local `orders` / `ordersCount` omit the deleted order immediately. Repeated deletes return an `orderId` userError and do not append another staged-write log entry.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
   line items, while `returnCancel`, `returnClose`, and `returnReopen` update local return status. Top-level

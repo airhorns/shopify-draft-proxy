@@ -40,6 +40,9 @@ import type {
   OrderRecord,
   OrderRefundLineItemRecord,
   OrderRefundRecord,
+  OrderReverseDeliveryRecord,
+  OrderReverseFulfillmentOrderLineItemRecord,
+  OrderReverseFulfillmentOrderRecord,
   OrderReturnLineItemRecord,
   OrderReturnRecord,
   OrderShippingLineRecord,
@@ -544,8 +547,17 @@ function serializeDraftOrderShippingLine(
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
+      case 'id':
+        result[key] = orderShippingLine.id ?? null;
+        break;
       case 'title':
         result[key] = shippingLine.title;
+        break;
+      case 'price':
+        result[key] = serializeShopMoneySet(selection, shippingLine.originalPriceSet ?? null);
+        break;
+      case 'stagedStatus':
+        result[key] = orderShippingLine.stagedStatus ?? 'UNCHANGED';
         break;
       case 'code':
         result[key] = shippingLine.code;
@@ -1653,6 +1665,12 @@ function serializeOrderDiscountApplicationValue(
 
 export function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const currencyCode = lineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const unitPrice = parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount);
+  const totalDiscount = parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount);
+  const discountedUnitPrice = formatDecimalAmount(
+    Math.max(0, unitPrice - totalDiscount / Math.max(1, lineItem.quantity)),
+  );
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
@@ -1697,8 +1715,84 @@ export function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLine
       case 'originalUnitPriceSet':
         result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet ?? null);
         break;
+      case 'discountedUnitPriceSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          lineItem.discountedUnitPriceSet ?? makeOrderMoneyBag(discountedUnitPrice, currencyCode),
+        );
+        break;
+      case 'editableSubtotalSet':
+      case 'discountedTotalSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          makeOrderMoneyBag(
+            formatDecimalAmount(Math.max(0, unitPrice * lineItem.quantity - totalDiscount)),
+            currencyCode,
+          ),
+        );
+        break;
+      case 'uneditableSubtotalSet':
+        result[key] = serializeShopMoneySet(selection, normalizeZeroMoneyBag(currencyCode));
+        break;
+      case 'totalDiscountSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          lineItem.totalDiscountSet ?? normalizeZeroMoneyBag(currencyCode),
+        );
+        break;
+      case 'calculatedDiscountAllocations':
+      case 'discountAllocations':
+        result[key] = (lineItem.calculatedDiscountAllocations ?? []).map((allocation) =>
+          serializeCalculatedDiscountAllocation(selection, allocation),
+        );
+        break;
+      case 'hasStagedLineItemDiscount':
+        result[key] = (lineItem.calculatedDiscountAllocations ?? []).length > 0;
+        break;
+      case 'editableQuantity':
+      case 'editableQuantityBeforeChanges':
+        result[key] = lineItem.currentQuantity ?? lineItem.quantity;
+        break;
+      case 'restockable':
+      case 'restocking':
+        result[key] = false;
+        break;
+      case 'customAttributes':
+      case 'stagedChanges':
+        result[key] = [];
+        break;
+      case 'image':
+        result[key] = null;
+        break;
       case 'taxLines':
         result[key] = serializeOrderTaxLines(selection, lineItem.taxLines ?? []);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedDiscountAllocation(
+  field: FieldNode,
+  allocation: NonNullable<OrderLineItemRecord['calculatedDiscountAllocations']>[number],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+      case 'discountApplicationId':
+        result[key] = allocation.id;
+        break;
+      case 'allocatedAmountSet':
+      case 'amountSet':
+        result[key] = serializeShopMoneySet(selection, allocation.allocatedAmountSet);
+        break;
+      case 'description':
+        result[key] = allocation.description ?? null;
         break;
       default:
         result[key] = null;
@@ -2331,6 +2425,36 @@ export function listOrderReturns(orders: OrderRecord[]): Array<{ order: OrderRec
   );
 }
 
+export function listOrderReverseFulfillmentOrders(orders: OrderRecord[]): Array<{
+  order: OrderRecord;
+  orderReturn: OrderReturnRecord;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
+}> {
+  return listOrderReturns(orders).flatMap(({ order, orderReturn }) =>
+    (orderReturn.reverseFulfillmentOrders ?? []).map((reverseFulfillmentOrder) => ({
+      order,
+      orderReturn,
+      reverseFulfillmentOrder,
+    })),
+  );
+}
+
+export function listOrderReverseDeliveries(orders: OrderRecord[]): Array<{
+  order: OrderRecord;
+  orderReturn: OrderReturnRecord;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
+  reverseDelivery: OrderReverseDeliveryRecord;
+}> {
+  return listOrderReverseFulfillmentOrders(orders).flatMap(({ order, orderReturn, reverseFulfillmentOrder }) =>
+    (reverseFulfillmentOrder.reverseDeliveries ?? []).map((reverseDelivery) => ({
+      order,
+      orderReturn,
+      reverseFulfillmentOrder,
+      reverseDelivery,
+    })),
+  );
+}
+
 function compareFulfillmentOrderIds(leftId: string, rightId: string): number {
   const leftTail = Number.parseInt(leftId.split('/').at(-1) ?? '', 10);
   const rightTail = Number.parseInt(rightId.split('/').at(-1) ?? '', 10);
@@ -2655,6 +2779,336 @@ function serializeReturnLineItemsConnection(
   });
 }
 
+function serializeReverseFulfillmentOrderLineItem(
+  field: FieldNode,
+  lineItem: OrderReverseFulfillmentOrderLineItemRecord,
+  orderReturn: OrderReturnRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const returnLineItem =
+    (orderReturn.returnLineItems ?? []).find((candidate) => candidate.id === lineItem.returnLineItemId) ?? null;
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = lineItem.id;
+        break;
+      case 'totalQuantity':
+      case 'quantity':
+        result[key] = lineItem.totalQuantity;
+        break;
+      case 'remainingQuantity':
+        result[key] = lineItem.remainingQuantity;
+        break;
+      case 'fulfillmentLineItem':
+        result[key] = serializeOrderFulfillmentLineItem(selection, {
+          id: lineItem.fulfillmentLineItemId,
+          lineItemId: lineItem.lineItemId,
+          title: lineItem.title,
+          quantity: lineItem.totalQuantity,
+        });
+        break;
+      case 'returnLineItem':
+        result[key] = returnLineItem ? serializeReturnLineItem(selection, returnLineItem) : null;
+        break;
+      case 'dispositionType':
+        result[key] = lineItem.dispositionType ?? null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeReverseFulfillmentOrderLineItemsConnection(
+  field: FieldNode,
+  lineItems: OrderReverseFulfillmentOrderLineItemRecord[],
+  orderReturn: OrderReturnRecord,
+): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: lineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) => serializeReverseFulfillmentOrderLineItem(selection, lineItem, orderReturn),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
+function serializeReverseDeliveryTracking(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord,
+): Record<string, unknown> | null {
+  const tracking = reverseDelivery.tracking ?? null;
+  if (!tracking) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'number':
+      case 'trackingNumber':
+        result[key] = tracking.number ?? null;
+        break;
+      case 'url':
+      case 'trackingUrl':
+        result[key] = tracking.url ?? null;
+        break;
+      case 'company':
+      case 'carrierName':
+        result[key] = tracking.company ?? null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeReverseDeliveryLabel(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord,
+): Record<string, unknown> | null {
+  const label = reverseDelivery.label ?? null;
+  if (!label) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'publicFileUrl':
+      case 'url':
+        result[key] = label.publicFileUrl ?? null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeReverseDeliveryDeliverable(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ReverseDeliveryShippingDeliverable';
+        break;
+      case 'tracking':
+        result[key] = serializeReverseDeliveryTracking(selection, reverseDelivery);
+        break;
+      case 'label':
+        result[key] = serializeReverseDeliveryLabel(selection, reverseDelivery);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeReverseDeliveryLineItem(
+  field: FieldNode,
+  reverseDeliveryLineItem: OrderReverseDeliveryRecord['reverseDeliveryLineItems'][number],
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+  orderReturn: OrderReturnRecord,
+): Record<string, unknown> {
+  const reverseFulfillmentOrderLineItem =
+    reverseFulfillmentOrder.lineItems.find(
+      (lineItem) => lineItem.id === reverseDeliveryLineItem.reverseFulfillmentOrderLineItemId,
+    ) ?? null;
+  const result: Record<string, unknown> = {};
+
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = reverseDeliveryLineItem.id;
+        break;
+      case 'quantity':
+        result[key] = reverseDeliveryLineItem.quantity;
+        break;
+      case 'reverseFulfillmentOrderLineItem':
+        result[key] = reverseFulfillmentOrderLineItem
+          ? serializeReverseFulfillmentOrderLineItem(selection, reverseFulfillmentOrderLineItem, orderReturn)
+          : null;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+
+  return result;
+}
+
+function serializeReverseDeliveryLineItemsConnection(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+  orderReturn: OrderReturnRecord,
+): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: reverseDelivery.reverseDeliveryLineItems,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (lineItem) => lineItem.id,
+    serializeNode: (lineItem, selection) =>
+      serializeReverseDeliveryLineItem(selection, lineItem, reverseFulfillmentOrder, orderReturn),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
+export function serializeOrderReverseDelivery(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+  orderReturn: OrderReturnRecord,
+  order: OrderRecord,
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = reverseDelivery.id;
+        break;
+      case 'reverseFulfillmentOrder':
+        result[key] = serializeOrderReverseFulfillmentOrder(
+          selection,
+          reverseFulfillmentOrder,
+          orderReturn,
+          order,
+          variables,
+        );
+        break;
+      case 'reverseDeliveryLineItems':
+        result[key] = serializeReverseDeliveryLineItemsConnection(
+          selection,
+          reverseDelivery,
+          reverseFulfillmentOrder,
+          orderReturn,
+        );
+        break;
+      case 'deliverable':
+        result[key] = serializeReverseDeliveryDeliverable(selection, reverseDelivery);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeReverseDeliveriesConnection(
+  field: FieldNode,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+  orderReturn: OrderReturnRecord,
+  order: OrderRecord,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: reverseFulfillmentOrder.reverseDeliveries ?? [],
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (reverseDelivery) => reverseDelivery.id,
+    serializeNode: (reverseDelivery, selection) =>
+      serializeOrderReverseDelivery(selection, reverseDelivery, reverseFulfillmentOrder, orderReturn, order, variables),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
+export function serializeOrderReverseFulfillmentOrder(
+  field: FieldNode,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+  orderReturn: OrderReturnRecord,
+  order: OrderRecord,
+  variables: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = reverseFulfillmentOrder.id;
+        break;
+      case 'status':
+        result[key] = reverseFulfillmentOrder.status;
+        break;
+      case 'return':
+        result[key] = serializeOrderReturn(selection, orderReturn, variables, order);
+        break;
+      case 'order':
+        result[key] = serializeOrderNode(selection, order, variables);
+        break;
+      case 'lineItems':
+      case 'reverseFulfillmentOrderLineItems':
+        result[key] = serializeReverseFulfillmentOrderLineItemsConnection(
+          selection,
+          reverseFulfillmentOrder.lineItems,
+          orderReturn,
+        );
+        break;
+      case 'reverseDeliveries':
+        result[key] = serializeReverseDeliveriesConnection(
+          selection,
+          reverseFulfillmentOrder,
+          orderReturn,
+          order,
+          variables,
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeReverseFulfillmentOrdersConnection(
+  field: FieldNode,
+  reverseFulfillmentOrders: OrderReverseFulfillmentOrderRecord[],
+  orderReturn: OrderReturnRecord,
+  variables: Record<string, unknown>,
+  order: OrderRecord,
+): Record<string, unknown> {
+  return serializeConnection(field, {
+    items: reverseFulfillmentOrders,
+    hasNextPage: false,
+    hasPreviousPage: false,
+    getCursorValue: (reverseFulfillmentOrder) => reverseFulfillmentOrder.id,
+    serializeNode: (reverseFulfillmentOrder, selection) =>
+      serializeOrderReverseFulfillmentOrder(selection, reverseFulfillmentOrder, orderReturn, order, variables),
+    pageInfoOptions: {
+      includeCursors: false,
+    },
+  });
+}
+
 function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
   return serializeConnection(field, {
     items: [],
@@ -2706,13 +3160,39 @@ export function serializeOrderReturn(
         break;
       case 'exchangeLineItems':
       case 'refunds':
-      case 'reverseFulfillmentOrders':
         result[key] = serializeEmptyConnection(selection);
+        break;
+      case 'reverseFulfillmentOrders':
+        result[key] = order
+          ? serializeReverseFulfillmentOrdersConnection(
+              selection,
+              orderReturn.reverseFulfillmentOrders ?? [],
+              orderReturn,
+              variables,
+              order,
+            )
+          : serializeEmptyConnection(selection);
         break;
       case 'returnShippingFees':
         result[key] = [];
         break;
       case 'decline':
+        result[key] = orderReturn.decline
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((declineSelection) => {
+                const declineKey = getFieldResponseKey(declineSelection);
+                switch (declineSelection.name.value) {
+                  case 'reason':
+                    return [declineKey, orderReturn.decline?.reason ?? null];
+                  case 'note':
+                    return [declineKey, orderReturn.decline?.note ?? null];
+                  default:
+                    return [declineKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
       case 'requestApprovedAt':
       case 'suggestedFinancialOutcome':
         result[key] = null;
@@ -2754,6 +3234,10 @@ function serializeOrderShippingLinesConnection(
     getCursorValue: (_shippingLine, index) => `shipping-line:${index + 1}`,
     serializeNode: (shippingLine, selection) => serializeDraftOrderShippingLine(selection, shippingLine),
   });
+}
+
+function serializeCalculatedShippingLines(field: FieldNode, shippingLines: OrderShippingLineRecord[]): unknown[] {
+  return shippingLines.map((shippingLine) => serializeDraftOrderShippingLine(field, shippingLine));
 }
 
 function deriveOrderTotalShippingPriceSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
@@ -3021,6 +3505,23 @@ export function serializeCalculatedOrder(
           selection,
           calculatedOrder.lineItems.filter((lineItem) => lineItem.isAdded === true),
         );
+        break;
+      case 'addedDiscountApplications':
+        result[key] = serializeConnection(selection, {
+          items: calculatedOrder.lineItems.flatMap((lineItem) => lineItem.calculatedDiscountAllocations ?? []),
+          hasNextPage: false,
+          hasPreviousPage: false,
+          getCursorValue: (allocation) => allocation.id,
+          serializeNode: (allocation, allocationSelection) =>
+            serializeCalculatedDiscountAllocation(allocationSelection, allocation),
+          pageInfoOptions: { includeCursors: false },
+        });
+        break;
+      case 'shippingLines':
+        result[key] = serializeCalculatedShippingLines(selection, calculatedOrder.shippingLines);
+        break;
+      case 'subtotalLineItemsQuantity':
+        result[key] = calculatedOrder.lineItems.reduce((sum, lineItem) => sum + lineItem.quantity, 0);
         break;
       default:
         result[key] = serializeOrderNode(

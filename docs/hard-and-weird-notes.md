@@ -109,22 +109,26 @@ Practical rule:
 
 ### 5a. Inventory quantity mutation contracts drift by Admin API version
 
-The inventory quantity roots are especially version-sensitive. The checked-in local parity for
-`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` is anchored to
+The inventory quantity roots are especially version-sensitive. The broad checked-in local parity for
+`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` remains anchored to
 2025-01 fixture evidence, where `inventoryAdjustQuantities` accepts a plain mutation call and
 `inventorySetQuantities` uses `compareQuantity` / `ignoreCompareQuantity` style inputs.
 
-Shopify's current 2026-04 docs show two traps that should not be papered over by generic local
-staging:
+HAR-408 captured 2026-04 request-contract drift on `harry-test-heelo.myshopify.com`:
 
-- `inventoryAdjustQuantities` requires an `@idempotent` key in 2026-04.
-- `inventorySetQuantities` examples use `changeFromQuantity` rather than the older compare/ignore
-  fields.
+- `inventoryAdjustQuantities` requires `@idempotent(key:)` and each `InventoryChangeInput` includes
+  `changeFromQuantity`.
+- `inventorySetQuantities` also requires `@idempotent(key:)`, rejects `ignoreCompareQuantity` as an
+  undefined input field, and each `InventorySetQuantityInput` includes `changeFromQuantity`.
+- Missing `changeFromQuantity` fails as a top-level `INVALID_FIELD_ARGUMENTS` error before resolver
+  side effects.
+- Missing `@idempotent` fails as a top-level `BAD_REQUEST` error with `data.<root>: null` once the
+  submitted input shape is otherwise valid.
 
 Practical rule:
 
-- keep the existing implementation documented as 2025-01-backed inventory parity until a dedicated
-  2026-04 capture updates the request contract, validation branches, and route-version behavior.
+- keep lifecycle parity claims scoped to the older 2025-01 fixtures unless the specific branch is
+  covered by the 2026-04 contract fixture and route-version runtime tests.
 
 ## 6. Product update semantics are mode-sensitive
 
