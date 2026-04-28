@@ -2555,7 +2555,7 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- payment-adjacent guardrail: `orderCreateManualPayment` remains a captured access-denied branch that the runtime mirrors locally without passthrough, but it is not implemented operation support until Plus/manual-payment success semantics are captured and modeled.
+- payment-adjacent guardrail: `orderCreateManualPayment` now stages local manual-payment success for orders already present in proxy state, while still mirroring the captured access-denied branch for unhydrated/non-local orders without passthrough. Live success conformance remains blocked on the current credential because the available conformance shop reports `shop.plan.shopifyPlus: false`.
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 

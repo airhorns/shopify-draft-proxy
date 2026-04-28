@@ -114,7 +114,7 @@ const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
-const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['orderCreateManualPayment', 'taxSummaryCreate']);
+const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['taxSummaryCreate']);
 const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnCreate',
   'returnRequest',
@@ -613,6 +613,7 @@ const LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS = new Set([
   'orderClose',
   'orderOpen',
   'orderMarkAsPaid',
+  'orderCreateManualPayment',
   'orderCustomerSet',
   'orderCustomerRemove',
   'orderInvoiceSend',
@@ -655,7 +656,7 @@ const LIVE_HYBRID_ORDER_MUTATION_NOTES: Record<string, string> = {
   orderOpen: 'Locally staged orderOpen in live-hybrid mode for a synthetic/local order.',
   orderMarkAsPaid: 'Locally staged orderMarkAsPaid in live-hybrid mode for a synthetic/local order.',
   orderCreateManualPayment:
-    'Locally mirrored the captured orderCreateManualPayment access-denied branch without proxying the mutation upstream.',
+    'Locally staged orderCreateManualPayment in live-hybrid mode for a synthetic/local order, or mirrored the captured access-denied branch for unhydrated orders.',
   orderCustomerSet: 'Locally staged orderCustomerSet in live-hybrid mode for a synthetic/local order.',
   orderCustomerRemove: 'Locally staged orderCustomerRemove in live-hybrid mode for a synthetic/local order.',
   orderInvoiceSend: 'Locally handled orderInvoiceSend in live-hybrid mode without sending invoice email.',
