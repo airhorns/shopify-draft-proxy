@@ -20,12 +20,12 @@ captured scalar fields, nested contact/location/role connections, count objects,
 `mainContact`, and `defaultRole`. Singular unknown-ID reads return `null`, and
 empty snapshot catalogs return empty connections/count zero.
 
-### Mutation Boundaries
+### Supported mutations
 
-The B2B mutation roots are inventoried in `config/operation-registry.json` under
-the `b2b` domain, but remain `implemented: false`. They must not be treated as
-supported until local lifecycle behavior and downstream read-after-write effects
-are modeled:
+HAR-363 promotes B2B lifecycle roots from registry blockers to local staging.
+Supported mutations synthesize Shopify-like payloads, append the original raw
+GraphQL request to the mutation log for commit replay, and do not write to
+Shopify at runtime:
 
 - company lifecycle: `companyCreate`, `companyUpdate`, `companyDelete`,
   `companiesDelete`
@@ -43,12 +43,27 @@ are modeled:
   `companyLocationAssignStaffMembers`,
   `companyLocationRemoveStaffMembers`,
   `companyLocationTaxSettingsUpdate`
-- side effects: `companyContactSendWelcomeEmail`
 
-The registry entries are coverage blockers, not passthrough commitments.
-Runtime support should only be promoted when the proxy can stage the mutation
-locally without writing to Shopify and subsequent B2B reads observe the staged
-state.
+The staged model stores companies, contacts, system contact roles, locations,
+role assignments, location staff assignments, address payloads, and location tax
+settings in the normalized in-memory B2B buckets. Subsequent `company`,
+`companyContact`, `companyLocation`, `companyLocations`, `companies`, and
+`companiesCount` reads observe the staged graph, including deletions.
+
+`companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
+effect rather than durable B2B state, so runtime passthrough remains the
+unknown/unsupported escape hatch until a faithful no-send model exists.
+
+### Validation and exclusions
+
+Local guardrails cover the captured no-side-effect branches for blank company
+names and unknown company/contact/location IDs. These return resolver-level
+`userErrors` without appending commit-log work.
+
+The local implementation intentionally models durable lifecycle state rather
+than every Shopify-side integration. Customer and staff member references are
+stored by ID for downstream B2B reads, but the proxy does not synthesize broader
+customer or staff catalog side effects from B2B assignment mutations.
 
 ## Historical and developer notes
 
@@ -56,10 +71,16 @@ state.
 
 - Live capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-roots-read.json`
+- Live lifecycle capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b-company-create-lifecycle.json`
 - Safe mutation validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-mutation-validation.json`
 - Strict parity scenario: `config/parity-specs/b2b-company-roots-read.json`
+- Lifecycle parity scenario:
+  `config/parity-specs/b2b-company-create-lifecycle.json`
 - Runtime coverage: `tests/integration/b2b-company-query-shapes.test.ts`
+- Lifecycle runtime coverage:
+  `tests/integration/b2b-company-lifecycle-flow.test.ts`
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 
@@ -70,4 +91,10 @@ company/contact/role/location detail roots.
 The checked-in validation capture records safe unknown-ID branches for
 `companyUpdate`, `companyLocationUpdate`, and `companyContactUpdate`. Shopify
 returned `RESOURCE_NOT_FOUND` userErrors without mutating the store. These
-guardrails are evidence for future lifecycle work, not local mutation support.
+guardrails now back local validation behavior for the promoted lifecycle model.
+
+The HAR-363 live lifecycle capture used API `2026-04` against
+`harry-test-heelo.myshopify.com`. `corepack pnpm conformance:probe` reported a
+valid app token and the store accepted `companyCreate`; the recorder deleted the
+disposable company with `companyDelete(id:)` after capturing the immediate
+downstream read.

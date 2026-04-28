@@ -559,21 +559,45 @@ describe('customer query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('logs sensitive customer payment method mutations as unsupported passthrough boundaries', async () => {
-    const upstreamBody = {
-      data: {
-        customerPaymentMethodRevoke: {
-          revokedCustomerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/remote',
-          userErrors: [],
-        },
+  it('stages customer payment method revoke locally and preserves revoked filtering', async () => {
+    store.upsertBaseCustomers([
+      {
+        id: 'gid://shopify/Customer/8801',
+        firstName: 'Payment',
+        lastName: 'Holder',
+        displayName: 'Payment Holder',
+        email: 'payment-holder@example.com',
+        legacyResourceId: '8801',
+        locale: 'en',
+        note: null,
+        canDelete: true,
+        verifiedEmail: true,
+        taxExempt: false,
+        state: 'ENABLED',
+        tags: [],
+        numberOfOrders: 0,
+        amountSpent: { amount: '0.0', currencyCode: 'USD' },
+        defaultEmailAddress: { emailAddress: 'payment-holder@example.com' },
+        defaultPhoneNumber: null,
+        defaultAddress: null,
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
-    };
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify(upstreamBody), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+    ]);
+    store.upsertBaseCustomerPaymentMethods([
+      {
+        id: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+        customerId: 'gid://shopify/Customer/8801',
+        revokedAt: null,
+        revokedReason: null,
+        instrument: null,
+        subscriptionContracts: [],
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customerPaymentMethodRevoke should not hit upstream fetch');
+    });
 
     const app = createApp(config).callback();
     const response = await request(app)
@@ -585,34 +609,58 @@ describe('customer query shapes', () => {
             userErrors { field message }
           }
         }`,
-        variables: { id: 'gid://shopify/CustomerPaymentMethod/remote' },
+        variables: { id: 'gid://shopify/CustomerPaymentMethod/local-payment-method' },
       });
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual(upstreamBody);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(response.body).toEqual({
+      data: {
+        customerPaymentMethodRevoke: {
+          revokedCustomerPaymentMethodId: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+          userErrors: [],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query RevokedPaymentMethod($id: ID!) {
+          hidden: customerPaymentMethod(id: $id) { id }
+          shown: customerPaymentMethod(id: $id, showRevoked: true) {
+            id
+            revokedAt
+            revokedReason
+          }
+        }`,
+        variables: { id: 'gid://shopify/CustomerPaymentMethod/local-payment-method' },
+      });
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body).toEqual({
+      data: {
+        hidden: null,
+        shown: {
+          id: 'gid://shopify/CustomerPaymentMethod/local-payment-method',
+          revokedAt: '2024-01-01T00:00:00.000Z',
+          revokedReason: 'CUSTOMER_REVOKED',
+        },
+      },
+    });
 
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.status).toBe(200);
     expect(logResponse.body.entries).toHaveLength(1);
     expect(logResponse.body.entries[0]).toMatchObject({
-      operationName: 'RevokeCustomerPaymentMethod',
-      status: 'proxied',
+      operationName: 'customerPaymentMethodRevoke',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         rootFields: ['customerPaymentMethodRevoke'],
         primaryRootField: 'customerPaymentMethodRevoke',
-        registeredOperation: {
-          name: 'customerPaymentMethodRevoke',
-          domain: 'payments',
-          execution: 'stage-locally',
-          implemented: false,
-        },
       },
     });
-    expect(logResponse.body.entries[0].interpreted.registeredOperation.supportNotes).toContain(
-      'write_customer_payment_methods',
-    );
+    expect(logResponse.body.entries[0].notes).toContain('customer payment-method draft store');
   });
 
   it('serves customerByIdentifier by id, email, and phone from snapshot state without trusting the operation name', async () => {

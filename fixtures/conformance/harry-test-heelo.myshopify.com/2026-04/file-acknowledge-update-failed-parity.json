@@ -1,0 +1,349 @@
+{
+  "notes": "Shopify Admin GraphQL 2026-04 expects fileAcknowledgeUpdateFailed(fileIds:) and returns files plus userErrors. A safely staged bad-source fileUpdate stayed READY with a null image in this capture and could be acknowledged successfully; a FAILED file produced by bad-source fileCreate returned NON_READY_STATE, and deleted/unknown IDs returned FILE_DOES_NOT_EXIST.",
+  "success": {
+    "setup": {
+      "create": {
+        "variables": {
+          "files": [
+            {
+              "contentType": "IMAGE",
+              "originalSource": "https://placehold.co/600x400/png",
+              "alt": "HAR-375 acknowledgement ready seed 1777343690090"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "fileCreate": {
+              "files": [
+                {
+                  "id": "gid://shopify/MediaImage/43624537260338",
+                  "alt": "HAR-375 acknowledgement ready seed 1777343690090",
+                  "createdAt": "2026-04-28T02:34:50Z",
+                  "fileStatus": "UPLOADED",
+                  "image": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readyFileRead": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43624537260338",
+            "fileStatus": "READY"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "update": {
+        "variables": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43624537260338",
+              "alt": "HAR-375 acknowledgement updated 1777343690090",
+              "originalSource": "https://example.com/not-an-image.jpg"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "fileUpdate": {
+              "files": [
+                {
+                  "id": "gid://shopify/MediaImage/43624537260338",
+                  "alt": "HAR-375 acknowledgement updated 1777343690090",
+                  "fileStatus": "READY",
+                  "image": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "readAfterUpdateAttempt": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43624537260338",
+            "fileStatus": "READY"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "mutation": {
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/43624537260338"]
+      },
+      "response": {
+        "data": {
+          "fileAcknowledgeUpdateFailed": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43624537260338",
+                "alt": "HAR-375 acknowledgement updated 1777343690090",
+                "fileStatus": "READY",
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777343692"
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "readAfterAcknowledge": {
+      "data": {
+        "node": {
+          "id": "gid://shopify/MediaImage/43624537260338",
+          "fileStatus": "READY"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "unknown": {
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/999999999999999"]
+      },
+      "response": {
+        "data": {
+          "fileAcknowledgeUpdateFailed": {
+            "files": null,
+            "userErrors": [
+              {
+                "field": ["fileIds"],
+                "message": "File id gid://shopify/MediaImage/999999999999999 does not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "failedCreateNonReady": {
+      "create": {
+        "variables": {
+          "files": [
+            {
+              "contentType": "IMAGE",
+              "originalSource": "https://example.com/not-an-image.jpg",
+              "alt": "HAR-375 acknowledgement failed create 1777343690090"
+            }
+          ]
+        },
+        "response": {
+          "data": {
+            "fileCreate": {
+              "files": [
+                {
+                  "id": "gid://shopify/MediaImage/43624537358642",
+                  "alt": "HAR-375 acknowledgement failed create 1777343690090",
+                  "createdAt": "2026-04-28T02:34:53Z",
+                  "fileStatus": "UPLOADED",
+                  "image": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "failedCreateRead": {
+        "data": {
+          "node": {
+            "id": "gid://shopify/MediaImage/43624537358642",
+            "fileStatus": "FAILED"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "mutation": {
+        "variables": {
+          "fileIds": ["gid://shopify/MediaImage/43624537358642"]
+        },
+        "response": {
+          "data": {
+            "fileAcknowledgeUpdateFailed": {
+              "files": null,
+              "userErrors": [
+                {
+                  "field": ["fileIds"],
+                  "message": "File with id gid://shopify/MediaImage/43624537358642 is not in the READY state.",
+                  "code": "NON_READY_STATE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleted": {
+      "delete": {
+        "variables": {
+          "fileIds": ["gid://shopify/MediaImage/43624537260338"]
+        },
+        "response": {
+          "data": {
+            "fileDelete": {
+              "deletedFileIds": ["gid://shopify/MediaImage/43624537260338"],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "variables": {
+          "fileIds": ["gid://shopify/MediaImage/43624537260338"]
+        },
+        "response": {
+          "data": {
+            "fileAcknowledgeUpdateFailed": {
+              "files": null,
+              "userErrors": [
+                {
+                  "field": ["fileIds"],
+                  "message": "File id gid://shopify/MediaImage/43624537260338 does not exist.",
+                  "code": "FILE_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

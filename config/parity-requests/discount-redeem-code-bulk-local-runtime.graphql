@@ -1,0 +1,30 @@
+mutation DiscountRedeemCodeBulkLocal($discountId: ID!, $codes: [String!]!, $ids: [ID!]!) {
+  addCodes: discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+    bulkCreation {
+      id
+      done
+      codesCount
+      importedCount
+      failedCount
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  deleteCodes: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {
+    job {
+      id
+      done
+      query
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -1,0 +1,54 @@
+mutation FulfillmentOrderMergeLifecycle($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+  fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+    fulfillmentOrderMerges {
+      fulfillmentOrder {
+        id
+        status
+        requestStatus
+        fulfillAt
+        fulfillBy
+        updatedAt
+        supportedActions {
+          action
+        }
+        assignedLocation {
+          name
+          location {
+            id
+            name
+          }
+        }
+        fulfillmentHolds {
+          id
+          handle
+          reason
+          reasonNotes
+          displayReason
+          heldByApp {
+            id
+            title
+          }
+          heldByRequestingApp
+        }
+        lineItems(first: 5) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+              quantity
+              fulfillableQuantity
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

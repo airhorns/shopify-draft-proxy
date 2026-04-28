@@ -27,6 +27,8 @@ const marketingMutationRoots = [
   'marketingEngagementsDelete',
 ] as const;
 const implementedMarketingMutationRoots = [
+  'marketingActivityCreate',
+  'marketingActivityUpdate',
   'marketingActivityCreateExternal',
   'marketingActivityUpdateExternal',
   'marketingActivityUpsertExternal',
@@ -35,7 +37,7 @@ const implementedMarketingMutationRoots = [
   'marketingEngagementCreate',
   'marketingEngagementsDelete',
 ] as const;
-const scaffoldOnlyMarketingMutationRoots = ['marketingActivityCreate', 'marketingActivityUpdate'] as const;
+const scaffoldOnlyMarketingMutationRoots = [] as const;
 
 const segmentQueryRoots = [
   'segment',
@@ -253,9 +255,22 @@ describe('Marketing and segment registry scaffold', () => {
         rootFields: ['marketingActivityCreate'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
+      domain: 'marketing',
+      execution: 'stage-locally',
       operationName: 'MarketingActivityCreate',
+      type: 'mutation',
+    });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'MarketingActivityUpdate',
+        rootFields: ['marketingActivityUpdate'],
+      }),
+    ).toEqual({
+      domain: 'marketing',
+      execution: 'stage-locally',
+      operationName: 'MarketingActivityUpdate',
       type: 'mutation',
     });
 

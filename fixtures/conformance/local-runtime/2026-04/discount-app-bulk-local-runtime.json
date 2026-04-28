@@ -1,0 +1,388 @@
+{
+  "fixtureKind": "local-runtime-discount-app-bulk",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-04-28T02:20:00.000Z",
+  "summary": "Executable local parity fixture for HAR-366 app-managed discounts and discount bulk jobs. Live app-discount creation remains blocked until the disposable conformance app includes a discount Function extension.",
+  "seedShopifyFunctions": [
+    {
+      "id": "gid://shopify/ShopifyFunction/discount-local",
+      "title": "Local volume discount",
+      "handle": "discount-local",
+      "apiType": "DISCOUNT",
+      "description": "Captured local Function metadata",
+      "appKey": "app-key-366"
+    }
+  ],
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/366001",
+      "codeDiscount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-366 code fixture",
+        "status": "EXPIRED",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "createdAt": "2026-04-25T20:00:00Z",
+        "updatedAt": "2026-04-25T20:00:00Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/366001",
+              "code": "HAR366BASE",
+              "asyncUsageCount": 0
+            }
+          ]
+        },
+        "context": {
+          "__typename": "DiscountBuyerSelectionAll",
+          "all": "ALL"
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/DiscountCodeNode/366002",
+      "codeDiscount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-366 code fixture active",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "createdAt": "2026-04-25T20:00:00Z",
+        "updatedAt": "2026-04-25T20:00:00Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/366002",
+              "code": "HAR366ACTIVE",
+              "asyncUsageCount": 0
+            }
+          ]
+        },
+        "context": {
+          "__typename": "DiscountBuyerSelectionAll",
+          "all": "ALL"
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/DiscountAutomaticNode/366003",
+      "automaticDiscount": {
+        "__typename": "DiscountAutomaticBasic",
+        "title": "HAR-366 automatic fixture",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "createdAt": "2026-04-25T20:00:00Z",
+        "updatedAt": "2026-04-25T20:00:00Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "__typename": "DiscountBuyerSelectionAll",
+          "all": "ALL"
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/DiscountCodeNode/366004",
+      "codeDiscount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-366 redeem bulk fixture",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "createdAt": "2026-04-25T20:00:00Z",
+        "updatedAt": "2026-04-25T20:00:00Z",
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/366004",
+              "code": "HAR366REDEEM",
+              "asyncUsageCount": 0
+            }
+          ]
+        },
+        "context": {
+          "__typename": "DiscountBuyerSelectionAll",
+          "all": "ALL"
+        }
+      }
+    }
+  ],
+  "create": {
+    "variables": {
+      "codeInput": {
+        "title": "HAR-366 code app",
+        "code": "HAR366APP",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local",
+        "usageLimit": 10,
+        "combinesWith": {
+          "orderDiscounts": true,
+          "productDiscounts": false,
+          "shippingDiscounts": true
+        }
+      },
+      "automaticInput": {
+        "title": "HAR-366 automatic app",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local",
+        "recurringCycleLimit": 0
+      }
+    },
+    "response": {
+      "data": {
+        "discountCodeAppCreate": {
+          "codeAppDiscount": {
+            "__typename": "DiscountCodeApp",
+            "discountId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "title": "HAR-366 code app",
+            "status": "ACTIVE",
+            "usageLimit": 10,
+            "combinesWith": {
+              "orderDiscounts": true,
+              "productDiscounts": false,
+              "shippingDiscounts": true
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "code": "HAR366APP"
+                }
+              ]
+            },
+            "appDiscountType": {
+              "appKey": "app-key-366",
+              "functionId": "discount-local",
+              "title": "Local volume discount",
+              "description": "Captured local Function metadata"
+            }
+          },
+          "userErrors": []
+        },
+        "discountAutomaticAppCreate": {
+          "automaticAppDiscount": {
+            "__typename": "DiscountAutomaticApp",
+            "discountId": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+            "title": "HAR-366 automatic app",
+            "status": "ACTIVE",
+            "recurringCycleLimit": 0,
+            "appDiscountType": {
+              "appKey": "app-key-366",
+              "functionId": "discount-local",
+              "title": "Local volume discount",
+              "description": "Captured local Function metadata"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "update": {
+    "variables": {
+      "codeInput": {
+        "title": "HAR-366 code app updated",
+        "code": "HAR366UP",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local"
+      },
+      "automaticInput": {
+        "title": "HAR-366 automatic app updated",
+        "startsAt": "2024-01-01T00:00:00.000Z",
+        "functionHandle": "discount-local",
+        "recurringCycleLimit": 2
+      }
+    },
+    "response": {
+      "data": {
+        "discountCodeAppUpdate": {
+          "codeAppDiscount": {
+            "discountId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "title": "HAR-366 code app updated",
+            "codes": {
+              "nodes": [
+                {
+                  "code": "HAR366UP"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        },
+        "discountAutomaticAppUpdate": {
+          "automaticAppDiscount": {
+            "discountId": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+            "title": "HAR-366 automatic app updated",
+            "recurringCycleLimit": 2
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "bulkJobs": {
+    "variables": {
+      "activateIds": ["gid://shopify/DiscountCodeNode/366001"],
+      "deactivateIds": ["gid://shopify/DiscountCodeNode/366001"],
+      "deleteCodeIds": ["gid://shopify/DiscountCodeNode/366002"],
+      "deleteAutomaticIds": ["gid://shopify/DiscountAutomaticNode/366003"]
+    },
+    "response": {
+      "data": {
+        "activate": {
+          "job": {
+            "id": "gid://shopify/Job/4?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": null
+          },
+          "userErrors": []
+        },
+        "deactivate": {
+          "job": {
+            "id": "gid://shopify/Job/5?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": null
+          },
+          "userErrors": []
+        },
+        "deleteCode": {
+          "job": {
+            "id": "gid://shopify/Job/6?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": null
+          },
+          "userErrors": []
+        },
+        "deleteAutomatic": {
+          "job": {
+            "id": "gid://shopify/Job/7?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": null
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "redeemCodeBulk": {
+    "variables": {
+      "discountId": "gid://shopify/DiscountCodeNode/366004",
+      "codes": ["HAR366ADD1", "HAR366ADD2"],
+      "ids": ["gid://shopify/DiscountRedeemCode/366004"]
+    },
+    "response": {
+      "data": {
+        "addCodes": {
+          "bulkCreation": {
+            "id": "gid://shopify/DiscountRedeemCodeBulkCreation/8?shopify-draft-proxy=synthetic",
+            "done": true,
+            "codesCount": 2,
+            "importedCount": 2,
+            "failedCount": 0
+          },
+          "userErrors": []
+        },
+        "deleteCodes": {
+          "job": {
+            "id": "gid://shopify/Job/11?shopify-draft-proxy=synthetic",
+            "done": true,
+            "query": null
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "response": {
+      "data": {
+        "codeDiscountNode": {
+          "codeDiscount": {
+            "title": "HAR-366 code app updated",
+            "appDiscountType": {
+              "functionId": "discount-local"
+            },
+            "codes": {
+              "nodes": [
+                {
+                  "code": "HAR366UP"
+                }
+              ]
+            }
+          }
+        },
+        "automaticDiscountNode": {
+          "automaticDiscount": {
+            "title": "HAR-366 automatic app updated",
+            "recurringCycleLimit": 2,
+            "appDiscountType": {
+              "functionId": "discount-local"
+            }
+          }
+        },
+        "active": {
+          "count": 3,
+          "precision": "EXACT"
+        },
+        "expired": {
+          "count": 1,
+          "precision": "EXACT"
+        },
+        "deletedCode": null,
+        "deletedAutomatic": null,
+        "redeemDiscount": {
+          "codeDiscount": {
+            "codes": {
+              "nodes": [
+                {
+                  "code": "HAR366ADD1"
+                },
+                {
+                  "code": "HAR366ADD2"
+                }
+              ]
+            },
+            "codesCount": {
+              "count": 2,
+              "precision": "EXACT"
+            }
+          }
+        },
+        "removedRedeemCode": null
+      }
+    }
+  },
+  "liveBlockers": [
+    "The checked-in conformance app currently has payment-customization and publication-target extensions, but no discount Function extension. Live app-discount create/update success capture is blocked until a disposable discount Function extension is added, deployed, and installed for the test shop."
+  ]
+}

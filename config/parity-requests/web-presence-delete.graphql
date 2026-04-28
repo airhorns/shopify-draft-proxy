@@ -1,0 +1,10 @@
+mutation WebPresenceDeleteParityDelete($id: ID!) {
+  webPresenceDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
