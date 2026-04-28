@@ -2297,6 +2297,9 @@ describe('product draft flow', () => {
                   }
                 }
               }
+              shop {
+                publicationCount
+              }
               userErrors {
                 field
                 message
@@ -2320,6 +2323,9 @@ describe('product draft flow', () => {
           precision: 'EXACT',
         },
       },
+      shop: {
+        publicationCount: 1,
+      },
       userErrors: [],
     });
 
@@ -2338,6 +2344,9 @@ describe('product draft flow', () => {
                     precision
                   }
                 }
+              }
+              shop {
+                publicationCount
               }
               userErrors {
                 field
@@ -2362,6 +2371,9 @@ describe('product draft flow', () => {
           precision: 'EXACT',
         },
       },
+      shop: {
+        publicationCount: 0,
+      },
       userErrors: [],
     });
 
@@ -2376,6 +2388,9 @@ describe('product draft flow', () => {
                   id
                   publishedOnCurrentPublication
                 }
+              }
+              shop {
+                publicationCount
               }
               userErrors {
                 field
@@ -2393,6 +2408,9 @@ describe('product draft flow', () => {
         id: productId,
         publishedOnCurrentPublication: true,
       },
+      shop: {
+        publicationCount: 1,
+      },
       userErrors: [],
     });
 
@@ -2407,6 +2425,9 @@ describe('product draft flow', () => {
                   id
                   publishedOnCurrentPublication
                 }
+              }
+              shop {
+                publicationCount
               }
               userErrors {
                 field
@@ -2423,6 +2444,9 @@ describe('product draft flow', () => {
       publishable: {
         id: productId,
         publishedOnCurrentPublication: false,
+      },
+      shop: {
+        publicationCount: 0,
       },
       userErrors: [],
     });
