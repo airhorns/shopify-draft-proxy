@@ -7,6 +7,8 @@ import {
   findDraftOrderTagById,
   listOrderFulfillmentOrders,
   listOrderFulfillments,
+  listOrderReverseDeliveries,
+  listOrderReverseFulfillmentOrders,
   listOrderReturns,
   prepareTopLevelFulfillmentOrders,
   serializeAbandonedCheckoutsConnection,
@@ -22,6 +24,8 @@ import {
   serializeOrderFulfillmentOrder,
   serializeOrderFulfillmentOrdersConnection,
   serializeOrderNode,
+  serializeOrderReverseDelivery,
+  serializeOrderReverseFulfillmentOrder,
   serializeOrderReturn,
   serializeOrdersConnection,
   serializeOrdersCount,
@@ -39,6 +43,8 @@ export function handleOrderQuery(
   const fulfillments = listOrderFulfillments(orders);
   const fulfillmentOrders = listOrderFulfillmentOrders(orders);
   const orderReturns = listOrderReturns(orders);
+  const reverseFulfillmentOrders = listOrderReverseFulfillmentOrders(orders);
+  const reverseDeliveries = listOrderReverseDeliveries(orders);
   const searchExtensions: OrderSearchExtensionEntry[] = [];
 
   for (const field of getRootFields(document)) {
@@ -91,6 +97,37 @@ export function handleOrderQuery(
         const id = readNullableStringArgument(field, 'id', variables);
         const match = id ? (orderReturns.find((candidate) => candidate.orderReturn.id === id) ?? null) : null;
         data[key] = match ? serializeOrderReturn(field, match.orderReturn, variables, match.order) : null;
+        break;
+      }
+      case 'reverseFulfillmentOrder': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const match = id
+          ? (reverseFulfillmentOrders.find((candidate) => candidate.reverseFulfillmentOrder.id === id) ?? null)
+          : null;
+        data[key] = match
+          ? serializeOrderReverseFulfillmentOrder(
+              field,
+              match.reverseFulfillmentOrder,
+              match.orderReturn,
+              match.order,
+              variables,
+            )
+          : null;
+        break;
+      }
+      case 'reverseDelivery': {
+        const id = readNullableStringArgument(field, 'id', variables);
+        const match = id ? (reverseDeliveries.find((candidate) => candidate.reverseDelivery.id === id) ?? null) : null;
+        data[key] = match
+          ? serializeOrderReverseDelivery(
+              field,
+              match.reverseDelivery,
+              match.reverseFulfillmentOrder,
+              match.orderReturn,
+              match.order,
+              variables,
+            )
+          : null;
         break;
       }
       case 'fulfillmentOrders':

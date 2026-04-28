@@ -1,0 +1,28 @@
+mutation RemoveFromReturn($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
+  removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
+    return {
+      id
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          lineItems(first: 5) {
+            nodes {
+              totalQuantity
+              remainingQuantity
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

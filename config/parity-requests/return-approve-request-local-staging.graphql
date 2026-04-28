@@ -1,0 +1,36 @@
+mutation ReturnApproveRequest($input: ReturnApproveRequestInput!) {
+  returnApproveRequest(input: $input) {
+    return {
+      id
+      status
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              id
+              totalQuantity
+              remainingQuantity
+              returnLineItem {
+                id
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
