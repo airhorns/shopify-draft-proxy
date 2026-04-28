@@ -89,6 +89,9 @@ describe('webhook subscription conformance fixture', () => {
   });
 
   it('keeps request files aligned with the captured root-operation surface', () => {
+    expect(readText('scripts/capture-webhook-subscription-conformance.ts')).toContain(
+      "path.join('config', 'parity-requests', 'webhooks')",
+    );
     expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql')).toEqual([
       'webhookSubscriptions',
       'webhookSubscriptionsCount',

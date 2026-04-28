@@ -22,7 +22,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'webhooks');
 const outputPath = path.join(outputDir, 'webhook-subscription-conformance.json');
 
-const requestDir = path.join('config', 'parity-requests');
+const requestDir = path.join('config', 'parity-requests', 'webhooks');
 const catalogRequestPath = path.join(requestDir, 'webhook-subscription-catalog-read.graphql');
 const catalogVariablesPath = path.join(requestDir, 'webhook-subscription-catalog-read.variables.json');
 const detailRequestPath = path.join(requestDir, 'webhook-subscription-detail-read.graphql');

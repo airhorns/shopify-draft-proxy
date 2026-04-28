@@ -622,6 +622,71 @@ describe('webhook subscription mutation flow', () => {
       ],
     });
 
+    const missingCreateTopicResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingCreateWebhookTopic {
+          webhookSubscriptionCreate(webhookSubscription: { uri: "https://example.com/no-topic" }) {
+            webhookSubscription {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+      });
+
+    expect(missingCreateTopicResponse.body).toEqual({
+      errors: [
+        {
+          message: "Field 'webhookSubscriptionCreate' is missing required arguments: topic",
+          path: ['mutation', 'webhookSubscriptionCreate'],
+          extensions: {
+            code: 'missingRequiredArguments',
+            className: 'Field',
+            name: 'webhookSubscriptionCreate',
+            arguments: 'topic',
+          },
+        },
+      ],
+    });
+
+    const nullUpdateInputResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NullUpdateWebhookInput($id: ID!) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: null) {
+            webhookSubscription {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/WebhookSubscription/999999999999',
+        },
+      });
+
+    expect(nullUpdateInputResponse.body).toEqual({
+      errors: [
+        {
+          message:
+            "Argument 'webhookSubscription' on Field 'webhookSubscriptionUpdate' has an invalid value (null). Expected type 'WebhookSubscriptionInput!'.",
+          path: ['mutation', 'webhookSubscriptionUpdate', 'webhookSubscription'],
+          extensions: {
+            code: 'argumentLiteralsIncompatible',
+            typeName: 'Field',
+            argumentName: 'webhookSubscription',
+          },
+        },
+      ],
+    });
+
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries).toEqual([]);
     const stateResponse = await request(app).get('/__meta/state');

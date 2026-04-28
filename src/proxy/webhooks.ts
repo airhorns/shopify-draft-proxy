@@ -100,6 +100,48 @@ function buildMissingVariableError(variableName: string, variableType: string): 
   };
 }
 
+type RequiredArgumentSpec = {
+  name: string;
+  expectedType: string;
+};
+
+function validateRequiredFieldArguments(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  operationName: string,
+  requiredArguments: RequiredArgumentSpec[],
+): Record<string, unknown>[] {
+  const missingArgumentNames: string[] = [];
+  const errors: Record<string, unknown>[] = [];
+
+  for (const requiredArgument of requiredArguments) {
+    const argument = field.arguments?.find((candidate) => candidate.name.value === requiredArgument.name) ?? null;
+    if (!argument) {
+      missingArgumentNames.push(requiredArgument.name);
+      continue;
+    }
+
+    if (argument.value.kind === Kind.NULL) {
+      errors.push(buildNullArgumentError(operationName, requiredArgument.name, requiredArgument.expectedType));
+      continue;
+    }
+
+    if (argument.value.kind === Kind.VARIABLE) {
+      const variableName = argument.value.name.value;
+      const value = variables[variableName];
+      if (value === null || value === undefined) {
+        errors.push(buildMissingVariableError(variableName, requiredArgument.expectedType));
+      }
+    }
+  }
+
+  if (missingArgumentNames.length > 0) {
+    errors.unshift(buildMissingRequiredArgumentError(operationName, missingArgumentNames.join(', ')));
+  }
+
+  return errors;
+}
+
 function readWebhookSubscriptionInput(args: Record<string, unknown>): Record<string, unknown> | null {
   const input = args['webhookSubscription'];
   return isPlainObject(input) ? input : null;
@@ -230,7 +272,19 @@ function handleWebhookSubscriptionCreate(
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): { payload: unknown; stagedResourceIds: string[] } {
+): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
+  const validationErrors = validateRequiredFieldArguments(field, variables, 'webhookSubscriptionCreate', [
+    { name: 'topic', expectedType: 'WebhookSubscriptionTopic!' },
+    { name: 'webhookSubscription', expectedType: 'WebhookSubscriptionInput!' },
+  ]);
+  if (validationErrors.length > 0) {
+    return {
+      payload: null,
+      stagedResourceIds: [],
+      errors: validationErrors,
+    };
+  }
+
   const args = getFieldArguments(field, variables);
   const input = readWebhookSubscriptionInput(args);
   const errors: WebhookSubscriptionUserError[] = [];
@@ -256,6 +310,7 @@ function handleWebhookSubscriptionCreate(
       fragments,
     ),
     stagedResourceIds: webhookSubscription ? [webhookSubscription.id] : [],
+    errors: [],
   };
 }
 
@@ -264,7 +319,19 @@ function handleWebhookSubscriptionUpdate(
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): { payload: unknown; stagedResourceIds: string[] } {
+): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
+  const validationErrors = validateRequiredFieldArguments(field, variables, 'webhookSubscriptionUpdate', [
+    { name: 'id', expectedType: 'ID!' },
+    { name: 'webhookSubscription', expectedType: 'WebhookSubscriptionInput!' },
+  ]);
+  if (validationErrors.length > 0) {
+    return {
+      payload: null,
+      stagedResourceIds: [],
+      errors: validationErrors,
+    };
+  }
+
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readWebhookSubscriptionInput(args);
@@ -292,6 +359,7 @@ function handleWebhookSubscriptionUpdate(
       fragments,
     ),
     stagedResourceIds: webhookSubscription ? [webhookSubscription.id] : [],
+    errors: [],
   };
 }
 
@@ -739,6 +807,11 @@ export function handleWebhookSubscriptionMutation(
     switch (field.name.value) {
       case 'webhookSubscriptionCreate': {
         const result = handleWebhookSubscriptionCreate(runtime, field, variables, fragments);
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+          break;
+        }
+
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);
@@ -747,6 +820,11 @@ export function handleWebhookSubscriptionMutation(
       }
       case 'webhookSubscriptionUpdate': {
         const result = handleWebhookSubscriptionUpdate(runtime, field, variables, fragments);
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+          break;
+        }
+
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);

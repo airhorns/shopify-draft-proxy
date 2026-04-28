@@ -37,7 +37,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 - `webhookSubscriptionDelete(id:)` stages a deletion for staged, synthetic, or hydrated/local webhook subscriptions. The successful payload returns `deletedWebhookSubscriptionId` and an empty `userErrors` list; subsequent `webhookSubscription(id:)` reads return `null`, and list/count reads omit the deleted subscription.
 - Successful create/update/delete mutations append staged entries to the meta mutation log with the original request body intact for commit replay. Commit replay replaces synthetic IDs with upstream IDs from earlier successful replay attempts before replaying later raw request bodies.
 - Captured validation branches are handled locally without upstream writes: create without `uri` returns `webhookSubscription: null` and `userErrors: [{ field: ["webhookSubscription", "callbackUrl"], message: "Address can't be blank" }]`; update of an unknown ID returns `webhookSubscription: null` and `userErrors: [{ field: ["id"], message: "Webhook subscription does not exist" }]`; delete of an unknown or already deleted ID returns `deletedWebhookSubscriptionId: null` and `userErrors: [{ field: ["id"], message: "Webhook subscription does not exist" }]`.
-- Missing or null `webhookSubscriptionDelete(id:)` arguments return Shopify-like GraphQL validation errors locally and do not append mutation-log entries.
+- Missing or null required `webhookSubscriptionCreate(topic:, webhookSubscription:)`, `webhookSubscriptionUpdate(id:, webhookSubscription:)`, and `webhookSubscriptionDelete(id:)` arguments return Shopify-like GraphQL validation errors locally and do not append mutation-log entries.
 - Local registration/update/delete does not deliver webhook payloads and does not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.
 
 ### Draft Delivery Policy
@@ -124,6 +124,18 @@ HAR-356 promotes the captured evidence into two executable strict parity contrac
 
 - `webhook-subscription-catalog-read` compares the captured empty `webhookSubscriptions` connection, count precision, filtered count, and unknown-detail null behavior against the local proxy in snapshot mode.
 - `webhook-subscription-conformance` replays the captured create/update/delete lifecycle through local staging, then compares mutation payloads, detail read-after-write responses, read-after-delete absence, and captured validation branches. Live Shopify IDs and timestamps are accepted only through path-scoped matchers because the proxy uses synthetic IDs and a deterministic synthetic clock.
+
+### HAR-461 Fidelity Review
+
+The 2026-04 and latest Admin GraphQL webhook subscription docs and public usage examples were re-reviewed for HAR-461. Current examples use `WebhookSubscriptionInput.uri` for HTTP callback URLs, Google Pub/Sub `pubsub://{project-id}:{topic-id}` destinations, and Amazon EventBridge ARNs; deprecated endpoint-specific projections are still preserved by the proxy only as read compatibility fields. The existing parity contracts cover API-created subscription lifecycle, empty catalog/count reads, unknown-detail null behavior, missing URI userErrors, unknown-id update/delete userErrors, and downstream read-after-write/read-after-delete effects.
+
+Remaining fidelity gaps are intentionally narrower than webhook delivery:
+
+- Topic-specific permission and business-rule failures are not hardcoded unless captured for a concrete topic. The current lifecycle evidence uses `SHOP_UPDATE` because it avoids mutating resource data or triggering deliveries.
+- Destination-specific validation beyond the captured missing-URI branch is not generalized. HTTP, Pub/Sub, and EventBridge URI projections are modeled for local state and reads, but cloud destination existence, app configuration, and provider credentials are out of scope for runtime staging.
+- App configuration/TOML webhook subscriptions are still out of scope for these Admin GraphQL subscription roots.
+- No webhook payload delivery, retry scheduling, HMAC signing, or external callback/cloud publishing is emulated. Those behaviors require a separately scoped webhook outbox/delivery issue with topic-specific payload fixtures.
+- The conformance capture script reads the checked-in webhook parity requests from `config/parity-requests/webhooks` so recorded evidence can be refreshed without drift from the executable parity contracts.
 
 ### Access And Scope Notes
 
