@@ -348,13 +348,10 @@ describe('proxy capability classification', () => {
     ]);
   });
 
-  it('logs product merchandising mutation roots as registered unsupported gaps', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-      return new Response(JSON.stringify({ data: {} }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    });
+  it('stages product merchandising mutation guardrails locally', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('product merchandising roots should not proxy upstream'));
     const app = createApp(config).callback();
 
     const probes = [
@@ -467,14 +464,11 @@ describe('proxy capability classification', () => {
       expect(response.status).toBe(200);
     }
 
-    expect(fetchSpy).toHaveBeenCalledTimes(probes.length);
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(store.getLog()).toHaveLength(probes.length);
-    expect(store.getLog().map((entry) => entry.status)).toEqual(probes.map(() => 'proxied'));
-    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.name)).toEqual(
+    expect(store.getLog().map((entry) => entry.status)).toEqual(probes.map(() => 'staged'));
+    expect(store.getLog().map((entry) => entry.interpreted.primaryRootField)).toEqual(
       probes.map((probe) => probe.root),
-    );
-    expect(store.getLog().map((entry) => entry.interpreted.registeredOperation?.implemented)).toEqual(
-      probes.map(() => false),
     );
   });
 

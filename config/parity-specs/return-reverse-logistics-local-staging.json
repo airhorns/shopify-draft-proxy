@@ -1,0 +1,167 @@
+{
+  "scenarioId": "return-reverse-logistics-local-staging",
+  "operationNames": [
+    "return",
+    "order",
+    "returnRequest",
+    "returnApproveRequest",
+    "returnProcess",
+    "reverseDelivery",
+    "reverseFulfillmentOrder",
+    "reverseDeliveryCreateWithShipping",
+    "reverseDeliveryShippingUpdate",
+    "reverseFulfillmentOrderDispose"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/return-lifecycle-local-staging.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/return-request-reverse-local-staging.graphql",
+    "variablesCapturePath": "$.returnRequest.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-request-primary",
+        "capturePath": "$.expected.reverseRequest",
+        "proxyPath": "$"
+      },
+      {
+        "name": "return-approve-request",
+        "capturePath": "$.expected.approveRequest",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-approve-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "reverse-delivery-create",
+        "capturePath": "$.expected.reverseDeliveryCreate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/reverse-delivery-create-with-shipping-local-staging.graphql",
+          "variables": {
+            "reverseFulfillmentOrderId": {
+              "fromProxyResponse": "return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            },
+            "reverseDeliveryLineItems": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1
+              }
+            ],
+            "trackingInput": {
+              "fromCapturePath": "$.reverseLogistics.trackingInput"
+            },
+            "labelInput": {
+              "fromCapturePath": "$.reverseLogistics.labelInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "reverse-delivery-update",
+        "capturePath": "$.expected.reverseDeliveryUpdate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/reverse-delivery-shipping-update-local-staging.graphql",
+          "variables": {
+            "reverseDeliveryId": {
+              "fromProxyResponse": "reverse-delivery-create",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
+            },
+            "trackingInput": {
+              "fromCapturePath": "$.reverseLogistics.updatedTrackingInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "reverse-fulfillment-dispose",
+        "capturePath": "$.expected.dispose",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/reverse-fulfillment-order-dispose-local-staging.graphql",
+          "variables": {
+            "dispositionInputs": [
+              {
+                "reverseFulfillmentOrderLineItemId": {
+                  "fromProxyResponse": "return-approve-request",
+                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
+                },
+                "quantity": 1,
+                "dispositionType": "RESTOCKED",
+                "locationId": "gid://shopify/Location/return-flow"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "return-process",
+        "capturePath": "$.expected.process",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-process-local-staging.graphql",
+          "variables": {
+            "input": {
+              "returnId": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              },
+              "returnLineItems": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.returnRequest.return.returnLineItems.nodes[0].id"
+                  },
+                  "quantity": 1
+                }
+              ],
+              "notifyCustomer": true
+            }
+          }
+        }
+      },
+      {
+        "name": "reverse-logistics-downstream-read",
+        "capturePath": "$.expected.reverseRead",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/return-reverse-logistics-read-local-staging.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+            },
+            "orderId": "gid://shopify/Order/return-flow",
+            "reverseDeliveryId": {
+              "fromProxyResponse": "reverse-delivery-create",
+              "path": "$.data.reverseDeliveryCreateWithShipping.reverseDelivery.id"
+            },
+            "reverseFulfillmentOrderId": {
+              "fromProxyResponse": "return-approve-request",
+              "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-370's order-backed reverse-logistics slice. Live 2026-04 introspection remains schema evidence for root signatures; this fixture verifies local request approval, reverse delivery staging/update, disposal, processing, downstream reads, and no runtime upstream mutation writes."
+}

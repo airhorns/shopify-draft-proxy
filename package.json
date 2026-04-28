@@ -60,6 +60,7 @@
     "conformance:capture-metaobject-references": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-metaobject-reference-conformance.ts",
     "conformance:capture-inventory-adjustments": "tsx ./scripts/capture-inventory-adjustment-conformance.mts",
     "conformance:capture-markets": "tsx ./scripts/capture-market-conformance.mts",
+    "conformance:capture-product-contextual-pricing": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-product-contextual-pricing-conformance.ts",
     "conformance:capture-marketing": "tsx ./scripts/capture-marketing-conformance.mts",
     "conformance:capture-collections": "tsx ./scripts/capture-collection-conformance.mts",
     "conformance:capture-collection-mutations": "tsx ./scripts/capture-collection-mutation-conformance.mts",

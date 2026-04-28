@@ -37,6 +37,24 @@ Top-level fulfillment and fulfillment-order reads are implemented as snapshot/lo
 
 `fulfillment(id:)` and `fulfillmentOrder(id:)` resolve only records already present on local `Order.fulfillments` / `Order.fulfillmentOrders` data and return `null` for missing IDs. Fulfillment detail reads serialize captured shipment fields including `events`, `deliveredAt`, `estimatedDeliveryAt`, `inTransitAt`, `service`, `location`, `originAddress`, `trackingInfo(first:)`, and fulfillment line items from the same order-backed fulfillment record used by nested `Order.fulfillments`. They do not invent fulfillment records, fulfillment orders, holds, delivery methods, or lifecycle replacement records absent from the snapshot or staged order graph.
 
+HAR-370 adds an order-backed reverse-logistics slice implemented by the orders dispatcher but documented here because the
+roots live in the shipping/fulfillments API area:
+
+- `reverseDelivery`
+- `reverseFulfillmentOrder`
+- `reverseDeliveryCreateWithShipping`
+- `reverseDeliveryShippingUpdate`
+- `reverseFulfillmentOrderDispose`
+
+`reverseFulfillmentOrder(id:)` and `reverseDelivery(id:)` resolve only records staged from local returns and return `null`
+for missing IDs. `returnCreate` and `returnApproveRequest` create local reverse fulfillment order work from returned line
+quantities. `reverseDeliveryCreateWithShipping` stores reverse delivery line items plus local tracking/label metadata;
+`reverseDeliveryShippingUpdate` updates that metadata. `reverseFulfillmentOrderDispose` records disposition type/location
+metadata, reduces remaining local quantities, and closes the reverse fulfillment order when all line work is disposed.
+These roots do not call carriers, create real labels, notify customers, move inventory, or mutate locations at runtime.
+Executable parity lives in `config/parity-specs/return-reverse-logistics-local-staging.json`; live 2026-04 introspection
+evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json`.
+
 `fulfillmentEventCreate` stages local events against an existing order-backed fulfillment and makes them immediately visible in both top-level and nested fulfillment detail reads. Captured 2026-04 behavior showed an `IN_TRANSIT` event updating `Fulfillment.displayStatus`, `estimatedDeliveryAt`, and `inTransitAt`; local staging mirrors that captured shipment-milestone slice while preserving the original raw mutation for commit replay and without contacting Shopify at runtime.
 
 `FulfillmentOrder.deliveryMethod` is an optional local fixture field. When a normalized fulfillment-order record carries delivery-method data, the serializer returns the stored `DeliveryMethod` scalar fields selected by the query; when the record lacks delivery-method data, the field returns `null`. The proxy still does not generate delivery methods from order shipping lines, delivery profiles, or fulfillment-order lifecycle mutations without a captured scenario.
@@ -203,9 +221,9 @@ Delivery customizations and promises:
 
 Shipping-line order-edit roots:
 
-- `orderEditAddShippingLine`
-- `orderEditRemoveShippingLine`
-- `orderEditUpdateShippingLine`
+- `orderEditAddShippingLine` is implemented through the orders calculated-edit model. It stages shipping lines on `CalculatedOrder.shippingLines`, recalculates totals, and materializes committed shipping lines on `orderEditCommit` without runtime Shopify writes.
+- `orderEditRemoveShippingLine` is implemented through the orders calculated-edit model. It removes locally known calculated shipping lines, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
+- `orderEditUpdateShippingLine` is implemented through the orders calculated-edit model. It updates locally known calculated shipping line title/price, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
 
 ### Behavior boundaries
 
