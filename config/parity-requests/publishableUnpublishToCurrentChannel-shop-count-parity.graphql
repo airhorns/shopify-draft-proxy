@@ -1,0 +1,25 @@
+mutation PublishableUnpublishToCurrentChannelShopCountParity($id: ID!) {
+  publishableUnpublishToCurrentChannel(id: $id) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        availablePublicationsCount {
+          count
+          precision
+        }
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    shop {
+      publicationCount
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

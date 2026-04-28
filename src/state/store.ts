@@ -448,6 +448,10 @@ function collectionFromMembership(membership: ProductCollectionRecord): Collecti
   return structuredClone(collection);
 }
 
+function isInternalPublicationPlaceholder(publicationId: string): boolean {
+  return publicationId === '__current_publication__';
+}
+
 function readProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string | null {
   return metafield.ownerId ?? metafield.productId ?? null;
 }
@@ -4496,7 +4500,11 @@ export class InMemoryStore {
 
     for (const product of this.listEffectiveProducts()) {
       for (const publicationId of product.publicationIds) {
-        if (!this.stagedState.deletedPublicationIds[publicationId] && !publicationsById.has(publicationId)) {
+        if (
+          !isInternalPublicationPlaceholder(publicationId) &&
+          !this.stagedState.deletedPublicationIds[publicationId] &&
+          !publicationsById.has(publicationId)
+        ) {
           publicationsById.set(publicationId, {
             id: publicationId,
             name: null,
@@ -4507,7 +4515,11 @@ export class InMemoryStore {
 
     for (const collection of this.listEffectiveCollections()) {
       for (const publicationId of collection.publicationIds ?? []) {
-        if (!this.stagedState.deletedPublicationIds[publicationId] && !publicationsById.has(publicationId)) {
+        if (
+          !isInternalPublicationPlaceholder(publicationId) &&
+          !this.stagedState.deletedPublicationIds[publicationId] &&
+          !publicationsById.has(publicationId)
+        ) {
           publicationsById.set(publicationId, {
             id: publicationId,
             name: null,

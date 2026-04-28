@@ -1,0 +1,25 @@
+mutation PublishablePublishShopCountParity($id: ID!, $input: [PublicationInput!]!) {
+  publishablePublish(id: $id, input: $input) {
+    publishable {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        availablePublicationsCount {
+          count
+          precision
+        }
+        resourcePublicationsCount {
+          count
+          precision
+        }
+      }
+    }
+    shop {
+      publicationCount
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

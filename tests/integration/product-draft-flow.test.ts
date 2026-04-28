@@ -2409,7 +2409,7 @@ describe('product draft flow', () => {
         publishedOnCurrentPublication: true,
       },
       shop: {
-        publicationCount: 1,
+        publicationCount: 0,
       },
       userErrors: [],
     });
