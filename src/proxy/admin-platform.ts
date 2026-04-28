@@ -1,10 +1,9 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { applySearchQueryTerms, matchesSearchQueryText, type SearchQueryTerm } from '../search-query-parser.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } from '../state/types.js';
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
@@ -279,9 +278,13 @@ function readIdArgument(field: FieldNode, variables: Record<string, unknown>): s
   return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
-function serializeDomainRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+function serializeDomainRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
   const id = readIdArgument(field, variables);
-  const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+  const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
   if (!id || !primaryDomain || primaryDomain.id !== id) {
     return null;
   }
@@ -374,18 +377,22 @@ function serializeTaxonomyCategory(
   return result;
 }
 
-function serializeTaxonomyCategories(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeTaxonomyCategories(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const rawSearch = args['search'];
   const categories =
     typeof rawSearch === 'string' && rawSearch.trim().length > 0
       ? applySearchQueryTerms(
-          store.getEffectiveTaxonomyCategories(),
+          runtime.store.getEffectiveTaxonomyCategories(),
           rawSearch,
           { ignoredKeywords: ['AND'], dropEmptyValues: true },
           taxonomyCategoryMatchesSearchTerm,
         )
-      : store.getEffectiveTaxonomyCategories();
+      : runtime.store.getEffectiveTaxonomyCategories();
   const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
   const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
 
@@ -401,6 +408,7 @@ function serializeTaxonomyCategories(field: FieldNode, variables: Record<string,
 }
 
 function serializeTaxonomy(
+  runtime: ProxyRuntimeContext,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -409,7 +417,7 @@ function serializeTaxonomy(
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
       if (!selection.typeCondition?.name.value || selection.typeCondition.name.value === 'Taxonomy') {
-        Object.assign(result, serializeTaxonomy(selection.selectionSet.selections, variables));
+        Object.assign(result, serializeTaxonomy(runtime, selection.selectionSet.selections, variables));
       }
       continue;
     }
@@ -424,7 +432,7 @@ function serializeTaxonomy(
         result[key] = 'Taxonomy';
         break;
       case 'categories':
-        result[key] = serializeTaxonomyCategories(selection, variables);
+        result[key] = serializeTaxonomyCategories(runtime, selection, variables);
         break;
       default:
         result[key] = null;
@@ -434,7 +442,11 @@ function serializeTaxonomy(
   return result;
 }
 
-type LocalNodeQueryHandler = (document: string, variables: Record<string, unknown>) => unknown;
+type LocalNodeQueryHandler = (
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+) => unknown;
 
 interface LocalNodeResolver {
   rootField: string;
@@ -446,6 +458,7 @@ interface LocalNodeResolver {
 type DirectLocalNodeResolver = Omit<LocalNodeResolver, 'handler' | 'rootField'> & {
   rootField?: undefined;
   serialize: (
+    runtime: ProxyRuntimeContext,
     id: string,
     selectedFields: readonly FieldNode[],
     variables: Record<string, unknown>,
@@ -457,8 +470,8 @@ type AdminPlatformNodeResolver = LocalNodeResolver | DirectLocalNodeResolver;
 
 const PROXY_NODE_RESPONSE_KEY = 'proxyNode';
 const PROXY_NODE_ID_VARIABLE = 'proxyNodeId';
-const handleProductNodeQuery: LocalNodeQueryHandler = (document, variables) =>
-  handleProductQuery(document, variables, 'snapshot');
+const handleProductNodeQuery: LocalNodeQueryHandler = (runtime, document, variables) =>
+  handleProductQuery(runtime, document, variables, 'snapshot');
 
 const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Product: { rootField: 'product', typename: 'Product', handler: handleProductNodeQuery },
@@ -508,7 +521,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Location: { rootField: 'location', typename: 'Location', handler: handleStorePropertiesQuery },
   Shop: {
     typename: 'Shop',
-    serialize: (id, selectedFields) => serializeShopNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeShopNodeById(runtime, id, selectedFields),
   },
   DeliveryCarrierService: {
     rootField: 'carrierService',
@@ -523,7 +536,8 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   },
   PaymentTermsTemplate: {
     typename: 'PaymentTermsTemplate',
-    serialize: (id, selectedFields) => serializePaymentTermsTemplateNodeById(id, syntheticNodeField(selectedFields)),
+    serialize: (runtime, id, selectedFields) =>
+      serializePaymentTermsTemplateNodeById(runtime, id, syntheticNodeField(selectedFields)),
   },
   Validation: { rootField: 'validation', typename: 'Validation', handler: handleFunctionQuery },
 
@@ -598,32 +612,32 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   GenericFile: {
     typename: 'GenericFile',
     typeConditions: ['File'],
-    serialize: (id, selectedFields) => serializeFileNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
   MediaImage: {
     typename: 'MediaImage',
     typeConditions: ['File'],
-    serialize: (id, selectedFields) => serializeFileNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
   Video: {
     typename: 'Video',
     typeConditions: ['File'],
-    serialize: (id, selectedFields) => serializeFileNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
   ExternalVideo: {
     typename: 'ExternalVideo',
     typeConditions: ['File'],
-    serialize: (id, selectedFields) => serializeFileNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
   Model3d: {
     typename: 'Model3d',
     typeConditions: ['File'],
-    serialize: (id, selectedFields) => serializeFileNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
   },
   SavedSearch: {
     typename: 'SavedSearch',
-    serialize: (id, selectedFields, _variables, fragments) =>
-      serializeSavedSearchNodeById(id, syntheticNodeField(selectedFields), fragments),
+    serialize: (runtime, id, selectedFields, _variables, fragments) =>
+      serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
 };
 
@@ -716,13 +730,14 @@ function applySelectedTypename(
 }
 
 function serializeLocalNodeById(
+  runtime: ProxyRuntimeContext,
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> | null {
   if (id.startsWith('gid://shopify/Domain/')) {
-    const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+    const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
     return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
   }
 
@@ -738,11 +753,11 @@ function serializeLocalNodeById(
   }
 
   if ('serialize' in resolver) {
-    return resolver.serialize(id, selectedFields, variables, fragments);
+    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
   }
 
   const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
-  const response = resolver.handler(syntheticDocument, {
+  const response = resolver.handler(runtime, syntheticDocument, {
     ...variables,
     [PROXY_NODE_ID_VARIABLE]: id,
   });
@@ -754,6 +769,7 @@ function serializeLocalNodeById(
 }
 
 function serializeNode(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -763,7 +779,7 @@ function serializeNode(
     return null;
   }
 
-  return serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables, fragments);
+  return serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments);
 }
 
 function fieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
@@ -963,6 +979,7 @@ export interface AdminPlatformMutationResult {
 }
 
 export function handleAdminPlatformQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -980,28 +997,28 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'node':
-        data[key] = serializeNode(field, variables, fragments);
+        data[key] = serializeNode(runtime, field, variables, fragments);
         break;
       case 'nodes':
         data[key] = readIdListArgument(field, variables).map((id) =>
-          serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables, fragments),
+          serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments),
         );
         break;
       case 'job':
         data[key] = serializeJob(field, variables);
         break;
       case 'domain':
-        data[key] = serializeDomainRoot(field, variables);
+        data[key] = serializeDomainRoot(runtime, field, variables);
         break;
       case 'backupRegion':
         data[key] = serializePlainObject(
-          store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
+          runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
           field.selectionSet?.selections ?? [],
           'MarketRegionCountry',
         );
         break;
       case 'taxonomy':
-        data[key] = serializeTaxonomy(field.selectionSet?.selections ?? [], variables);
+        data[key] = serializeTaxonomy(runtime, field.selectionSet?.selections ?? [], variables);
         break;
       case 'staffMember':
       case 'staffMembers':
@@ -1017,6 +1034,7 @@ export function handleAdminPlatformQuery(
 }
 
 export function handleAdminPlatformMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): AdminPlatformMutationResult | null {
@@ -1041,13 +1059,13 @@ export function handleAdminPlatformMutation(
         }
 
         const signature = buildFlowSignature(flowTriggerId, payload);
-        const recordId = makeSyntheticGid('FlowGenerateSignature');
-        store.stageAdminPlatformFlowSignature({
+        const recordId = runtime.syntheticIdentity.makeSyntheticGid('FlowGenerateSignature');
+        runtime.store.stageAdminPlatformFlowSignature({
           id: recordId,
           flowTriggerId,
           payloadSha256: hashString(payload),
           signatureSha256: hashString(signature),
-          createdAt: makeSyntheticTimestamp(),
+          createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         });
         stagedResourceIds.push(recordId);
         staged = true;
@@ -1075,13 +1093,13 @@ export function handleAdminPlatformMutation(
         }
 
         if (userErrors.length === 0 && handle) {
-          const recordId = makeSyntheticGid('FlowTriggerReceive');
-          store.stageAdminPlatformFlowTrigger({
+          const recordId = runtime.syntheticIdentity.makeSyntheticGid('FlowTriggerReceive');
+          runtime.store.stageAdminPlatformFlowTrigger({
             id: recordId,
             handle,
             payloadBytes: size,
             payloadSha256: hashString(stableJsonStringify(payload)),
-            receivedAt: makeSyntheticTimestamp(),
+            receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           });
           stagedResourceIds.push(recordId);
           staged = true;
@@ -1105,7 +1123,7 @@ export function handleAdminPlatformMutation(
           break;
         }
 
-        store.stageBackupRegion(region);
+        runtime.store.stageBackupRegion(region);
         staged = true;
         stagedResourceIds.push(region.id);
         notes.push('Staged the shop backup region locally; no market or regional setting was changed upstream.');

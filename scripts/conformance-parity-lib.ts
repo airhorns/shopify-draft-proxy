@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from '../src/proxy/runtime-context.js';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -96,8 +97,8 @@ import {
   hydrateWebhookSubscriptionsFromUpstreamResponse,
 } from '../src/proxy/webhooks.js';
 import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
-import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
-import { store } from '../src/state/store.js';
+import { SyntheticIdentityRegistry } from '../src/state/synthetic-identity.js';
+import { InMemoryStore } from '../src/state/store.js';
 import type {
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
@@ -911,6 +912,7 @@ const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
 ]);
 
 async function executeGraphQLAgainstLocalProxy(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
@@ -927,7 +929,7 @@ async function executeGraphQLAgainstLocalProxy(
   const registeredCapability = readRegisteredParityCapability(parsed, capability);
 
   if (parsed.type === 'mutation') {
-    const discountMutation = handleDiscountMutation(document, variables);
+    const discountMutation = handleDiscountMutation(runtime, document, variables);
     if (discountMutation) {
       return {
         status: 200,
@@ -936,7 +938,7 @@ async function executeGraphQLAgainstLocalProxy(
     }
 
     if (parsed.rootFields.some((rootField) => ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(rootField))) {
-      const body = handleOrderMutation(document, variables, 'snapshot');
+      const body = handleOrderMutation(runtime, document, variables, 'snapshot');
       if (!body) {
         throw new Error(`Order guardrail parity request was not handled locally: ${parsed.rootFields.join(', ')}`);
       }
@@ -949,16 +951,16 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'apps') {
-    const responseBody = handleAppMutation(document, variables, 'https://conformance.local');
+    const responseBody = handleAppMutation(runtime, document, variables, 'https://conformance.local');
     if (!responseBody) {
       throw new Error(`App parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -978,15 +980,15 @@ async function executeGraphQLAgainstLocalProxy(
       (capability.domain === 'store-properties' && capability.operationName?.startsWith('publishable') === true))
   ) {
     if (parsed.rootFields.some((rootField) => INVENTORY_SHIPMENT_MUTATION_ROOTS.has(rootField))) {
-      const inventoryShipmentMutation = handleInventoryShipmentMutation(document, variables);
+      const inventoryShipmentMutation = handleInventoryShipmentMutation(runtime, document, variables);
       if (!inventoryShipmentMutation) {
         throw new Error(`Inventory shipment parity request was not handled locally: ${capability.operationName}`);
       }
 
       if (inventoryShipmentMutation.staged) {
-        store.appendLog({
-          id: makeSyntheticGid('MutationLogEntry'),
-          receivedAt: makeSyntheticTimestamp(),
+        runtime.store.recordMutationLogEntry({
+          id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+          receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           operationName: capability.operationName,
           path: `/admin/api/${apiVersion}/graphql.json`,
           query: document,
@@ -1004,9 +1006,9 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1018,7 +1020,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
+      body: handleProductMutation(runtime, document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1030,9 +1032,9 @@ async function executeGraphQLAgainstLocalProxy(
       capability.operationName === 'publishableUnpublish' ||
       capability.operationName === 'PublishableUnpublish')
   ) {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1044,14 +1046,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
+      body: handleProductMutation(runtime, document, variables, 'snapshot', apiVersion),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'media') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1063,19 +1065,19 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleMediaMutation(document, variables),
+      body: handleMediaMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'orders') {
-    const body = handleOrderMutation(document, variables, 'snapshot');
+    const body = handleOrderMutation(runtime, document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1100,14 +1102,14 @@ async function executeGraphQLAgainstLocalProxy(
       ),
     )
   ) {
-    const body = handleOrderMutation(document, variables, 'snapshot');
+    const body = handleOrderMutation(runtime, document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Reverse-logistics parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1124,9 +1126,9 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1138,14 +1140,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleCustomerMutation(document, variables),
+      body: handleCustomerMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1157,14 +1159,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleGiftCardMutation(document, variables),
+      body: handleGiftCardMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1176,20 +1178,20 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleFunctionMutation(document, variables),
+      body: handleFunctionMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'admin-platform') {
-    const result = handleAdminPlatformMutation(document, variables);
+    const result = handleAdminPlatformMutation(runtime, document, variables);
     if (!result) {
       throw new Error(`Admin platform parity request was not handled locally: ${capability.operationName}`);
     }
 
     if (result.staged) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: capability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1208,9 +1210,9 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1222,14 +1224,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleCustomerMutation(document, variables),
+      body: handleCustomerMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1241,14 +1243,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleMarketMutation(document, variables),
+      body: handleMarketMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1260,14 +1262,14 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleLocalizationMutation(document, variables),
+      body: handleLocalizationMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1279,12 +1281,12 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleSegmentMutation(document, variables),
+      body: handleSegmentMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'saved-searches') {
-    const savedSearchMutation = handleSavedSearchMutation(document, variables);
+    const savedSearchMutation = handleSavedSearchMutation(runtime, document, variables);
     if (!savedSearchMutation) {
       throw new Error(
         `Registered saved-search parity request was not handled locally: ${
@@ -1293,9 +1295,9 @@ async function executeGraphQLAgainstLocalProxy(
       );
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1313,15 +1315,15 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'marketing') {
-    const marketingMutation = handleMarketingMutation(document, variables);
+    const marketingMutation = handleMarketingMutation(runtime, document, variables);
     if (!marketingMutation) {
       throw new Error(`Marketing-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
     if (marketingMutation.shouldLog) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: capability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1340,14 +1342,14 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'online-store') {
-    const onlineStoreMutation = handleOnlineStoreMutation(document, variables);
+    const onlineStoreMutation = handleOnlineStoreMutation(runtime, document, variables);
     if (!onlineStoreMutation) {
       throw new Error(`Online-store parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1365,7 +1367,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
-    const bulkOperationMutation = handleBulkOperationMutation(document, variables, {
+    const bulkOperationMutation = handleBulkOperationMutation(runtime, document, variables, {
       readMode: 'snapshot',
       shopifyAdminOrigin: 'https://example.myshopify.com',
     });
@@ -1373,9 +1375,9 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1393,15 +1395,15 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'b2b') {
-    const b2bMutation = handleB2BMutation(document, variables);
+    const b2bMutation = handleB2BMutation(runtime, document, variables);
     if (!b2bMutation) {
       throw new Error(`B2B-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
     if (b2bMutation.staged) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: capability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1420,15 +1422,15 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'webhooks') {
-    const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(document, variables);
+    const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(runtime, document, variables);
     if (!webhookSubscriptionMutation) {
       throw new Error(`Webhook-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
     if (webhookSubscriptionMutation.staged) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: capability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1447,9 +1449,9 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1461,16 +1463,16 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleMetafieldDefinitionMutation(document, variables),
+      body: handleMetafieldDefinitionMutation(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
-    const body = handleMetaobjectDefinitionMutation(document, variables);
+    const body = handleMetaobjectDefinitionMutation(runtime, document, variables);
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1487,9 +1489,9 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1501,17 +1503,17 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleStorePropertiesMutation(document, variables),
+      body: handleStorePropertiesMutation(runtime, document, variables),
     };
   }
 
   const shippingCapability = capability.domain === 'shipping-fulfillments' ? capability : registeredCapability;
   if (shippingCapability.execution === 'stage-locally' && shippingCapability.domain === 'shipping-fulfillments') {
-    const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
+    const deliveryProfileMutation = handleDeliveryProfileMutation(runtime, document, variables);
     if (deliveryProfileMutation) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1528,11 +1530,11 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
-    const orderMutationBody = handleOrderMutation(document, variables, 'snapshot');
+    const orderMutationBody = handleOrderMutation(runtime, document, variables, 'snapshot');
     if (orderMutationBody) {
-      store.appendLog({
-        id: makeSyntheticGid('MutationLogEntry'),
-        receivedAt: makeSyntheticTimestamp(),
+      runtime.store.recordMutationLogEntry({
+        id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
         path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
@@ -1556,9 +1558,9 @@ async function executeGraphQLAgainstLocalProxy(
       );
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: shippingCapability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1570,7 +1572,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleStorePropertiesMutation(document, variables),
+      body: handleStorePropertiesMutation(runtime, document, variables),
     };
   }
 
@@ -1579,9 +1581,9 @@ async function executeGraphQLAgainstLocalProxy(
     capability.domain === 'payments' &&
     parsed.rootFields.some((rootField) => PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(rootField))
   ) {
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1593,7 +1595,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handlePaymentMutation(document, variables),
+      body: handlePaymentMutation(runtime, document, variables),
     };
   }
 
@@ -1604,14 +1606,14 @@ async function executeGraphQLAgainstLocalProxy(
       (rootField) => ORDER_PAYMENT_MUTATION_ROOTS.has(rootField) || PAYMENT_TERMS_MUTATION_ROOTS.has(rootField),
     )
   ) {
-    const body = handleOrderMutation(document, variables, 'snapshot');
+    const body = handleOrderMutation(runtime, document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-payment parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
-      id: makeSyntheticGid('MutationLogEntry'),
-      receivedAt: makeSyntheticTimestamp(),
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       operationName: capability.operationName,
       path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
@@ -1631,13 +1633,13 @@ async function executeGraphQLAgainstLocalProxy(
     if (parsed.rootFields.includes('inventoryShipment')) {
       return {
         status: 200,
-        body: handleInventoryShipmentQuery(document, variables),
+        body: handleInventoryShipmentQuery(runtime, document, variables),
       };
     }
 
     if (upstreamPayload !== undefined) {
-      hydrateProductsFromUpstreamResponse(document, variables, upstreamPayload);
-      if (!hasStagedState()) {
+      hydrateProductsFromUpstreamResponse(runtime, document, variables, upstreamPayload);
+      if (!hasStagedState(runtime)) {
         return {
           status: 200,
           body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
@@ -1647,42 +1649,47 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductQuery(document, variables, upstreamPayload === undefined ? 'snapshot' : 'live-hybrid'),
+      body: handleProductQuery(
+        runtime,
+        document,
+        variables,
+        upstreamPayload === undefined ? 'snapshot' : 'live-hybrid',
+      ),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'admin-platform') {
     return {
       status: 200,
-      body: handleAdminPlatformQuery(document, variables),
+      body: handleAdminPlatformQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'metafields') {
     return {
       status: 200,
-      body: handleMetafieldDefinitionQuery(document, variables),
+      body: handleMetafieldDefinitionQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'media') {
     return {
       status: 200,
-      body: handleMediaQuery(document, variables),
+      body: handleMediaQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'metaobjects') {
     return {
       status: 200,
-      body: handleMetaobjectDefinitionQuery(document, variables),
+      body: handleMetaobjectDefinitionQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'customers') {
     if (upstreamPayload !== undefined) {
-      hydrateCustomersFromUpstreamResponse(document, variables, upstreamPayload);
-      if (!hasStagedState()) {
+      hydrateCustomersFromUpstreamResponse(runtime, document, variables, upstreamPayload);
+      if (!hasStagedState(runtime)) {
         return {
           status: 200,
           body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
@@ -1692,21 +1699,21 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleCustomerQuery(document, variables),
+      body: handleCustomerQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'gift-cards') {
     return {
       status: 200,
-      body: handleGiftCardQuery(document, variables),
+      body: handleGiftCardQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'functions') {
     return {
       status: 200,
-      body: handleFunctionQuery(document, variables),
+      body: handleFunctionQuery(runtime, document, variables),
     };
   }
 
@@ -1714,7 +1721,7 @@ async function executeGraphQLAgainstLocalProxy(
     const upstreamPayloadIsResponseEnvelope =
       isPlainObject(upstreamPayload) && ('data' in upstreamPayload || 'errors' in upstreamPayload);
 
-    if (upstreamPayload !== undefined && upstreamPayloadIsResponseEnvelope && !hasOrderState()) {
+    if (upstreamPayload !== undefined && upstreamPayloadIsResponseEnvelope && !hasOrderState(runtime)) {
       return {
         status: 200,
         body: upstreamPayload,
@@ -1722,33 +1729,33 @@ async function executeGraphQLAgainstLocalProxy(
     }
 
     if (upstreamPayload !== undefined) {
-      hydrateOrdersFromUpstreamResponse(upstreamPayload);
+      hydrateOrdersFromUpstreamResponse(runtime, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleOrderQuery(document, variables),
+      body: handleOrderQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'discounts') {
     return {
       status: 200,
-      body: handleDiscountQuery(document, variables),
+      body: handleDiscountQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
     return {
       status: 200,
-      body: handlePaymentQuery(document, variables),
+      body: handlePaymentQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'store-properties') {
     return {
       status: 200,
-      body: handleStorePropertiesQuery(document, variables),
+      body: handleStorePropertiesQuery(runtime, document, variables),
     };
   }
 
@@ -1766,7 +1773,7 @@ async function executeGraphQLAgainstLocalProxy(
     if (parsed.rootFields.some((rootField) => rootField === 'deliveryProfile' || rootField === 'deliveryProfiles')) {
       return {
         status: 200,
-        body: handleDeliveryProfileQuery(document, variables),
+        body: handleDeliveryProfileQuery(runtime, document, variables),
       };
     }
 
@@ -1785,93 +1792,93 @@ async function executeGraphQLAgainstLocalProxy(
     ) {
       return {
         status: 200,
-        body: handleOrderQuery(document, variables),
+        body: handleOrderQuery(runtime, document, variables),
       };
     }
 
     if (primaryRootField === 'fulfillmentService') {
       return {
         status: 200,
-        body: handleStorePropertiesQuery(document, variables),
+        body: handleStorePropertiesQuery(runtime, document, variables),
       };
     }
 
     return {
       status: 200,
-      body: handleStorePropertiesQuery(document, variables),
+      body: handleStorePropertiesQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'payments') {
     return {
       status: 200,
-      body: handleStorePropertiesQuery(document, variables),
+      body: handleStorePropertiesQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'markets') {
     if (upstreamPayload !== undefined) {
-      hydrateMarketsFromUpstreamResponse(document, variables, upstreamPayload);
+      hydrateMarketsFromUpstreamResponse(runtime, document, variables, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleMarketsQuery(document, variables),
+      body: handleMarketsQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'localization') {
     if (upstreamPayload !== undefined) {
-      hydrateLocalizationFromUpstreamResponse(upstreamPayload);
+      hydrateLocalizationFromUpstreamResponse(runtime, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleLocalizationQuery(document, variables),
+      body: handleLocalizationQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'segments') {
     if (upstreamPayload !== undefined) {
-      hydrateSegmentsFromUpstreamResponse(document, variables, upstreamPayload);
+      hydrateSegmentsFromUpstreamResponse(runtime, document, variables, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleSegmentsQuery(document, variables),
+      body: handleSegmentsQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'saved-searches') {
     if (upstreamPayload !== undefined) {
-      hydrateSavedSearchesFromUpstreamResponse(document, upstreamPayload);
+      hydrateSavedSearchesFromUpstreamResponse(runtime, document, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleSavedSearchQuery(document, variables),
+      body: handleSavedSearchQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'marketing') {
     if (upstreamPayload !== undefined) {
-      hydrateMarketingFromUpstreamResponse(document, variables, upstreamPayload);
+      hydrateMarketingFromUpstreamResponse(runtime, document, variables, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleMarketingQuery(document, variables),
+      body: handleMarketingQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'online-store') {
     if (upstreamPayload !== undefined) {
-      hydrateOnlineStoreFromUpstreamResponse(document, upstreamPayload);
+      hydrateOnlineStoreFromUpstreamResponse(runtime, document, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleOnlineStoreQuery(document, variables),
+      body: handleOnlineStoreQuery(runtime, document, variables),
     };
   }
 
@@ -1885,14 +1892,14 @@ async function executeGraphQLAgainstLocalProxy(
   if (capability.execution === 'overlay-read' && capability.domain === 'b2b') {
     return {
       status: 200,
-      body: handleB2BQuery(document, variables),
+      body: handleB2BQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'bulk-operations') {
     return {
       status: 200,
-      body: handleBulkOperationQuery(document, variables),
+      body: handleBulkOperationQuery(runtime, document, variables),
     };
   }
 
@@ -1901,19 +1908,19 @@ async function executeGraphQLAgainstLocalProxy(
     (registeredCapability.execution === 'overlay-read' && registeredCapability.domain === 'apps')
   ) {
     if (upstreamPayload !== undefined) {
-      hydrateAppsFromUpstreamResponse(upstreamPayload);
+      hydrateAppsFromUpstreamResponse(runtime, upstreamPayload);
     }
 
     return {
       status: 200,
-      body: handleAppQuery(document, variables),
+      body: handleAppQuery(runtime, document, variables),
     };
   }
 
   if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
     if (upstreamPayload !== undefined) {
-      hydrateWebhookSubscriptionsFromUpstreamResponse(document, variables, upstreamPayload);
-      if (!hasStagedState()) {
+      hydrateWebhookSubscriptionsFromUpstreamResponse(runtime, document, variables, upstreamPayload);
+      if (!hasStagedState(runtime)) {
         return {
           status: 200,
           body: isPlainObject(upstreamPayload) ? upstreamPayload : {},
@@ -1923,7 +1930,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleWebhookSubscriptionQuery(document, variables),
+      body: handleWebhookSubscriptionQuery(runtime, document, variables),
     };
   }
 
@@ -1932,8 +1939,8 @@ async function executeGraphQLAgainstLocalProxy(
   );
 }
 
-function hasStagedState(): boolean {
-  const { stagedState } = store.getState();
+function hasStagedState(runtime: ProxyRuntimeContext): boolean {
+  const { stagedState } = runtime.store.getState();
   return (
     Object.keys(stagedState.products).length > 0 ||
     Object.keys(stagedState.productVariants).length > 0 ||
@@ -1969,8 +1976,8 @@ function hasStagedState(): boolean {
   );
 }
 
-function hasOrderState(): boolean {
-  const { baseState, stagedState } = store.getState();
+function hasOrderState(runtime: ProxyRuntimeContext): boolean {
+  const { baseState, stagedState } = runtime.store.getState();
   return (
     Object.keys(baseState.orders).length > 0 ||
     Object.keys(stagedState.orders).length > 0 ||
@@ -2057,7 +2064,7 @@ function readMoneyRecord(value: Record<string, unknown> | null | undefined): Mon
   };
 }
 
-function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | null {
+function makeSeedGiftCard(runtime: ProxyRuntimeContext, source: Record<string, unknown>): GiftCardRecord | null {
   const id = readStringField(source, 'id');
   if (!id?.startsWith('gid://shopify/GiftCard/')) {
     return null;
@@ -2102,7 +2109,7 @@ function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | nul
     transactions: transactionNodes.map((transaction) => {
       const amount = readMoneyRecord(readRecordField(transaction, 'amount'));
       return {
-        id: readStringField(transaction, 'id') ?? makeSyntheticGid('GiftCardTransaction'),
+        id: readStringField(transaction, 'id') ?? runtime.syntheticIdentity.makeSyntheticGid('GiftCardTransaction'),
         kind: (amount.amount ?? '0.0').startsWith('-') ? ('DEBIT' as const) : ('CREDIT' as const),
         amount,
         processedAt: readStringField(transaction, 'processedAt') ?? '2026-01-01T00:00:00Z',
@@ -2125,13 +2132,13 @@ function makeSeedGiftCardConfiguration(
   };
 }
 
-function seedGiftCardLifecyclePreconditions(capture: unknown): boolean {
+function seedGiftCardLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const recordsById = new Map<string, GiftCardRecord>();
   const addGiftCard = (source: unknown): void => {
     if (!isPlainObject(source)) {
       return;
     }
-    const record = makeSeedGiftCard(source);
+    const record = makeSeedGiftCard(runtime, source);
     if (record) {
       recordsById.set(record.id, record);
     }
@@ -2160,10 +2167,10 @@ function seedGiftCardLifecyclePreconditions(capture: unknown): boolean {
     );
 
   if (recordsById.size > 0) {
-    store.upsertBaseGiftCards([...recordsById.values()]);
+    runtime.store.upsertBaseGiftCards([...recordsById.values()]);
   }
   if (configuration) {
-    store.upsertBaseGiftCardConfiguration(configuration);
+    runtime.store.upsertBaseGiftCardConfiguration(configuration);
   }
 
   return recordsById.size > 0 || configuration !== null;
@@ -2325,7 +2332,7 @@ function mergeCapturedDiscountRecord(existing: DiscountRecord, next: DiscountRec
   };
 }
 
-function seedDiscountCatalogPreconditions(capture: unknown): boolean {
+function seedDiscountCatalogPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const responseContainer = readRecordField(capture as Record<string, unknown>, 'response');
   const responseData =
     readRecordField(responseContainer, 'data') ??
@@ -2370,11 +2377,11 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseDiscounts([...discountsById.values()]);
+  runtime.store.upsertBaseDiscounts([...discountsById.values()]);
   return true;
 }
 
-function seedShopifyFunctionPreconditions(capture: unknown): boolean {
+function seedShopifyFunctionPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedShopifyFunctions').filter(isPlainObject);
   const functions: ShopifyFunctionRecord[] = seedNodes
     .map((node): ShopifyFunctionRecord | null => {
@@ -2397,7 +2404,7 @@ function seedShopifyFunctionPreconditions(capture: unknown): boolean {
     .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
 
   for (const shopifyFunction of functions) {
-    store.upsertStagedShopifyFunction(shopifyFunction);
+    runtime.store.upsertStagedShopifyFunction(shopifyFunction);
   }
 
   return functions.length > 0;
@@ -2743,7 +2750,7 @@ function readSeedCustomerPaymentMethod(rawPaymentMethod: Record<string, unknown>
   };
 }
 
-function seedCustomerPaymentMethodPreconditions(capture: unknown): void {
+function seedCustomerPaymentMethodPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const seedCustomers = readArrayField(capture as Record<string, unknown>, 'seedCustomers')
     .filter(isPlainObject)
     .map((customer) => {
@@ -2752,7 +2759,7 @@ function seedCustomerPaymentMethodPreconditions(capture: unknown): void {
     })
     .filter((customer): customer is CustomerRecord => customer !== null);
   if (seedCustomers.length > 0) {
-    store.upsertBaseCustomers(seedCustomers);
+    runtime.store.upsertBaseCustomers(seedCustomers);
   }
 
   const seedPaymentMethods = readArrayField(capture as Record<string, unknown>, 'seedCustomerPaymentMethods')
@@ -2760,11 +2767,12 @@ function seedCustomerPaymentMethodPreconditions(capture: unknown): void {
     .map(readSeedCustomerPaymentMethod)
     .filter((paymentMethod): paymentMethod is CustomerPaymentMethodRecord => paymentMethod !== null);
   if (seedPaymentMethods.length > 0) {
-    store.upsertBaseCustomerPaymentMethods(seedPaymentMethods);
+    runtime.store.upsertBaseCustomerPaymentMethods(seedPaymentMethods);
   }
 }
 
 function seedCustomerMutationPreconditions(
+  runtime: ProxyRuntimeContext,
   capture: unknown,
   variables: Record<string, unknown>,
   mutationName: string | null,
@@ -2825,7 +2833,7 @@ function seedCustomerMutationPreconditions(
   }
 
   if (seedCustomers.length > 0) {
-    store.upsertBaseCustomers(seedCustomers);
+    runtime.store.upsertBaseCustomers(seedCustomers);
   }
 
   return true;
@@ -2846,7 +2854,7 @@ function readStoreCreditMoney(
   };
 }
 
-function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
+function seedStoreCreditAccountPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (!isPlainObject(capture)) {
     return false;
   }
@@ -2878,8 +2886,8 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
   }
 
   const customerPayload = createdCustomer ?? readRecordField(accountPayload, 'owner');
-  store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
-  store.upsertBaseStoreCreditAccounts([
+  runtime.store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
+  runtime.store.upsertBaseStoreCreditAccounts([
     {
       id: accountId,
       customerId,
@@ -2891,7 +2899,7 @@ function seedStoreCreditAccountPreconditions(capture: unknown): boolean {
   return true;
 }
 
-function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
+function seedCustomerOrderSummaryPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const seedOrder = readArrayField(
     readRecordField(
       readRecordField(
@@ -2909,7 +2917,7 @@ function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+  runtime.store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
 
   const beforeSetCount = readNumberField(
     readRecordField(
@@ -2926,7 +2934,7 @@ function seedCustomerOrderSummaryPreconditions(capture: unknown): boolean {
     for (let index = 0; index < Math.max(0, beforeSetCount - 1); index += 1) {
       placeholders.push(makePlaceholderCustomer(index));
     }
-    store.upsertBaseCustomers(placeholders);
+    runtime.store.upsertBaseCustomers(placeholders);
   }
 
   return true;
@@ -2946,6 +2954,7 @@ function readCustomerCreatePayloadFromCapture(
 }
 
 function seedCustomerMergePreconditions(
+  runtime: ProxyRuntimeContext,
   capture: unknown,
   _variables: Record<string, unknown>,
   mutationName: string | null,
@@ -3013,20 +3022,20 @@ function seedCustomerMergePreconditions(
     return false;
   }
 
-  store.upsertBaseCustomers(seedCustomers);
+  runtime.store.upsertBaseCustomers(seedCustomers);
   if (seedAddresses.length > 0) {
-    store.upsertBaseCustomerAddresses(seedAddresses);
+    runtime.store.upsertBaseCustomerAddresses(seedAddresses);
   }
   for (const [customerId, metafields] of seedMetafieldsByCustomerId) {
-    store.replaceBaseMetafieldsForCustomer(customerId, metafields);
+    runtime.store.replaceBaseMetafieldsForCustomer(customerId, metafields);
   }
   if (orderId) {
-    store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+    runtime.store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
   }
   return true;
 }
 
-function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
+function seedCustomerByIdentifierPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const positiveAndMissingData = readRecordField(
     readRecordField(capture as Record<string, unknown>, 'positiveAndMissing'),
     'data',
@@ -3047,7 +3056,7 @@ function seedCustomerByIdentifierPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseCustomers([...seedCustomers.values()]);
+  runtime.store.upsertBaseCustomers([...seedCustomers.values()]);
   return true;
 }
 
@@ -3058,7 +3067,7 @@ function readCustomerFromCapturedCreate(source: Record<string, unknown> | null):
   );
 }
 
-function seedCustomerInputValidationPreconditions(capture: unknown): boolean {
+function seedCustomerInputValidationPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (!isPlainObject(capture)) {
     return false;
   }
@@ -3125,7 +3134,7 @@ function seedCustomerInputValidationPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseCustomers([...seedCustomers.values()]);
+  runtime.store.upsertBaseCustomers([...seedCustomers.values()]);
   return true;
 }
 
@@ -3419,7 +3428,7 @@ function readShopRecord(source: Record<string, unknown> | null): ShopRecord | nu
   };
 }
 
-function seedShopPreconditions(capture: unknown): boolean {
+function seedShopPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const captureRoot = isPlainObject(capture) ? capture : {};
   const directData = readRecordField(captureRoot, 'data');
   const shopBaseline = readRecordField(readRecordField(captureRoot, 'readOnlyBaselines'), 'shop');
@@ -3430,7 +3439,7 @@ function seedShopPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseShop(shop);
+  runtime.store.upsertBaseShop(shop);
   return true;
 }
 
@@ -3533,7 +3542,7 @@ function readShippingSettingsCarrierServiceRecord(source: Record<string, unknown
   };
 }
 
-function seedShippingSettingsPreconditions(capture: unknown): boolean {
+function seedShippingSettingsPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const seed = readRecordField(capture as Record<string, unknown>, 'seed');
   const carrierServices = readArrayField(seed, 'carrierServices')
     .filter(isPlainObject)
@@ -3549,10 +3558,10 @@ function seedShippingSettingsPreconditions(capture: unknown): boolean {
   }
 
   if (carrierServices.length > 0) {
-    store.upsertBaseCarrierServices(carrierServices);
+    runtime.store.upsertBaseCarrierServices(carrierServices);
   }
   if (locations.length > 0) {
-    store.upsertBaseLocations(locations);
+    runtime.store.upsertBaseLocations(locations);
   }
 
   return true;
@@ -3630,7 +3639,7 @@ function readCapturedLocationInventoryLevels(location: Record<string, unknown> |
   return levels;
 }
 
-function seedLocationDetailPreconditions(capture: unknown): boolean {
+function seedLocationDetailPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const locationData = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'readOnlyBaselines'), 'location'),
     'data',
@@ -3661,14 +3670,14 @@ function seedLocationDetailPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseLocations([...locationsById.values()]);
+  runtime.store.upsertBaseLocations([...locationsById.values()]);
 
   const primaryLocation = readRecordField(locationData, 'primary') ?? readRecordField(locationData, 'byId');
   const levels = readCapturedLocationInventoryLevels(primaryLocation);
   if (levels.length > 0) {
     const productId = 'gid://shopify/Product/location-detail-seed';
-    store.upsertBaseProducts([makeSeedProduct(productId, { totalInventory: null, tracksInventory: true })]);
-    store.replaceBaseVariantsForProduct(
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, { totalInventory: null, tracksInventory: true })]);
+    runtime.store.replaceBaseVariantsForProduct(
       productId,
       levels
         .map((level, index) => makeLocationDetailSeedVariant(productId, level, index))
@@ -3928,6 +3937,7 @@ function makeDeliveryProfileSeedVariant(
 }
 
 function readDeliveryProfileRecord(
+  runtime: ProxyRuntimeContext,
   source: Record<string, unknown>,
   cursor: string | null,
 ): DeliveryProfileRecord | null {
@@ -3951,13 +3961,13 @@ function readDeliveryProfileRecord(
         return null;
       }
 
-      store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile product')]);
+      runtime.store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile product')]);
       const variantsConnection = readRecordField(item, 'variants');
       const variantNodes = readConnectionNodes(variantsConnection);
       const variants = variantNodes
         .map((variant, variantIndex) => makeDeliveryProfileSeedVariant(productId, variant, variantIndex))
         .filter((variant): variant is ProductVariantRecord => variant !== null);
-      store.replaceBaseVariantsForProduct(productId, variants);
+      runtime.store.replaceBaseVariantsForProduct(productId, variants);
 
       const variantStartCursor = readConnectionStartCursor(variantsConnection);
       const variantEndCursor = readConnectionEndCursor(variantsConnection);
@@ -3974,7 +3984,7 @@ function readDeliveryProfileRecord(
       if (readConnectionHasNextPage(variantsConnection) && variants.length > 0) {
         const last = variants[variants.length - 1]!;
         const unreadVariantId = `${last.id}#unread-page`;
-        store.replaceBaseVariantsForProduct(productId, [
+        runtime.store.replaceBaseVariantsForProduct(productId, [
           ...variants,
           {
             ...structuredClone(last),
@@ -4022,7 +4032,7 @@ function readDeliveryProfileRecord(
       const locations = locationEntries
         .map(readLocationRecord)
         .filter((location): location is LocationRecord => location !== null);
-      store.upsertBaseLocations(locations);
+      runtime.store.upsertBaseLocations(locations);
 
       const locationCursors = Object.fromEntries(
         locations.map((location, index) => [
@@ -4074,7 +4084,7 @@ function readDeliveryProfileRecord(
   const unassignedLocations = readConnectionNodes(unassignedConnection)
     .map(readLocationRecord)
     .filter((location): location is LocationRecord => location !== null);
-  store.upsertBaseLocations(unassignedLocations);
+  runtime.store.upsertBaseLocations(unassignedLocations);
   const unassignedStartCursor = readConnectionStartCursor(unassignedConnection);
   const unassignedEndCursor = readConnectionEndCursor(unassignedConnection);
 
@@ -4109,13 +4119,14 @@ function readDeliveryProfileRecord(
   };
 }
 
-function seedDeliveryProfilePreconditions(capture: unknown): boolean {
+function seedDeliveryProfilePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const catalog = readRecordField(readDeliveryProfilesCatalogPayload(capture), 'deliveryProfiles');
   const catalogProfiles = readConnectionEntries(catalog)
-    .map((entry) => readDeliveryProfileRecord(entry.node, entry.cursor))
+    .map((entry) => readDeliveryProfileRecord(runtime, entry.node, entry.cursor))
     .filter((profile): profile is DeliveryProfileRecord => profile !== null);
 
   const detailProfile = readDeliveryProfileRecord(
+    runtime,
     readRecordField(readDeliveryProfileDetailPayload(capture), 'deliveryProfile') ?? {},
     catalogProfiles[0]?.cursor ?? null,
   );
@@ -4126,11 +4137,11 @@ function seedDeliveryProfilePreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseDeliveryProfiles(profiles);
+  runtime.store.upsertBaseDeliveryProfiles(profiles);
   return true;
 }
 
-function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
+function seedDeliveryProfileWritePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const mutations = readRecordField(capture as Record<string, unknown>, 'mutations');
   const nestedCreate = readRecordField(mutations, 'nestedCreate');
   const nestedCreateData = readRecordField(
@@ -4150,11 +4161,11 @@ function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
       continue;
     }
 
-    store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile write seed product')]);
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, product, 'Delivery profile write seed product')]);
     const variants = readConnectionNodes(readRecordField(profileItem, 'variants'))
       .map((variant, index) => makeDeliveryProfileSeedVariant(productId, variant, index))
       .filter((variant): variant is ProductVariantRecord => variant !== null);
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   const locationIds = new Set<string>();
@@ -4187,7 +4198,7 @@ function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
     }
   }
 
-  store.upsertBaseLocations(
+  runtime.store.upsertBaseLocations(
     [...locationIds].map(
       (id, index): LocationRecord => ({
         id,
@@ -4201,7 +4212,7 @@ function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
   const defaultRemove = readRecordField(mutations, 'defaultRemove');
   const defaultProfileId = readStringField(readRecordField(defaultRemove, 'variables'), 'id');
   if (defaultProfileId) {
-    store.upsertBaseDeliveryProfiles([
+    runtime.store.upsertBaseDeliveryProfiles([
       {
         id: defaultProfileId,
         name: 'General profile',
@@ -4224,7 +4235,7 @@ function seedDeliveryProfileWritePreconditions(capture: unknown): boolean {
   return true;
 }
 
-function seedBusinessEntityPreconditions(capture: unknown): boolean {
+function seedBusinessEntityPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const data = readRecordField(capture as Record<string, unknown>, 'data');
   const catalogEntities = readArrayField(data, 'businessEntities');
   const fallbackEntities = [readRecordField(data, 'primary'), readRecordField(data, 'known')];
@@ -4241,7 +4252,7 @@ function seedBusinessEntityPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseBusinessEntities(businessEntities);
+  runtime.store.upsertBaseBusinessEntities(businessEntities);
   return true;
 }
 
@@ -4252,7 +4263,7 @@ function readB2BConnectionEntries(connection: Record<string, unknown> | null): A
   return readConnectionEntries(connection).filter((entry) => readStringField(entry.node, 'id') !== null);
 }
 
-function seedB2BCompanyPreconditions(capture: unknown): boolean {
+function seedB2BCompanyPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const data = readRecordField(capture as Record<string, unknown>, 'data');
   const companiesConnection = readRecordField(data, 'companies');
   const topLevelLocationsConnection = readRecordField(data, 'companyLocations');
@@ -4410,10 +4421,10 @@ function seedB2BCompanyPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseB2BCompanies([...companies.values()]);
-  store.upsertBaseB2BCompanyContacts([...contacts.values()]);
-  store.upsertBaseB2BCompanyContactRoles([...roles.values()]);
-  store.upsertBaseB2BCompanyLocations([...locations.values()]);
+  runtime.store.upsertBaseB2BCompanies([...companies.values()]);
+  runtime.store.upsertBaseB2BCompanyContacts([...contacts.values()]);
+  runtime.store.upsertBaseB2BCompanyContactRoles([...roles.values()]);
+  runtime.store.upsertBaseB2BCompanyLocations([...locations.values()]);
   return true;
 }
 
@@ -4597,7 +4608,11 @@ function readFulfillmentPayloadFromSetup(capture: unknown, pathName: string): Re
   );
 }
 
-function seedFulfillmentLifecyclePreconditions(capture: unknown, mutationName: string | null): boolean {
+function seedFulfillmentLifecyclePreconditions(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  mutationName: string | null,
+): boolean {
   if (mutationName !== 'fulfillmentTrackingInfoUpdate' && mutationName !== 'fulfillmentCancel') {
     return false;
   }
@@ -4632,7 +4647,7 @@ function seedFulfillmentLifecyclePreconditions(capture: unknown, mutationName: s
     seedFulfillment,
     ...(order.fulfillments ?? []).filter((fulfillment) => fulfillment.id !== seedFulfillment.id),
   ];
-  store.upsertBaseOrders([order]);
+  runtime.store.upsertBaseOrders([order]);
   return true;
 }
 
@@ -4695,7 +4710,7 @@ function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | nul
     });
 }
 
-function seedFulfillmentOrderLifecyclePreconditions(capture: unknown): boolean {
+function seedFulfillmentOrderLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const workflows = readRecordField(capture as Record<string, unknown>, 'workflows');
   if (!workflows) {
     return false;
@@ -4727,7 +4742,7 @@ function seedFulfillmentOrderLifecyclePreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseOrders(seedOrders);
+  runtime.store.upsertBaseOrders(seedOrders);
   return true;
 }
 
@@ -4820,7 +4835,7 @@ function makeMinimalFulfillmentOrder(
   };
 }
 
-function seedFulfillmentOrderRequestLifecyclePreconditions(capture: unknown): boolean {
+function seedFulfillmentOrderRequestLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const partialSubmit = readRecordField(capture as Record<string, unknown>, 'partialSubmit');
   if (!partialSubmit) {
     return false;
@@ -4909,11 +4924,11 @@ function seedFulfillmentOrderRequestLifecyclePreconditions(capture: unknown): bo
       name: '#HAR233-FO-SUPPORT',
     });
     supportOrder.fulfillmentOrders = supportingFulfillmentOrders;
-    store.upsertBaseOrders([requestOrder, supportOrder]);
+    runtime.store.upsertBaseOrders([requestOrder, supportOrder]);
     return true;
   }
 
-  store.upsertBaseOrders([requestOrder]);
+  runtime.store.upsertBaseOrders([requestOrder]);
   return true;
 }
 
@@ -5191,29 +5206,29 @@ function readCapturedAddress(
   };
 }
 
-function hydrateOrdersFromUpstreamResponse(upstreamPayload: unknown): void {
+function hydrateOrdersFromUpstreamResponse(runtime: ProxyRuntimeContext, upstreamPayload: unknown): void {
   const payload = isPlainObject(upstreamPayload) ? upstreamPayload : {};
   const data = readRecordField(payload, 'data') ?? payload;
 
   const order = readRecordField(data, 'order');
   const orderId = readStringField(order, 'id');
   if (orderId) {
-    store.upsertBaseOrders([makeSeedOrder(orderId, order)]);
+    runtime.store.upsertBaseOrders([makeSeedOrder(orderId, order)]);
   }
 
-  hydrateOrderConnectionsFromData(data);
+  hydrateOrderConnectionsFromData(runtime, data);
 
   const draftOrder = readRecordField(data, 'draftOrder');
   const draftOrderId = readStringField(draftOrder, 'id');
   if (draftOrderId) {
-    store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, draftOrder));
+    runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, draftOrder));
   }
 
   for (const edge of readArrayField(readRecordField(data, 'draftOrders'), 'edges').filter(isPlainObject)) {
     const node = readRecordField(edge, 'node');
     const nodeId = readStringField(node, 'id');
     if (nodeId) {
-      store.stageCreateDraftOrder(makeSeedDraftOrder(nodeId, node));
+      runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(nodeId, node));
     }
   }
 }
@@ -5235,7 +5250,7 @@ function readDraftOrderInvoiceSendSeedSource(
   return readRecordField(payload, 'draftOrder');
 }
 
-function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean {
+function seedDraftOrderInvoiceSendSafetyPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (!isPlainObject(capture) || capture['safetyPolicy'] === undefined) {
     return false;
   }
@@ -5247,7 +5262,7 @@ function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean
   );
   const openDraftOrderId = readStringField(openDraftOrder, 'id');
   if (openDraftOrderId) {
-    store.stageCreateDraftOrder(makeSeedDraftOrder(openDraftOrderId, openDraftOrder));
+    runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(openDraftOrderId, openDraftOrder));
   }
 
   const completedDraftOrder = readDraftOrderInvoiceSendSeedSource(
@@ -5257,13 +5272,13 @@ function seedDraftOrderInvoiceSendSafetyPreconditions(capture: unknown): boolean
   );
   const completedDraftOrderId = readStringField(completedDraftOrder, 'id');
   if (completedDraftOrderId) {
-    store.stageCreateDraftOrder(makeSeedDraftOrder(completedDraftOrderId, completedDraftOrder));
+    runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(completedDraftOrderId, completedDraftOrder));
   }
 
   return Boolean(openDraftOrderId || completedDraftOrderId);
 }
 
-function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): void {
+function hydrateOrderConnectionsFromData(runtime: ProxyRuntimeContext, data: Record<string, unknown> | null): void {
   for (const value of Object.values(data ?? {})) {
     const connection = isPlainObject(value) ? value : null;
     const edges = readArrayField(connection, 'edges').filter(isPlainObject);
@@ -5273,8 +5288,8 @@ function hydrateOrderConnectionsFromData(data: Record<string, unknown> | null): 
     for (const node of [...edgeNodes, ...nodes]) {
       const nodeId = readStringField(node, 'id');
       if (nodeId?.startsWith('gid://shopify/Order/')) {
-        const existingOrder = store.getOrderById(nodeId);
-        store.upsertBaseOrders([makeSeedOrder(nodeId, existingOrder ? { ...existingOrder, ...node } : node)]);
+        const existingOrder = runtime.store.getOrderById(nodeId);
+        runtime.store.upsertBaseOrders([makeSeedOrder(nodeId, existingOrder ? { ...existingOrder, ...node } : node)]);
       }
     }
   }
@@ -5450,7 +5465,7 @@ function readCapturedProductOptions(productId: string, product: Record<string, u
     .filter((option): option is ProductOptionRecord => option !== null);
 }
 
-function seedProductContextualPricingReadPreconditions(capture: unknown): boolean {
+function seedProductContextualPricingReadPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const data = readRecordField(capture as Record<string, unknown>, 'data');
   const product = readRecordField(data, 'product');
   const variant = readRecordField(data, 'productVariant');
@@ -5463,7 +5478,7 @@ function seedProductContextualPricingReadPreconditions(capture: unknown): boolea
     (candidate): candidate is Record<string, unknown> =>
       isPlainObject(candidate) && readStringField(candidate, 'id') === productId,
   );
-  store.upsertBaseProducts([makeSeedProduct(productId, product ?? seedProduct ?? null)]);
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, product ?? seedProduct ?? null)]);
 
   const variants: ProductVariantRecord[] = [];
   if (variant) {
@@ -5476,7 +5491,7 @@ function seedProductContextualPricingReadPreconditions(capture: unknown): boolea
     variants.push(...readCapturedProductVariants(productId, seedProduct ?? null));
   }
   if (variants.length > 0) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   return true;
@@ -5638,16 +5653,21 @@ function readSeedChannel(source: Record<string, unknown>): ChannelRecord | null 
   };
 }
 
-function seedProductOptionState(productId: string, variables: Record<string, unknown>, capture?: unknown): void {
+function seedProductOptionState(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  variables: Record<string, unknown>,
+  capture?: unknown,
+): void {
   const preMutationProduct = capture === undefined ? null : readPreMutationProduct(capture, productId);
   if (preMutationProduct) {
     const capturedOptions = readCapturedProductOptions(productId, preMutationProduct);
     const capturedVariants = readCapturedProductVariants(productId, preMutationProduct);
     if (capturedOptions.length > 0) {
-      store.replaceBaseOptionsForProduct(productId, capturedOptions);
+      runtime.store.replaceBaseOptionsForProduct(productId, capturedOptions);
     }
     if (capturedVariants.length > 0) {
-      store.replaceBaseVariantsForProduct(productId, capturedVariants);
+      runtime.store.replaceBaseVariantsForProduct(productId, capturedVariants);
     }
     if (capturedOptions.length > 0 || capturedVariants.length > 0) {
       return;
@@ -5660,15 +5680,15 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
     readArrayField(variables, 'options').find((option): option is string => typeof option === 'string') ??
     null;
   if (!optionId) {
-    store.replaceBaseOptionsForProduct(productId, [makeDefaultOption(productId)]);
-    store.replaceBaseVariantsForProduct(productId, [makeSeedVariant(productId)]);
+    runtime.store.replaceBaseOptionsForProduct(productId, [makeDefaultOption(productId)]);
+    runtime.store.replaceBaseVariantsForProduct(productId, [makeSeedVariant(productId)]);
     return;
   }
 
   const valueToUpdate = readArrayField(variables, 'optionValuesToUpdate').find(isPlainObject) ?? null;
   const optionValueId =
     readStringField(valueToUpdate, 'id') ?? `gid://shopify/ProductOptionValue/${productId.split('/').at(-1) ?? '1'}0`;
-  store.replaceBaseOptionsForProduct(productId, [
+  runtime.store.replaceBaseOptionsForProduct(productId, [
     {
       id: optionId,
       productId,
@@ -5683,7 +5703,7 @@ function seedProductOptionState(productId: string, variables: Record<string, unk
       ],
     },
   ]);
-  store.replaceBaseVariantsForProduct(productId, [
+  runtime.store.replaceBaseVariantsForProduct(productId, [
     makeSeedVariant(productId, [
       {
         name: readStringField(optionInput, 'name') ?? 'Color',
@@ -5728,7 +5748,7 @@ function readSeedSellingPlanGroup(source: Record<string, unknown>): SellingPlanG
   };
 }
 
-function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): boolean {
+function seedBulkVariantValidationAtomicityPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const seed = readRecordField(capture as Record<string, unknown>, 'seed');
   const seedProductId = readStringField(seed, 'productId');
   const setupProduct = readRecordField(
@@ -5744,30 +5764,34 @@ function seedBulkVariantValidationAtomicityPreconditions(capture: unknown): bool
   }
 
   const productSource = beforeProduct ?? setupProduct;
-  store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
 
   const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
   const options = readCapturedProductOptions(productId, optionsSource);
   if (options.length > 0) {
-    store.replaceBaseOptionsForProduct(productId, options);
+    runtime.store.replaceBaseOptionsForProduct(productId, options);
   }
 
   const variants = readCapturedProductVariants(productId, beforeProduct ?? setupProduct);
   if (variants.length > 0) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   return true;
 }
 
-function seedCollectionProducts(collection: CollectionRecord, productNodes: unknown[]): void {
+function seedCollectionProducts(
+  runtime: ProxyRuntimeContext,
+  collection: CollectionRecord,
+  productNodes: unknown[],
+): void {
   const collectionMemberships: ProductCollectionRecord[] = [];
   for (const [position, node] of productNodes.filter(isPlainObject).entries()) {
     const productId = readStringField(node, 'id');
     if (!productId) {
       continue;
     }
-    store.upsertBaseProducts([makeSeedProduct(productId, node)]);
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, node)]);
     collectionMemberships.push({
       id: collection.id,
       productId,
@@ -5777,11 +5801,15 @@ function seedCollectionProducts(collection: CollectionRecord, productNodes: unkn
     });
   }
   for (const membership of collectionMemberships) {
-    store.replaceBaseCollectionsForProduct(membership.productId, [membership]);
+    runtime.store.replaceBaseCollectionsForProduct(membership.productId, [membership]);
   }
 }
 
-function seedPreexistingProductCollectionsFromReadPayload(source: unknown, stagedCollectionId: string): void {
+function seedPreexistingProductCollectionsFromReadPayload(
+  runtime: ProxyRuntimeContext,
+  source: unknown,
+  stagedCollectionId: string,
+): void {
   const data = readRecordField(isPlainObject(source) ? source : null, 'data');
   if (!data) {
     return;
@@ -5796,7 +5824,7 @@ function seedPreexistingProductCollectionsFromReadPayload(source: unknown, stage
       continue;
     }
 
-    const memberships = [...store.getEffectiveCollectionsByProductId(productId)];
+    const memberships = [...runtime.store.getEffectiveCollectionsByProductId(productId)];
     for (const node of readArrayField(readRecordField(value, 'collections'), 'nodes').filter(isPlainObject)) {
       const collectionId = readStringField(node, 'id');
       if (!collectionId?.startsWith('gid://shopify/Collection/') || collectionId === stagedCollectionId) {
@@ -5804,7 +5832,7 @@ function seedPreexistingProductCollectionsFromReadPayload(source: unknown, stage
       }
 
       const collection = makeSeedCollection(collectionId, node);
-      store.upsertBaseCollections([collection]);
+      runtime.store.upsertBaseCollections([collection]);
       if (!memberships.some((membership) => membership.id === collectionId)) {
         memberships.push({
           id: collection.id,
@@ -5816,7 +5844,7 @@ function seedPreexistingProductCollectionsFromReadPayload(source: unknown, stage
     }
 
     if (memberships.length > 0) {
-      store.replaceBaseCollectionsForProduct(productId, memberships);
+      runtime.store.replaceBaseCollectionsForProduct(productId, memberships);
     }
   }
 }
@@ -5962,6 +5990,7 @@ function makeProductVariantUpdateCompatibilitySeedVariant(
 }
 
 function seedProductVariantUpdateCompatibilityPreconditions(
+  runtime: ProxyRuntimeContext,
   capture: unknown,
   variables: Record<string, unknown>,
 ): boolean {
@@ -5991,14 +6020,17 @@ function seedProductVariantUpdateCompatibilityPreconditions(
       .find((variant) => readStringField(variant, 'id') === variantId) ??
     null;
 
-  store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Product variant update conformance seed')]);
-  store.replaceBaseVariantsForProduct(productId, [
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(productId, productPayload, 'Product variant update conformance seed'),
+  ]);
+  runtime.store.replaceBaseVariantsForProduct(productId, [
     makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, capturedVariant),
   ]);
   return true;
 }
 
 function seedProductVariantDeleteCompatibilityPreconditions(
+  runtime: ProxyRuntimeContext,
   capture: unknown,
   variables: Record<string, unknown>,
 ): boolean {
@@ -6028,15 +6060,21 @@ function seedProductVariantDeleteCompatibilityPreconditions(
   const variantsSource = readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
   const retainedVariants = readCapturedProductVariants(productId, variantsSource);
 
-  store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Product variant delete conformance seed')]);
-  store.replaceBaseVariantsForProduct(productId, [
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(productId, productPayload, 'Product variant delete conformance seed'),
+  ]);
+  runtime.store.replaceBaseVariantsForProduct(productId, [
     makeProductVariantUpdateCompatibilitySeedVariant(productId, variantId, null),
     ...retainedVariants.filter((variant) => variant.id !== variantId),
   ]);
   return true;
 }
 
-function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId: string): boolean {
+function seedProductVariantsBulkReorderPreconditions(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  productId: string,
+): boolean {
   const setup = readRecordField(capture as Record<string, unknown>, 'setup');
   const setupCreatedProduct = readRecordField(
     readRecordField(readRecordField(setup, 'productCreate'), 'data'),
@@ -6059,15 +6097,21 @@ function seedProductVariantsBulkReorderPreconditions(capture: unknown, productId
     return false;
   }
 
-  store.upsertBaseProducts([makeSeedProduct(productId, seedSource, 'Product variant reorder conformance seed')]);
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(productId, seedSource, 'Product variant reorder conformance seed'),
+  ]);
   const variants = readCapturedProductVariants(productId, setupVariantProduct);
   if (variants.length > 0) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
   return true;
 }
 
-function seedProductReorderMediaPreconditions(capture: unknown, productId: string): boolean {
+function seedProductReorderMediaPreconditions(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  productId: string,
+): boolean {
   if (mutationNameFromCapture(capture) !== 'productReorderMedia') {
     return false;
   }
@@ -6095,10 +6139,12 @@ function seedProductReorderMediaPreconditions(capture: unknown, productId: strin
     return false;
   }
 
-  store.upsertBaseProducts([makeSeedProduct(productId, productSource, 'Product media reorder conformance seed')]);
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(productId, productSource, 'Product media reorder conformance seed'),
+  ]);
   const capturedMedia = readCapturedProductMedia(productId, mediaProduct);
   if (capturedMedia.length > 0) {
-    store.replaceBaseMediaForProduct(productId, capturedMedia);
+    runtime.store.replaceBaseMediaForProduct(productId, capturedMedia);
   }
   return true;
 }
@@ -6126,6 +6172,7 @@ function readTagsRemoveSearchLaggedTags(capture: unknown): Set<string> {
 }
 
 function seedTagsRemovePreconditions(
+  runtime: ProxyRuntimeContext,
   productId: string,
   productPayload: Record<string, unknown> | null,
   capture: unknown,
@@ -6143,12 +6190,12 @@ function seedTagsRemovePreconditions(
   const baseTags = postMutationTags.filter((tag) => !searchLaggedTags.has(tag));
   const preMutationTags = [...new Set([...postMutationTags, ...removedTags])];
 
-  store.upsertBaseProducts([makeSeedProduct(productId, { ...productPayload, tags: baseTags })]);
-  store.stageUpdateProduct(makeSeedProduct(productId, { ...productPayload, tags: preMutationTags }));
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, { ...productPayload, tags: baseTags })]);
+  runtime.store.stageUpdateProduct(makeSeedProduct(productId, { ...productPayload, tags: preMutationTags }));
   return true;
 }
 
-function seedInventoryAdjustmentPreconditions(capture: unknown): void {
+function seedInventoryAdjustmentPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const location = inventoryAdjustmentLocation(capture);
   if (!location) {
     return;
@@ -6182,9 +6229,11 @@ function seedInventoryAdjustmentPreconditions(capture: unknown): void {
       .map((variant) => makeInventoryAdjustmentSeedVariant(productId, variant, location, capture))
       .filter((variant): variant is ProductVariantRecord => variant !== null);
 
-    store.upsertBaseProducts([makeSeedProduct(productId, productPayload, 'Inventory adjustment conformance seed')]);
+    runtime.store.upsertBaseProducts([
+      makeSeedProduct(productId, productPayload, 'Inventory adjustment conformance seed'),
+    ]);
     if (variants.length > 0) {
-      store.replaceBaseVariantsForProduct(productId, variants);
+      runtime.store.replaceBaseVariantsForProduct(productId, variants);
     }
   }
 }
@@ -6254,7 +6303,7 @@ function makeInventoryLinkageSeedVariant(
   };
 }
 
-function seedInventoryLinkagePreconditions(capture: unknown): boolean {
+function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const captureObject = isPlainObject(capture) ? capture : {};
   if (
     !(
@@ -6278,7 +6327,7 @@ function seedInventoryLinkagePreconditions(capture: unknown): boolean {
     .filter((variant): variant is ProductVariantRecord => variant !== null);
   const firstVariant = variants[0] ?? null;
 
-  store.upsertBaseProducts([
+  runtime.store.upsertBaseProducts([
     makeSeedProduct(productId, {
       ...product,
       totalInventory: firstVariant?.inventoryQuantity ?? null,
@@ -6286,7 +6335,7 @@ function seedInventoryLinkagePreconditions(capture: unknown): boolean {
     }),
   ]);
   if (variants.length > 0) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   return true;
@@ -6310,7 +6359,7 @@ function makeInventoryQuantityRootSeedLevel(
   };
 }
 
-function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
+function seedInventoryQuantityRootPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const mutationEvidence = readRecordField(capture as Record<string, unknown>, 'mutationEvidence');
   const setup = readRecordField(mutationEvidence, 'setup');
   const productId = readStringField(setup, 'productId');
@@ -6347,8 +6396,8 @@ function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
     }
   }
 
-  store.upsertBaseLocations([...locationsById.values()]);
-  store.upsertBaseProducts([
+  runtime.store.upsertBaseLocations([...locationsById.values()]);
+  runtime.store.upsertBaseProducts([
     makeSeedProduct(
       productId,
       {
@@ -6360,7 +6409,7 @@ function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
       'Inventory quantity roots conformance seed',
     ),
   ]);
-  store.replaceBaseVariantsForProduct(productId, [
+  runtime.store.replaceBaseVariantsForProduct(productId, [
     {
       id: variantId,
       productId,
@@ -6391,7 +6440,7 @@ function seedInventoryQuantityRootPreconditions(capture: unknown): boolean {
   return true;
 }
 
-function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
+function seedInventoryItemUpdatePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (mutationNameFromCapture(capture) !== 'inventoryItemUpdate') {
     return false;
   }
@@ -6412,16 +6461,20 @@ function seedInventoryItemUpdatePreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, product)]);
   const variants = readCapturedProductVariants(productId, product);
   if (variants.length > 0) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   return true;
 }
 
-function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<string, unknown>): void {
+function seedMetafieldsSetOwnerProducts(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  variables: Record<string, unknown>,
+): void {
   const preconditionProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'preconditionRead'), 'data'),
     'product',
@@ -6448,14 +6501,14 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
     }
 
     if (ownerId.startsWith('gid://shopify/Product/')) {
-      if (store.getEffectiveProductById(ownerId)) {
+      if (runtime.store.getEffectiveProductById(ownerId)) {
         continue;
       }
 
       const source = readStringField(productSource, 'id') === ownerId ? productSource : null;
-      store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
+      runtime.store.upsertBaseProducts([makeSeedProduct(ownerId, source)]);
       if (source) {
-        store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
+        runtime.store.replaceBaseMetafieldsForProduct(ownerId, readCapturedProductMetafields(ownerId, source));
       }
       continue;
     }
@@ -6466,7 +6519,7 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
         continue;
       }
 
-      store.upsertBaseProducts([makeSeedProduct(productId, seedProduct ?? downstreamProduct)]);
+      runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedProduct ?? downstreamProduct)]);
       const variantSource =
         readStringField(downstreamProductVariant, 'id') === ownerId
           ? downstreamProductVariant
@@ -6475,7 +6528,7 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
               .find((variant) => readStringField(variant, 'id') === ownerId) ?? null);
       const variant = variantSource ? makeCapturedVariant(productId, variantSource) : null;
       if (variant) {
-        store.replaceBaseVariantsForProduct(productId, [variant]);
+        runtime.store.replaceBaseVariantsForProduct(productId, [variant]);
       }
       continue;
     }
@@ -6483,13 +6536,13 @@ function seedMetafieldsSetOwnerProducts(capture: unknown, variables: Record<stri
     if (ownerId.startsWith('gid://shopify/Collection/')) {
       const source = readStringField(downstreamCollection, 'id') === ownerId ? downstreamCollection : seedCollection;
       if (source) {
-        store.upsertBaseCollections([makeSeedCollection(ownerId, source)]);
+        runtime.store.upsertBaseCollections([makeSeedCollection(ownerId, source)]);
       }
     }
   }
 }
 
-function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
+function seedProductMetafieldsReadPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const responseProduct = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data'),
     'product',
@@ -6504,12 +6557,12 @@ function seedProductMetafieldsReadPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
-  store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  runtime.store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
   return true;
 }
 
-function seedMetaobjectReadPreconditions(capture: unknown): boolean {
+function seedMetaobjectReadPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (!isPlainObject(capture)) {
     return false;
   }
@@ -6523,14 +6576,18 @@ function seedMetaobjectReadPreconditions(capture: unknown): boolean {
       continue;
     }
 
-    hydrateMetaobjectsFromUpstreamResponse(query, readRecordField(request, 'variables') ?? {}, response);
+    hydrateMetaobjectsFromUpstreamResponse(runtime, query, readRecordField(request, 'variables') ?? {}, response);
     hydrated = true;
   }
 
-  return hydrated && (store.hasEffectiveMetaobjectDefinitions() || store.hasEffectiveMetaobjects());
+  return hydrated && (runtime.store.hasEffectiveMetaobjectDefinitions() || runtime.store.hasEffectiveMetaobjects());
 }
 
-function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<string, unknown>): boolean {
+function seedMetafieldsDeleteOwnerProducts(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  variables: Record<string, unknown>,
+): boolean {
   if (mutationNameFromCapture(capture) !== 'metafieldsDelete') {
     return false;
   }
@@ -6593,12 +6650,12 @@ function seedMetafieldsDeleteOwnerProducts(capture: unknown, variables: Record<s
     })
     .filter((metafield): metafield is ProductMetafieldRecord => metafield !== null);
 
-  store.upsertBaseProducts([makeSeedProduct(ownerId, downstreamProduct)]);
-  store.replaceBaseMetafieldsForProduct(ownerId, [...retainedMetafields, ...deletedMetafields]);
+  runtime.store.upsertBaseProducts([makeSeedProduct(ownerId, downstreamProduct)]);
+  runtime.store.replaceBaseMetafieldsForProduct(ownerId, [...retainedMetafields, ...deletedMetafields]);
   return true;
 }
 
-function seedProductDuplicateSource(capture: unknown): boolean {
+function seedProductDuplicateSource(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (mutationNameFromCapture(capture) !== 'productDuplicate') {
     return false;
   }
@@ -6611,11 +6668,15 @@ function seedProductDuplicateSource(capture: unknown): boolean {
     return false;
   }
 
-  hydrateProductsFromUpstreamResponse('query ProductDuplicateSourceSeed { product { id } }', {}, sourceRead);
+  hydrateProductsFromUpstreamResponse(runtime, 'query ProductDuplicateSourceSeed { product { id } }', {}, sourceRead);
   return true;
 }
 
-function seedFileDeleteMediaReferencePreconditions(capture: unknown, variables: Record<string, unknown>): boolean {
+function seedFileDeleteMediaReferencePreconditions(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  variables: Record<string, unknown>,
+): boolean {
   if (mutationNameFromCapture(capture) !== 'fileDelete') {
     return false;
   }
@@ -6644,8 +6705,8 @@ function seedFileDeleteMediaReferencePreconditions(capture: unknown, variables: 
     return false;
   }
 
-  store.upsertBaseProducts([makeSeedProduct(productId, product)]);
-  store.replaceBaseMediaForProduct(productId, capturedMedia);
+  runtime.store.upsertBaseProducts([makeSeedProduct(productId, product)]);
+  runtime.store.replaceBaseMediaForProduct(productId, capturedMedia);
   return true;
 }
 
@@ -6804,7 +6865,7 @@ function readCapturedMetafieldDefinitionProductMetafields(
     });
 }
 
-function seedMetafieldDefinitionPreconditions(capture: unknown): boolean {
+function seedMetafieldDefinitionPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const responseData = readRecordField(readRecordField(capture as Record<string, unknown>, 'response'), 'data');
   const definitionNodes = ['metafieldDefinitions', 'seedCatalog']
     .flatMap((fieldName) => readArrayField(readRecordField(responseData, fieldName), 'nodes'))
@@ -6819,7 +6880,7 @@ function seedMetafieldDefinitionPreconditions(capture: unknown): boolean {
     return false;
   }
 
-  store.upsertBaseMetafieldDefinitions(definitions);
+  runtime.store.upsertBaseMetafieldDefinitions(definitions);
 
   const metafieldsByProductId = new Map<string, ProductMetafieldRecord[]>();
   for (const metafield of [
@@ -6838,8 +6899,8 @@ function seedMetafieldDefinitionPreconditions(capture: unknown): boolean {
   }
 
   for (const [productId, metafields] of metafieldsByProductId) {
-    store.upsertBaseProducts([makeSeedProduct(productId)]);
-    store.replaceBaseMetafieldsForProduct(productId, metafields);
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId)]);
+    runtime.store.replaceBaseMetafieldsForProduct(productId, metafields);
   }
 
   return true;
@@ -6884,7 +6945,7 @@ function readCapturedProductMedia(
     .filter((mediaRecord): mediaRecord is ProductMediaRecord => mediaRecord !== null);
 }
 
-function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
+function seedExplicitProductMediaPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const mediaByProductId = new Map<string, ProductMediaRecord[]>();
 
   for (const [index, seedMedia] of readArrayField(capture as Record<string, unknown>, 'seedProductMedia')
@@ -6915,16 +6976,16 @@ function seedExplicitProductMediaPreconditions(capture: unknown): boolean {
   }
 
   for (const [productId, mediaRecords] of mediaByProductId) {
-    if (!store.getEffectiveProductById(productId)) {
-      store.upsertBaseProducts([makeSeedProduct(productId)]);
+    if (!runtime.store.getEffectiveProductById(productId)) {
+      runtime.store.upsertBaseProducts([makeSeedProduct(productId)]);
     }
-    store.replaceBaseMediaForProduct(productId, mediaRecords);
+    runtime.store.replaceBaseMediaForProduct(productId, mediaRecords);
   }
 
   return mediaByProductId.size > 0;
 }
 
-function seedLocalizationPreconditions(capture: unknown): boolean {
+function seedLocalizationPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const readCaptureData = readRecordField(
     readRecordField(readRecordField(capture as Record<string, unknown>, 'readCapture'), 'response'),
     'data',
@@ -6941,7 +7002,7 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
       return isoCode && name ? [{ isoCode, name }] : [];
     });
   if (locales.length > 0) {
-    store.replaceBaseAvailableLocales(locales);
+    runtime.store.replaceBaseAvailableLocales(locales);
   }
 
   const shopLocales = readArrayField(readCaptureData, 'allShopLocales')
@@ -6971,7 +7032,7 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
       ];
     });
   if (shopLocales.length > 0) {
-    store.upsertBaseShopLocales(shopLocales);
+    runtime.store.upsertBaseShopLocales(shopLocales);
   }
 
   const resources = readArrayField(readRecordField(readCaptureData, 'resources'), 'nodes').filter(isPlainObject);
@@ -6987,7 +7048,7 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
         .map((content) => [readStringField(content, 'key'), readStringField(content, 'value')] as const)
         .filter((entry): entry is [string, string] => entry[0] !== null && entry[1] !== null),
     );
-    store.upsertBaseProducts([
+    runtime.store.upsertBaseProducts([
       makeSeedProduct(productId, {
         id: productId,
         title: contentByKey.get('title'),
@@ -7000,7 +7061,7 @@ function seedLocalizationPreconditions(capture: unknown): boolean {
   return locales.length > 0 || shopLocales.length > 0 || resources.length > 0;
 }
 
-function seedOnlineStoreContentPreconditions(capture: unknown): void {
+function seedOnlineStoreContentPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const interactions = readArrayField(capture as Record<string, unknown>, 'interactions').filter(isPlainObject);
   for (const interaction of interactions) {
     if (interaction['name'] !== 'baseline-catalog-detail-empty') {
@@ -7011,7 +7072,7 @@ function seedOnlineStoreContentPreconditions(capture: unknown): void {
     const response = readRecordField(interaction, 'response');
     const query = readStringField(request, 'query');
     if (query && response) {
-      hydrateOnlineStoreFromUpstreamResponse(query, response);
+      hydrateOnlineStoreFromUpstreamResponse(runtime, query, response);
     }
     return;
   }
@@ -7081,7 +7142,10 @@ function readBulkOperationPayloadFromInteraction(
   );
 }
 
-function seedProductsFromBulkOperationResult(result: Record<string, unknown> | null | undefined): number {
+function seedProductsFromBulkOperationResult(
+  runtime: ProxyRuntimeContext,
+  result: Record<string, unknown> | null | undefined,
+): number {
   const products = readArrayField(result, 'records')
     .filter(isPlainObject)
     .flatMap((record, index) => {
@@ -7101,13 +7165,13 @@ function seedProductsFromBulkOperationResult(result: Record<string, unknown> | n
     });
 
   if (products.length > 0) {
-    store.upsertBaseProducts(products);
+    runtime.store.upsertBaseProducts(products);
   }
 
   return products.length;
 }
 
-function seedBulkOperationPreconditions(capture: unknown): boolean {
+function seedBulkOperationPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const captureRecord = isPlainObject(capture) ? capture : {};
   const reads = readRecordField(captureRecord, 'reads');
   const lifecycle = readRecordField(captureRecord, 'lifecycle');
@@ -7167,19 +7231,22 @@ function seedBulkOperationPreconditions(capture: unknown): boolean {
     readRecordField(readRecordField(lifecycle, 'queryExportImmediateCancel'), 'run'),
     'bulkOperationRunQuery',
   );
-  const seededBulkResultProducts = seedProductsFromBulkOperationResult(readRecordField(terminalLifecycle, 'result'));
+  const seededBulkResultProducts = seedProductsFromBulkOperationResult(
+    runtime,
+    readRecordField(terminalLifecycle, 'result'),
+  );
 
   if (baseOperations.size > 0) {
-    store.upsertBaseBulkOperations([...baseOperations.values()]);
+    runtime.store.upsertBaseBulkOperations([...baseOperations.values()]);
   }
   if (stagedImmediateCancelOperation) {
-    store.stageBulkOperation(stagedImmediateCancelOperation);
+    runtime.store.stageBulkOperation(stagedImmediateCancelOperation);
   }
 
   return baseOperations.size > 0 || stagedImmediateCancelOperation !== null || seededBulkResultProducts > 0;
 }
 
-function seedAdminPlatformNodePreconditions(capture: unknown): void {
+function seedAdminPlatformNodePreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const nodeSeeds = readRecordField(capture as Record<string, unknown>, 'nodeSeeds');
   if (!nodeSeeds) {
     return;
@@ -7193,7 +7260,7 @@ function seedAdminPlatformNodePreconditions(capture: unknown): void {
     })
     .filter((product): product is ProductRecord => product !== null);
   if (products.length > 0) {
-    store.upsertBaseProducts(products);
+    runtime.store.upsertBaseProducts(products);
   }
 
   const collections = readArrayField(nodeSeeds, 'collections')
@@ -7204,7 +7271,7 @@ function seedAdminPlatformNodePreconditions(capture: unknown): void {
     })
     .filter((collection): collection is CollectionRecord => collection !== null);
   if (collections.length > 0) {
-    store.upsertBaseCollections(collections);
+    runtime.store.upsertBaseCollections(collections);
   }
 
   const customers = readArrayField(nodeSeeds, 'customers')
@@ -7215,7 +7282,7 @@ function seedAdminPlatformNodePreconditions(capture: unknown): void {
     })
     .filter((customer): customer is CustomerRecord => customer !== null);
   if (customers.length > 0) {
-    store.upsertBaseCustomers(customers);
+    runtime.store.upsertBaseCustomers(customers);
   }
 
   const locations = readArrayField(nodeSeeds, 'locations')
@@ -7223,7 +7290,7 @@ function seedAdminPlatformNodePreconditions(capture: unknown): void {
     .map((location) => readLocationRecord(location))
     .filter((location): location is LocationRecord => location !== null);
   if (locations.length > 0) {
-    store.upsertBaseLocations(locations);
+    runtime.store.upsertBaseLocations(locations);
   }
 }
 
@@ -7292,7 +7359,7 @@ function readTaxonomyCaptureCategories(
   return readTaxonomyConnectionCategories(readRecordField(taxonomy, 'categories'));
 }
 
-function seedAdminPlatformTaxonomyPreconditions(capture: unknown): void {
+function seedAdminPlatformTaxonomyPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const captures = readRecordField(capture as Record<string, unknown>, 'captures');
   const categories = [
     ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogFirstPage'),
@@ -7301,21 +7368,25 @@ function seedAdminPlatformTaxonomyPreconditions(capture: unknown): void {
     ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparelOverflowSeed'),
   ];
   if (categories.length > 0) {
-    store.upsertBaseTaxonomyCategories(categories);
+    runtime.store.upsertBaseTaxonomyCategories(categories);
   }
 }
 
-function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
-  seedAdminPlatformNodePreconditions(capture);
-  seedAdminPlatformTaxonomyPreconditions(capture);
+function seedPreconditionsFromCapture(
+  runtime: ProxyRuntimeContext,
+  capture: unknown,
+  variables: Record<string, unknown>,
+): void {
+  seedAdminPlatformNodePreconditions(runtime, capture);
+  seedAdminPlatformTaxonomyPreconditions(runtime, capture);
 
-  if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
+  if (seedBulkVariantValidationAtomicityPreconditions(runtime, capture)) {
     return;
   }
 
-  seedOnlineStoreContentPreconditions(capture);
+  seedOnlineStoreContentPreconditions(runtime, capture);
 
-  if (seedBulkOperationPreconditions(capture)) {
+  if (seedBulkOperationPreconditions(runtime, capture)) {
     return;
   }
 
@@ -7327,7 +7398,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     })
     .filter((customer): customer is CustomerRecord => customer !== null);
   if (seedCustomers.length > 0) {
-    store.upsertBaseCustomers(seedCustomers);
+    runtime.store.upsertBaseCustomers(seedCustomers);
   }
 
   const seedSegments = readArrayField(capture as Record<string, unknown>, 'seedSegments')
@@ -7338,7 +7409,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     })
     .filter((segment): segment is SegmentRecord => segment !== null);
   if (seedSegments.length > 0) {
-    store.upsertBaseSegments(seedSegments);
+    runtime.store.upsertBaseSegments(seedSegments);
   }
 
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
@@ -7347,24 +7418,24 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (!productId?.startsWith('gid://shopify/Product/')) {
       continue;
     }
-    store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
     const variants = readCapturedProductVariants(productId, seedProduct);
     if (variants.length > 0) {
-      store.replaceBaseVariantsForProduct(productId, variants);
+      runtime.store.replaceBaseVariantsForProduct(productId, variants);
     }
     const options = readCapturedProductOptions(productId, seedProduct);
     if (options.length > 0) {
-      store.replaceBaseOptionsForProduct(productId, options);
+      runtime.store.replaceBaseOptionsForProduct(productId, options);
     }
   }
-  if (seedProductContextualPricingReadPreconditions(capture)) {
+  if (seedProductContextualPricingReadPreconditions(runtime, capture)) {
     return;
   }
   const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
   for (const seedCollection of seedCollections) {
     const collectionId = readStringField(seedCollection, 'id');
     if (collectionId?.startsWith('gid://shopify/Collection/')) {
-      store.upsertBaseCollections([makeSeedCollection(collectionId, seedCollection)]);
+      runtime.store.upsertBaseCollections([makeSeedCollection(collectionId, seedCollection)]);
     }
   }
   const seedPublications = readArrayField(capture as Record<string, unknown>, 'seedPublications')
@@ -7372,21 +7443,21 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     .map(readSeedPublication)
     .filter((publication): publication is PublicationRecord => publication !== null);
   if (seedPublications.length > 0) {
-    store.upsertBasePublications(seedPublications);
+    runtime.store.upsertBasePublications(seedPublications);
   }
   const seedSellingPlanGroups = readArrayField(capture as Record<string, unknown>, 'seedSellingPlanGroups')
     .filter(isPlainObject)
     .map(readSeedSellingPlanGroup)
     .filter((group): group is SellingPlanGroupRecord => group !== null);
   if (seedSellingPlanGroups.length > 0) {
-    store.upsertBaseSellingPlanGroups(seedSellingPlanGroups);
+    runtime.store.upsertBaseSellingPlanGroups(seedSellingPlanGroups);
   }
   const seedChannels = readArrayField(capture as Record<string, unknown>, 'seedChannels')
     .filter(isPlainObject)
     .map(readSeedChannel)
     .filter((channel): channel is ChannelRecord => channel !== null);
   if (seedChannels.length > 0) {
-    store.upsertBaseChannels(seedChannels);
+    runtime.store.upsertBaseChannels(seedChannels);
   }
   const sellingPlanInput = readRecordField(variables, 'input');
   const sellingPlanResources = readRecordField(variables, 'resources');
@@ -7399,35 +7470,35 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   if (isSellingPlanGroupLifecycleSeed) {
     return;
   }
-  seedExplicitProductMediaPreconditions(capture);
-  seedLocalizationPreconditions(capture);
+  seedExplicitProductMediaPreconditions(runtime, capture);
+  seedLocalizationPreconditions(runtime, capture);
 
-  seedProductMetafieldsReadPreconditions(capture);
-  seedMetafieldDefinitionPreconditions(capture);
-  if (seedMetaobjectReadPreconditions(capture)) {
+  seedProductMetafieldsReadPreconditions(runtime, capture);
+  seedMetafieldDefinitionPreconditions(runtime, capture);
+  if (seedMetaobjectReadPreconditions(runtime, capture)) {
     return;
   }
-  if (seedInventoryLinkagePreconditions(capture)) {
-    return;
-  }
-
-  if (seedInventoryQuantityRootPreconditions(capture)) {
+  if (seedInventoryLinkagePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedGiftCardLifecyclePreconditions(capture)) {
+  if (seedInventoryQuantityRootPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedMetafieldsDeleteOwnerProducts(capture, variables)) {
+  if (seedGiftCardLifecyclePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedProductVariantUpdateCompatibilityPreconditions(capture, variables)) {
+  if (seedMetafieldsDeleteOwnerProducts(runtime, capture, variables)) {
     return;
   }
 
-  if (seedProductVariantDeleteCompatibilityPreconditions(capture, variables)) {
+  if (seedProductVariantUpdateCompatibilityPreconditions(runtime, capture, variables)) {
+    return;
+  }
+
+  if (seedProductVariantDeleteCompatibilityPreconditions(runtime, capture, variables)) {
     return;
   }
 
@@ -7437,95 +7508,95 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
-  if (seedFulfillmentLifecyclePreconditions(capture, mutationName)) {
+  if (seedFulfillmentLifecyclePreconditions(runtime, capture, mutationName)) {
     return;
   }
 
-  if (seedFulfillmentOrderLifecyclePreconditions(capture)) {
+  if (seedFulfillmentOrderLifecyclePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedFulfillmentOrderRequestLifecyclePreconditions(capture)) {
+  if (seedFulfillmentOrderRequestLifecyclePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedDraftOrderInvoiceSendSafetyPreconditions(capture)) {
+  if (seedDraftOrderInvoiceSendSafetyPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedCustomerMergePreconditions(capture, variables, mutationName)) {
+  if (seedCustomerMergePreconditions(runtime, capture, variables, mutationName)) {
     return;
   }
 
-  if (seedCustomerInputValidationPreconditions(capture)) {
+  if (seedCustomerInputValidationPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedCustomerOrderSummaryPreconditions(capture)) {
+  if (seedCustomerOrderSummaryPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedStoreCreditAccountPreconditions(capture)) {
+  if (seedStoreCreditAccountPreconditions(runtime, capture)) {
     return;
   }
 
-  seedCustomerPaymentMethodPreconditions(capture);
+  seedCustomerPaymentMethodPreconditions(runtime, capture);
 
-  if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
+  if (seedCustomerMutationPreconditions(runtime, capture, variables, mutationName, payload)) {
     return;
   }
 
-  if (seedCustomerByIdentifierPreconditions(capture)) {
+  if (seedCustomerByIdentifierPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedB2BCompanyPreconditions(capture)) {
+  if (seedB2BCompanyPreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedShippingSettingsPreconditions(capture)) {
+  if (seedShippingSettingsPreconditions(runtime, capture)) {
     return;
   }
 
-  const seededShop = seedShopPreconditions(capture);
-  const seededLocations = seedLocationDetailPreconditions(capture);
-  const seededBusinessEntities = seedBusinessEntityPreconditions(capture);
+  const seededShop = seedShopPreconditions(runtime, capture);
+  const seededLocations = seedLocationDetailPreconditions(runtime, capture);
+  const seededBusinessEntities = seedBusinessEntityPreconditions(runtime, capture);
   const seededStoreProperties = seededShop || seededLocations || seededBusinessEntities;
   if (seededStoreProperties) {
     return;
   }
 
-  if (seedDeliveryProfilePreconditions(capture)) {
+  if (seedDeliveryProfilePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedDeliveryProfileWritePreconditions(capture)) {
+  if (seedDeliveryProfileWritePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedMarketsFromCapture(capture)) {
+  if (seedMarketsFromCapture(runtime, capture)) {
     return;
   }
 
-  if (seedDiscountCatalogPreconditions(capture)) {
-    seedShopifyFunctionPreconditions(capture);
+  if (seedDiscountCatalogPreconditions(runtime, capture)) {
+    seedShopifyFunctionPreconditions(runtime, capture);
     return;
   }
 
-  if (seedShopifyFunctionPreconditions(capture)) {
+  if (seedShopifyFunctionPreconditions(runtime, capture)) {
     return;
   }
 
   const explicitSeedOrder = readRecordField(capture as Record<string, unknown>, 'seedOrder');
   const explicitSeedOrderId = readStringField(explicitSeedOrder, 'id');
   if (explicitSeedOrder && explicitSeedOrderId) {
-    store.upsertBaseOrders([makeSeedOrder(explicitSeedOrderId, explicitSeedOrder)]);
+    runtime.store.upsertBaseOrders([makeSeedOrder(explicitSeedOrderId, explicitSeedOrder)]);
   }
 
   const explicitSeedDraftOrder = readRecordField(capture as Record<string, unknown>, 'seedDraftOrder');
   const explicitSeedDraftOrderId = readStringField(explicitSeedDraftOrder, 'id');
   if (explicitSeedDraftOrder && explicitSeedDraftOrderId) {
-    store.stageCreateDraftOrder(makeSeedDraftOrder(explicitSeedDraftOrderId, explicitSeedDraftOrder));
+    runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(explicitSeedDraftOrderId, explicitSeedDraftOrder));
   }
 
   const readOrderPayload =
@@ -7535,20 +7606,20 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     ) ?? readRecordField(readRecordField(capture as Record<string, unknown>, 'data'), 'order');
   const readOrderId = readStringField(readOrderPayload, 'id') ?? readStringField(variables, 'id');
   if (!mutationName && readOrderPayload && readOrderId) {
-    store.upsertBaseOrders([makeSeedOrder(readOrderId, readOrderPayload)]);
+    runtime.store.upsertBaseOrders([makeSeedOrder(readOrderId, readOrderPayload)]);
     return;
   }
   if (!mutationName && (capture as Record<string, unknown>)['seedOrderCatalogFromCapture'] === true) {
     const responsePayload = readRecordField(capture as Record<string, unknown>, 'response');
     if (responsePayload) {
-      hydrateOrdersFromUpstreamResponse(responsePayload);
+      hydrateOrdersFromUpstreamResponse(runtime, responsePayload);
     }
     const nextPageResponse = readRecordField(
       readRecordField(capture as Record<string, unknown>, 'nextPage'),
       'response',
     );
     if (nextPageResponse) {
-      hydrateOrdersFromUpstreamResponse(nextPageResponse);
+      hydrateOrdersFromUpstreamResponse(runtime, nextPageResponse);
     }
   }
 
@@ -7570,7 +7641,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       (isPlainObject(setupPreReadOrder) ? setupPreReadOrder : null);
     const seedOrderId = readStringField(seedOrder, 'id') ?? readStringField(variables, 'id');
     if (seedOrder && seedOrderId) {
-      store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
+      runtime.store.upsertBaseOrders([makeSeedOrder(seedOrderId, seedOrder)]);
     }
     const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
     for (const seedProduct of seedProducts) {
@@ -7578,10 +7649,10 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (!productId?.startsWith('gid://shopify/Product/')) {
         continue;
       }
-      store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+      runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
       const variants = readCapturedProductVariants(productId, seedProduct);
       if (variants.length > 0) {
-        store.replaceBaseVariantsForProduct(productId, variants);
+        runtime.store.replaceBaseVariantsForProduct(productId, variants);
       }
     }
   }
@@ -7598,7 +7669,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const downstreamSource = readRecordField(downstreamOrder, 'order');
       const seedSource = orderPayload ?? downstreamSource;
       if (seedSource) {
-        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+        runtime.store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
       }
     }
     return;
@@ -7609,7 +7680,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     const customerPayload = readRecordField(draftOrderPayload, 'customer');
     const customerId = readStringField(customerPayload, 'id');
     if (customerId) {
-      store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
+      runtime.store.upsertBaseCustomers([makeSeedCustomer(customerId, customerPayload)]);
     }
 
     for (const lineItem of readArrayField(readRecordField(draftOrderPayload, 'lineItems'), 'nodes').filter(
@@ -7624,13 +7695,13 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const variantResourceId = variantId.split('/').at(-1) ?? '0';
       const productId = `gid://shopify/Product/${variantResourceId}`;
       const productTitle = readStringField(lineItem, 'title') ?? 'Conformance draft-order product';
-      store.upsertBaseProducts([
+      runtime.store.upsertBaseProducts([
         makeSeedProduct(productId, {
           id: productId,
           title: productTitle,
         }),
       ]);
-      store.replaceBaseVariantsForProduct(productId, [
+      runtime.store.replaceBaseVariantsForProduct(productId, [
         {
           id: variantId,
           productId,
@@ -7688,7 +7759,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (!seedDraftOrder.note && isPlainObject(setupInput)) {
         seedDraftOrder.note = readStringField(setupInput, 'note');
       }
-      store.stageCreateDraftOrder(seedDraftOrder);
+      runtime.store.stageCreateDraftOrder(seedDraftOrder);
     }
     return;
   }
@@ -7715,7 +7786,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       );
       const setupSource = readRecordField(setupDraftOrder, 'draftOrder');
       if (setupSource) {
-        store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, setupSource));
+        runtime.store.stageCreateDraftOrder(makeSeedDraftOrder(draftOrderId, setupSource));
       }
     }
     return;
@@ -7762,7 +7833,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
           'data',
         )?.['order'];
       if (isPlainObject(orderSource)) {
-        store.upsertBaseOrders([makeSeedOrder(orderId, orderSource)]);
+        runtime.store.upsertBaseOrders([makeSeedOrder(orderId, orderSource)]);
       }
     }
     return;
@@ -7782,7 +7853,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       readStringField(input, 'id') ?? readStringField(variables, 'orderId') ?? readStringField(variables, 'id');
     const seedId = readStringField(orderPayload, 'id') ?? orderId;
     if (seedId) {
-      store.upsertBaseOrders([makeSeedOrder(seedId, orderPayload)]);
+      runtime.store.upsertBaseOrders([makeSeedOrder(seedId, orderPayload)]);
     }
     return;
   }
@@ -7795,7 +7866,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     const orderPayload = readRecordField(downstreamOrder, 'order');
     const orderId = readStringField(variables, 'orderId') ?? readStringField(orderPayload, 'id');
     if (orderId) {
-      store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
+      runtime.store.upsertBaseOrders([makeSeedOrder(orderId, orderPayload)]);
     }
     return;
   }
@@ -7822,22 +7893,22 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const downstreamSource = readRecordField(downstreamOrder, 'order');
       const seedSource = orderCreateSource ?? downstreamSource;
       if (seedSource) {
-        store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
+        runtime.store.upsertBaseOrders([makeSeedOrder(orderId, seedSource)]);
       }
     }
     return;
   }
 
   if (mutationName === 'inventoryAdjustQuantities') {
-    seedInventoryAdjustmentPreconditions(capture);
+    seedInventoryAdjustmentPreconditions(runtime, capture);
     return;
   }
 
-  if (seedInventoryItemUpdatePreconditions(capture)) {
+  if (seedInventoryItemUpdatePreconditions(runtime, capture)) {
     return;
   }
 
-  if (seedFileDeleteMediaReferencePreconditions(capture, variables)) {
+  if (seedFileDeleteMediaReferencePreconditions(runtime, capture, variables)) {
     return;
   }
 
@@ -7900,23 +7971,26 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     !isProductDeleteValidationProbe &&
     !isMissingProductValidationProbe;
 
-  if (seedProductDuplicateSource(capture)) {
+  if (seedProductDuplicateSource(runtime, capture)) {
     return;
   }
 
   if (shouldSeedProduct) {
-    if (mutationName === 'tagsRemove' && seedTagsRemovePreconditions(productId, productPayload, capture, variables)) {
+    if (
+      mutationName === 'tagsRemove' &&
+      seedTagsRemovePreconditions(runtime, productId, productPayload, capture, variables)
+    ) {
       return;
     }
 
     if (
       mutationName === 'productVariantsBulkReorder' &&
-      seedProductVariantsBulkReorderPreconditions(capture, productId)
+      seedProductVariantsBulkReorderPreconditions(runtime, capture, productId)
     ) {
       return;
     }
 
-    if (mutationName === 'productReorderMedia' && seedProductReorderMediaPreconditions(capture, productId)) {
+    if (mutationName === 'productReorderMedia' && seedProductReorderMediaPreconditions(runtime, capture, productId)) {
       return;
     }
 
@@ -7927,7 +8001,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
         : readStringField(captureSeedProduct, 'id') === productId
           ? captureSeedProduct
           : (productPayload ?? productInput);
-    store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
     if (
       mutationName === 'productVariantsBulkCreate' ||
       mutationName === 'productVariantsBulkUpdate' ||
@@ -7951,17 +8025,17 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
             ? readBulkUpdateSeedVariants(productId, variantsSource)
             : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
-        store.replaceBaseVariantsForProduct(productId, variants);
+        runtime.store.replaceBaseVariantsForProduct(productId, variants);
       }
       if (preMutationProduct) {
         const options = readCapturedProductOptions(productId, preMutationProduct);
         if (options.length > 0) {
-          store.replaceBaseOptionsForProduct(productId, options);
+          runtime.store.replaceBaseOptionsForProduct(productId, options);
         }
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
-      seedProductOptionState(productId, variables, capture);
+      seedProductOptionState(runtime, productId, variables, capture);
     }
 
     if (mutationName === 'productUpdateMedia') {
@@ -7972,7 +8046,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       const mediaSource = readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : null;
       const capturedMedia = readCapturedProductMedia(productId, mediaSource);
       if (capturedMedia.length > 0) {
-        store.replaceBaseMediaForProduct(productId, capturedMedia);
+        runtime.store.replaceBaseMediaForProduct(productId, capturedMedia);
       }
     }
     if (mutationName === 'productDeleteMedia') {
@@ -7983,7 +8057,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
         const deletedProductImageIds = readArrayField(payload, 'deletedProductImageIds').filter(
           (productImageId): productImageId is string => typeof productImageId === 'string',
         );
-        store.replaceBaseMediaForProduct(
+        runtime.store.replaceBaseMediaForProduct(
           productId,
           mediaIds.map((mediaId, index) => ({
             key: `${productId}:media:${index}`,
@@ -8004,7 +8078,7 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (mutationName === 'metafieldsSet') {
-    seedMetafieldsSetOwnerProducts(capture, variables);
+    seedMetafieldsSetOwnerProducts(runtime, capture, variables);
   }
 
   const collectionPayload =
@@ -8027,34 +8101,36 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const collectionId = rawCollectionId?.startsWith('gid://shopify/Collection/') ? rawCollectionId : null;
   if (collectionId) {
     const collection = makeSeedCollection(collectionId, collectionPayload ?? initialCollectionPayload);
-    store.upsertBaseCollections([collection]);
+    runtime.store.upsertBaseCollections([collection]);
     const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
     for (const seedProduct of seedProducts) {
       const productId = readStringField(seedProduct, 'id');
       if (productId?.startsWith('gid://shopify/Product/')) {
-        store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
+        runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedProduct)]);
       }
     }
     const rawProductNodes = readRecordField(collectionPayload, 'products')?.['nodes'];
     const productNodes = Array.isArray(rawProductNodes) ? rawProductNodes : [];
     const initialProductNodes = readArrayField(readRecordField(initialCollectionPayload, 'products'), 'nodes');
     if (mutationName === 'collectionReorderProducts') {
-      seedCollectionProducts(collection, initialProductNodes);
+      seedCollectionProducts(runtime, collection, initialProductNodes);
     } else if (mutationName === 'collectionUpdate') {
-      seedCollectionProducts(collection, productNodes);
+      seedCollectionProducts(runtime, collection, productNodes);
     } else {
       for (const node of productNodes.filter(isPlainObject)) {
         const productId = readStringField(node, 'id');
         if (productId) {
-          store.upsertBaseProducts([makeSeedProduct(productId, node)]);
+          runtime.store.upsertBaseProducts([makeSeedProduct(productId, node)]);
         }
       }
     }
     seedPreexistingProductCollectionsFromReadPayload(
+      runtime,
       readRecordField(capture as Record<string, unknown>, 'initialCollectionRead'),
       collection.id,
     );
     seedPreexistingProductCollectionsFromReadPayload(
+      runtime,
       readRecordField(capture as Record<string, unknown>, 'downstreamRead'),
       collection.id,
     );
@@ -8065,8 +8141,8 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       if (mutationName === 'collectionAddProducts' && seedProducts.length > 0) {
         continue;
       }
-      if (!store.getEffectiveProductById(productIdValue)) {
-        store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
+      if (!runtime.store.getEffectiveProductById(productIdValue)) {
+        runtime.store.upsertBaseProducts([makeSeedProduct(productIdValue)]);
       }
     }
   }
@@ -8203,6 +8279,33 @@ export async function executeParityScenario({
   comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
   operationNameValidation: OperationNameValidationResult;
 }> {
+  const runtimeStore = new InMemoryStore();
+  const syntheticIdentity = new SyntheticIdentityRegistry();
+  const runtime = { store: runtimeStore, syntheticIdentity };
+  return executeParityScenarioInRuntime(runtime, {
+    repoRoot,
+    scenario,
+    paritySpec,
+  });
+}
+
+async function executeParityScenarioInRuntime(
+  runtime: ProxyRuntimeContext,
+  {
+    repoRoot,
+    scenario,
+    paritySpec,
+  }: {
+    repoRoot: string;
+    scenario: Scenario;
+    paritySpec: ParitySpec;
+  },
+): Promise<{
+  ok: boolean;
+  primaryProxyStatus: number;
+  comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
+  operationNameValidation: OperationNameValidationResult;
+}> {
   if (!paritySpec.proxyRequest?.documentPath) {
     throw new Error(`Scenario ${scenario.id} does not define a proxy request.`);
   }
@@ -8213,8 +8316,7 @@ export async function executeParityScenario({
     throw new Error(`Scenario ${scenario.id} must declare at least one comparison target.`);
   }
 
-  store.reset();
-  resetSyntheticIdentity();
+  runtime.store.reset();
 
   const capturePath = scenario.captureFiles?.[0] ?? paritySpec.liveCaptureFiles?.[0];
   if (typeof capturePath !== 'string') {
@@ -8227,8 +8329,9 @@ export async function executeParityScenario({
   const proxyResponses: Record<string, unknown> = {};
   const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
   const executedOperations: ExecutedOperation[] = [];
-  seedPreconditionsFromCapture(capture, primaryVariables);
+  seedPreconditionsFromCapture(runtime, capture, primaryVariables);
   const primaryProxyResponse = await executeGraphQLAgainstLocalProxy(
+    runtime,
     primaryDocument,
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
@@ -8262,6 +8365,7 @@ export async function executeParityScenario({
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
       const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        runtime,
         document,
         variables,
         upstreamPayload,
