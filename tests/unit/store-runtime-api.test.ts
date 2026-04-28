@@ -2,6 +2,98 @@ import { describe, expect, it } from 'vitest';
 import { InMemoryStore } from '../../src/state/store.js';
 import { SyntheticIdentityRegistry } from '../../src/state/synthetic-identity.js';
 
+type StoreInternals = Record<string, unknown>;
+
+function sentinelForStoreField(key: string, currentValue: unknown): unknown {
+  if (currentValue instanceof Map) {
+    const entry: [string, unknown] = [key, key === 'laggedTagSearchProductIds' ? 7 : `${key}:value`];
+    return new Map([entry]);
+  }
+
+  if (currentValue instanceof Set) {
+    return new Set([`${key}:value`]);
+  }
+
+  if (Array.isArray(currentValue)) {
+    return [`${key}:value`];
+  }
+
+  if (currentValue === null || typeof currentValue === 'object') {
+    return {
+      [`${key}:id`]: {
+        __sentinel: key,
+      },
+    };
+  }
+
+  if (typeof currentValue === 'number') {
+    return 7;
+  }
+
+  if (typeof currentValue === 'string') {
+    return `${key}:value`;
+  }
+
+  if (typeof currentValue === 'boolean') {
+    return !currentValue;
+  }
+
+  return {
+    __sentinel: key,
+  };
+}
+
+function seedEveryEnumerableStoreField(store: InMemoryStore): void {
+  const internals = store as unknown as StoreInternals;
+  for (const [key, value] of Object.entries(internals)) {
+    internals[key] = sentinelForStoreField(key, value);
+  }
+}
+
+function normalizeForComparison(value: unknown): unknown {
+  if (value instanceof Map) {
+    return {
+      __type: 'Map',
+      entries: [...value.entries()]
+        .map(([entryKey, entryValue]) => [normalizeForComparison(entryKey), normalizeForComparison(entryValue)])
+        .sort(([left], [right]) => String(left).localeCompare(String(right))),
+    };
+  }
+
+  if (value instanceof Set) {
+    return {
+      __type: 'Set',
+      values: [...value.values()]
+        .map(normalizeForComparison)
+        .sort((left, right) => String(left).localeCompare(String(right))),
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(normalizeForComparison);
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, normalizeForComparison(record[key])]),
+    );
+  }
+
+  return value;
+}
+
+function normalizeStoreInternals(store: InMemoryStore): Record<string, unknown> {
+  const internals = store as unknown as StoreInternals;
+  return Object.fromEntries(
+    Object.keys(internals)
+      .sort()
+      .map((key) => [key, normalizeForComparison(internals[key])]),
+  );
+}
+
 describe('InMemoryStore runtime API', () => {
   it('exposes meta log and state through high-level methods', () => {
     const store = new InMemoryStore();
@@ -76,5 +168,38 @@ describe('InMemoryStore runtime API', () => {
     expect(store.getStagedUploadContent('shopify-draft-proxy/gid://shopify/Product/1/image.png')).toBe(
       'binary-content',
     );
+  });
+
+  it('dump/restore preserves every enumerable in-memory store state field', () => {
+    const store = new InMemoryStore();
+    seedEveryEnumerableStoreField(store);
+
+    expect(Object.keys(store.dumpRuntimeState().fields).sort()).toEqual(
+      Object.keys(store as unknown as StoreInternals).sort(),
+    );
+
+    const restored = new InMemoryStore();
+    restored.restoreRuntimeState(
+      JSON.parse(JSON.stringify(store.dumpRuntimeState())) as ReturnType<InMemoryStore['dumpRuntimeState']>,
+    );
+
+    expect(normalizeStoreInternals(restored)).toEqual(normalizeStoreInternals(store));
+  });
+
+  it('dump/restore guard fails when an in-memory store state field is omitted', () => {
+    const store = new InMemoryStore();
+    seedEveryEnumerableStoreField(store);
+
+    const dump = JSON.parse(JSON.stringify(store.dumpRuntimeState())) as ReturnType<InMemoryStore['dumpRuntimeState']>;
+    const omittedKey = Object.keys(store as unknown as StoreInternals)[0];
+    if (!omittedKey) {
+      throw new Error('Expected InMemoryStore to have enumerable state fields');
+    }
+    delete dump.fields[omittedKey];
+
+    const restored = new InMemoryStore();
+    restored.restoreRuntimeState(dump);
+
+    expect(normalizeStoreInternals(restored)).not.toEqual(normalizeStoreInternals(store));
   });
 });
