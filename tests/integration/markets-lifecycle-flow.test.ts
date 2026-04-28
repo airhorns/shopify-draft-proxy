@@ -2089,6 +2089,7 @@ describe('Markets lifecycle staging', () => {
 
     const product = productResponse.body.data.productCreate.product as {
       id: string;
+      title: string;
       variants: { nodes: Array<{ id: string }> };
     };
     const variantId = product.variants.nodes[0]!.id;
@@ -2265,16 +2266,27 @@ describe('Markets lifecycle staging', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `${PRICE_LIST_FIELDS}
-          mutation ProductFixedPriceUpdate($priceListId: ID!, $productId: ID!, $prices: [PriceListPriceInput!]!) {
+          mutation ProductFixedPriceUpdate(
+            $priceListId: ID!
+            $pricesToAdd: [PriceListProductPriceInput!]!
+            $pricesToDeleteByProductIds: [ID!]!
+          ) {
             priceListFixedPricesByProductUpdate(
               priceListId: $priceListId
-              productId: $productId
-              prices: $prices
+              pricesToAdd: $pricesToAdd
+              pricesToDeleteByProductIds: $pricesToDeleteByProductIds
             ) {
               priceList {
                 ...LifecyclePriceListFields
               }
-              fixedPriceVariantIds
+              pricesToAddProducts {
+                id
+                title
+              }
+              pricesToDeleteProducts {
+                id
+                title
+              }
               userErrors {
                 field
                 message
@@ -2285,28 +2297,117 @@ describe('Markets lifecycle staging', () => {
         `,
         variables: {
           priceListId,
-          productId: product.id,
-          prices: [
+          pricesToAdd: [
             {
-              variantId,
+              productId: product.id,
               price: {
                 amount: '40.0',
                 currencyCode: 'EUR',
               },
             },
           ],
+          pricesToDeleteByProductIds: [],
         },
       });
 
     expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.userErrors).toEqual([]);
-    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.fixedPriceVariantIds).toEqual([
-      variantId,
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.pricesToAddProducts).toEqual([
+      {
+        id: product.id,
+        title: product.title,
+      },
     ]);
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.pricesToDeleteProducts).toEqual([]);
     expect(
       byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.priceList.prices.edges[0].node.price,
     ).toEqual({
       amount: '40.0',
       currencyCode: 'EUR',
+    });
+
+    const missingProductResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation ProductFixedPriceMissingProduct(
+            $priceListId: ID!
+            $pricesToAdd: [PriceListProductPriceInput!]!
+            $pricesToDeleteByProductIds: [ID!]!
+          ) {
+            priceListFixedPricesByProductUpdate(
+              priceListId: $priceListId
+              pricesToAdd: $pricesToAdd
+              pricesToDeleteByProductIds: $pricesToDeleteByProductIds
+            ) {
+              priceList {
+                id
+              }
+              pricesToAddProducts {
+                id
+              }
+              pricesToDeleteProducts {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          pricesToAdd: [
+            {
+              productId: 'gid://shopify/Product/0',
+              price: {
+                amount: '41.0',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+          pricesToDeleteByProductIds: [],
+        },
+      });
+
+    expect(missingProductResponse.body.data.priceListFixedPricesByProductUpdate).toEqual({
+      priceList: null,
+      pricesToAddProducts: null,
+      pricesToDeleteProducts: null,
+      userErrors: [
+        {
+          field: ['pricesToAdd', '0', 'productId'],
+          message: 'Product gid://shopify/Product/0 in `pricesToAdd` does not exist.',
+          code: 'PRODUCT_DOES_NOT_EXIST',
+        },
+      ],
+    });
+
+    const readAfterMissingProductResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          query ReadAfterMissingProduct($id: ID!) {
+            priceList(id: $id) {
+              ...LifecyclePriceListFields
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(readAfterMissingProductResponse.body.data.priceList.prices.edges).toHaveLength(1);
+    expect(readAfterMissingProductResponse.body.data.priceList.prices.edges[0].node).toMatchObject({
+      price: {
+        amount: '40.0',
+        currencyCode: 'EUR',
+      },
+      variant: {
+        id: variantId,
+      },
     });
 
     const quantityRulesAddResponse = await request(app)
@@ -2696,6 +2797,7 @@ describe('Markets lifecycle staging', () => {
     const logResponse = await request(app).get('/__meta/log');
     expect(stateResponse.body.stagedState.deletedPriceListIds).toEqual({ [priceListId]: true });
     expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
       'staged',
       'staged',
       'staged',

@@ -10,6 +10,7 @@ import {
   type ComparisonContract,
   type ComparisonTarget,
   type ExpectedDifference,
+  type JsonValue,
   type Matcher,
   type ParitySpec,
   type ProxyRequestSpec,
@@ -27,7 +28,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAdminPlatformMutation, handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
@@ -929,6 +930,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
+  apiVersion = '2025-01',
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -965,7 +967,7 @@ async function executeGraphQLAgainstLocalProxy(
           id: makeSyntheticGid('MutationLogEntry'),
           receivedAt: makeSyntheticTimestamp(),
           operationName: capability.operationName,
-          path: '/admin/api/2025-01/graphql.json',
+          path: `/admin/api/${apiVersion}/graphql.json`,
           query: document,
           variables,
           status: 'staged',
@@ -985,7 +987,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -995,7 +997,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1011,7 +1013,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1021,7 +1023,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1048,6 +1050,38 @@ async function executeGraphQLAgainstLocalProxy(
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'shipping-fulfillments' &&
+    parsed.rootFields.some((rootField) =>
+      ['reverseDeliveryCreateWithShipping', 'reverseDeliveryShippingUpdate', 'reverseFulfillmentOrderDispose'].includes(
+        rootField,
+      ),
+    )
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Reverse-logistics parity request was not handled locally: ${capability.operationName}`);
     }
 
     store.appendLog({
@@ -1122,6 +1156,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleFunctionMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'admin-platform') {
+    const result = handleAdminPlatformMutation(document, variables);
+    if (!result) {
+      throw new Error(`Admin platform parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (result.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        stagedResourceIds: result.stagedResourceIds ?? [],
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: result.notes ?? 'Staged locally in the conformance parity proxy harness.',
+      });
+    }
+
+    return {
+      status: 200,
+      body: result.response,
     };
   }
 
@@ -1696,6 +1757,8 @@ async function executeGraphQLAgainstLocalProxy(
           'fulfillmentOrders',
           'assignedFulfillmentOrders',
           'manualHoldsFulfillmentOrders',
+          'reverseDelivery',
+          'reverseFulfillmentOrder',
         ].includes(rootField),
       )
     ) {
@@ -5178,7 +5241,13 @@ function makeSeedProduct(
       description: readStringField(rawSeo, 'description'),
     },
     category: null,
+    ...readSeedContextualPricing(source),
   };
+}
+
+function readSeedContextualPricing(source: Record<string, unknown> | null): { contextualPricing?: JsonValue } {
+  const result = jsonValueSchema.safeParse(source?.['contextualPricing']);
+  return result.success ? { contextualPricing: structuredClone(result.data) } : {};
 }
 
 function makeSeedVariant(
@@ -5253,6 +5322,7 @@ function makeCapturedVariant(productId: string, source: Record<string, unknown>)
           inventoryLevels,
         }
       : null,
+    ...readSeedContextualPricing(source),
   };
 }
 
@@ -5303,6 +5373,38 @@ function readCapturedProductOptions(productId: string, product: Record<string, u
       };
     })
     .filter((option): option is ProductOptionRecord => option !== null);
+}
+
+function seedProductContextualPricingReadPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const product = readRecordField(data, 'product');
+  const variant = readRecordField(data, 'productVariant');
+  const productId = readStringField(product, 'id') ?? readStringField(readRecordField(variant, 'product'), 'id');
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const seedProduct = readArrayField(capture as Record<string, unknown>, 'seedProducts').find(
+    (candidate): candidate is Record<string, unknown> =>
+      isPlainObject(candidate) && readStringField(candidate, 'id') === productId,
+  );
+  store.upsertBaseProducts([makeSeedProduct(productId, product ?? seedProduct ?? null)]);
+
+  const variants: ProductVariantRecord[] = [];
+  if (variant) {
+    const capturedVariant = makeCapturedVariant(productId, variant);
+    if (capturedVariant) {
+      variants.push(capturedVariant);
+    }
+  }
+  if (variants.length === 0) {
+    variants.push(...readCapturedProductVariants(productId, seedProduct ?? null));
+  }
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
 }
 
 function readPreMutationProduct(capture: unknown, productId: string): Record<string, unknown> | null {
@@ -7029,6 +7131,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       store.replaceBaseOptionsForProduct(productId, options);
     }
   }
+  if (seedProductContextualPricingReadPreconditions(capture)) {
+    return;
+  }
   const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
   for (const seedCollection of seedCollections) {
     const collectionId = readStringField(seedCollection, 'id');
@@ -7876,6 +7981,7 @@ export async function executeParityScenario({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
+    paritySpec.proxyRequest.apiVersion,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -7903,8 +8009,12 @@ export async function executeParityScenario({
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
-        executedOperations.push(operation),
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        document,
+        variables,
+        upstreamPayload,
+        (operation) => executedOperations.push(operation),
+        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;

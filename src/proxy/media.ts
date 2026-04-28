@@ -83,6 +83,20 @@ function makeSyntheticStagedUploadId(index: number): string {
   return makeSyntheticGid(`StagedUploadTarget${index}`);
 }
 
+const googleFormUploadParameterNames = [
+  'Content-Type',
+  'success_action_status',
+  'acl',
+  'key',
+  'x-goog-date',
+  'x-goog-credential',
+  'x-goog-algorithm',
+  'x-goog-signature',
+  'policy',
+] as const;
+
+const googleSignedUploadParameterNames = ['GoogleAccessId', 'key', 'policy', 'signature'] as const;
+
 function validateFileInput(input: Record<string, unknown>, index: number): FilesUserError[] {
   const errors: FilesUserError[] = [];
   const originalSource = input['originalSource'];
@@ -641,16 +655,53 @@ function makeStagedTarget(
   const method = typeof input['httpMethod'] === 'string' ? input['httpMethod'] : 'POST';
   const encodedId = encodeURIComponent(id);
   const encodedFilename = encodeURIComponent(filename);
+  const key = `shopify-draft-proxy/${id}/${filename}`;
+
+  let parameters: Array<{ name: string; value: string }>;
+  switch (resource) {
+    case 'IMAGE':
+    case 'FILE':
+      parameters = googleFormUploadParameterNames.map((name) => {
+        switch (name) {
+          case 'Content-Type':
+            return { name, value: mimeType };
+          case 'success_action_status':
+            return { name, value: '201' };
+          case 'acl':
+            return { name, value: 'private' };
+          case 'key':
+            return { name, value: key };
+          case 'x-goog-algorithm':
+            return { name, value: 'GOOG4-RSA-SHA256' };
+          default:
+            return { name, value: `shopify-draft-proxy-placeholder-${name}` };
+        }
+      });
+      break;
+    case 'VIDEO':
+    case 'MODEL_3D':
+      parameters = googleSignedUploadParameterNames.map((name) => {
+        if (name === 'key') {
+          return { name, value: key };
+        }
+
+        return { name, value: `shopify-draft-proxy-placeholder-${name}` };
+      });
+      break;
+    default:
+      parameters = [
+        { name: 'key', value: key },
+        { name: 'Content-Type', value: mimeType },
+        { name: 'x-shopify-draft-proxy-resource', value: resource },
+        { name: 'x-shopify-draft-proxy-http-method', value: method },
+      ];
+      break;
+  }
 
   return {
     url: `https://shopify-draft-proxy.local/staged-uploads/${encodedId}`,
     resourceUrl: `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
-    parameters: [
-      { name: 'key', value: `shopify-draft-proxy/${id}/${filename}` },
-      { name: 'Content-Type', value: mimeType },
-      { name: 'x-shopify-draft-proxy-resource', value: resource },
-      { name: 'x-shopify-draft-proxy-http-method', value: method },
-    ],
+    parameters,
   };
 }
 

@@ -359,6 +359,81 @@ const rerouteMutation = `#graphql
   }
 `;
 
+const splitMutation = `#graphql
+  ${fulfillmentOrderFields}
+  mutation FulfillmentOrderSplitLifecycle($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+      fulfillmentOrderSplits {
+        fulfillmentOrder {
+          ...FulfillmentOrderLifecycleFields
+        }
+        remainingFulfillmentOrder {
+          ...FulfillmentOrderLifecycleFields
+        }
+        replacementFulfillmentOrder {
+          ...FulfillmentOrderLifecycleFields
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const mergeMutation = `#graphql
+  ${fulfillmentOrderFields}
+  mutation FulfillmentOrderMergeLifecycle($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+      fulfillmentOrderMerges {
+        fulfillmentOrder {
+          ...FulfillmentOrderLifecycleFields
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const setFulfillmentDeadlineMutation = `#graphql
+  mutation FulfillmentOrdersSetFulfillmentDeadlineLifecycle(
+    $fulfillmentOrderIds: [ID!]!
+    $fulfillmentDeadline: DateTime!
+  ) {
+    fulfillmentOrdersSetFulfillmentDeadline(
+      fulfillmentOrderIds: $fulfillmentOrderIds
+      fulfillmentDeadline: $fulfillmentDeadline
+    ) {
+      success
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const preparedForPickupMutation = `#graphql
+  mutation FulfillmentOrderLineItemsPreparedForPickupLifecycle(
+    $input: FulfillmentOrderLineItemsPreparedForPickupInput!
+  ) {
+    fulfillmentOrderLineItemsPreparedForPickup(input: $input) {
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 function trimGraphql(query: string): string {
   return query.replace(/^#graphql\n/u, '').trim();
 }
@@ -518,6 +593,17 @@ function readHoldId(holdCapture: GraphqlCapture): string | null {
   return typeof holdId === 'string' ? holdId : null;
 }
 
+function readSplitFulfillmentOrderIds(splitCapture: GraphqlCapture): string[] {
+  const data = readObject(splitCapture.response.payload.data);
+  const payload = readObject(data?.['fulfillmentOrderSplit']);
+  const splitResult = readNodes(readObject({ nodes: payload?.['fulfillmentOrderSplits'] }))[0] ?? null;
+  const fulfillmentOrder = readObject(splitResult?.['fulfillmentOrder']);
+  const remainingFulfillmentOrder = readObject(splitResult?.['remainingFulfillmentOrder']);
+  return [fulfillmentOrder?.['id'], remainingFulfillmentOrder?.['id']].filter(
+    (id): id is string => typeof id === 'string',
+  );
+}
+
 const startedAt = new Date().toISOString();
 const createdOrders: CreatedOrder[] = [];
 const cleanup: GraphqlCapture[] = [];
@@ -650,6 +736,42 @@ const afterReroute = await readAfter(rerouteOrder.order);
 const cancel = await capture(cancelMutation, { id: rerouteOrder.order.fulfillmentOrderId });
 const afterCancel = await readAfter(rerouteOrder.order);
 
+const residualOrder = await createTrackedOrder('residual-split-deadline-merge', 3);
+const split = await capture(splitMutation, {
+  fulfillmentOrderSplits: [
+    {
+      fulfillmentOrderId: residualOrder.order.fulfillmentOrderId,
+      fulfillmentOrderLineItems: [
+        {
+          id: residualOrder.order.fulfillmentOrderLineItemId,
+          quantity: 1,
+        },
+      ],
+    },
+  ],
+});
+const splitFulfillmentOrderIds = readSplitFulfillmentOrderIds(split);
+const afterSplit = await readAfter(residualOrder.order);
+const fulfillmentDeadline = new Date(Date.now() + 96 * 60 * 60 * 1000).toISOString();
+const setFulfillmentDeadline = await capture(setFulfillmentDeadlineMutation, {
+  fulfillmentOrderIds: splitFulfillmentOrderIds,
+  fulfillmentDeadline,
+});
+const afterSetFulfillmentDeadline = await readAfter(residualOrder.order);
+const preparedForPickup = await capture(preparedForPickupMutation, {
+  input: {
+    lineItemsByFulfillmentOrder: splitFulfillmentOrderIds.map((fulfillmentOrderId) => ({ fulfillmentOrderId })),
+  },
+});
+const merge = await capture(mergeMutation, {
+  fulfillmentOrderMergeInputs: [
+    {
+      mergeIntents: splitFulfillmentOrderIds.map((fulfillmentOrderId) => ({ fulfillmentOrderId })),
+    },
+  ],
+});
+const afterMerge = await readAfter(residualOrder.order);
+
 for (const order of createdOrders) {
   cleanup.push(await cleanupOrder(order));
 }
@@ -671,6 +793,10 @@ const output = {
       'fulfillmentOrderReschedule',
       'fulfillmentOrderReportProgress',
       'fulfillmentOrdersReroute',
+      'fulfillmentOrderSplit',
+      'fulfillmentOrdersSetFulfillmentDeadline',
+      'fulfillmentOrderLineItemsPreparedForPickup',
+      'fulfillmentOrderMerge',
     ],
     locationIds,
     createdOrders,
@@ -710,6 +836,18 @@ const output = {
       afterReroute,
       cancelAfterReroute: cancel,
       afterCancel,
+    },
+    residualSplitDeadlineMerge: {
+      create: residualOrder.create,
+      split,
+      afterSplit,
+      splitFulfillmentOrderIds,
+      fulfillmentDeadline,
+      setFulfillmentDeadline,
+      afterSetFulfillmentDeadline,
+      preparedForPickup,
+      merge,
+      afterMerge,
     },
   },
   cleanup,
