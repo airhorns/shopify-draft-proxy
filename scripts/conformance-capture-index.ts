@@ -311,6 +311,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    packageScript: 'conformance:capture-metaobject-references',
+    scriptPath: 'scripts/capture-metaobject-reference-conformance.ts',
+    purpose: 'Metaobject reference field and reverse referencedBy read behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-reference-lifecycle.json`,
+      'config/parity-specs/metaobject-reference-lifecycle.json',
+    ],
+    cleanupBehavior: 'Deletes seeded parent/target metaobjects and definitions after reference capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     packageScript: 'conformance:capture-inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',

@@ -1,0 +1,1175 @@
+{
+  "capturedAt": "2026-04-28T01:53:32.039Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "targetType": "codex_har_384_ref_target_1777341209922",
+    "parentType": "codex_har_384_ref_parent_1777341209922",
+    "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17591075122",
+    "parentDefinitionId": "gid://shopify/MetaobjectDefinition/17591107890",
+    "targetAId": "gid://shopify/Metaobject/185875824946",
+    "targetBId": "gid://shopify/Metaobject/185875857714",
+    "parentId": "gid://shopify/Metaobject/185875890482"
+  },
+  "setup": [
+    {
+      "name": "setup-target-definition-create",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceDefinitionFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation MetaobjectReferenceDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        ...MetaobjectReferenceDefinitionFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "type": "codex_har_384_ref_target_1777341209922",
+            "name": "Codex HAR-384 Target 1777341209922",
+            "description": "Temporary HAR-384 conformance definition for metaobject reference targets.",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Reference target title.",
+                "type": "single_line_text_field",
+                "required": true
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17591075122",
+              "type": "codex_har_384_ref_target_1777341209922",
+              "name": "Codex HAR-384 Target 1777341209922",
+              "description": "Temporary HAR-384 conformance definition for metaobject reference targets.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Reference target title.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-parent-definition-create",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceDefinitionFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation MetaobjectReferenceDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n    metaobjectDefinitionCreate(definition: $definition) {\n      metaobjectDefinition {\n        ...MetaobjectReferenceDefinitionFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "type": "codex_har_384_ref_parent_1777341209922",
+            "name": "Codex HAR-384 Parent 1777341209922",
+            "description": "Temporary HAR-384 conformance definition for metaobject reference fields.",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Reference parent title.",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "single_ref",
+                "name": "Single Ref",
+                "description": "Single metaobject reference field.",
+                "type": "metaobject_reference",
+                "required": false,
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                  }
+                ]
+              },
+              {
+                "key": "list_ref",
+                "name": "List Ref",
+                "description": "List metaobject reference field.",
+                "type": "list.metaobject_reference",
+                "required": false,
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17591107890",
+              "type": "codex_har_384_ref_parent_1777341209922",
+              "name": "Codex HAR-384 Parent 1777341209922",
+              "description": "Temporary HAR-384 conformance definition for metaobject reference fields.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Reference parent title.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "single_ref",
+                  "name": "Single Ref",
+                  "description": "Single metaobject reference field.",
+                  "required": false,
+                  "type": {
+                    "name": "metaobject_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                    }
+                  ]
+                },
+                {
+                  "key": "list_ref",
+                  "name": "List Ref",
+                  "description": "List metaobject reference field.",
+                  "required": false,
+                  "type": {
+                    "name": "list.metaobject_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "metaobject_definition_id",
+                      "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-target-a-create",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation MetaobjectReferenceEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectReferenceEntryFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_384_ref_target_1777341209922",
+            "handle": "target-a",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Target A 1777341209922"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185875824946",
+              "handle": "target-a",
+              "type": "codex_har_384_ref_target_1777341209922",
+              "displayName": "Target A 1777341209922",
+              "updatedAt": "2026-04-28T01:53:30Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Target A 1777341209922",
+                  "jsonValue": "Target A 1777341209922",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-target-b-create",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation MetaobjectReferenceEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectReferenceEntryFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_384_ref_target_1777341209922",
+            "handle": "target-b",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Target B 1777341209922"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185875857714",
+              "handle": "target-b",
+              "type": "codex_har_384_ref_target_1777341209922",
+              "displayName": "Target B 1777341209922",
+              "updatedAt": "2026-04-28T01:53:30Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Target B 1777341209922",
+                  "jsonValue": "Target B 1777341209922",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-reference-parent-create",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  mutation MetaobjectReferenceEntryCreate($metaobject: MetaobjectCreateInput!) {\n    metaobjectCreate(metaobject: $metaobject) {\n      metaobject {\n        ...MetaobjectReferenceEntryFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_384_ref_parent_1777341209922",
+            "handle": "reference-parent",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Reference parent 1777341209922"
+              },
+              {
+                "key": "single_ref",
+                "value": "gid://shopify/Metaobject/185875824946"
+              },
+              {
+                "key": "list_ref",
+                "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/185875890482",
+              "handle": "reference-parent",
+              "type": "codex_har_384_ref_parent_1777341209922",
+              "displayName": "Reference parent 1777341209922",
+              "updatedAt": "2026-04-28T01:53:31Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Reference parent 1777341209922",
+                  "jsonValue": "Reference parent 1777341209922",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "single_ref",
+                  "type": "metaobject_reference",
+                  "value": "gid://shopify/Metaobject/185875824946",
+                  "jsonValue": "gid://shopify/Metaobject/185875824946",
+                  "definition": {
+                    "key": "single_ref",
+                    "name": "Single Ref",
+                    "required": false,
+                    "type": {
+                      "name": "metaobject_reference",
+                      "category": "REFERENCE"
+                    }
+                  }
+                },
+                {
+                  "key": "list_ref",
+                  "type": "list.metaobject_reference",
+                  "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+                  "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                  "definition": {
+                    "key": "list_ref",
+                    "name": "List Ref",
+                    "required": false,
+                    "type": {
+                      "name": "list.metaobject_reference",
+                      "category": "REFERENCE"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "seededReads": [
+    {
+      "name": "seeded-reference-read-preconditions",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment MetaobjectReferenceDefinitionFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  #graphql\n  fragment MetaobjectReferenceEntryFields on Metaobject {\n    id\n    handle\n    type\n    displayName\n    updatedAt\n    capabilities {\n      publishable {\n        status\n      }\n      onlineStore {\n        templateSuffix\n      }\n    }\n    fields {\n      key\n      type\n      value\n      jsonValue\n      definition {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n    }\n  }\n\n  query MetaobjectReferenceSeedRead(\n    $targetDefinitionId: ID!\n    $parentDefinitionId: ID!\n    $targetAId: ID!\n    $targetBId: ID!\n    $parentId: ID!\n  ) {\n    targetDefinition: metaobjectDefinition(id: $targetDefinitionId) {\n      ...MetaobjectReferenceDefinitionFields\n    }\n    parentDefinition: metaobjectDefinition(id: $parentDefinitionId) {\n      ...MetaobjectReferenceDefinitionFields\n    }\n    targetA: metaobject(id: $targetAId) {\n      ...MetaobjectReferenceEntryFields\n    }\n    targetB: metaobject(id: $targetBId) {\n      ...MetaobjectReferenceEntryFields\n    }\n    parent: metaobject(id: $parentId) {\n      ...MetaobjectReferenceEntryFields\n    }\n  }\n",
+        "variables": {
+          "targetDefinitionId": "gid://shopify/MetaobjectDefinition/17591075122",
+          "parentDefinitionId": "gid://shopify/MetaobjectDefinition/17591107890",
+          "targetAId": "gid://shopify/Metaobject/185875824946",
+          "targetBId": "gid://shopify/Metaobject/185875857714",
+          "parentId": "gid://shopify/Metaobject/185875890482"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "targetDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17591075122",
+            "type": "codex_har_384_ref_target_1777341209922",
+            "name": "Codex HAR-384 Target 1777341209922",
+            "description": "Temporary HAR-384 conformance definition for metaobject reference targets.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Reference target title.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 2,
+            "standardTemplate": null
+          },
+          "parentDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17591107890",
+            "type": "codex_har_384_ref_parent_1777341209922",
+            "name": "Codex HAR-384 Parent 1777341209922",
+            "description": "Temporary HAR-384 conformance definition for metaobject reference fields.",
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Reference parent title.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "single_ref",
+                "name": "Single Ref",
+                "description": "Single metaobject reference field.",
+                "required": false,
+                "type": {
+                  "name": "metaobject_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                  }
+                ]
+              },
+              {
+                "key": "list_ref",
+                "name": "List Ref",
+                "description": "List metaobject reference field.",
+                "required": false,
+                "type": {
+                  "name": "list.metaobject_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17591075122"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 1,
+            "standardTemplate": null
+          },
+          "targetA": {
+            "id": "gid://shopify/Metaobject/185875824946",
+            "handle": "target-a",
+            "type": "codex_har_384_ref_target_1777341209922",
+            "displayName": "Target A 1777341209922",
+            "updatedAt": "2026-04-28T01:53:30Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Target A 1777341209922",
+                "jsonValue": "Target A 1777341209922",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ]
+          },
+          "targetB": {
+            "id": "gid://shopify/Metaobject/185875857714",
+            "handle": "target-b",
+            "type": "codex_har_384_ref_target_1777341209922",
+            "displayName": "Target B 1777341209922",
+            "updatedAt": "2026-04-28T01:53:30Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Target B 1777341209922",
+                "jsonValue": "Target B 1777341209922",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ]
+          },
+          "parent": {
+            "id": "gid://shopify/Metaobject/185875890482",
+            "handle": "reference-parent",
+            "type": "codex_har_384_ref_parent_1777341209922",
+            "displayName": "Reference parent 1777341209922",
+            "updatedAt": "2026-04-28T01:53:31Z",
+            "capabilities": {
+              "publishable": null,
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Reference parent 1777341209922",
+                "jsonValue": "Reference parent 1777341209922",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "single_ref",
+                "type": "metaobject_reference",
+                "value": "gid://shopify/Metaobject/185875824946",
+                "jsonValue": "gid://shopify/Metaobject/185875824946",
+                "definition": {
+                  "key": "single_ref",
+                  "name": "Single Ref",
+                  "required": false,
+                  "type": {
+                    "name": "metaobject_reference",
+                    "category": "REFERENCE"
+                  }
+                }
+              },
+              {
+                "key": "list_ref",
+                "type": "list.metaobject_reference",
+                "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+                "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                "definition": {
+                  "key": "list_ref",
+                  "name": "List Ref",
+                  "required": false,
+                  "type": {
+                    "name": "list.metaobject_reference",
+                    "category": "REFERENCE"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 43,
+            "actualQueryCost": 43,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1957,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "referenceReads": [
+    {
+      "name": "reference-field-and-referenced-by-read",
+      "request": {
+        "query": "fragment MetaobjectReferenceTargetFields on Metaobject {\n  __typename\n  id\n  handle\n  type\n  displayName\n}\n\nfragment MetaobjectReferenceFieldFields on MetaobjectField {\n  key\n  type\n  value\n  jsonValue\n  reference {\n    __typename\n    ... on Metaobject {\n      ...MetaobjectReferenceTargetFields\n    }\n  }\n  references(first: 5) {\n    nodes {\n      __typename\n      ... on Metaobject {\n        ...MetaobjectReferenceTargetFields\n      }\n    }\n    edges {\n      cursor\n      node {\n        __typename\n        ... on Metaobject {\n          ...MetaobjectReferenceTargetFields\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nfragment MetaobjectReferencedByFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  referencedBy(first: 10) {\n    nodes {\n      key\n      name\n      namespace\n      referencer {\n        __typename\n        ... on Metaobject {\n          ...MetaobjectReferenceTargetFields\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        key\n        name\n        namespace\n        referencer {\n          __typename\n          ... on Metaobject {\n            ...MetaobjectReferenceTargetFields\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nquery MetaobjectReferenceReadParity($targetAId: ID!, $targetBId: ID!, $parentId: ID!) {\n  targetA: metaobject(id: $targetAId) {\n    ...MetaobjectReferencedByFields\n  }\n  targetB: metaobject(id: $targetBId) {\n    ...MetaobjectReferencedByFields\n  }\n  parent: metaobject(id: $parentId) {\n    id\n    handle\n    type\n    displayName\n    fields {\n      ...MetaobjectReferenceFieldFields\n    }\n    singleRef: field(key: \"single_ref\") {\n      ...MetaobjectReferenceFieldFields\n    }\n    listRef: field(key: \"list_ref\") {\n      ...MetaobjectReferenceFieldFields\n    }\n  }\n}\n",
+        "variables": {
+          "targetAId": "gid://shopify/Metaobject/185875824946",
+          "targetBId": "gid://shopify/Metaobject/185875857714",
+          "parentId": "gid://shopify/Metaobject/185875890482"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "targetA": {
+            "id": "gid://shopify/Metaobject/185875824946",
+            "handle": "target-a",
+            "type": "codex_har_384_ref_target_1777341209922",
+            "displayName": "Target A 1777341209922",
+            "referencedBy": {
+              "nodes": [
+                {
+                  "key": "single_ref",
+                  "name": "Single Ref",
+                  "namespace": "codex_har_384_ref_parent_1777341209922",
+                  "referencer": {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875890482",
+                    "handle": "reference-parent",
+                    "type": "codex_har_384_ref_parent_1777341209922",
+                    "displayName": "Reference parent 1777341209922"
+                  }
+                },
+                {
+                  "key": "list_ref",
+                  "name": "List Ref",
+                  "namespace": "codex_har_384_ref_parent_1777341209922",
+                  "referencer": {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875890482",
+                    "handle": "reference-parent",
+                    "type": "codex_har_384_ref_parent_1777341209922",
+                    "displayName": "Reference parent 1777341209922"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjIyOTI5OCwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjI5Mjk4In0=",
+                  "node": {
+                    "key": "single_ref",
+                    "name": "Single Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  }
+                },
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                  "node": {
+                    "key": "list_ref",
+                    "name": "List Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjIyOTI5OCwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjI5Mjk4In0=",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0="
+              }
+            }
+          },
+          "targetB": {
+            "id": "gid://shopify/Metaobject/185875857714",
+            "handle": "target-b",
+            "type": "codex_har_384_ref_target_1777341209922",
+            "displayName": "Target B 1777341209922",
+            "referencedBy": {
+              "nodes": [
+                {
+                  "key": "list_ref",
+                  "name": "List Ref",
+                  "namespace": "codex_har_384_ref_parent_1777341209922",
+                  "referencer": {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875890482",
+                    "handle": "reference-parent",
+                    "type": "codex_har_384_ref_parent_1777341209922",
+                    "displayName": "Reference parent 1777341209922"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "cursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                  "node": {
+                    "key": "list_ref",
+                    "name": "List Ref",
+                    "namespace": "codex_har_384_ref_parent_1777341209922",
+                    "referencer": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875890482",
+                      "handle": "reference-parent",
+                      "type": "codex_har_384_ref_parent_1777341209922",
+                      "displayName": "Reference parent 1777341209922"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0=",
+                "endCursor": "eyJsYXN0X2lkIjo0Mjk3NTA2MjI2MjA2NiwibGFzdF92YWx1ZSI6IjQyOTc1MDYyMjYyMDY2In0="
+              }
+            }
+          },
+          "parent": {
+            "id": "gid://shopify/Metaobject/185875890482",
+            "handle": "reference-parent",
+            "type": "codex_har_384_ref_parent_1777341209922",
+            "displayName": "Reference parent 1777341209922",
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Reference parent 1777341209922",
+                "jsonValue": "Reference parent 1777341209922",
+                "reference": null,
+                "references": null
+              },
+              {
+                "key": "single_ref",
+                "type": "metaobject_reference",
+                "value": "gid://shopify/Metaobject/185875824946",
+                "jsonValue": "gid://shopify/Metaobject/185875824946",
+                "reference": {
+                  "__typename": "Metaobject",
+                  "id": "gid://shopify/Metaobject/185875824946",
+                  "handle": "target-a",
+                  "type": "codex_har_384_ref_target_1777341209922",
+                  "displayName": "Target A 1777341209922"
+                },
+                "references": null
+              },
+              {
+                "key": "list_ref",
+                "type": "list.metaobject_reference",
+                "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+                "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+                "reference": null,
+                "references": {
+                  "nodes": [
+                    {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875824946",
+                      "handle": "target-a",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target A 1777341209922"
+                    },
+                    {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875857714",
+                      "handle": "target-b",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target B 1777341209922"
+                    }
+                  ],
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                      "node": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875824946",
+                        "handle": "target-a",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target A 1777341209922"
+                      }
+                    },
+                    {
+                      "cursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==",
+                      "node": {
+                        "__typename": "Metaobject",
+                        "id": "gid://shopify/Metaobject/185875857714",
+                        "handle": "target-b",
+                        "type": "codex_har_384_ref_target_1777341209922",
+                        "displayName": "Target B 1777341209922"
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                    "endCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ=="
+                  }
+                }
+              }
+            ],
+            "singleRef": {
+              "key": "single_ref",
+              "type": "metaobject_reference",
+              "value": "gid://shopify/Metaobject/185875824946",
+              "jsonValue": "gid://shopify/Metaobject/185875824946",
+              "reference": {
+                "__typename": "Metaobject",
+                "id": "gid://shopify/Metaobject/185875824946",
+                "handle": "target-a",
+                "type": "codex_har_384_ref_target_1777341209922",
+                "displayName": "Target A 1777341209922"
+              },
+              "references": null
+            },
+            "listRef": {
+              "key": "list_ref",
+              "type": "list.metaobject_reference",
+              "value": "[\"gid://shopify/Metaobject/185875824946\",\"gid://shopify/Metaobject/185875857714\"]",
+              "jsonValue": ["gid://shopify/Metaobject/185875824946", "gid://shopify/Metaobject/185875857714"],
+              "reference": null,
+              "references": {
+                "nodes": [
+                  {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875824946",
+                    "handle": "target-a",
+                    "type": "codex_har_384_ref_target_1777341209922",
+                    "displayName": "Target A 1777341209922"
+                  },
+                  {
+                    "__typename": "Metaobject",
+                    "id": "gid://shopify/Metaobject/185875857714",
+                    "handle": "target-b",
+                    "type": "codex_har_384_ref_target_1777341209922",
+                    "displayName": "Target B 1777341209922"
+                  }
+                ],
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                    "node": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875824946",
+                      "handle": "target-a",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target A 1777341209922"
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ==",
+                    "node": {
+                      "__typename": "Metaobject",
+                      "id": "gid://shopify/Metaobject/185875857714",
+                      "handle": "target-b",
+                      "type": "codex_har_384_ref_target_1777341209922",
+                      "displayName": "Target B 1777341209922"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjowLCJsYXN0X3ZhbHVlIjowfQ==",
+                  "endCursor": "eyJsYXN0X2lkIjoxLCJsYXN0X3ZhbHVlIjoxfQ=="
+                }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 69,
+            "actualQueryCost": 44,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1924,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectReferenceEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185875890482"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185875890482",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1929,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectReferenceEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185875857714"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185875857714",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1934,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectReferenceEntryDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/185875824946"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/185875824946",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1938,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectReferenceDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17591107890"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17591107890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1940,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectReferenceDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17591075122"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17591075122",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1942,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}
