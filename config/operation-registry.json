@@ -4992,30 +4992,70 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditAddShippingLine", "OrderEditAddShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Order edit support exists for variant quantity changes, but shipping-line edit roots need captured calculated-order shippingLine/totals behavior before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line additions locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
   },
   {
     "name": "orderEditRemoveShippingLine",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditRemoveShippingLine", "OrderEditRemoveShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order removal semantics, total recalculation, and downstream order shippingLines visibility before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line removal locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
   },
   {
     "name": "orderEditUpdateShippingLine",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditUpdateShippingLine", "OrderEditUpdateShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order update semantics, tax/discount interactions, total recalculation, and downstream order shippingLines visibility before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line updates locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
+  },
+  {
+    "name": "orderDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderDelete", "OrderDelete"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages order tombstones locally so downstream order, orders, and ordersCount reads observe deletion without runtime Shopify writes."
+  },
+  {
+    "name": "orderEditAddCustomItem",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditAddCustomItem", "OrderEditAddCustomItem"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages custom calculated line items locally and materializes them on orderEditCommit without runtime Shopify writes."
+  },
+  {
+    "name": "orderEditAddLineItemDiscount",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditAddLineItemDiscount", "OrderEditAddLineItemDiscount"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated line-item fixed/percentage discounts locally, recalculates totals, and preserves downstream committed order visibility."
+  },
+  {
+    "name": "orderEditRemoveDiscount",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditRemoveDiscount", "OrderEditRemoveDiscount"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages removal of locally added calculated line-item discounts and recalculates calculated-order totals without runtime Shopify writes."
   },
   {
     "name": "orderCreate",
