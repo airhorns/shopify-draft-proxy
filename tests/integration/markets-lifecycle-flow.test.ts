@@ -9,6 +9,7 @@ import type { AppConfig } from '../../src/config.js';
 import { hydrateMarketsFromUpstreamResponse } from '../../src/proxy/markets.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
+import type { ProductRecord, ProductVariantRecord } from '../../src/state/types.js';
 
 const repoRoot = process.cwd();
 const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
@@ -225,6 +226,49 @@ function seedCatalogMarkets(): { canadaMarketId: string; usMarketId: string } {
   ]);
 
   return { canadaMarketId, usMarketId };
+}
+
+function seedBaseProductWithVariant(productId: string, variantId: string, title: string): void {
+  const product: ProductRecord = {
+    id: productId,
+    legacyResourceId: productId.split('/').at(-1) ?? productId,
+    title,
+    handle: title.toLowerCase().replaceAll(' ', '-'),
+    status: 'ACTIVE',
+    publicationIds: [],
+    createdAt: '2026-04-01T00:00:00.000Z',
+    updatedAt: '2026-04-01T00:00:00.000Z',
+    vendor: 'Hermes',
+    productType: 'Hat',
+    tags: [],
+    totalInventory: 1,
+    tracksInventory: true,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: {
+      title: null,
+      description: null,
+    },
+    category: null,
+  };
+  const variant: ProductVariantRecord = {
+    id: variantId,
+    productId,
+    title: 'Default Title',
+    sku: null,
+    barcode: null,
+    price: '20.00',
+    compareAtPrice: null,
+    taxable: true,
+    inventoryPolicy: 'DENY',
+    inventoryQuantity: 1,
+    selectedOptions: [],
+    inventoryItem: null,
+  };
+
+  store.upsertBaseProducts([product]);
+  store.replaceBaseVariantsForProduct(productId, [variant]);
 }
 
 const WEB_PRESENCE_FIELDS = `#graphql
@@ -1893,6 +1937,9 @@ describe('Markets lifecycle staging', () => {
       variants: { nodes: Array<{ id: string }> };
     };
     const variantId = product.variants.nodes[0]!.id;
+    const otherProductId = 'gid://shopify/Product/90002001';
+    const otherVariantId = 'gid://shopify/ProductVariant/90002001';
+    seedBaseProductWithVariant(otherProductId, otherVariantId, 'Contextual Pricing Beanie');
 
     const createResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -2108,6 +2155,85 @@ describe('Markets lifecycle staging', () => {
     ).toEqual({
       amount: '40.0',
       currencyCode: 'EUR',
+    });
+
+    const mismatchedVariantResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation ProductFixedPriceVariantMismatch(
+            $priceListId: ID!
+            $productId: ID!
+            $prices: [PriceListPriceInput!]!
+          ) {
+            priceListFixedPricesByProductUpdate(
+              priceListId: $priceListId
+              productId: $productId
+              prices: $prices
+            ) {
+              priceList {
+                id
+              }
+              fixedPriceVariantIds
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          productId: product.id,
+          prices: [
+            {
+              variantId: otherVariantId,
+              price: {
+                amount: '41.0',
+                currencyCode: 'EUR',
+              },
+            },
+          ],
+        },
+      });
+
+    expect(mismatchedVariantResponse.body.data.priceListFixedPricesByProductUpdate).toEqual({
+      priceList: null,
+      fixedPriceVariantIds: [],
+      userErrors: [
+        {
+          field: ['prices', 'variantId'],
+          message: 'Variant does not belong to product',
+          code: 'VARIANT_NOT_FOUND',
+        },
+      ],
+    });
+
+    const readAfterMismatchResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `${PRICE_LIST_FIELDS}
+          query ReadAfterVariantMismatch($id: ID!) {
+            priceList(id: $id) {
+              ...LifecyclePriceListFields
+            }
+          }
+        `,
+        variables: {
+          id: priceListId,
+        },
+      });
+
+    expect(readAfterMismatchResponse.body.data.priceList.prices.edges).toHaveLength(1);
+    expect(readAfterMismatchResponse.body.data.priceList.prices.edges[0].node).toMatchObject({
+      price: {
+        amount: '40.0',
+        currencyCode: 'EUR',
+      },
+      variant: {
+        id: variantId,
+      },
     });
 
     const quantityRulesAddResponse = await request(app)
@@ -2497,6 +2623,7 @@ describe('Markets lifecycle staging', () => {
     const logResponse = await request(app).get('/__meta/log');
     expect(stateResponse.body.stagedState.deletedPriceListIds).toEqual({ [priceListId]: true });
     expect(logResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
       'staged',
       'staged',
       'staged',
