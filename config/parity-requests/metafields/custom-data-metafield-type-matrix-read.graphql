@@ -1,0 +1,25 @@
+query CustomDataMetafieldTypeMatrixRead($id: ID!, $namespace: String!) {
+  product(id: $id) {
+    id
+    metafields(first: 100, namespace: $namespace) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+        jsonValue
+        compareDigest
+        createdAt
+        updatedAt
+        ownerType
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -57,7 +57,11 @@ import {
   transitionMediaToReady,
   updateMediaRecord,
 } from './products/media.js';
-import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './products/metafield-values.js';
+import {
+  makeMetafieldCompareDigest,
+  normalizeMetafieldValue,
+  parseMetafieldJsonValue,
+} from './products/metafield-values.js';
 import {
   buildProductSetOptionRecords,
   deleteOptionRecords,
@@ -4589,7 +4593,10 @@ function buildProductSetMetafieldRecords(
   return inputs.map((input) => {
     const existing = findMetafieldById(runtime, typeof input['id'] === 'string' ? input['id'] : '');
     const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
-    const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
+    const value = normalizeMetafieldValue(
+      type,
+      typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
+    );
     const createdAt = existing?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
     const updatedAt = existing
       ? value === existing.value && type === existing.type
