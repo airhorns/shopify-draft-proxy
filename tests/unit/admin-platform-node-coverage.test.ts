@@ -13,7 +13,7 @@ import { listOperationRegistryEntries } from '../../src/proxy/operation-registry
 const repoRoot = resolve(import.meta.dirname, '../..');
 const adminPlatformFixturePath = resolve(
   repoRoot,
-  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json',
+  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json',
 );
 
 const nodeTypeSchema = z.strictObject({
