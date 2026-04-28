@@ -33,6 +33,11 @@ async function runGraphqlCapture(query, variables = {}) {
 
 const rootTypeIntrospectionQuery = `#graphql
   query AdminPlatformUtilityRootTypes {
+    nodeInterface: __type(name: "Node") {
+      possibleTypes {
+        name
+      }
+    }
     queryRoot: __type(name: "QueryRoot") {
       fields {
         name
@@ -348,6 +353,18 @@ const backupRegionUpdateInvalidMutation = `#graphql
 `;
 
 const introspection = await runGraphqlCapture(rootTypeIntrospectionQuery);
+function unwrapNamedType(type) {
+  let current = type;
+  while (current?.ofType) {
+    current = current.ofType;
+  }
+  return typeof current?.name === 'string' ? current.name : null;
+}
+
+function hasIdArgument(field) {
+  return field.args?.some((arg) => arg.name === 'id' && unwrapNamedType(arg.type) === 'ID') ?? false;
+}
+
 const utilityRootNames = new Set([
   'backupRegion',
   'backupRegionUpdate',
@@ -368,6 +385,22 @@ const rootTypes = {
   mutationRoot:
     introspection.payload.data?.mutationRoot?.fields?.filter((field) => utilityRootNames.has(field.name)) ?? [],
 };
+const nodePossibleTypeNames = new Set(
+  introspection.payload.data?.nodeInterface?.possibleTypes
+    ?.map((type) => type.name)
+    .filter((name) => typeof name === 'string') ?? [],
+);
+const nodeCandidateRootFields =
+  introspection.payload.data?.queryRoot?.fields
+    ?.filter((field) => {
+      const returnType = unwrapNamedType(field.type);
+      return hasIdArgument(field) && returnType !== null && nodePossibleTypeNames.has(returnType);
+    })
+    .map((field) => ({
+      name: field.name,
+      typeName: unwrapNamedType(field.type),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name)) ?? [];
 
 const supportedNodeSeed = {
   query: supportedNodeSeedQuery,
@@ -469,6 +502,8 @@ await writeFile(
       apiVersion,
       introspection: {
         status: introspection.status,
+        nodeInterface: introspection.payload.data?.nodeInterface ?? null,
+        nodeCandidateRootFields,
         rootTypes,
       },
       nodeSeeds: {

@@ -1658,6 +1658,14 @@ function serializeShop(shop: ShopRecord, selections: readonly SelectionNode[]): 
   return result;
 }
 
+export function serializeShopNodeById(
+  id: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  const shop = store.getEffectiveShop();
+  return shop?.id === id ? serializeShop(shop, selections) : null;
+}
+
 function unsupportedShopifyPaymentsFieldError(fieldName: string, path: Array<string | number>): GraphQLResponseError {
   return {
     message: `Field ShopifyPaymentsAccount.${fieldName} is not exposed by the local snapshot because it can contain account-specific payment data. Capture and model it explicitly before relying on it.`,

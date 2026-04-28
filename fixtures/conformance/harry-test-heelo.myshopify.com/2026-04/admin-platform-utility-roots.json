@@ -1,9 +1,928 @@
 {
-  "capturedAt": "2026-04-28T10:41:03.116Z",
+  "capturedAt": "2026-04-28T10:58:45.073Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "introspection": {
     "status": 200,
+    "nodeInterface": {
+      "possibleTypes": [
+        {
+          "name": "AbandonedCheckout"
+        },
+        {
+          "name": "AbandonedCheckoutLineItem"
+        },
+        {
+          "name": "Abandonment"
+        },
+        {
+          "name": "AddAllProductsOperation"
+        },
+        {
+          "name": "AdditionalFee"
+        },
+        {
+          "name": "App"
+        },
+        {
+          "name": "AppCatalog"
+        },
+        {
+          "name": "AppCredit"
+        },
+        {
+          "name": "AppInstallation"
+        },
+        {
+          "name": "AppPurchaseOneTime"
+        },
+        {
+          "name": "AppRevenueAttributionRecord"
+        },
+        {
+          "name": "AppSubscription"
+        },
+        {
+          "name": "AppUsageRecord"
+        },
+        {
+          "name": "Article"
+        },
+        {
+          "name": "BasicEvent"
+        },
+        {
+          "name": "Blog"
+        },
+        {
+          "name": "BulkOperation"
+        },
+        {
+          "name": "BusinessEntity"
+        },
+        {
+          "name": "CalculatedOrder"
+        },
+        {
+          "name": "CartTransform"
+        },
+        {
+          "name": "CashDrawer"
+        },
+        {
+          "name": "CashManagementCustomReasonCode"
+        },
+        {
+          "name": "CashManagementDefaultReasonCode"
+        },
+        {
+          "name": "CashManagementSystemReasonCode"
+        },
+        {
+          "name": "CashTrackingAdjustment"
+        },
+        {
+          "name": "CashTrackingSession"
+        },
+        {
+          "name": "CatalogCsvOperation"
+        },
+        {
+          "name": "Channel"
+        },
+        {
+          "name": "ChannelDefinition"
+        },
+        {
+          "name": "ChannelInformation"
+        },
+        {
+          "name": "CheckoutAndAccountsConfiguration"
+        },
+        {
+          "name": "CheckoutAndAccountsConfigurationOverride"
+        },
+        {
+          "name": "CheckoutProfile"
+        },
+        {
+          "name": "Collection"
+        },
+        {
+          "name": "Comment"
+        },
+        {
+          "name": "CommentEvent"
+        },
+        {
+          "name": "Company"
+        },
+        {
+          "name": "CompanyAddress"
+        },
+        {
+          "name": "CompanyContact"
+        },
+        {
+          "name": "CompanyContactRole"
+        },
+        {
+          "name": "CompanyContactRoleAssignment"
+        },
+        {
+          "name": "CompanyLocation"
+        },
+        {
+          "name": "CompanyLocationCatalog"
+        },
+        {
+          "name": "CompanyLocationStaffMemberAssignment"
+        },
+        {
+          "name": "ConsentPolicy"
+        },
+        {
+          "name": "CurrencyExchangeAdjustment"
+        },
+        {
+          "name": "Customer"
+        },
+        {
+          "name": "CustomerAccountAppExtensionPage"
+        },
+        {
+          "name": "CustomerAccountNativePage"
+        },
+        {
+          "name": "CustomerPaymentMethod"
+        },
+        {
+          "name": "CustomerSegmentMembersQuery"
+        },
+        {
+          "name": "CustomerVisit"
+        },
+        {
+          "name": "DeliveryCarrierService"
+        },
+        {
+          "name": "DeliveryCondition"
+        },
+        {
+          "name": "DeliveryCountry"
+        },
+        {
+          "name": "DeliveryCustomization"
+        },
+        {
+          "name": "DeliveryLocationGroup"
+        },
+        {
+          "name": "DeliveryMethod"
+        },
+        {
+          "name": "DeliveryMethodDefinition"
+        },
+        {
+          "name": "DeliveryParticipant"
+        },
+        {
+          "name": "DeliveryProfile"
+        },
+        {
+          "name": "DeliveryProfileItem"
+        },
+        {
+          "name": "DeliveryPromiseParticipant"
+        },
+        {
+          "name": "DeliveryPromiseProvider"
+        },
+        {
+          "name": "DeliveryProvince"
+        },
+        {
+          "name": "DeliveryRateDefinition"
+        },
+        {
+          "name": "DeliveryZone"
+        },
+        {
+          "name": "DiscountAutomaticBxgy"
+        },
+        {
+          "name": "DiscountAutomaticNode"
+        },
+        {
+          "name": "DiscountCodeNode"
+        },
+        {
+          "name": "DiscountNode"
+        },
+        {
+          "name": "DiscountRedeemCodeBulkCreation"
+        },
+        {
+          "name": "Domain"
+        },
+        {
+          "name": "DraftOrder"
+        },
+        {
+          "name": "DraftOrderLineItem"
+        },
+        {
+          "name": "DraftOrderTag"
+        },
+        {
+          "name": "Duty"
+        },
+        {
+          "name": "ExchangeLineItem"
+        },
+        {
+          "name": "ExchangeV2"
+        },
+        {
+          "name": "ExternalVideo"
+        },
+        {
+          "name": "Fulfillment"
+        },
+        {
+          "name": "FulfillmentConstraintRule"
+        },
+        {
+          "name": "FulfillmentEvent"
+        },
+        {
+          "name": "FulfillmentHold"
+        },
+        {
+          "name": "FulfillmentLineItem"
+        },
+        {
+          "name": "FulfillmentOrder"
+        },
+        {
+          "name": "FulfillmentOrderDestination"
+        },
+        {
+          "name": "FulfillmentOrderLineItem"
+        },
+        {
+          "name": "FulfillmentOrderMerchantRequest"
+        },
+        {
+          "name": "GenericFile"
+        },
+        {
+          "name": "GiftCard"
+        },
+        {
+          "name": "GiftCardCreditTransaction"
+        },
+        {
+          "name": "GiftCardDebitTransaction"
+        },
+        {
+          "name": "InventoryAdjustmentGroup"
+        },
+        {
+          "name": "InventoryItem"
+        },
+        {
+          "name": "InventoryItemMeasurement"
+        },
+        {
+          "name": "InventoryLevel"
+        },
+        {
+          "name": "InventoryQuantity"
+        },
+        {
+          "name": "InventoryShipment"
+        },
+        {
+          "name": "InventoryShipmentLineItem"
+        },
+        {
+          "name": "InventoryTransfer"
+        },
+        {
+          "name": "InventoryTransferLineItem"
+        },
+        {
+          "name": "LineItem"
+        },
+        {
+          "name": "LineItemGroup"
+        },
+        {
+          "name": "Location"
+        },
+        {
+          "name": "MailingAddress"
+        },
+        {
+          "name": "Market"
+        },
+        {
+          "name": "MarketCatalog"
+        },
+        {
+          "name": "MarketRegionCountry"
+        },
+        {
+          "name": "MarketWebPresence"
+        },
+        {
+          "name": "MarketingActivity"
+        },
+        {
+          "name": "MarketingEvent"
+        },
+        {
+          "name": "MediaImage"
+        },
+        {
+          "name": "Menu"
+        },
+        {
+          "name": "Metafield"
+        },
+        {
+          "name": "MetafieldDefinition"
+        },
+        {
+          "name": "Metaobject"
+        },
+        {
+          "name": "MetaobjectDefinition"
+        },
+        {
+          "name": "Model3d"
+        },
+        {
+          "name": "OnlineStoreTheme"
+        },
+        {
+          "name": "Order"
+        },
+        {
+          "name": "OrderAdjustment"
+        },
+        {
+          "name": "OrderDisputeSummary"
+        },
+        {
+          "name": "OrderEditSession"
+        },
+        {
+          "name": "OrderTransaction"
+        },
+        {
+          "name": "Page"
+        },
+        {
+          "name": "PaymentCustomization"
+        },
+        {
+          "name": "PaymentMandate"
+        },
+        {
+          "name": "PaymentSchedule"
+        },
+        {
+          "name": "PaymentTerms"
+        },
+        {
+          "name": "PaymentTermsTemplate"
+        },
+        {
+          "name": "PointOfSaleDevice"
+        },
+        {
+          "name": "PointOfSaleDevicePaymentSession"
+        },
+        {
+          "name": "PriceList"
+        },
+        {
+          "name": "PriceRule"
+        },
+        {
+          "name": "PriceRuleDiscountCode"
+        },
+        {
+          "name": "Product"
+        },
+        {
+          "name": "ProductBundleOperation"
+        },
+        {
+          "name": "ProductDeleteOperation"
+        },
+        {
+          "name": "ProductDuplicateOperation"
+        },
+        {
+          "name": "ProductFeed"
+        },
+        {
+          "name": "ProductOption"
+        },
+        {
+          "name": "ProductOptionValue"
+        },
+        {
+          "name": "ProductSetOperation"
+        },
+        {
+          "name": "ProductTaxonomyNode"
+        },
+        {
+          "name": "ProductVariant"
+        },
+        {
+          "name": "ProductVariantComponent"
+        },
+        {
+          "name": "Publication"
+        },
+        {
+          "name": "PublicationResourceOperation"
+        },
+        {
+          "name": "QuantityPriceBreak"
+        },
+        {
+          "name": "Refund"
+        },
+        {
+          "name": "RefundShippingLine"
+        },
+        {
+          "name": "Return"
+        },
+        {
+          "name": "ReturnLineItem"
+        },
+        {
+          "name": "ReturnReasonDefinition"
+        },
+        {
+          "name": "ReturnableFulfillment"
+        },
+        {
+          "name": "ReverseDelivery"
+        },
+        {
+          "name": "ReverseDeliveryLineItem"
+        },
+        {
+          "name": "ReverseFulfillmentOrder"
+        },
+        {
+          "name": "ReverseFulfillmentOrderDisposition"
+        },
+        {
+          "name": "ReverseFulfillmentOrderLineItem"
+        },
+        {
+          "name": "SaleAdditionalFee"
+        },
+        {
+          "name": "SavedSearch"
+        },
+        {
+          "name": "ScriptTag"
+        },
+        {
+          "name": "Segment"
+        },
+        {
+          "name": "SellingPlan"
+        },
+        {
+          "name": "SellingPlanGroup"
+        },
+        {
+          "name": "ServerPixel"
+        },
+        {
+          "name": "Shop"
+        },
+        {
+          "name": "ShopAddress"
+        },
+        {
+          "name": "ShopPolicy"
+        },
+        {
+          "name": "ShopifyPaymentsAccount"
+        },
+        {
+          "name": "ShopifyPaymentsBalanceTransaction"
+        },
+        {
+          "name": "ShopifyPaymentsBankAccount"
+        },
+        {
+          "name": "ShopifyPaymentsDispute"
+        },
+        {
+          "name": "ShopifyPaymentsDisputeEvidence"
+        },
+        {
+          "name": "ShopifyPaymentsDisputeFileUpload"
+        },
+        {
+          "name": "ShopifyPaymentsDisputeFulfillment"
+        },
+        {
+          "name": "ShopifyPaymentsPayout"
+        },
+        {
+          "name": "StaffMember"
+        },
+        {
+          "name": "StandardMetafieldDefinitionTemplate"
+        },
+        {
+          "name": "StoreCreditAccount"
+        },
+        {
+          "name": "StoreCreditAccountCreditTransaction"
+        },
+        {
+          "name": "StoreCreditAccountDebitRevertTransaction"
+        },
+        {
+          "name": "StoreCreditAccountDebitTransaction"
+        },
+        {
+          "name": "StorefrontAccessToken"
+        },
+        {
+          "name": "SubscriptionBillingAttempt"
+        },
+        {
+          "name": "SubscriptionContract"
+        },
+        {
+          "name": "SubscriptionDraft"
+        },
+        {
+          "name": "TaxonomyAttribute"
+        },
+        {
+          "name": "TaxonomyCategory"
+        },
+        {
+          "name": "TaxonomyChoiceListAttribute"
+        },
+        {
+          "name": "TaxonomyMeasurementAttribute"
+        },
+        {
+          "name": "TaxonomyValue"
+        },
+        {
+          "name": "TenderTransaction"
+        },
+        {
+          "name": "TransactionFee"
+        },
+        {
+          "name": "UnverifiedReturnLineItem"
+        },
+        {
+          "name": "UrlRedirect"
+        },
+        {
+          "name": "UrlRedirectImport"
+        },
+        {
+          "name": "Validation"
+        },
+        {
+          "name": "Video"
+        },
+        {
+          "name": "WebPixel"
+        },
+        {
+          "name": "WebhookSubscription"
+        }
+      ]
+    },
+    "nodeCandidateRootFields": [
+      {
+        "name": "abandonment",
+        "typeName": "Abandonment"
+      },
+      {
+        "name": "app",
+        "typeName": "App"
+      },
+      {
+        "name": "appInstallation",
+        "typeName": "AppInstallation"
+      },
+      {
+        "name": "article",
+        "typeName": "Article"
+      },
+      {
+        "name": "automaticDiscountNode",
+        "typeName": "DiscountAutomaticNode"
+      },
+      {
+        "name": "blog",
+        "typeName": "Blog"
+      },
+      {
+        "name": "bulkOperation",
+        "typeName": "BulkOperation"
+      },
+      {
+        "name": "businessEntity",
+        "typeName": "BusinessEntity"
+      },
+      {
+        "name": "carrierService",
+        "typeName": "DeliveryCarrierService"
+      },
+      {
+        "name": "cashDrawer",
+        "typeName": "CashDrawer"
+      },
+      {
+        "name": "cashTrackingSession",
+        "typeName": "CashTrackingSession"
+      },
+      {
+        "name": "channel",
+        "typeName": "Channel"
+      },
+      {
+        "name": "checkoutAndAccountsConfiguration",
+        "typeName": "CheckoutAndAccountsConfiguration"
+      },
+      {
+        "name": "codeDiscountNode",
+        "typeName": "DiscountCodeNode"
+      },
+      {
+        "name": "collection",
+        "typeName": "Collection"
+      },
+      {
+        "name": "comment",
+        "typeName": "Comment"
+      },
+      {
+        "name": "company",
+        "typeName": "Company"
+      },
+      {
+        "name": "companyContact",
+        "typeName": "CompanyContact"
+      },
+      {
+        "name": "companyContactRole",
+        "typeName": "CompanyContactRole"
+      },
+      {
+        "name": "companyLocation",
+        "typeName": "CompanyLocation"
+      },
+      {
+        "name": "customer",
+        "typeName": "Customer"
+      },
+      {
+        "name": "customerPaymentMethod",
+        "typeName": "CustomerPaymentMethod"
+      },
+      {
+        "name": "customerSegmentMembersQuery",
+        "typeName": "CustomerSegmentMembersQuery"
+      },
+      {
+        "name": "deliveryCustomization",
+        "typeName": "DeliveryCustomization"
+      },
+      {
+        "name": "deliveryProfile",
+        "typeName": "DeliveryProfile"
+      },
+      {
+        "name": "discountNode",
+        "typeName": "DiscountNode"
+      },
+      {
+        "name": "discountRedeemCodeBulkCreation",
+        "typeName": "DiscountRedeemCodeBulkCreation"
+      },
+      {
+        "name": "dispute",
+        "typeName": "ShopifyPaymentsDispute"
+      },
+      {
+        "name": "disputeEvidence",
+        "typeName": "ShopifyPaymentsDisputeEvidence"
+      },
+      {
+        "name": "domain",
+        "typeName": "Domain"
+      },
+      {
+        "name": "draftOrder",
+        "typeName": "DraftOrder"
+      },
+      {
+        "name": "draftOrderTag",
+        "typeName": "DraftOrderTag"
+      },
+      {
+        "name": "fulfillment",
+        "typeName": "Fulfillment"
+      },
+      {
+        "name": "fulfillmentOrder",
+        "typeName": "FulfillmentOrder"
+      },
+      {
+        "name": "giftCard",
+        "typeName": "GiftCard"
+      },
+      {
+        "name": "inventoryItem",
+        "typeName": "InventoryItem"
+      },
+      {
+        "name": "inventoryLevel",
+        "typeName": "InventoryLevel"
+      },
+      {
+        "name": "inventoryShipment",
+        "typeName": "InventoryShipment"
+      },
+      {
+        "name": "inventoryTransfer",
+        "typeName": "InventoryTransfer"
+      },
+      {
+        "name": "location",
+        "typeName": "Location"
+      },
+      {
+        "name": "market",
+        "typeName": "Market"
+      },
+      {
+        "name": "marketingActivity",
+        "typeName": "MarketingActivity"
+      },
+      {
+        "name": "marketingEvent",
+        "typeName": "MarketingEvent"
+      },
+      {
+        "name": "menu",
+        "typeName": "Menu"
+      },
+      {
+        "name": "metaobject",
+        "typeName": "Metaobject"
+      },
+      {
+        "name": "metaobjectDefinition",
+        "typeName": "MetaobjectDefinition"
+      },
+      {
+        "name": "order",
+        "typeName": "Order"
+      },
+      {
+        "name": "orderEditSession",
+        "typeName": "OrderEditSession"
+      },
+      {
+        "name": "page",
+        "typeName": "Page"
+      },
+      {
+        "name": "paymentCustomization",
+        "typeName": "PaymentCustomization"
+      },
+      {
+        "name": "pointOfSaleDevice",
+        "typeName": "PointOfSaleDevice"
+      },
+      {
+        "name": "pointOfSaleDevicePaymentSession",
+        "typeName": "PointOfSaleDevicePaymentSession"
+      },
+      {
+        "name": "priceList",
+        "typeName": "PriceList"
+      },
+      {
+        "name": "product",
+        "typeName": "Product"
+      },
+      {
+        "name": "productFeed",
+        "typeName": "ProductFeed"
+      },
+      {
+        "name": "productVariant",
+        "typeName": "ProductVariant"
+      },
+      {
+        "name": "publication",
+        "typeName": "Publication"
+      },
+      {
+        "name": "refund",
+        "typeName": "Refund"
+      },
+      {
+        "name": "return",
+        "typeName": "Return"
+      },
+      {
+        "name": "returnableFulfillment",
+        "typeName": "ReturnableFulfillment"
+      },
+      {
+        "name": "reverseDelivery",
+        "typeName": "ReverseDelivery"
+      },
+      {
+        "name": "reverseFulfillmentOrder",
+        "typeName": "ReverseFulfillmentOrder"
+      },
+      {
+        "name": "scriptTag",
+        "typeName": "ScriptTag"
+      },
+      {
+        "name": "segment",
+        "typeName": "Segment"
+      },
+      {
+        "name": "sellingPlanGroup",
+        "typeName": "SellingPlanGroup"
+      },
+      {
+        "name": "staffMember",
+        "typeName": "StaffMember"
+      },
+      {
+        "name": "storeCreditAccount",
+        "typeName": "StoreCreditAccount"
+      },
+      {
+        "name": "subscriptionBillingAttempt",
+        "typeName": "SubscriptionBillingAttempt"
+      },
+      {
+        "name": "subscriptionContract",
+        "typeName": "SubscriptionContract"
+      },
+      {
+        "name": "subscriptionDraft",
+        "typeName": "SubscriptionDraft"
+      },
+      {
+        "name": "theme",
+        "typeName": "OnlineStoreTheme"
+      },
+      {
+        "name": "urlRedirect",
+        "typeName": "UrlRedirect"
+      },
+      {
+        "name": "urlRedirectImport",
+        "typeName": "UrlRedirectImport"
+      },
+      {
+        "name": "validation",
+        "typeName": "Validation"
+      },
+      {
+        "name": "webhookSubscription",
+        "typeName": "WebhookSubscription"
+      },
+      {
+        "name": "webPixel",
+        "typeName": "WebPixel"
+      }
+    ],
     "rootTypes": {
       "queryRoot": [
         {
@@ -383,7 +1302,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1997,
+                "currentlyAvailable": 1994,
                 "restoreRate": 100
               }
             }
@@ -559,7 +1478,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -798,7 +1717,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }

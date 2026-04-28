@@ -199,6 +199,15 @@ function projectPayload(payload: Record<string, unknown>, field: FieldNode, frag
     : payload;
 }
 
+export function serializeSavedSearchNodeById(
+  id: string,
+  field: FieldNode,
+  fragments: FragmentMap,
+): Record<string, unknown> | null {
+  const record = store.getEffectiveSavedSearchById(id);
+  return record ? projectSavedSearch({ __typename: 'SavedSearch', ...recordData(record) }, field, fragments) : null;
+}
+
 function sanitizedUpdateInput(input: Record<string, unknown>, errors: UserError[]): Record<string, unknown> {
   const sanitized = { ...input };
   for (const error of errors) {

@@ -8,8 +8,12 @@ import { store } from '../../src/state/store.js';
 import type {
   B2BCompanyRecord,
   BulkOperationRecord,
+  CustomerPaymentMethodRecord,
   CustomerRecord,
+  FileRecord,
+  PaymentTermsTemplateRecord,
   ProductRecord,
+  SavedSearchRecord,
   ShopRecord,
 } from '../../src/state/types.js';
 
@@ -109,6 +113,56 @@ function makeBulkOperation(id: string): BulkOperationRecord {
     url: 'https://example.com/bulk-result.jsonl',
     partialDataUrl: null,
     query: '{ products { edges { node { id title } } } }',
+  };
+}
+
+function makeCustomerPaymentMethod(id: string, customerId: string): CustomerPaymentMethodRecord {
+  return {
+    id,
+    customerId,
+    instrument: null,
+    revokedAt: null,
+    revokedReason: null,
+    subscriptionContracts: [],
+  };
+}
+
+function makeSavedSearch(id: string): SavedSearchRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? id,
+    name: 'Relay saved products',
+    query: 'tag:relay',
+    resourceType: 'PRODUCT',
+    searchTerms: 'tag:relay',
+    filters: [{ key: 'tag', value: 'relay' }],
+    cursor: null,
+  };
+}
+
+function makePaymentTermsTemplate(id: string): PaymentTermsTemplateRecord {
+  return {
+    id,
+    name: 'Relay Net 14',
+    description: 'Within 14 days',
+    dueInDays: 14,
+    paymentTermsType: 'NET',
+    translatedName: 'Relay Net 14',
+  };
+}
+
+function makeFile(id: string, contentType: FileRecord['contentType'], filename: string): FileRecord {
+  return {
+    id,
+    alt: 'Relay file',
+    contentType,
+    createdAt: '2026-04-28T00:00:00.000Z',
+    fileStatus: 'READY',
+    filename,
+    originalSource: `https://cdn.example.com/${filename}`,
+    imageUrl: contentType === 'IMAGE' ? `https://cdn.example.com/${filename}` : null,
+    imageWidth: contentType === 'IMAGE' ? 1200 : null,
+    imageHeight: contentType === 'IMAGE' ? 800 : null,
   };
 }
 
@@ -523,6 +577,128 @@ describe('admin platform utility query shapes', () => {
             type: 'QUERY',
           },
           null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves supported Node IDs that do not have a one-to-one singular root', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('direct admin platform node serializers should resolve locally in snapshot mode');
+    });
+    store.upsertBaseShop(makeShop());
+    store.upsertBaseCustomers([makeCustomer('gid://shopify/Customer/9100', 'relay-node-owner@example.com')]);
+    store.upsertBaseCustomerPaymentMethods([
+      makeCustomerPaymentMethod('gid://shopify/CustomerPaymentMethod/9100', 'gid://shopify/Customer/9100'),
+    ]);
+    store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
+    store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
+    store.stageCreateFiles([
+      makeFile('gid://shopify/GenericFile/9100', 'FILE', 'relay.pdf'),
+      makeFile('gid://shopify/MediaImage/9101', 'IMAGE', 'relay.jpg'),
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DirectNodeResolution($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Shop {
+              name
+              myshopifyDomain
+            }
+            ... on CustomerPaymentMethod {
+              revokedAt
+            }
+            ... on SavedSearch {
+              name
+              resourceType
+              query
+            }
+            ... on PaymentTermsTemplate {
+              name
+              dueInDays
+              paymentTermsType
+            }
+            ... on GenericFile {
+              filename
+              fileStatus
+            }
+            ... on MediaImage {
+              alt
+              fileStatus
+              image {
+                url
+                width
+                height
+              }
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/Shop/400',
+            'gid://shopify/CustomerPaymentMethod/9100',
+            'gid://shopify/SavedSearch/9100',
+            'gid://shopify/PaymentTermsTemplate/14',
+            'gid://shopify/GenericFile/9100',
+            'gid://shopify/MediaImage/9101',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        nodes: [
+          {
+            __typename: 'Shop',
+            nodeId: 'gid://shopify/Shop/400',
+            name: 'Node Test Shop',
+            myshopifyDomain: 'node-test-shop.myshopify.com',
+          },
+          {
+            __typename: 'CustomerPaymentMethod',
+            nodeId: 'gid://shopify/CustomerPaymentMethod/9100',
+            revokedAt: null,
+          },
+          {
+            __typename: 'SavedSearch',
+            nodeId: 'gid://shopify/SavedSearch/9100',
+            name: 'Relay saved products',
+            resourceType: 'PRODUCT',
+            query: 'tag:relay',
+          },
+          {
+            __typename: 'PaymentTermsTemplate',
+            nodeId: 'gid://shopify/PaymentTermsTemplate/14',
+            name: 'Relay Net 14',
+            dueInDays: 14,
+            paymentTermsType: 'NET',
+          },
+          {
+            __typename: 'GenericFile',
+            nodeId: 'gid://shopify/GenericFile/9100',
+            filename: 'relay.pdf',
+            fileStatus: 'READY',
+          },
+          {
+            __typename: 'MediaImage',
+            nodeId: 'gid://shopify/MediaImage/9101',
+            alt: 'Relay file',
+            fileStatus: 'READY',
+            image: {
+              url: 'https://cdn.example.com/relay.jpg',
+              width: 1200,
+              height: 800,
+            },
+          },
         ],
       },
     });

@@ -174,7 +174,7 @@
     "implemented": true,
     "matchNames": ["node", "Node"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads."
+    "supportNotes": "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers or direct serializers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "nodes",
@@ -184,7 +184,7 @@
     "implemented": true,
     "matchNames": ["nodes", "Nodes"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads."
+    "supportNotes": "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "job",
