@@ -1,9 +1,8 @@
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import { Kind, valueFromASTUntyped, type FieldNode, type ObjectValueNode } from 'graphql';
 
 import type { ReadMode } from '../../config.js';
 import { getFieldArguments, getRootFields } from '../../graphql/root-field.js';
-import { store } from '../../state/store.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../../state/synthetic-identity.js';
 import type {
   AbandonmentRecord,
   CalculatedOrderRecord,
@@ -197,6 +196,7 @@ function validationPath(prefix: string[], suffix: string[]): string[] {
 }
 
 function validatePaymentTermsAttributes(
+  runtime: ProxyRuntimeContext,
   raw: unknown,
   fieldPrefix: string[],
 ): { templateId: string; userErrors: [] } | { templateId: null; userErrors: MutationUserError[] } {
@@ -215,7 +215,7 @@ function validatePaymentTermsAttributes(
     };
   }
 
-  const template = store.getEffectivePaymentTermsTemplateById(templateId);
+  const template = runtime.store.getEffectivePaymentTermsTemplateById(templateId);
   if (!template) {
     return {
       templateId: null,
@@ -264,13 +264,14 @@ function validatePaymentTermsAttributes(
 }
 
 function buildPaymentTermsFromAttributes(
+  runtime: ProxyRuntimeContext,
   raw: unknown,
   paymentTermsTemplateId: string,
   amountSet: { shopMoney: MoneyV2Record } | null | undefined,
   existing: DraftOrderPaymentTermsRecord | null = null,
 ): DraftOrderPaymentTermsRecord {
   const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const template = store.getEffectivePaymentTermsTemplateById(paymentTermsTemplateId);
+  const template = runtime.store.getEffectivePaymentTermsTemplateById(paymentTermsTemplateId);
   const schedules = Array.isArray(input['paymentSchedules']) ? input['paymentSchedules'] : [];
   const normalizedSchedules = schedules
     .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
@@ -281,7 +282,7 @@ function buildPaymentTermsFromAttributes(
         (template?.paymentTermsType === 'NET' ? addDaysTimestamp(issuedAt, template.dueInDays) : null);
 
       return {
-        id: makeSyntheticGid('PaymentSchedule'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('PaymentSchedule'),
         dueAt,
         issuedAt,
         completedAt: readString(schedule['completedAt']),
@@ -294,7 +295,7 @@ function buildPaymentTermsFromAttributes(
     });
 
   return {
-    id: existing?.id ?? makeSyntheticGid('PaymentTerms'),
+    id: existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('PaymentTerms'),
     due: normalizedSchedules.some((schedule) => schedule.due === true),
     overdue: false,
     dueInDays: template?.dueInDays ?? null,
@@ -309,17 +310,20 @@ type PaymentTermsOwner =
   | { kind: 'order'; record: OrderRecord; paymentTerms: DraftOrderPaymentTermsRecord | null }
   | { kind: 'draftOrder'; record: DraftOrderRecord; paymentTerms: DraftOrderPaymentTermsRecord | null };
 
-function findPaymentTermsOwnerByReferenceId(referenceId: string | null): PaymentTermsOwner | null {
+function findPaymentTermsOwnerByReferenceId(
+  runtime: ProxyRuntimeContext,
+  referenceId: string | null,
+): PaymentTermsOwner | null {
   if (!referenceId) {
     return null;
   }
 
-  const order = store.getOrderById(referenceId);
+  const order = runtime.store.getOrderById(referenceId);
   if (order) {
     return { kind: 'order', record: order, paymentTerms: order.paymentTerms ?? null };
   }
 
-  const draftOrder = store.getDraftOrderById(referenceId);
+  const draftOrder = runtime.store.getDraftOrderById(referenceId);
   if (draftOrder) {
     return { kind: 'draftOrder', record: draftOrder, paymentTerms: draftOrder.paymentTerms };
   }
@@ -327,18 +331,21 @@ function findPaymentTermsOwnerByReferenceId(referenceId: string | null): Payment
   return null;
 }
 
-function findPaymentTermsOwnerByPaymentTermsId(paymentTermsId: string | null): PaymentTermsOwner | null {
+function findPaymentTermsOwnerByPaymentTermsId(
+  runtime: ProxyRuntimeContext,
+  paymentTermsId: string | null,
+): PaymentTermsOwner | null {
   if (!paymentTermsId) {
     return null;
   }
 
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     if (order.paymentTerms?.id === paymentTermsId) {
       return { kind: 'order', record: order, paymentTerms: order.paymentTerms };
     }
   }
 
-  for (const draftOrder of store.getDraftOrders()) {
+  for (const draftOrder of runtime.store.getDraftOrders()) {
     if (draftOrder.paymentTerms?.id === paymentTermsId) {
       return { kind: 'draftOrder', record: draftOrder, paymentTerms: draftOrder.paymentTerms };
     }
@@ -347,19 +354,23 @@ function findPaymentTermsOwnerByPaymentTermsId(paymentTermsId: string | null): P
   return null;
 }
 
-function storePaymentTermsOwner(owner: PaymentTermsOwner, paymentTerms: DraftOrderPaymentTermsRecord | null): void {
+function storePaymentTermsOwner(
+  runtime: ProxyRuntimeContext,
+  owner: PaymentTermsOwner,
+  paymentTerms: DraftOrderPaymentTermsRecord | null,
+): void {
   if (owner.kind === 'order') {
-    store.updateOrder({
+    runtime.store.updateOrder({
       ...owner.record,
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       paymentTerms: paymentTerms ? structuredClone(paymentTerms) : null,
     });
     return;
   }
 
-  store.updateDraftOrder({
+  runtime.store.updateDraftOrder({
     ...owner.record,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     paymentTerms: paymentTerms ? structuredClone(paymentTerms) : null,
   });
 }
@@ -384,12 +395,16 @@ function readDraftOrderSavedSearchQuery(savedSearchId: unknown): string | null {
   return DRAFT_ORDER_SAVED_SEARCHES.find((savedSearch) => savedSearch.id === savedSearchId)?.query ?? null;
 }
 
-function selectDraftOrderBulkTargets(field: FieldNode, variables: Record<string, unknown>): DraftOrderRecord[] {
+function selectDraftOrderBulkTargets(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DraftOrderRecord[] {
   const args = getFieldArguments(field, variables);
   const ids = readStringListArgument(field, 'ids', variables);
   const savedSearchQuery = readDraftOrderSavedSearchQuery(args['savedSearchId']);
   const rawSearch = typeof args['search'] === 'string' ? args['search'] : savedSearchQuery;
-  const candidates = store.getDraftOrders();
+  const candidates = runtime.store.getDraftOrders();
 
   if (ids && ids.length > 0) {
     const idSet = new Set(ids);
@@ -409,16 +424,21 @@ function readDraftOrderBulkTags(field: FieldNode, variables: Record<string, unkn
     .filter((tag) => tag.length > 0);
 }
 
-function updateDraftOrderTags(draftOrder: DraftOrderRecord, tags: string[], operation: 'add' | 'remove'): void {
+function updateDraftOrderTags(
+  runtime: ProxyRuntimeContext,
+  draftOrder: DraftOrderRecord,
+  tags: string[],
+  operation: 'add' | 'remove',
+): void {
   const nextTags =
     operation === 'add'
       ? [...new Set([...draftOrder.tags, ...tags])]
       : draftOrder.tags.filter((tag) => !tags.includes(tag));
 
-  store.updateDraftOrder({
+  runtime.store.updateDraftOrder({
     ...draftOrder,
     tags: nextTags.sort((left, right) => left.localeCompare(right)),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   });
 }
 
@@ -583,7 +603,10 @@ function serializePaymentTermsDeletePayload(
   return payload;
 }
 
-function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] | null; message: string }> {
+function validateDraftOrderCreateInput(
+  runtime: ProxyRuntimeContext,
+  input: unknown,
+): Array<{ field: string[] | null; message: string }> {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
   const lineItems = inputRecord['lineItems'];
   if (!Array.isArray(lineItems) || lineItems.length === 0) {
@@ -654,7 +677,7 @@ function validateDraftOrderCreateInput(input: unknown): Array<{ field: string[] 
     }
 
     if (variantId) {
-      if (!store.getEffectiveVariantById(variantId)) {
+      if (!runtime.store.getEffectiveVariantById(variantId)) {
         const numericId = variantId.split('/').at(-1) ?? variantId;
         userErrors.push({
           field: null,
@@ -1062,7 +1085,10 @@ function recalculateCalculatedOrder(calculatedOrder: CalculatedOrderRecord): Cal
   }) as CalculatedOrderRecord;
 }
 
-function buildCalculatedCustomLineItem(args: Record<string, unknown>): OrderLineItemRecord | null {
+function buildCalculatedCustomLineItem(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): OrderLineItemRecord | null {
   const title = typeof args['title'] === 'string' ? args['title'] : null;
   const quantity = typeof args['quantity'] === 'number' ? args['quantity'] : null;
   const price = readMoneyInputAmount(args['price']);
@@ -1071,7 +1097,7 @@ function buildCalculatedCustomLineItem(args: Record<string, unknown>): OrderLine
   }
   const currencyCode = price.currencyCode;
   return {
-    id: makeSyntheticGid('CalculatedLineItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedLineItem'),
     originalLineItemId: null,
     isAdded: true,
     title,
@@ -1090,7 +1116,10 @@ function buildCalculatedCustomLineItem(args: Record<string, unknown>): OrderLine
   };
 }
 
-function buildCalculatedShippingLine(args: Record<string, unknown>): OrderShippingLineRecord | null {
+function buildCalculatedShippingLine(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): OrderShippingLineRecord | null {
   const shippingLineInput =
     typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
       ? (args['shippingLine'] as Record<string, unknown>)
@@ -1101,7 +1130,7 @@ function buildCalculatedShippingLine(args: Record<string, unknown>): OrderShippi
     return null;
   }
   return {
-    id: makeSyntheticGid('CalculatedShippingLine'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedShippingLine'),
     title,
     code: title,
     source: 'shopify-draft-proxy',
@@ -1112,6 +1141,7 @@ function buildCalculatedShippingLine(args: Record<string, unknown>): OrderShippi
 }
 
 function applyLineItemDiscount(
+  runtime: ProxyRuntimeContext,
   calculatedOrder: CalculatedOrderRecord,
   lineItemId: string,
   discountInput: Record<string, unknown>,
@@ -1131,7 +1161,7 @@ function applyLineItemDiscount(
       : 0;
   const boundedDiscount = Math.min(subtotal, Math.max(0, discountAmount));
   const allocation = {
-    id: makeSyntheticGid('CalculatedDiscountApplication'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedDiscountApplication'),
     description: typeof discountInput['description'] === 'string' ? discountInput['description'] : null,
     allocatedAmountSet: makeOrderMoneyBag(boundedDiscount, fixedValue?.currencyCode ?? currencyCode),
   };
@@ -1353,9 +1383,10 @@ function readFulfillmentCancelId(variables: Record<string, unknown>): string | n
 }
 
 function findOrderWithFulfillment(
+  runtime: ProxyRuntimeContext,
   fulfillmentId: string,
 ): { order: OrderRecord; fulfillment: OrderFulfillmentRecord } | null {
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     const fulfillment = (order.fulfillments ?? []).find((candidate) => candidate.id === fulfillmentId);
     if (fulfillment) {
       return { order, fulfillment };
@@ -1366,9 +1397,10 @@ function findOrderWithFulfillment(
 }
 
 function findOrderWithFulfillmentOrder(
+  runtime: ProxyRuntimeContext,
   fulfillmentOrderId: string,
 ): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } | null {
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     const fulfillmentOrder = (order.fulfillmentOrders ?? []).find((candidate) => candidate.id === fulfillmentOrderId);
     if (fulfillmentOrder) {
       return { order, fulfillmentOrder };
@@ -1428,12 +1460,13 @@ function fulfillmentOrderSupportedActions(
 }
 
 function updateOrderFulfillmentOrders(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   updater: (fulfillmentOrders: OrderFulfillmentOrderRecord[]) => OrderFulfillmentOrderRecord[],
 ): OrderRecord {
-  return store.updateOrder({
+  return runtime.store.updateOrder({
     ...order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     fulfillmentOrders: updater(order.fulfillmentOrders ?? []),
   });
 }
@@ -1511,6 +1544,7 @@ function serializeFulfillmentOrderMutationPayload(
 }
 
 function splitFulfillmentOrderLineItems(
+  runtime: ProxyRuntimeContext,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   inputs: Array<{ id: string; quantity: number }>,
 ): {
@@ -1547,7 +1581,7 @@ function splitFulfillmentOrderLineItems(
     if (remainingQuantity > 0) {
       remainingLineItems.push({
         ...lineItem,
-        id: makeSyntheticGid('FulfillmentOrderLineItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrderLineItem'),
         totalQuantity: remainingQuantity,
         remainingQuantity,
         lineItemFulfillableQuantity: remainingQuantity,
@@ -1559,6 +1593,7 @@ function splitFulfillmentOrderLineItems(
 }
 
 function buildReplacementFulfillmentOrder(
+  runtime: ProxyRuntimeContext,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   lineItems: OrderFulfillmentOrderLineItemRecord[],
   overrides: Partial<OrderFulfillmentOrderRecord> = {},
@@ -1566,8 +1601,8 @@ function buildReplacementFulfillmentOrder(
   const status = overrides.status ?? 'OPEN';
   return {
     ...fulfillmentOrder,
-    id: makeSyntheticGid('FulfillmentOrder'),
-    updatedAt: makeSyntheticTimestamp(),
+    id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrder'),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     status,
     requestStatus: overrides.requestStatus ?? fulfillmentOrder.requestStatus ?? 'UNSUBMITTED',
     supportedActions: fulfillmentOrderSupportedActions(status, lineItems),
@@ -1578,6 +1613,7 @@ function buildReplacementFulfillmentOrder(
 }
 
 function applyFulfillmentOrderHold(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   variables: Record<string, unknown>,
@@ -1588,6 +1624,7 @@ function applyFulfillmentOrderHold(
 } {
   const input = readFulfillmentHoldInput(variables);
   const { selectedLineItems, remainingLineItems } = splitFulfillmentOrderLineItems(
+    runtime,
     fulfillmentOrder,
     Array.isArray(input['fulfillmentOrderLineItems'])
       ? (input['fulfillmentOrderLineItems'] as Record<string, unknown>[])
@@ -1599,7 +1636,7 @@ function applyFulfillmentOrderHold(
       : [],
   );
   const hold = {
-    id: makeSyntheticGid('FulfillmentHold'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentHold'),
     handle: readString(input['handle']),
     reason: readString(input['reason']) ?? 'OTHER',
     reasonNotes: readString(input['reasonNotes']),
@@ -1610,18 +1647,18 @@ function applyFulfillmentOrderHold(
   const heldFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     status: 'ON_HOLD',
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: fulfillmentOrderSupportedActions('ON_HOLD', selectedLineItems),
     fulfillmentHolds: [hold],
     lineItems: selectedLineItems,
   };
   const remainingFulfillmentOrder =
     remainingLineItems.length > 0
-      ? buildReplacementFulfillmentOrder(fulfillmentOrder, remainingLineItems, {
+      ? buildReplacementFulfillmentOrder(runtime, fulfillmentOrder, remainingLineItems, {
           assignedLocation: fulfillmentOrder.assignedLocation,
         })
       : null;
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.flatMap((candidate) => {
       if (candidate.id !== fulfillmentOrder.id) {
         return [candidate];
@@ -1637,6 +1674,7 @@ function applyFulfillmentOrderHold(
 }
 
 function applyFulfillmentOrderReleaseHold(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
 ): { order: OrderRecord; fulfillmentOrder: OrderFulfillmentOrderRecord } {
@@ -1688,12 +1726,12 @@ function applyFulfillmentOrderReleaseHold(
   const releasedFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     status: 'OPEN',
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: fulfillmentOrderSupportedActions('OPEN', releasedLineItems),
     fulfillmentHolds: [],
     lineItems: releasedLineItems,
   };
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.map((candidate) => {
       if (candidate.id === fulfillmentOrder.id) {
         return releasedFulfillmentOrder;
@@ -1704,7 +1742,7 @@ function applyFulfillmentOrderReleaseHold(
       return {
         ...candidate,
         status: 'CLOSED',
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         supportedActions: [],
         fulfillmentHolds: [],
         lineItems: closedSiblingLineItems.get(candidate.id) ?? [],
@@ -1715,6 +1753,7 @@ function applyFulfillmentOrderReleaseHold(
 }
 
 function applyFulfillmentOrderMove(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   variables: Record<string, unknown>,
@@ -1725,6 +1764,7 @@ function applyFulfillmentOrderMove(
   remainingFulfillmentOrder: OrderFulfillmentOrderRecord | null;
 } {
   const splitLineItems = splitFulfillmentOrderLineItems(
+    runtime,
     fulfillmentOrder,
     readFulfillmentOrderLineItemInputs(variables),
   );
@@ -1745,7 +1785,7 @@ function applyFulfillmentOrderMove(
   const selectedLineItems = restoreLineItemFulfillableQuantities(splitLineItems.selectedLineItems);
   const remainingLineItems = restoreLineItemFulfillableQuantities(splitLineItems.remainingLineItems);
   const newLocationId = typeof variables['newLocationId'] === 'string' ? variables['newLocationId'] : null;
-  const movedFulfillmentOrder = buildReplacementFulfillmentOrder(fulfillmentOrder, selectedLineItems, {
+  const movedFulfillmentOrder = buildReplacementFulfillmentOrder(runtime, fulfillmentOrder, selectedLineItems, {
     assignedLocation: {
       name:
         newLocationId === fulfillmentOrder.assignedLocation?.locationId
@@ -1756,12 +1796,12 @@ function applyFulfillmentOrderMove(
   });
   const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: fulfillmentOrderSupportedActions(fulfillmentOrder.status, remainingLineItems),
     lineItems: remainingLineItems.length > 0 ? remainingLineItems : [],
   };
   const remainingFulfillmentOrder = remainingLineItems.length > 0 ? originalFulfillmentOrder : null;
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.flatMap((candidate) => {
       if (candidate.id !== fulfillmentOrder.id) {
         return [candidate];
@@ -1773,6 +1813,7 @@ function applyFulfillmentOrderMove(
 }
 
 function applyFulfillmentOrderStatus(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   status: string,
@@ -1780,16 +1821,16 @@ function applyFulfillmentOrderStatus(
   const updatedFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     status,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: fulfillmentOrderSupportedActions(status, fulfillmentOrder.lineItems),
   };
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.map((candidate) => (candidate.id === fulfillmentOrder.id ? updatedFulfillmentOrder : candidate)),
   );
   if (status === 'IN_PROGRESS' || status === 'OPEN') {
     const displayFulfillmentStatus = status === 'IN_PROGRESS' ? 'IN_PROGRESS' : 'UNFULFILLED';
     return {
-      order: store.updateOrder({
+      order: runtime.store.updateOrder({
         ...updatedOrder,
         displayFulfillmentStatus,
       }),
@@ -1800,6 +1841,7 @@ function applyFulfillmentOrderStatus(
 }
 
 function applyFulfillmentOrderCancel(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
 ): {
@@ -1810,15 +1852,16 @@ function applyFulfillmentOrderCancel(
   const cancelledFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     status: 'CLOSED',
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: [],
     lineItems: [],
   };
   const replacementFulfillmentOrder = buildReplacementFulfillmentOrder(
+    runtime,
     fulfillmentOrder,
     structuredClone(fulfillmentOrder.lineItems ?? []),
   );
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.flatMap((candidate) =>
       candidate.id === fulfillmentOrder.id ? [cancelledFulfillmentOrder, replacementFulfillmentOrder] : [candidate],
     ),
@@ -1941,6 +1984,7 @@ function fulfillmentOrderSupportedActionsWithMerge(
 }
 
 function applyFulfillmentOrderSplit(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   requestedLineItems: Array<{ id: string; quantity: number }>,
@@ -1969,7 +2013,7 @@ function applyFulfillmentOrderSplit(
 
     splitLineItems.push({
       ...lineItem,
-      id: originalQuantity > 0 ? makeSyntheticGid('FulfillmentOrderLineItem') : lineItem.id,
+      id: originalQuantity > 0 ? runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrderLineItem') : lineItem.id,
       totalQuantity: requestedQuantity,
       remainingQuantity: requestedQuantity,
       lineItemFulfillableQuantity:
@@ -1977,7 +2021,7 @@ function applyFulfillmentOrderSplit(
     });
   }
 
-  const updatedAt = makeSyntheticTimestamp();
+  const updatedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...fulfillmentOrder,
     updatedAt,
@@ -1985,7 +2029,7 @@ function applyFulfillmentOrderSplit(
     lineItems: originalLineItems,
   };
   const remainingFulfillmentOrder: OrderFulfillmentOrderRecord = {
-    ...buildReplacementFulfillmentOrder(fulfillmentOrder, splitLineItems, {
+    ...buildReplacementFulfillmentOrder(runtime, fulfillmentOrder, splitLineItems, {
       assignedLocation: fulfillmentOrder.assignedLocation,
       updatedAt,
     }),
@@ -1994,7 +2038,7 @@ function applyFulfillmentOrderSplit(
     ),
   };
 
-  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (fulfillmentOrders) =>
     fulfillmentOrders.flatMap((candidate) =>
       candidate.id === fulfillmentOrder.id ? [originalFulfillmentOrder, remainingFulfillmentOrder] : [candidate],
     ),
@@ -2011,6 +2055,7 @@ function applyFulfillmentOrderSplit(
 }
 
 function applyFulfillmentOrderMerge(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
 ): { order: OrderRecord; result: FulfillmentOrderMergeResult } {
@@ -2036,12 +2081,12 @@ function applyFulfillmentOrderMerge(
   const mergedFulfillmentOrder: OrderFulfillmentOrderRecord = {
     ...target,
     fulfillBy: fulfillmentOrders.find((candidate) => candidate.fulfillBy)?.fulfillBy ?? target.fulfillBy,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     supportedActions: fulfillmentOrderSupportedActions(target.status, mergedLineItems),
     lineItems: mergedLineItems,
   };
   const mergedIds = new Set(fulfillmentOrders.map((candidate) => candidate.id));
-  const updatedOrder = updateOrderFulfillmentOrders(order, (existingFulfillmentOrders) =>
+  const updatedOrder = updateOrderFulfillmentOrders(runtime, order, (existingFulfillmentOrders) =>
     existingFulfillmentOrders.map((candidate) => {
       if (candidate.id === target.id) {
         return mergedFulfillmentOrder;
@@ -2052,7 +2097,7 @@ function applyFulfillmentOrderMerge(
       return {
         ...candidate,
         status: 'CLOSED',
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         supportedActions: [],
         lineItems: zeroFulfillmentOrderLineItems(candidate.lineItems),
       };
@@ -2359,14 +2404,15 @@ function serializeSubmitFulfillmentRequestPayload(
 }
 
 function replaceOrderFulfillmentOrder(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   fulfillmentOrderId: string,
   updatedFulfillmentOrder: OrderFulfillmentOrderRecord,
   additionalFulfillmentOrders: OrderFulfillmentOrderRecord[] = [],
 ): void {
-  store.updateOrder({
+  runtime.store.updateOrder({
     ...order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     fulfillmentOrders: [
       ...(order.fulfillmentOrders ?? []).map((fulfillmentOrder) =>
         fulfillmentOrder.id === fulfillmentOrderId ? updatedFulfillmentOrder : fulfillmentOrder,
@@ -2377,17 +2423,18 @@ function replaceOrderFulfillmentOrder(
 }
 
 function makeFulfillmentOrderMerchantRequest(
+  runtime: ProxyRuntimeContext,
   kind: string,
   message: string | null,
   requestOptions: Record<string, unknown> = {},
 ): NonNullable<OrderFulfillmentOrderRecord['merchantRequests']>[number] {
   return {
-    id: makeSyntheticGid('FulfillmentOrderMerchantRequest'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrderMerchantRequest'),
     kind,
     message,
     requestOptions,
     responseData: null,
-    sentAt: makeSyntheticTimestamp(),
+    sentAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -2407,6 +2454,7 @@ function readFulfillmentOrderLineItemRequests(
 }
 
 function buildSubmitFulfillmentRequestResult(
+  runtime: ProxyRuntimeContext,
   fulfillmentOrder: OrderFulfillmentOrderRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -2462,7 +2510,7 @@ function buildSubmitFulfillmentRequestResult(
       return remainingQuantity > 0
         ? {
             ...lineItem,
-            id: makeSyntheticGid('FulfillmentOrderLineItem'),
+            id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrderLineItem'),
             totalQuantity: remainingQuantity,
             remainingQuantity,
           }
@@ -2472,6 +2520,7 @@ function buildSubmitFulfillmentRequestResult(
   const notifyCustomer = readNullableBooleanMutationArgument(field, 'notifyCustomer', variables);
   const requestOptions = notifyCustomer === null ? {} : { notify_customer: notifyCustomer };
   const merchantRequest = makeFulfillmentOrderMerchantRequest(
+    runtime,
     'FULFILLMENT_REQUEST',
     readNullableStringMutationArgument(field, 'message', variables),
     requestOptions,
@@ -2487,7 +2536,7 @@ function buildSubmitFulfillmentRequestResult(
     unsubmittedLineItems.length > 0
       ? {
           ...fulfillmentOrder,
-          id: makeSyntheticGid('FulfillmentOrder'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentOrder'),
           status: 'OPEN',
           requestStatus: 'UNSUBMITTED',
           merchantRequests: [],
@@ -2525,10 +2574,13 @@ function readNullableInputNumber(input: Record<string, unknown>, key: string): n
   return typeof input[key] === 'number' && Number.isFinite(input[key]) ? input[key] : null;
 }
 
-function buildFulfillmentEventFromInput(input: Record<string, unknown>): OrderFulfillmentEventRecord {
-  const createdAt = makeSyntheticTimestamp();
+function buildFulfillmentEventFromInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): OrderFulfillmentEventRecord {
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   return {
-    id: makeSyntheticGid('FulfillmentEvent'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentEvent'),
     status: readNullableInputString(input, 'status'),
     message: readNullableInputString(input, 'message'),
     happenedAt: readNullableInputString(input, 'happenedAt') ?? createdAt,
@@ -2545,13 +2597,14 @@ function buildFulfillmentEventFromInput(input: Record<string, unknown>): OrderFu
 }
 
 function withFulfillmentEventDerivedFields(
+  runtime: ProxyRuntimeContext,
   fulfillment: OrderFulfillmentRecord,
   event: OrderFulfillmentEventRecord,
 ): OrderFulfillmentRecord {
   return {
     ...fulfillment,
     displayStatus: event.status ?? fulfillment.displayStatus,
-    updatedAt: event.createdAt ?? makeSyntheticTimestamp(),
+    updatedAt: event.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
     estimatedDeliveryAt: event.estimatedDeliveryAt ?? fulfillment.estimatedDeliveryAt,
     inTransitAt: event.status === 'IN_TRANSIT' ? event.happenedAt : fulfillment.inTransitAt,
     deliveredAt: event.status === 'DELIVERED' ? event.happenedAt : fulfillment.deliveredAt,
@@ -2655,10 +2708,14 @@ function serializeSelectedOrderMutationPayload(field: FieldNode): Record<string,
   return result;
 }
 
-function applyOrderUpdateInput(existingOrder: OrderRecord, input: Record<string, unknown>): OrderRecord {
+function applyOrderUpdateInput(
+  runtime: ProxyRuntimeContext,
+  existingOrder: OrderRecord,
+  input: Record<string, unknown>,
+): OrderRecord {
   const updatedOrder: OrderRecord = {
     ...existingOrder,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     email: typeof input['email'] === 'string' ? input['email'] : (existingOrder.email ?? null),
     phone: typeof input['phone'] === 'string' ? input['phone'] : (existingOrder.phone ?? null),
     poNumber: typeof input['poNumber'] === 'string' ? input['poNumber'] : (existingOrder.poNumber ?? null),
@@ -2672,7 +2729,7 @@ function applyOrderUpdateInput(existingOrder: OrderRecord, input: Record<string,
       ? normalizeDraftOrderAttributes(input['customAttributes'])
       : existingOrder.customAttributes,
     metafields: Array.isArray(input['metafields'])
-      ? normalizeOrderMetafields(existingOrder.id, input['metafields'], existingOrder.metafields ?? [])
+      ? normalizeOrderMetafields(runtime, existingOrder.id, input['metafields'], existingOrder.metafields ?? [])
       : (existingOrder.metafields ?? []),
     shippingAddress:
       typeof input['shippingAddress'] === 'object' && input['shippingAddress'] !== null
@@ -2757,6 +2814,7 @@ function validateOrderCreateOptions(
 }
 
 function serializeDraftOrderCompletePayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   draftOrder: DraftOrderRecord | null,
   userErrors: Array<{ field: string[] | null; message: string }>,
@@ -2766,7 +2824,7 @@ function serializeDraftOrderCompletePayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'draftOrder':
-        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(runtime, selection, draftOrder) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
@@ -2781,6 +2839,7 @@ function serializeDraftOrderCompletePayload(
 }
 
 function serializeDraftOrderMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   draftOrder: DraftOrderRecord | null,
   userErrors: Array<{ field: string[] | null; message: string }>,
@@ -2790,7 +2849,7 @@ function serializeDraftOrderMutationPayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'draftOrder':
-        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(selection, draftOrder) : null;
+        payload[selectionKey] = draftOrder ? serializeDraftOrderNode(runtime, selection, draftOrder) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
@@ -2805,6 +2864,7 @@ function serializeDraftOrderMutationPayload(
 }
 
 function serializeAbandonmentMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   abandonment: AbandonmentRecord | null,
   variables: Record<string, unknown>,
@@ -2817,7 +2877,7 @@ function serializeAbandonmentMutationPayload(
     switch (selection.name.value) {
       case 'abandonment':
         payload[selectionKey] = abandonment
-          ? serializeAbandonmentNode(selection, abandonment, variables, fragments)
+          ? serializeAbandonmentNode(runtime, selection, abandonment, variables, fragments)
           : null;
         break;
       case 'userErrors':
@@ -2957,8 +3017,11 @@ function readReturnMutationId(field: FieldNode, variables: Record<string, unknow
   return typeof args['id'] === 'string' ? args['id'] : null;
 }
 
-function findOrderWithReturn(returnId: string): { order: OrderRecord; orderReturn: OrderReturnRecord } | null {
-  for (const order of store.getOrders()) {
+function findOrderWithReturn(
+  runtime: ProxyRuntimeContext,
+  returnId: string,
+): { order: OrderRecord; orderReturn: OrderReturnRecord } | null {
+  for (const order of runtime.store.getOrders()) {
     const orderReturn = order.returns.find((candidate) => candidate.id === returnId) ?? null;
     if (orderReturn) {
       return { order, orderReturn };
@@ -2967,12 +3030,15 @@ function findOrderWithReturn(returnId: string): { order: OrderRecord; orderRetur
   return null;
 }
 
-function findOrderWithReverseFulfillmentOrder(reverseFulfillmentOrderId: string): {
+function findOrderWithReverseFulfillmentOrder(
+  runtime: ProxyRuntimeContext,
+  reverseFulfillmentOrderId: string,
+): {
   order: OrderRecord;
   orderReturn: OrderReturnRecord;
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
 } | null {
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     for (const orderReturn of order.returns) {
       const reverseFulfillmentOrder =
         (orderReturn.reverseFulfillmentOrders ?? []).find((candidate) => candidate.id === reverseFulfillmentOrderId) ??
@@ -2985,13 +3051,16 @@ function findOrderWithReverseFulfillmentOrder(reverseFulfillmentOrderId: string)
   return null;
 }
 
-function findOrderWithReverseDelivery(reverseDeliveryId: string): {
+function findOrderWithReverseDelivery(
+  runtime: ProxyRuntimeContext,
+  reverseDeliveryId: string,
+): {
   order: OrderRecord;
   orderReturn: OrderReturnRecord;
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
   reverseDelivery: OrderReverseDeliveryRecord;
 } | null {
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     for (const orderReturn of order.returns) {
       for (const reverseFulfillmentOrder of orderReturn.reverseFulfillmentOrders ?? []) {
         const reverseDelivery =
@@ -3021,12 +3090,13 @@ function findFulfillmentLineItem(
 }
 
 function buildReverseFulfillmentOrderFromReturn(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   orderReturn: OrderReturnRecord,
 ): OrderReverseFulfillmentOrderRecord {
   const lineItems: OrderReverseFulfillmentOrderLineItemRecord[] = (orderReturn.returnLineItems ?? []).map(
     (lineItem) => ({
-      id: makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
       returnLineItemId: lineItem.id,
       fulfillmentLineItemId: lineItem.fulfillmentLineItemId,
       lineItemId: lineItem.lineItemId,
@@ -3038,7 +3108,7 @@ function buildReverseFulfillmentOrderFromReturn(
   );
 
   return {
-    id: makeSyntheticGid('ReverseFulfillmentOrder'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ReverseFulfillmentOrder'),
     orderId: order.id,
     returnId: orderReturn.id,
     status: 'OPEN',
@@ -3047,18 +3117,23 @@ function buildReverseFulfillmentOrderFromReturn(
   };
 }
 
-function ensureReturnReverseFulfillmentOrders(order: OrderRecord, orderReturn: OrderReturnRecord): OrderReturnRecord {
+function ensureReturnReverseFulfillmentOrders(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+  orderReturn: OrderReturnRecord,
+): OrderReturnRecord {
   if ((orderReturn.reverseFulfillmentOrders ?? []).length > 0) {
     return orderReturn;
   }
 
   return {
     ...orderReturn,
-    reverseFulfillmentOrders: [buildReverseFulfillmentOrderFromReturn(order, orderReturn)],
+    reverseFulfillmentOrders: [buildReverseFulfillmentOrderFromReturn(runtime, order, orderReturn)],
   };
 }
 
 function buildReturnLineItemsFromInput(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   rawLineItems: unknown,
 ): { lineItems: OrderReturnLineItemRecord[] } | { userErrors: ReturnUserError[] } {
@@ -3098,7 +3173,7 @@ function buildReturnLineItemsFromInput(
     }
 
     lineItems.push({
-      id: makeSyntheticGid('ReturnLineItem'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('ReturnLineItem'),
       fulfillmentLineItemId: fulfillmentLineItem.id,
       lineItemId: fulfillmentLineItem.lineItemId,
       title: fulfillmentLineItem.title,
@@ -3114,19 +3189,23 @@ function buildReturnLineItemsFromInput(
 }
 
 function buildOrderReturnFromInput(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   input: Record<string, unknown>,
   status: 'OPEN' | 'REQUESTED',
 ): { orderReturn: OrderReturnRecord } | { userErrors: ReturnUserError[] } {
-  const lineItemResult = buildReturnLineItemsFromInput(order, input['returnLineItems']);
+  const lineItemResult = buildReturnLineItemsFromInput(runtime, order, input['returnLineItems']);
   if ('userErrors' in lineItemResult) {
     return lineItemResult;
   }
 
-  const createdAt = typeof input['requestedAt'] === 'string' ? input['requestedAt'] : makeSyntheticTimestamp();
+  const createdAt =
+    typeof input['requestedAt'] === 'string'
+      ? input['requestedAt']
+      : runtime.syntheticIdentity.makeSyntheticTimestamp();
   const totalQuantity = lineItemResult.lineItems.reduce((total, lineItem) => total + lineItem.quantity, 0);
   const orderReturn: OrderReturnRecord = {
-    id: makeSyntheticGid('Return'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('Return'),
     orderId: order.id,
     name: `${order.name}-R${order.returns.length + 1}`,
     status,
@@ -3139,11 +3218,12 @@ function buildOrderReturnFromInput(
   };
 
   return {
-    orderReturn: status === 'OPEN' ? ensureReturnReverseFulfillmentOrders(order, orderReturn) : orderReturn,
+    orderReturn: status === 'OPEN' ? ensureReturnReverseFulfillmentOrders(runtime, order, orderReturn) : orderReturn,
   };
 }
 
 function applyReturnCreate(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown> | null,
   status: 'OPEN' | 'REQUESTED',
 ): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
@@ -3152,7 +3232,7 @@ function applyReturnCreate(
   }
 
   const orderId = typeof input['orderId'] === 'string' ? input['orderId'] : null;
-  const order = orderId ? store.getOrderById(orderId) : null;
+  const order = orderId ? runtime.store.getOrderById(orderId) : null;
   if (!order) {
     return {
       order: null,
@@ -3161,14 +3241,14 @@ function applyReturnCreate(
     };
   }
 
-  const result = buildOrderReturnFromInput(order, input, status);
+  const result = buildOrderReturnFromInput(runtime, order, input, status);
   if ('userErrors' in result) {
     return { order, orderReturn: null, userErrors: result.userErrors };
   }
 
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: [result.orderReturn, ...order.returns],
   });
   const stagedReturn =
@@ -3177,6 +3257,7 @@ function applyReturnCreate(
 }
 
 function applyReturnStatusUpdate(
+  runtime: ProxyRuntimeContext,
   returnId: string | null,
   status: 'OPEN' | 'CANCELED' | 'CLOSED',
 ): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
@@ -3184,7 +3265,7 @@ function applyReturnStatusUpdate(
     return { order: null, orderReturn: null, userErrors: [{ field: ['id'], message: 'Return does not exist.' }] };
   }
 
-  const match = findOrderWithReturn(returnId);
+  const match = findOrderWithReturn(runtime, returnId);
   if (!match) {
     return { order: null, orderReturn: null, userErrors: [{ field: ['id'], message: 'Return does not exist.' }] };
   }
@@ -3192,11 +3273,11 @@ function applyReturnStatusUpdate(
   const updatedReturn: OrderReturnRecord = {
     ...match.orderReturn,
     status,
-    closedAt: status === 'CLOSED' ? makeSyntheticTimestamp() : null,
+    closedAt: status === 'CLOSED' ? runtime.syntheticIdentity.makeSyntheticTimestamp() : null,
   };
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) => (candidate.id === returnId ? updatedReturn : candidate)),
   });
   const stagedReturn = updatedOrder.returns.find((candidate) => candidate.id === returnId) ?? updatedReturn;
@@ -3207,7 +3288,10 @@ function readReturnRequestInputId(input: Record<string, unknown> | null): string
   return typeof input?.['id'] === 'string' ? input['id'] : null;
 }
 
-function applyReturnApproveRequest(input: Record<string, unknown> | null): {
+function applyReturnApproveRequest(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown> | null,
+): {
   order: OrderRecord | null;
   orderReturn: OrderReturnRecord | null;
   userErrors: ReturnUserError[];
@@ -3221,7 +3305,7 @@ function applyReturnApproveRequest(input: Record<string, unknown> | null): {
     };
   }
 
-  const match = findOrderWithReturn(returnId);
+  const match = findOrderWithReturn(runtime, returnId);
   if (!match) {
     return {
       order: null,
@@ -3243,14 +3327,14 @@ function applyReturnApproveRequest(input: Record<string, unknown> | null): {
     };
   }
 
-  const approvedReturn = ensureReturnReverseFulfillmentOrders(match.order, {
+  const approvedReturn = ensureReturnReverseFulfillmentOrders(runtime, match.order, {
     ...match.orderReturn,
     status: 'OPEN',
     decline: null,
   });
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) => (candidate.id === returnId ? approvedReturn : candidate)),
   });
   return {
@@ -3260,7 +3344,10 @@ function applyReturnApproveRequest(input: Record<string, unknown> | null): {
   };
 }
 
-function applyReturnDeclineRequest(input: Record<string, unknown> | null): {
+function applyReturnDeclineRequest(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown> | null,
+): {
   order: OrderRecord | null;
   orderReturn: OrderReturnRecord | null;
   userErrors: ReturnUserError[];
@@ -3274,7 +3361,7 @@ function applyReturnDeclineRequest(input: Record<string, unknown> | null): {
     };
   }
 
-  const match = findOrderWithReturn(returnId);
+  const match = findOrderWithReturn(runtime, returnId);
   if (!match) {
     return {
       order: null,
@@ -3304,9 +3391,9 @@ function applyReturnDeclineRequest(input: Record<string, unknown> | null): {
       note: typeof input?.['declineNote'] === 'string' ? input['declineNote'] : null,
     },
   };
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) => (candidate.id === returnId ? declinedReturn : candidate)),
   });
   return {
@@ -3316,10 +3403,16 @@ function applyReturnDeclineRequest(input: Record<string, unknown> | null): {
   };
 }
 
-function syncReverseFulfillmentLineItems(order: OrderRecord, orderReturn: OrderReturnRecord): OrderReturnRecord {
+function syncReverseFulfillmentLineItems(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+  orderReturn: OrderReturnRecord,
+): OrderReturnRecord {
   const reverseFulfillmentOrders = orderReturn.reverseFulfillmentOrders ?? [];
   if (reverseFulfillmentOrders.length === 0) {
-    return orderReturn.status === 'OPEN' ? ensureReturnReverseFulfillmentOrders(order, orderReturn) : orderReturn;
+    return orderReturn.status === 'OPEN'
+      ? ensureReturnReverseFulfillmentOrders(runtime, order, orderReturn)
+      : orderReturn;
   }
 
   const returnLineItems = orderReturn.returnLineItems ?? [];
@@ -3330,7 +3423,7 @@ function syncReverseFulfillmentLineItems(order: OrderRecord, orderReturn: OrderR
         reverseFulfillmentOrder.lineItems.find((lineItem) => lineItem.returnLineItemId === returnLineItem.id) ?? null;
       const processedQuantity = returnLineItem.processedQuantity ?? 0;
       return {
-        id: existing?.id ?? makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
+        id: existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
         returnLineItemId: returnLineItem.id,
         fulfillmentLineItemId: returnLineItem.fulfillmentLineItemId,
         lineItemId: returnLineItem.lineItemId,
@@ -3351,12 +3444,13 @@ function syncReverseFulfillmentLineItems(order: OrderRecord, orderReturn: OrderR
 }
 
 function applyRemoveFromReturn(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
   const args = getFieldArguments(field, variables);
   const returnId = typeof args['returnId'] === 'string' ? args['returnId'] : null;
-  const match = returnId ? findOrderWithReturn(returnId) : null;
+  const match = returnId ? findOrderWithReturn(runtime, returnId) : null;
   if (!match) {
     return { order: null, orderReturn: null, userErrors: [{ field: ['returnId'], message: 'Return does not exist.' }] };
   }
@@ -3424,14 +3518,14 @@ function applyRemoveFromReturn(
     return { order: match.order, orderReturn: null, userErrors };
   }
 
-  const updatedReturn = syncReverseFulfillmentLineItems(match.order, {
+  const updatedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
     ...match.orderReturn,
     totalQuantity: nextLineItems.reduce((total, lineItem) => total + lineItem.quantity, 0),
     returnLineItems: nextLineItems,
   });
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) =>
       candidate.id === match.orderReturn.id ? updatedReturn : candidate,
     ),
@@ -3443,13 +3537,16 @@ function applyRemoveFromReturn(
   };
 }
 
-function applyReturnProcess(input: Record<string, unknown> | null): {
+function applyReturnProcess(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown> | null,
+): {
   order: OrderRecord | null;
   orderReturn: OrderReturnRecord | null;
   userErrors: ReturnUserError[];
 } {
   const returnId = typeof input?.['returnId'] === 'string' ? input['returnId'] : null;
-  const match = returnId ? findOrderWithReturn(returnId) : null;
+  const match = returnId ? findOrderWithReturn(runtime, returnId) : null;
   if (!match) {
     return {
       order: null,
@@ -3513,15 +3610,15 @@ function applyReturnProcess(input: Record<string, unknown> | null): {
   }
 
   const allProcessed = nextLineItems.every((lineItem) => (lineItem.processedQuantity ?? 0) >= lineItem.quantity);
-  const updatedReturn = syncReverseFulfillmentLineItems(match.order, {
-    ...ensureReturnReverseFulfillmentOrders(match.order, match.orderReturn),
+  const updatedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
+    ...ensureReturnReverseFulfillmentOrders(runtime, match.order, match.orderReturn),
     status: allProcessed ? 'CLOSED' : match.orderReturn.status,
-    closedAt: allProcessed ? makeSyntheticTimestamp() : match.orderReturn.closedAt,
+    closedAt: allProcessed ? runtime.syntheticIdentity.makeSyntheticTimestamp() : match.orderReturn.closedAt,
     returnLineItems: nextLineItems,
   });
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) =>
       candidate.id === match.orderReturn.id ? updatedReturn : candidate,
     ),
@@ -3534,6 +3631,7 @@ function applyReturnProcess(input: Record<string, unknown> | null): {
 }
 
 function serializeReturnMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   orderReturn: OrderReturnRecord | null,
   order: OrderRecord | null,
@@ -3546,7 +3644,7 @@ function serializeReturnMutationPayload(
     switch (selection.name.value) {
       case 'return':
         payload[selectionKey] =
-          orderReturn && order ? serializeOrderReturn(selection, orderReturn, variables, order) : null;
+          orderReturn && order ? serializeOrderReturn(runtime, selection, orderReturn, variables, order) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
@@ -3561,6 +3659,7 @@ function serializeReturnMutationPayload(
 }
 
 function serializeReverseDeliveryMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   reverseDelivery: OrderReverseDeliveryRecord | null,
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord | null,
@@ -3577,6 +3676,7 @@ function serializeReverseDeliveryMutationPayload(
         payload[key] =
           reverseDelivery && reverseFulfillmentOrder && orderReturn && order
             ? serializeOrderReverseDelivery(
+                runtime,
                 selection,
                 reverseDelivery,
                 reverseFulfillmentOrder,
@@ -3682,6 +3782,7 @@ function normalizeReverseDeliveryLabel(raw: unknown): OrderReverseDeliveryRecord
 }
 
 function applyReverseDeliveryCreateWithShipping(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): {
@@ -3694,7 +3795,9 @@ function applyReverseDeliveryCreateWithShipping(
   const args = getFieldArguments(field, variables);
   const reverseFulfillmentOrderId =
     typeof args['reverseFulfillmentOrderId'] === 'string' ? args['reverseFulfillmentOrderId'] : null;
-  const match = reverseFulfillmentOrderId ? findOrderWithReverseFulfillmentOrder(reverseFulfillmentOrderId) : null;
+  const match = reverseFulfillmentOrderId
+    ? findOrderWithReverseFulfillmentOrder(runtime, reverseFulfillmentOrderId)
+    : null;
   if (!match) {
     return {
       order: null,
@@ -3746,7 +3849,7 @@ function applyReverseDeliveryCreateWithShipping(
       }
       return [
         {
-          id: makeSyntheticGid('ReverseDeliveryLineItem'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
           reverseFulfillmentOrderLineItemId: lineItem.id,
           quantity,
         },
@@ -3765,7 +3868,7 @@ function applyReverseDeliveryCreateWithShipping(
   }
 
   const reverseDelivery: OrderReverseDeliveryRecord = {
-    id: makeSyntheticGid('ReverseDelivery'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDelivery'),
     reverseFulfillmentOrderId: match.reverseFulfillmentOrder.id,
     reverseDeliveryLineItems: lineItems,
     tracking: normalizeReverseDeliveryTracking(args['trackingInput']),
@@ -3781,9 +3884,9 @@ function applyReverseDeliveryCreateWithShipping(
       candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
     ),
   };
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) => (candidate.id === updatedReturn.id ? updatedReturn : candidate)),
   });
   const stagedReturn = updatedOrder.returns.find((candidate) => candidate.id === updatedReturn.id) ?? updatedReturn;
@@ -3804,6 +3907,7 @@ function applyReverseDeliveryCreateWithShipping(
 }
 
 function applyReverseDeliveryShippingUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): {
@@ -3815,7 +3919,7 @@ function applyReverseDeliveryShippingUpdate(
 } {
   const args = getFieldArguments(field, variables);
   const reverseDeliveryId = typeof args['reverseDeliveryId'] === 'string' ? args['reverseDeliveryId'] : null;
-  const match = reverseDeliveryId ? findOrderWithReverseDelivery(reverseDeliveryId) : null;
+  const match = reverseDeliveryId ? findOrderWithReverseDelivery(runtime, reverseDeliveryId) : null;
   if (!match) {
     return {
       order: null,
@@ -3843,9 +3947,9 @@ function applyReverseDeliveryShippingUpdate(
       candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
     ),
   };
-  const updatedOrder = store.updateOrder({
+  const updatedOrder = runtime.store.updateOrder({
     ...match.order,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) => (candidate.id === updatedReturn.id ? updatedReturn : candidate)),
   });
   return {
@@ -3858,6 +3962,7 @@ function applyReverseDeliveryShippingUpdate(
 }
 
 function applyReverseFulfillmentOrderDispose(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): { lineItems: OrderReverseFulfillmentOrderLineItemRecord[]; userErrors: ReturnUserError[] } {
@@ -3892,7 +3997,7 @@ function applyReverseFulfillmentOrderDispose(
       lineItem: OrderReverseFulfillmentOrderLineItemRecord;
     } | null = null;
     if (lineItemId) {
-      for (const order of store.getOrders()) {
+      for (const order of runtime.store.getOrders()) {
         for (const orderReturn of order.returns) {
           for (const reverseFulfillmentOrder of orderReturn.reverseFulfillmentOrders ?? []) {
             const lineItem = reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null;
@@ -3962,9 +4067,9 @@ function applyReverseFulfillmentOrderDispose(
         candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
       ),
     };
-    store.updateOrder({
+    runtime.store.updateOrder({
       ...update.match.order,
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       returns: update.match.order.returns.map((candidate) =>
         candidate.id === updatedReturn.id ? updatedReturn : candidate,
       ),
@@ -3976,6 +4081,7 @@ function applyReverseFulfillmentOrderDispose(
 }
 
 export function handleOrderMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
   readMode: ReadMode,
@@ -3993,13 +4099,13 @@ export function handleOrderMutation(
       handled = true;
       const referenceId = readNullableStringArgument(field, 'referenceId', variables);
       const attributes = readInputObjectArgument(field, 'paymentTermsAttributes', variables, 'paymentTermsAttributes');
-      const validation = validatePaymentTermsAttributes(attributes, ['paymentTermsAttributes']);
+      const validation = validatePaymentTermsAttributes(runtime, attributes, ['paymentTermsAttributes']);
       if (validation.userErrors.length > 0 || validation.templateId === null) {
         data[key] = serializePaymentTermsMutationPayload(field, null, validation.userErrors);
         continue;
       }
 
-      const owner = findPaymentTermsOwnerByReferenceId(referenceId);
+      const owner = findPaymentTermsOwnerByReferenceId(runtime, referenceId);
       if (!owner) {
         data[key] = serializePaymentTermsMutationPayload(field, null, [
           {
@@ -4023,11 +4129,12 @@ export function handleOrderMutation(
       }
 
       const paymentTerms = buildPaymentTermsFromAttributes(
+        runtime,
         attributes,
         validation.templateId,
         owner.record.totalPriceSet,
       );
-      storePaymentTermsOwner(owner, paymentTerms);
+      storePaymentTermsOwner(runtime, owner, paymentTerms);
       data[key] = serializePaymentTermsMutationPayload(field, paymentTerms, []);
       continue;
     }
@@ -4040,13 +4147,13 @@ export function handleOrderMutation(
         typeof input?.['paymentTermsAttributes'] === 'object' && input['paymentTermsAttributes'] !== null
           ? (input['paymentTermsAttributes'] as Record<string, unknown>)
           : null;
-      const validation = validatePaymentTermsAttributes(attributes, ['paymentTermsAttributes']);
+      const validation = validatePaymentTermsAttributes(runtime, attributes, ['paymentTermsAttributes']);
       if (validation.userErrors.length > 0 || validation.templateId === null) {
         data[key] = serializePaymentTermsMutationPayload(field, null, validation.userErrors);
         continue;
       }
 
-      const owner = findPaymentTermsOwnerByPaymentTermsId(paymentTermsId);
+      const owner = findPaymentTermsOwnerByPaymentTermsId(runtime, paymentTermsId);
       if (!owner || !owner.paymentTerms) {
         data[key] = serializePaymentTermsMutationPayload(field, null, [
           {
@@ -4059,12 +4166,13 @@ export function handleOrderMutation(
       }
 
       const paymentTerms = buildPaymentTermsFromAttributes(
+        runtime,
         attributes,
         validation.templateId,
         owner.record.totalPriceSet,
         owner.paymentTerms,
       );
-      storePaymentTermsOwner(owner, paymentTerms);
+      storePaymentTermsOwner(runtime, owner, paymentTerms);
       data[key] = serializePaymentTermsMutationPayload(field, paymentTerms, []);
       continue;
     }
@@ -4073,7 +4181,7 @@ export function handleOrderMutation(
       handled = true;
       const input = readInputObjectArgument(field, 'input', variables, 'input');
       const paymentTermsId = typeof input?.['paymentTermsId'] === 'string' ? input['paymentTermsId'] : null;
-      const owner = findPaymentTermsOwnerByPaymentTermsId(paymentTermsId);
+      const owner = findPaymentTermsOwnerByPaymentTermsId(runtime, paymentTermsId);
       if (!paymentTermsId || !owner || !owner.paymentTerms) {
         data[key] = serializePaymentTermsDeletePayload(field, null, [
           {
@@ -4085,50 +4193,92 @@ export function handleOrderMutation(
         continue;
       }
 
-      storePaymentTermsOwner(owner, null);
+      storePaymentTermsOwner(runtime, owner, null);
       data[key] = serializePaymentTermsDeletePayload(field, paymentTermsId, []);
       continue;
     }
 
     if (field.name.value === 'returnCreate' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyReturnCreate(readReturnInput(variables, 'returnInput'), 'OPEN');
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnCreate(runtime, readReturnInput(variables, 'returnInput'), 'OPEN');
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'returnRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyReturnCreate(readReturnInput(variables, 'input'), 'REQUESTED');
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnCreate(runtime, readReturnInput(variables, 'input'), 'REQUESTED');
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'returnApproveRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyReturnApproveRequest(readReturnInput(variables, 'input'));
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnApproveRequest(runtime, readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'returnDeclineRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyReturnDeclineRequest(readReturnInput(variables, 'input'));
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnDeclineRequest(runtime, readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'removeFromReturn' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyRemoveFromReturn(field, variables);
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyRemoveFromReturn(runtime, field, variables);
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'returnProcess' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const result = applyReturnProcess(readReturnInput(variables, 'input'));
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnProcess(runtime, readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
@@ -4137,8 +4287,9 @@ export function handleOrderMutation(
       (readMode === 'snapshot' || readMode === 'live-hybrid')
     ) {
       handled = true;
-      const result = applyReverseDeliveryCreateWithShipping(field, variables);
+      const result = applyReverseDeliveryCreateWithShipping(runtime, field, variables);
       data[key] = serializeReverseDeliveryMutationPayload(
+        runtime,
         field,
         result.reverseDelivery,
         result.reverseFulfillmentOrder,
@@ -4155,8 +4306,9 @@ export function handleOrderMutation(
       (readMode === 'snapshot' || readMode === 'live-hybrid')
     ) {
       handled = true;
-      const result = applyReverseDeliveryShippingUpdate(field, variables);
+      const result = applyReverseDeliveryShippingUpdate(runtime, field, variables);
       data[key] = serializeReverseDeliveryMutationPayload(
+        runtime,
         field,
         result.reverseDelivery,
         result.reverseFulfillmentOrder,
@@ -4173,7 +4325,7 @@ export function handleOrderMutation(
       (readMode === 'snapshot' || readMode === 'live-hybrid')
     ) {
       handled = true;
-      const result = applyReverseFulfillmentOrderDispose(field, variables);
+      const result = applyReverseFulfillmentOrderDispose(runtime, field, variables);
       data[key] = serializeReverseFulfillmentOrderDisposePayload(field, result.lineItems, result.userErrors);
       continue;
     }
@@ -4191,8 +4343,15 @@ export function handleOrderMutation(
         returnReopen: 'OPEN',
       };
       const status = statusByRoot[field.name.value] ?? 'OPEN';
-      const result = applyReturnStatusUpdate(readReturnMutationId(field, variables), status);
-      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      const result = applyReturnStatusUpdate(runtime, readReturnMutationId(field, variables), status);
+      data[key] = serializeReturnMutationPayload(
+        runtime,
+        field,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
       continue;
     }
 
@@ -4200,7 +4359,7 @@ export function handleOrderMutation(
       handled = true;
       const input = readOrderCaptureInput(variables);
       if (!input) {
-        data[key] = serializeOrderCapturePayload(field, null, null, [
+        data[key] = serializeOrderCapturePayload(runtime, field, null, null, [
           { field: ['input'], message: 'Input is required.' },
         ]);
         continue;
@@ -4214,57 +4373,57 @@ export function handleOrderMutation(
           : typeof input['transactionId'] === 'string'
             ? input['transactionId']
             : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
       const authorization =
         order && parentTransactionId
           ? (order.transactions.find((transaction) => transaction.id === parentTransactionId) ?? null)
           : null;
 
       if (!order) {
-        data[key] = serializeOrderCapturePayload(field, null, null, [
+        data[key] = serializeOrderCapturePayload(runtime, field, null, null, [
           { field: ['input', 'id'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
       if (!authorization) {
-        data[key] = serializeOrderCapturePayload(field, null, order, [
+        data[key] = serializeOrderCapturePayload(runtime, field, null, order, [
           { field: ['input', 'parentTransactionId'], message: 'Transaction does not exist' },
         ]);
         continue;
       }
 
-      const result = captureOrderPayment(order, authorization, input);
+      const result = captureOrderPayment(runtime, order, authorization, input);
       if ('userErrors' in result) {
-        data[key] = serializeOrderCapturePayload(field, null, order, result.userErrors);
+        data[key] = serializeOrderCapturePayload(runtime, field, null, order, result.userErrors);
         continue;
       }
 
-      const updatedOrder = store.updateOrder(result.order);
-      data[key] = serializeOrderCapturePayload(field, result.transaction, updatedOrder, []);
+      const updatedOrder = runtime.store.updateOrder(result.order);
+      data[key] = serializeOrderCapturePayload(runtime, field, result.transaction, updatedOrder, []);
       continue;
     }
 
     if (field.name.value === 'transactionVoid' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const { transactionId, fieldName } = readTransactionVoidReference(field, variables);
-      const match = transactionId ? findOrderWithTransaction(transactionId) : null;
+      const match = transactionId ? findOrderWithTransaction(runtime, transactionId) : null;
 
       if (!match) {
-        data[key] = serializeTransactionVoidPayload(field, null, [
+        data[key] = serializeTransactionVoidPayload(runtime, field, null, [
           { field: [fieldName], message: 'Transaction does not exist' },
         ]);
         continue;
       }
 
-      const result = voidOrderTransaction(match.order, match.transaction);
+      const result = voidOrderTransaction(runtime, match.order, match.transaction);
       if ('userErrors' in result) {
-        data[key] = serializeTransactionVoidPayload(field, null, result.userErrors);
+        data[key] = serializeTransactionVoidPayload(runtime, field, null, result.userErrors);
         continue;
       }
 
-      store.updateOrder(result.order);
-      data[key] = serializeTransactionVoidPayload(field, result.transaction, []);
+      runtime.store.updateOrder(result.order);
+      data[key] = serializeTransactionVoidPayload(runtime, field, result.transaction, []);
       continue;
     }
 
@@ -4273,23 +4432,23 @@ export function handleOrderMutation(
       const input = readMandatePaymentInput(variables);
       const orderId =
         typeof input['id'] === 'string' ? input['id'] : typeof input['orderId'] === 'string' ? input['orderId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
-        data[key] = serializeOrderCreateMandatePaymentPayload(field, null, null, [
+        data[key] = serializeOrderCreateMandatePaymentPayload(runtime, field, null, null, [
           { field: ['id'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
-      const result = createMandatePayment(order, input);
+      const result = createMandatePayment(runtime, order, input);
       if ('userErrors' in result) {
-        data[key] = serializeOrderCreateMandatePaymentPayload(field, null, order, result.userErrors);
+        data[key] = serializeOrderCreateMandatePaymentPayload(runtime, field, null, order, result.userErrors);
         continue;
       }
 
-      const updatedOrder = store.updateOrder(result.order);
-      data[key] = serializeOrderCreateMandatePaymentPayload(field, result.mandatePayment, updatedOrder, []);
+      const updatedOrder = runtime.store.updateOrder(result.order);
+      data[key] = serializeOrderCreateMandatePaymentPayload(runtime, field, result.mandatePayment, updatedOrder, []);
       continue;
     }
 
@@ -4297,29 +4456,29 @@ export function handleOrderMutation(
       handled = true;
       const input = readRefundCreateInput(variables);
       if (!input) {
-        data[key] = serializeRefundCreatePayload(field, null, null, [
+        data[key] = serializeRefundCreatePayload(runtime, field, null, null, [
           { field: ['input'], message: 'Input is required.' },
         ]);
         continue;
       }
 
       const orderId = typeof input['orderId'] === 'string' ? input['orderId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
       if (!order) {
-        data[key] = serializeRefundCreatePayload(field, null, null, [
+        data[key] = serializeRefundCreatePayload(runtime, field, null, null, [
           { field: ['input', 'orderId'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
-      const refund = buildRefundFromInput(order, input);
+      const refund = buildRefundFromInput(runtime, order, input);
       const refundAmount = parseDecimalAmount(refund.totalRefundedSet?.shopMoney.amount);
       const alreadyRefunded = sumRefundedAmount(order);
       const refundableAmount = parseDecimalAmount(order.totalPriceSet?.shopMoney.amount) - alreadyRefunded;
       const allowOverRefunding = input['allowOverRefunding'] === true;
 
       if (!allowOverRefunding && refundAmount > refundableAmount) {
-        data[key] = serializeRefundCreatePayload(field, null, order, [
+        data[key] = serializeRefundCreatePayload(runtime, field, null, order, [
           {
             field: null,
             message: `Refund amount $${refundAmount.toFixed(2)} is greater than net payment received $${refundableAmount.toFixed(2)}`,
@@ -4328,9 +4487,9 @@ export function handleOrderMutation(
         continue;
       }
 
-      const updatedOrder = store.updateOrder(applyRefundToOrder(order, refund));
+      const updatedOrder = runtime.store.updateOrder(applyRefundToOrder(order, refund));
       const stagedRefund = updatedOrder.refunds.find((candidate) => candidate.id === refund.id) ?? refund;
-      data[key] = serializeRefundCreatePayload(field, stagedRefund, updatedOrder, []);
+      data[key] = serializeRefundCreatePayload(runtime, field, stagedRefund, updatedOrder, []);
       continue;
     }
 
@@ -4358,16 +4517,16 @@ export function handleOrderMutation(
         continue;
       }
 
-      const existingOrder = store.getOrderById(id);
+      const existingOrder = runtime.store.getOrderById(id);
       if (existingOrder && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
-        const updatedOrder = store.updateOrder(applyOrderUpdateInput(existingOrder, input));
+        const updatedOrder = runtime.store.updateOrder(applyOrderUpdateInput(runtime, existingOrder, input));
 
         const payload: Record<string, unknown> = {};
         for (const selection of getSelectedChildFields(field)) {
           const selectionKey = getFieldResponseKey(selection);
           switch (selection.name.value) {
             case 'order':
-              payload[selectionKey] = serializeOrderNode(selection, updatedOrder);
+              payload[selectionKey] = serializeOrderNode(runtime, selection, updatedOrder);
               break;
             case 'userErrors':
               payload[selectionKey] = [];
@@ -4397,28 +4556,30 @@ export function handleOrderMutation(
         typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
           ? ((input as Record<string, unknown>)['id'] as string)
           : null;
-      const order = id ? store.getOrderById(id) : null;
+      const order = id ? runtime.store.getOrderById(id) : null;
 
       if (!order) {
-        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        data[key] = serializeOrderManagementPayload(runtime, field, null, [
+          { field: ['id'], message: 'Order does not exist' },
+        ]);
         continue;
       }
 
-      if (id && store.hasStagedOrder(id) && order.closed) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+      if (id && runtime.store.hasStagedOrder(id) && order.closed) {
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['id'], message: 'Order is already closed' },
         ]);
         continue;
       }
 
-      const closedAt = makeSyntheticTimestamp();
-      const updatedOrder = store.updateOrder({
+      const closedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+      const updatedOrder = runtime.store.updateOrder({
         ...order,
         updatedAt: closedAt,
         closed: true,
         closedAt,
       });
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
@@ -4429,34 +4590,36 @@ export function handleOrderMutation(
         typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
           ? ((input as Record<string, unknown>)['id'] as string)
           : null;
-      const order = id ? store.getOrderById(id) : null;
+      const order = id ? runtime.store.getOrderById(id) : null;
 
       if (!order) {
-        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        data[key] = serializeOrderManagementPayload(runtime, field, null, [
+          { field: ['id'], message: 'Order does not exist' },
+        ]);
         continue;
       }
 
-      if (id && store.hasStagedOrder(id) && order.cancelledAt) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+      if (id && runtime.store.hasStagedOrder(id) && order.cancelledAt) {
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['id'], message: 'Canceled orders cannot be opened' },
         ]);
         continue;
       }
 
-      if (id && store.hasStagedOrder(id) && !order.closed) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+      if (id && runtime.store.hasStagedOrder(id) && !order.closed) {
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['id'], message: 'Order is already open' },
         ]);
         continue;
       }
 
-      const updatedOrder = store.updateOrder({
+      const updatedOrder = runtime.store.updateOrder({
         ...order,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         closed: false,
         closedAt: null,
       });
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
@@ -4467,27 +4630,31 @@ export function handleOrderMutation(
         typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string'
           ? ((input as Record<string, unknown>)['id'] as string)
           : null;
-      const order = id ? store.getOrderById(id) : null;
+      const order = id ? runtime.store.getOrderById(id) : null;
 
       if (!order) {
-        data[key] = serializeOrderManagementPayload(field, null, [{ field: ['id'], message: 'Order does not exist' }]);
+        data[key] = serializeOrderManagementPayload(runtime, field, null, [
+          { field: ['id'], message: 'Order does not exist' },
+        ]);
         continue;
       }
 
       if (
         id &&
-        store.hasStagedOrder(id) &&
+        runtime.store.hasStagedOrder(id) &&
         (order.displayFinancialStatus === 'PAID' ||
           parseDecimalAmount(order.totalOutstandingSet?.shopMoney.amount) <= 0)
       ) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['id'], message: 'Order is already paid' },
         ]);
         continue;
       }
 
-      const updatedOrder = store.updateOrder(order.displayFinancialStatus === 'PAID' ? order : markOrderAsPaid(order));
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      const updatedOrder = runtime.store.updateOrder(
+        order.displayFinancialStatus === 'PAID' ? order : markOrderAsPaid(runtime, order),
+      );
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
@@ -4495,7 +4662,7 @@ export function handleOrderMutation(
       handled = true;
       const input = getFieldArguments(field, variables);
       const orderId = typeof input['id'] === 'string' ? input['id'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
         data[key] = null;
@@ -4508,14 +4675,14 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = createManualPayment(order, input);
+      const result = createManualPayment(runtime, order, input);
       if ('userErrors' in result) {
-        data[key] = serializeOrderManagementPayload(field, order, result.userErrors);
+        data[key] = serializeOrderManagementPayload(runtime, field, order, result.userErrors);
         continue;
       }
 
-      const updatedOrder = store.updateOrder(result.order);
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      const updatedOrder = runtime.store.updateOrder(result.order);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
@@ -4523,26 +4690,26 @@ export function handleOrderMutation(
       handled = true;
       const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
       const customerId = typeof variables['customerId'] === 'string' ? variables['customerId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
-        data[key] = serializeOrderManagementPayload(field, null, [
+        data[key] = serializeOrderManagementPayload(runtime, field, null, [
           { field: ['orderId'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
-      const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      const stagedOrder = orderId ? store.hasStagedOrder(orderId) : false;
+      const customer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
+      const stagedOrder = orderId ? runtime.store.hasStagedOrder(orderId) : false;
       if (!customer && stagedOrder) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['customerId'], message: 'Customer does not exist' },
         ]);
         continue;
       }
 
       if (customer && stagedOrder && order.customer?.id === customer.id) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['customerId'], message: 'Order already has this customer' },
         ]);
         continue;
@@ -4554,48 +4721,49 @@ export function handleOrderMutation(
           : order.customer?.id === customerId
             ? structuredClone(order.customer)
             : { id: customerId ?? '', email: null, displayName: null };
-      const updatedOrder = store.updateOrder({
+      const updatedOrder = runtime.store.updateOrder({
         ...order,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         customer: orderCustomer,
       });
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
     if (field.name.value === 'orderCustomerRemove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
-        data[key] = serializeOrderManagementPayload(field, null, [
+        data[key] = serializeOrderManagementPayload(runtime, field, null, [
           { field: ['orderId'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
-      if (orderId && store.hasStagedOrder(orderId) && order.customer === null) {
-        data[key] = serializeOrderManagementPayload(field, order, [
+      if (orderId && runtime.store.hasStagedOrder(orderId) && order.customer === null) {
+        data[key] = serializeOrderManagementPayload(runtime, field, order, [
           { field: ['orderId'], message: 'Order does not have a customer' },
         ]);
         continue;
       }
 
-      const updatedOrder = store.updateOrder({
+      const updatedOrder = runtime.store.updateOrder({
         ...order,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         customer: null,
       });
-      data[key] = serializeOrderManagementPayload(field, updatedOrder, []);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
     if (field.name.value === 'orderInvoiceSend' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const id = typeof variables['id'] === 'string' ? variables['id'] : null;
-      const order = id ? store.getOrderById(id) : null;
+      const order = id ? runtime.store.getOrderById(id) : null;
       data[key] = serializeOrderManagementPayload(
+        runtime,
         field,
         order,
         order ? [] : [{ field: ['id'], message: 'Order does not exist' }],
@@ -4618,20 +4786,20 @@ export function handleOrderMutation(
     if (field.name.value === 'orderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const orderId = typeof variables['orderId'] === 'string' ? variables['orderId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
         data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order does not exist' }]);
         continue;
       }
 
-      if (orderId && store.hasStagedOrder(orderId) && order.cancelledAt) {
+      if (orderId && runtime.store.hasStagedOrder(orderId) && order.cancelledAt) {
         data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order is already canceled' }]);
         continue;
       }
 
-      const cancelledAt = makeSyntheticTimestamp();
-      store.updateOrder({
+      const cancelledAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+      runtime.store.updateOrder({
         ...order,
         updatedAt: cancelledAt,
         closed: true,
@@ -4647,9 +4815,9 @@ export function handleOrderMutation(
       handled = true;
       const args = getFieldArguments(field, variables);
       const orderId = typeof args['orderId'] === 'string' ? args['orderId'] : null;
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
       if (orderId && order) {
-        store.deleteOrder(orderId);
+        runtime.store.deleteOrder(orderId);
       }
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
@@ -4717,13 +4885,13 @@ export function handleOrderMutation(
           continue;
         }
 
-        const stagedOrder = store.stageCreateOrder(buildOrderFromInput(order));
+        const stagedOrder = runtime.store.stageCreateOrder(buildOrderFromInput(runtime, order));
         const payload: Record<string, unknown> = {};
         for (const selection of getSelectedChildFields(field)) {
           const selectionKey = getFieldResponseKey(selection);
           switch (selection.name.value) {
             case 'order':
-              payload[selectionKey] = serializeOrderNode(selection, stagedOrder);
+              payload[selectionKey] = serializeOrderNode(runtime, selection, stagedOrder);
               break;
             case 'userErrors':
               payload[selectionKey] = [];
@@ -4808,21 +4976,21 @@ export function handleOrderMutation(
         continue;
       }
 
-      const abandonment = abandonmentId ? store.getAbandonmentById(abandonmentId) : null;
+      const abandonment = abandonmentId ? runtime.store.getAbandonmentById(abandonmentId) : null;
       if (!abandonment || !abandonmentId || !marketingActivityId || !deliveryStatus) {
-        data[key] = serializeAbandonmentMutationPayload(field, null, variables, fragments, [
+        data[key] = serializeAbandonmentMutationPayload(runtime, field, null, variables, fragments, [
           { field: ['abandonmentId'], message: 'abandonment_not_found' },
         ]);
         continue;
       }
 
-      const updatedAbandonment = store.stageAbandonmentDeliveryActivity(abandonmentId, {
+      const updatedAbandonment = runtime.store.stageAbandonmentDeliveryActivity(abandonmentId, {
         marketingActivityId,
         deliveryStatus,
         deliveredAt: readNullableStringArgument(field, 'deliveredAt', variables),
         deliveryStatusChangeReason: readNullableStringArgument(field, 'deliveryStatusChangeReason', variables),
       });
-      data[key] = serializeAbandonmentMutationPayload(field, updatedAbandonment, variables, fragments, []);
+      data[key] = serializeAbandonmentMutationPayload(runtime, field, updatedAbandonment, variables, fragments, []);
       continue;
     }
 
@@ -4847,19 +5015,21 @@ export function handleOrderMutation(
         continue;
       }
 
-      const userErrors = validateDraftOrderCreateInput(input);
+      const userErrors = validateDraftOrderCreateInput(runtime, input);
       if (userErrors.length > 0) {
         data[key] = serializeDraftOrderCreatePayloadWithUserErrors(field, userErrors);
         continue;
       }
 
-      const draftOrder = store.stageCreateDraftOrder(buildDraftOrderFromInput(input, shopifyAdminOrigin));
+      const draftOrder = runtime.store.stageCreateDraftOrder(
+        buildDraftOrderFromInput(runtime, input, shopifyAdminOrigin),
+      );
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'draftOrder':
-            payload[selectionKey] = serializeDraftOrderNode(selection, draftOrder);
+            payload[selectionKey] = serializeDraftOrderNode(runtime, selection, draftOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -4893,8 +5063,9 @@ export function handleOrderMutation(
         continue;
       }
 
-      const userErrors = validateDraftOrderCreateInput(input);
-      const calculatedDraftOrder = userErrors.length === 0 ? buildDraftOrderFromInput(input, shopifyAdminOrigin) : null;
+      const userErrors = validateDraftOrderCreateInput(runtime, input);
+      const calculatedDraftOrder =
+        userErrors.length === 0 ? buildDraftOrderFromInput(runtime, input, shopifyAdminOrigin) : null;
       data[key] = serializeDraftOrderCalculatePayload(field, calculatedDraftOrder, userErrors);
       continue;
     }
@@ -4940,7 +5111,7 @@ export function handleOrderMutation(
       const paymentTerms = typeof inputRecord['paymentTerms'] === 'object' ? inputRecord['paymentTerms'] : null;
       if (paymentTerms !== null) {
         const hasTemplateId = typeof (paymentTerms as Record<string, unknown>)['paymentTermsTemplateId'] === 'string';
-        data[key] = serializeDraftOrderMutationPayload(field, null, [
+        data[key] = serializeDraftOrderMutationPayload(runtime, field, null, [
           {
             field: null,
             message: hasTemplateId
@@ -4951,33 +5122,37 @@ export function handleOrderMutation(
         continue;
       }
 
-      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const draftOrder = id ? runtime.store.getDraftOrderById(id) : null;
       if (!draftOrder) {
-        data[key] = serializeDraftOrderMutationPayload(field, null, [
+        data[key] = serializeDraftOrderMutationPayload(runtime, field, null, [
           { field: ['id'], message: 'Draft order does not exist' },
         ]);
         continue;
       }
 
-      const updatedDraftOrder = store.updateDraftOrder(buildUpdatedDraftOrder(draftOrder, input, shopifyAdminOrigin));
-      data[key] = serializeDraftOrderMutationPayload(field, updatedDraftOrder, []);
+      const updatedDraftOrder = runtime.store.updateDraftOrder(
+        buildUpdatedDraftOrder(runtime, draftOrder, input, shopifyAdminOrigin),
+      );
+      data[key] = serializeDraftOrderMutationPayload(runtime, field, updatedDraftOrder, []);
       continue;
     }
 
     if (field.name.value === 'draftOrderDuplicate') {
       handled = true;
       const id = readDraftOrderDuplicateId(variables);
-      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const draftOrder = id ? runtime.store.getDraftOrderById(id) : null;
 
       if (!draftOrder) {
-        data[key] = serializeDraftOrderMutationPayload(field, null, [
+        data[key] = serializeDraftOrderMutationPayload(runtime, field, null, [
           { field: ['id'], message: 'Draft order does not exist' },
         ]);
         continue;
       }
 
-      const duplicatedDraftOrder = store.stageCreateDraftOrder(duplicateDraftOrder(draftOrder, shopifyAdminOrigin));
-      data[key] = serializeDraftOrderMutationPayload(field, duplicatedDraftOrder, []);
+      const duplicatedDraftOrder = runtime.store.stageCreateDraftOrder(
+        duplicateDraftOrder(runtime, draftOrder, shopifyAdminOrigin),
+      );
+      data[key] = serializeDraftOrderMutationPayload(runtime, field, duplicatedDraftOrder, []);
       continue;
     }
 
@@ -4986,13 +5161,13 @@ export function handleOrderMutation(
       const tags = readDraftOrderBulkTags(field, variables);
       const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
       if (userErrors.length === 0) {
-        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
-          updateDraftOrderTags(draftOrder, tags, 'add');
+        for (const draftOrder of selectDraftOrderBulkTargets(runtime, field, variables)) {
+          updateDraftOrderTags(runtime, draftOrder, tags, 'add');
         }
       }
       data[key] = serializeDraftOrderBulkPayload(
         field,
-        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors.length === 0 ? runtime.syntheticIdentity.makeSyntheticGid('Job') : null,
         userErrors,
       );
       continue;
@@ -5003,13 +5178,13 @@ export function handleOrderMutation(
       const tags = readDraftOrderBulkTags(field, variables);
       const userErrors = tags.length === 0 ? [{ field: ['tags'], message: "Tags can't be blank" }] : [];
       if (userErrors.length === 0) {
-        for (const draftOrder of selectDraftOrderBulkTargets(field, variables)) {
-          updateDraftOrderTags(draftOrder, tags, 'remove');
+        for (const draftOrder of selectDraftOrderBulkTargets(runtime, field, variables)) {
+          updateDraftOrderTags(runtime, draftOrder, tags, 'remove');
         }
       }
       data[key] = serializeDraftOrderBulkPayload(
         field,
-        userErrors.length === 0 ? makeSyntheticGid('Job') : null,
+        userErrors.length === 0 ? runtime.syntheticIdentity.makeSyntheticGid('Job') : null,
         userErrors,
       );
       continue;
@@ -5017,11 +5192,11 @@ export function handleOrderMutation(
 
     if (field.name.value === 'draftOrderBulkDelete') {
       handled = true;
-      const targets = selectDraftOrderBulkTargets(field, variables);
+      const targets = selectDraftOrderBulkTargets(runtime, field, variables);
       for (const draftOrder of targets) {
-        store.deleteDraftOrder(draftOrder.id);
+        runtime.store.deleteDraftOrder(draftOrder.id);
       }
-      data[key] = serializeDraftOrderBulkPayload(field, makeSyntheticGid('Job'), []);
+      data[key] = serializeDraftOrderBulkPayload(field, runtime.syntheticIdentity.makeSyntheticGid('Job'), []);
       continue;
     }
 
@@ -5046,7 +5221,7 @@ export function handleOrderMutation(
       }
 
       const id = typeof input?.['id'] === 'string' ? input['id'] : null;
-      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const draftOrder = id ? runtime.store.getDraftOrderById(id) : null;
       if (!id || !draftOrder) {
         data[key] = serializeDraftOrderDeletePayload(field, null, [
           { field: ['id'], message: 'Draft order does not exist' },
@@ -5054,7 +5229,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      store.deleteDraftOrder(id);
+      runtime.store.deleteDraftOrder(id);
       data[key] = serializeDraftOrderDeletePayload(field, id, []);
       continue;
     }
@@ -5079,8 +5254,9 @@ export function handleOrderMutation(
         continue;
       }
 
-      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const draftOrder = id ? runtime.store.getDraftOrderById(id) : null;
       data[key] = serializeDraftOrderMutationPayload(
+        runtime,
         field,
         draftOrder,
         buildDraftOrderInvoiceSendUserErrors(draftOrder),
@@ -5109,7 +5285,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const draftOrder = id ? store.getDraftOrderById(id) : null;
+      const draftOrder = id ? runtime.store.getDraftOrderById(id) : null;
       const userErrors = draftOrder ? [] : [{ field: ['id'], message: 'Draft order does not exist' }];
       data[key] = serializeDraftOrderInvoicePreviewPayload(field, draftOrder, args, userErrors);
       continue;
@@ -5135,16 +5311,18 @@ export function handleOrderMutation(
         continue;
       }
 
-      const order = orderId ? store.getOrderById(orderId) : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
       if (!order) {
-        data[key] = serializeDraftOrderMutationPayload(field, null, [
+        data[key] = serializeDraftOrderMutationPayload(runtime, field, null, [
           { field: ['orderId'], message: 'Order does not exist' },
         ]);
         continue;
       }
 
-      const draftOrder = store.stageCreateDraftOrder(buildDraftOrderFromOrder(order, shopifyAdminOrigin));
-      data[key] = serializeDraftOrderMutationPayload(field, draftOrder, []);
+      const draftOrder = runtime.store.stageCreateDraftOrder(
+        buildDraftOrderFromOrder(runtime, order, shopifyAdminOrigin),
+      );
+      data[key] = serializeDraftOrderMutationPayload(runtime, field, draftOrder, []);
       continue;
     }
 
@@ -5171,12 +5349,12 @@ export function handleOrderMutation(
         continue;
       }
 
-      const draftOrder = store.getDraftOrderById(id);
+      const draftOrder = runtime.store.getDraftOrderById(id);
       if (draftOrder && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
         handled = true;
 
         if (readDraftOrderCompletePaymentGatewayId(field, variables)) {
-          data[key] = serializeDraftOrderCompletePayload(field, null, [
+          data[key] = serializeDraftOrderCompletePayload(runtime, field, null, [
             {
               field: null,
               message: 'Invalid payment gateway',
@@ -5185,18 +5363,18 @@ export function handleOrderMutation(
           continue;
         }
 
-        const completedDraftOrder = buildCompletedDraftOrder(draftOrder);
-        const order = store.stageCreateOrder(
-          buildOrderFromCompletedDraftOrder(completedDraftOrder, {
+        const completedDraftOrder = buildCompletedDraftOrder(runtime, draftOrder);
+        const order = runtime.store.stageCreateOrder(
+          buildOrderFromCompletedDraftOrder(runtime, completedDraftOrder, {
             sourceName: readDraftOrderCompleteSourceName(field, variables),
             paymentPending: readDraftOrderCompletePaymentPending(field, variables),
           }),
         );
-        const linkedDraftOrder = store.updateDraftOrder({
+        const linkedDraftOrder = runtime.store.updateDraftOrder({
           ...completedDraftOrder,
           orderId: order.id,
         });
-        const payload = serializeDraftOrderCompletePayload(field, linkedDraftOrder, []);
+        const payload = serializeDraftOrderCompletePayload(runtime, field, linkedDraftOrder, []);
         data[key] = payload;
         continue;
       }
@@ -5216,14 +5394,14 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
         continue;
       }
 
-      const result = buildSubmitFulfillmentRequestResult(match.fulfillmentOrder, field, variables);
+      const result = buildSubmitFulfillmentRequestResult(runtime, match.fulfillmentOrder, field, variables);
       if (!result.submittedFulfillmentOrder) {
         data[key] = serializeSubmitFulfillmentRequestPayload(
           field,
@@ -5239,6 +5417,7 @@ export function handleOrderMutation(
       }
 
       replaceOrderFulfillmentOrder(
+        runtime,
         match.order,
         idRead.id,
         result.submittedFulfillmentOrder,
@@ -5265,7 +5444,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
@@ -5287,7 +5466,7 @@ export function handleOrderMutation(
         status: 'IN_PROGRESS',
         requestStatus: 'ACCEPTED',
       };
-      replaceOrderFulfillmentOrder(match.order, idRead.id, acceptedFulfillmentOrder);
+      replaceOrderFulfillmentOrder(runtime, match.order, idRead.id, acceptedFulfillmentOrder);
       data[key] = serializeFulfillmentOrderPayload(field, acceptedFulfillmentOrder, [], variables);
       continue;
     }
@@ -5300,7 +5479,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
@@ -5322,7 +5501,7 @@ export function handleOrderMutation(
         status: 'OPEN',
         requestStatus: 'REJECTED',
       };
-      replaceOrderFulfillmentOrder(match.order, idRead.id, rejectedFulfillmentOrder);
+      replaceOrderFulfillmentOrder(runtime, match.order, idRead.id, rejectedFulfillmentOrder);
       data[key] = serializeFulfillmentOrderPayload(field, rejectedFulfillmentOrder, [], variables);
       continue;
     }
@@ -5335,7 +5514,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
@@ -5353,6 +5532,7 @@ export function handleOrderMutation(
       }
 
       const cancellationRequest = makeFulfillmentOrderMerchantRequest(
+        runtime,
         'CANCELLATION_REQUEST',
         readNullableStringMutationArgument(field, 'message', variables),
       );
@@ -5360,7 +5540,7 @@ export function handleOrderMutation(
         ...match.fulfillmentOrder,
         merchantRequests: [...(match.fulfillmentOrder.merchantRequests ?? []), cancellationRequest],
       };
-      replaceOrderFulfillmentOrder(match.order, idRead.id, cancellationRequestedFulfillmentOrder);
+      replaceOrderFulfillmentOrder(runtime, match.order, idRead.id, cancellationRequestedFulfillmentOrder);
       data[key] = serializeFulfillmentOrderPayload(field, cancellationRequestedFulfillmentOrder, [], variables);
       continue;
     }
@@ -5373,7 +5553,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
@@ -5399,7 +5579,7 @@ export function handleOrderMutation(
         requestStatus: 'CANCELLATION_ACCEPTED',
         lineItems: zeroFulfillmentOrderLineItems(match.fulfillmentOrder.lineItems),
       };
-      replaceOrderFulfillmentOrder(match.order, idRead.id, cancelledFulfillmentOrder);
+      replaceOrderFulfillmentOrder(runtime, match.order, idRead.id, cancelledFulfillmentOrder);
       data[key] = serializeFulfillmentOrderPayload(field, cancelledFulfillmentOrder, [], variables);
       continue;
     }
@@ -5412,7 +5592,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const match = findOrderWithFulfillmentOrder(idRead.id);
+      const match = findOrderWithFulfillmentOrder(runtime, idRead.id);
       if (!match) {
         data[key] = null;
         errors.push(buildInvalidFulfillmentOrderIdError(field.name.value, key, idRead.id));
@@ -5437,7 +5617,7 @@ export function handleOrderMutation(
         status: 'IN_PROGRESS',
         requestStatus: 'CANCELLATION_REJECTED',
       };
-      replaceOrderFulfillmentOrder(match.order, idRead.id, cancellationRejectedFulfillmentOrder);
+      replaceOrderFulfillmentOrder(runtime, match.order, idRead.id, cancellationRejectedFulfillmentOrder);
       data[key] = serializeFulfillmentOrderPayload(field, cancellationRejectedFulfillmentOrder, [], variables);
       continue;
     }
@@ -5446,7 +5626,7 @@ export function handleOrderMutation(
       handled = true;
       const input = readFulfillmentEventInput(variables);
       const fulfillmentId = input ? readNullableInputString(input, 'fulfillmentId') : null;
-      const match = fulfillmentId ? findOrderWithFulfillment(fulfillmentId) : null;
+      const match = fulfillmentId ? findOrderWithFulfillment(runtime, fulfillmentId) : null;
 
       if (!input || !fulfillmentId || !match) {
         data[key] = serializeFulfillmentEventCreatePayload(field, null, [
@@ -5455,11 +5635,11 @@ export function handleOrderMutation(
         continue;
       }
 
-      const event = buildFulfillmentEventFromInput(input);
-      const updatedFulfillment = withFulfillmentEventDerivedFields(match.fulfillment, event);
-      store.updateOrder({
+      const event = buildFulfillmentEventFromInput(runtime, input);
+      const updatedFulfillment = withFulfillmentEventDerivedFields(runtime, match.fulfillment, event);
+      runtime.store.updateOrder({
         ...match.order,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
           fulfillment.id === fulfillmentId ? updatedFulfillment : fulfillment,
         ),
@@ -5493,7 +5673,7 @@ export function handleOrderMutation(
 
       if (fulfillmentId) {
         const trackingInfo = readFulfillmentTrackingInfoInput(variables);
-        const match = findOrderWithFulfillment(fulfillmentId);
+        const match = findOrderWithFulfillment(runtime, fulfillmentId);
         if (!match || !trackingInfo) {
           data[key] = serializeFulfillmentMutationPayload(
             field,
@@ -5506,12 +5686,12 @@ export function handleOrderMutation(
 
         const updatedFulfillment: OrderFulfillmentRecord = {
           ...match.fulfillment,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           trackingInfo: [trackingInfo],
         };
-        store.updateOrder({
+        runtime.store.updateOrder({
           ...match.order,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
             fulfillment.id === fulfillmentId ? updatedFulfillment : fulfillment,
           ),
@@ -5524,7 +5704,7 @@ export function handleOrderMutation(
     if (field.name.value === 'fulfillmentOrderHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5534,7 +5714,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderHold(match.order, match.fulfillmentOrder, variables);
+      const result = applyFulfillmentOrderHold(runtime, match.order, match.fulfillmentOrder, variables);
       data[key] = serializeFulfillmentOrderMutationPayload(
         field,
         {
@@ -5549,7 +5729,7 @@ export function handleOrderMutation(
     if (field.name.value === 'fulfillmentOrderReleaseHold' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5559,7 +5739,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderReleaseHold(match.order, match.fulfillmentOrder);
+      const result = applyFulfillmentOrderReleaseHold(runtime, match.order, match.fulfillmentOrder);
       data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
       continue;
     }
@@ -5567,7 +5747,7 @@ export function handleOrderMutation(
     if (field.name.value === 'fulfillmentOrderMove' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5577,7 +5757,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderMove(match.order, match.fulfillmentOrder, variables);
+      const result = applyFulfillmentOrderMove(runtime, match.order, match.fulfillmentOrder, variables);
       data[key] = serializeFulfillmentOrderMutationPayload(
         field,
         {
@@ -5596,7 +5776,7 @@ export function handleOrderMutation(
     ) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5606,7 +5786,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'IN_PROGRESS');
+      const result = applyFulfillmentOrderStatus(runtime, match.order, match.fulfillmentOrder, 'IN_PROGRESS');
       data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
       continue;
     }
@@ -5614,7 +5794,7 @@ export function handleOrderMutation(
     if (field.name.value === 'fulfillmentOrderOpen' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5624,7 +5804,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderStatus(match.order, match.fulfillmentOrder, 'OPEN');
+      const result = applyFulfillmentOrderStatus(runtime, match.order, match.fulfillmentOrder, 'OPEN');
       data[key] = serializeFulfillmentOrderMutationPayload(field, { fulfillmentOrder: result.fulfillmentOrder }, []);
       continue;
     }
@@ -5632,7 +5812,7 @@ export function handleOrderMutation(
     if (field.name.value === 'fulfillmentOrderCancel' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
       const fulfillmentOrderId = readFulfillmentOrderId(variables);
-      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(fulfillmentOrderId) : null;
+      const match = fulfillmentOrderId ? findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId) : null;
       if (!match) {
         errors.push({
           message: `Invalid id: ${fulfillmentOrderId ?? ''}`,
@@ -5642,7 +5822,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const result = applyFulfillmentOrderCancel(match.order, match.fulfillmentOrder);
+      const result = applyFulfillmentOrderCancel(runtime, match.order, match.fulfillmentOrder);
       data[key] = serializeFulfillmentOrderMutationPayload(
         field,
         {
@@ -5661,12 +5841,13 @@ export function handleOrderMutation(
       let invalidId = false;
 
       for (const splitInput of splitInputs) {
-        const match = findOrderWithFulfillmentOrder(splitInput.fulfillmentOrderId);
+        const match = findOrderWithFulfillmentOrder(runtime, splitInput.fulfillmentOrderId);
         if (!match) {
           invalidId = true;
           break;
         }
         const result = applyFulfillmentOrderSplit(
+          runtime,
           match.order,
           match.fulfillmentOrder,
           splitInput.fulfillmentOrderLineItems,
@@ -5692,7 +5873,7 @@ export function handleOrderMutation(
 
       for (const mergeInput of mergeInputs) {
         const matches = mergeInput.mergeIntents.map((intent) =>
-          findOrderWithFulfillmentOrder(intent.fulfillmentOrderId),
+          findOrderWithFulfillmentOrder(runtime, intent.fulfillmentOrderId),
         );
         const firstMatch = matches[0];
         if (!firstMatch || matches.some((match) => !match || match.order.id !== firstMatch.order.id)) {
@@ -5700,6 +5881,7 @@ export function handleOrderMutation(
           break;
         }
         const result = applyFulfillmentOrderMerge(
+          runtime,
           firstMatch.order,
           matches
             .filter(
@@ -5731,7 +5913,7 @@ export function handleOrderMutation(
     ) {
       handled = true;
       const deadlineInput = readFulfillmentOrdersSetDeadlineInput(variables);
-      const matches = deadlineInput.fulfillmentOrderIds.map((id) => findOrderWithFulfillmentOrder(id));
+      const matches = deadlineInput.fulfillmentOrderIds.map((id) => findOrderWithFulfillmentOrder(runtime, id));
       if (!deadlineInput.fulfillmentDeadline || matches.length === 0 || matches.some((match) => match === null)) {
         data[key] = null;
         errors.push(buildFulfillmentOrderInvalidIdError(field.name.value, key));
@@ -5739,16 +5921,21 @@ export function handleOrderMutation(
       }
 
       for (const match of matches) {
-        const currentMatch = match ? findOrderWithFulfillmentOrder(match.fulfillmentOrder.id) : null;
+        const currentMatch = match ? findOrderWithFulfillmentOrder(runtime, match.fulfillmentOrder.id) : null;
         if (!currentMatch) {
           continue;
         }
         const updatedFulfillmentOrder: OrderFulfillmentOrderRecord = {
           ...currentMatch.fulfillmentOrder,
           fulfillBy: deadlineInput.fulfillmentDeadline,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         };
-        replaceOrderFulfillmentOrder(currentMatch.order, currentMatch.fulfillmentOrder.id, updatedFulfillmentOrder);
+        replaceOrderFulfillmentOrder(
+          runtime,
+          currentMatch.order,
+          currentMatch.fulfillmentOrder.id,
+          updatedFulfillmentOrder,
+        );
       }
       data[key] = serializeFulfillmentOrdersSetDeadlinePayload(field, true, []);
       continue;
@@ -5802,7 +5989,7 @@ export function handleOrderMutation(
       }
 
       if (fulfillmentId) {
-        const match = findOrderWithFulfillment(fulfillmentId);
+        const match = findOrderWithFulfillment(runtime, fulfillmentId);
         if (!match) {
           data[key] = serializeFulfillmentMutationPayload(
             field,
@@ -5817,11 +6004,11 @@ export function handleOrderMutation(
           ...match.fulfillment,
           status: 'CANCELLED',
           displayStatus: 'CANCELED',
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         };
-        store.updateOrder({
+        runtime.store.updateOrder({
           ...match.order,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           fulfillments: (match.order.fulfillments ?? []).map((fulfillment) =>
             fulfillment.id === fulfillmentId ? cancelledFulfillment : fulfillment,
           ),
@@ -5841,19 +6028,19 @@ export function handleOrderMutation(
         continue;
       }
 
-      const order = id ? store.getOrderById(id) : null;
+      const order = id ? runtime.store.getOrderById(id) : null;
       if (!order) {
         continue;
       }
 
       handled = true;
-      const calculatedOrder = store.stageCalculatedOrder(buildCalculatedOrderFromOrder(order));
+      const calculatedOrder = runtime.store.stageCalculatedOrder(buildCalculatedOrderFromOrder(runtime, order));
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, calculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, calculatedOrder);
             break;
           case 'orderEditSession':
             payload[selectionKey] = serializeOrderEditSession(selection, calculatedOrder);
@@ -5882,12 +6069,12 @@ export function handleOrderMutation(
         continue;
       }
 
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !variantId || quantity === null) {
         continue;
       }
 
-      const calculatedLineItem = buildCalculatedLineItemFromVariant(variantId, quantity);
+      const calculatedLineItem = buildCalculatedLineItemFromVariant(runtime, variantId, quantity);
       if (!calculatedLineItem) {
         handled = true;
         const userErrors = buildOrderEditInvalidVariantUserErrors();
@@ -5913,7 +6100,7 @@ export function handleOrderMutation(
       }
 
       handled = true;
-      const updatedCalculatedOrder = store.updateCalculatedOrder(
+      const updatedCalculatedOrder = runtime.store.updateCalculatedOrder(
         recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
@@ -5924,7 +6111,7 @@ export function handleOrderMutation(
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder);
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, calculatedLineItem);
@@ -5947,15 +6134,15 @@ export function handleOrderMutation(
     if (field.name.value === 'orderEditAddCustomItem' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       const args = getFieldArguments(field, variables);
       const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder) {
         continue;
       }
 
       handled = true;
-      const calculatedLineItem = buildCalculatedCustomLineItem(args);
+      const calculatedLineItem = buildCalculatedCustomLineItem(runtime, args);
       const updatedCalculatedOrder = calculatedLineItem
-        ? store.updateCalculatedOrder(
+        ? runtime.store.updateCalculatedOrder(
             recalculateCalculatedOrder({
               ...calculatedOrder,
               lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
@@ -5969,7 +6156,7 @@ export function handleOrderMutation(
         switch (selection.name.value) {
           case 'calculatedOrder':
             payload[selectionKey] = calculatedLineItem
-              ? serializeCalculatedOrder(selection, updatedCalculatedOrder)
+              ? serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder)
               : null;
             break;
           case 'calculatedLineItem':
@@ -6000,20 +6187,24 @@ export function handleOrderMutation(
         typeof args['discount'] === 'object' && args['discount'] !== null
           ? (args['discount'] as Record<string, unknown>)
           : null;
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !lineItemId || !discountInput) {
         continue;
       }
 
       handled = true;
-      const result = applyLineItemDiscount(calculatedOrder, lineItemId, discountInput);
-      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result.calculatedOrder) : calculatedOrder;
+      const result = applyLineItemDiscount(runtime, calculatedOrder, lineItemId, discountInput);
+      const updatedCalculatedOrder = result
+        ? runtime.store.updateCalculatedOrder(result.calculatedOrder)
+        : calculatedOrder;
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = result ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            payload[selectionKey] = result
+              ? serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder)
+              : null;
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = result ? serializeOrderLineItemNode(selection, result.calculatedLineItem) : null;
@@ -6038,20 +6229,20 @@ export function handleOrderMutation(
       const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
       const discountApplicationId =
         typeof args['discountApplicationId'] === 'string' ? args['discountApplicationId'] : null;
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !discountApplicationId) {
         continue;
       }
 
       handled = true;
       const result = removeCalculatedDiscount(calculatedOrder, discountApplicationId);
-      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result) : calculatedOrder;
+      const updatedCalculatedOrder = result ? runtime.store.updateCalculatedOrder(result) : calculatedOrder;
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = result
@@ -6070,15 +6261,15 @@ export function handleOrderMutation(
     if (field.name.value === 'orderEditAddShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       const args = getFieldArguments(field, variables);
       const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder) {
         continue;
       }
 
       handled = true;
-      const shippingLine = buildCalculatedShippingLine(args);
+      const shippingLine = buildCalculatedShippingLine(runtime, args);
       const updatedCalculatedOrder = shippingLine
-        ? store.updateCalculatedOrder(
+        ? runtime.store.updateCalculatedOrder(
             recalculateCalculatedOrder({
               ...calculatedOrder,
               shippingLines: [...calculatedOrder.shippingLines, shippingLine],
@@ -6090,7 +6281,9 @@ export function handleOrderMutation(
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = shippingLine ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            payload[selectionKey] = shippingLine
+              ? serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder)
+              : null;
             break;
           case 'calculatedShippingLine':
             payload[selectionKey] = shippingLine
@@ -6115,7 +6308,7 @@ export function handleOrderMutation(
       const args = getFieldArguments(field, variables);
       const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
       const shippingLineId = typeof args['shippingLineId'] === 'string' ? args['shippingLineId'] : null;
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !shippingLineId) {
         continue;
       }
@@ -6123,7 +6316,7 @@ export function handleOrderMutation(
       handled = true;
       const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
       const updatedCalculatedOrder = hadShippingLine
-        ? store.updateCalculatedOrder(
+        ? runtime.store.updateCalculatedOrder(
             recalculateCalculatedOrder({
               ...calculatedOrder,
               shippingLines: calculatedOrder.shippingLines.filter((shippingLine) => shippingLine.id !== shippingLineId),
@@ -6135,7 +6328,7 @@ export function handleOrderMutation(
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = hadShippingLine
@@ -6159,7 +6352,7 @@ export function handleOrderMutation(
         typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
           ? (args['shippingLine'] as Record<string, unknown>)
           : {};
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !shippingLineId) {
         continue;
       }
@@ -6168,7 +6361,7 @@ export function handleOrderMutation(
       const price = readMoneyInputAmount(shippingLineInput['price']);
       const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
       const updatedCalculatedOrder = hadShippingLine
-        ? store.updateCalculatedOrder(
+        ? runtime.store.updateCalculatedOrder(
             recalculateCalculatedOrder({
               ...calculatedOrder,
               shippingLines: calculatedOrder.shippingLines.map((shippingLine) =>
@@ -6196,7 +6389,7 @@ export function handleOrderMutation(
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = hadShippingLine
@@ -6224,7 +6417,7 @@ export function handleOrderMutation(
         continue;
       }
 
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder || !lineItemId || quantity === null) {
         continue;
       }
@@ -6235,7 +6428,7 @@ export function handleOrderMutation(
       }
 
       handled = true;
-      const updatedCalculatedOrder = store.updateCalculatedOrder(
+      const updatedCalculatedOrder = runtime.store.updateCalculatedOrder(
         recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: calculatedOrder.lineItems.map((lineItem) =>
@@ -6250,7 +6443,7 @@ export function handleOrderMutation(
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'calculatedOrder':
-            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            payload[selectionKey] = serializeCalculatedOrder(runtime, selection, updatedCalculatedOrder);
             break;
           case 'calculatedLineItem':
             payload[selectionKey] = serializeOrderLineItemNode(selection, updatedCalculatedLineItem);
@@ -6280,29 +6473,29 @@ export function handleOrderMutation(
         continue;
       }
 
-      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      const calculatedOrder = calculatedOrderId ? runtime.store.getCalculatedOrderById(calculatedOrderId) : null;
       if (!calculatedOrder) {
         continue;
       }
 
       handled = true;
-      const originalOrder = store.getOrderById(calculatedOrder.originalOrderId)!;
-      const committedOrder = store.updateOrder(
+      const originalOrder = runtime.store.getOrderById(calculatedOrder.originalOrderId)!;
+      const committedOrder = runtime.store.updateOrder(
         recalculateOrderTotals({
           ...originalOrder,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           lineItems: buildCommittedOrderLineItems(originalOrder, calculatedOrder),
           shippingLines: structuredClone(calculatedOrder.shippingLines),
         }),
       );
-      store.discardCalculatedOrder(calculatedOrder.id);
+      runtime.store.discardCalculatedOrder(calculatedOrder.id);
 
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
         const selectionKey = getFieldResponseKey(selection);
         switch (selection.name.value) {
           case 'order':
-            payload[selectionKey] = serializeOrderNode(selection, committedOrder);
+            payload[selectionKey] = serializeOrderNode(runtime, selection, committedOrder);
             break;
           case 'userErrors':
             payload[selectionKey] = [];
@@ -6331,9 +6524,9 @@ export function handleOrderMutation(
       data[key] = null;
 
       if (typeof fulfillmentOrderId === 'string' && fulfillmentOrderId.length > 0) {
-        const match = findOrderWithFulfillmentOrder(fulfillmentOrderId);
+        const match = findOrderWithFulfillmentOrder(runtime, fulfillmentOrderId);
         if (match) {
-          const createdAt = makeSyntheticTimestamp();
+          const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
           const rawRequestedLineItems = fulfillmentOrderRequest?.['fulfillmentOrderLineItems'];
           const requestedLineItems = Array.isArray(rawRequestedLineItems)
             ? rawRequestedLineItems.filter(
@@ -6352,7 +6545,7 @@ export function handleOrderMutation(
               const requestedQuantity =
                 typeof requestedLineItem?.['quantity'] === 'number' ? requestedLineItem['quantity'] : null;
               return {
-                id: makeSyntheticGid('FulfillmentLineItem'),
+                id: runtime.syntheticIdentity.makeSyntheticGid('FulfillmentLineItem'),
                 lineItemId: lineItem.lineItemId,
                 title: lineItem.title,
                 quantity: requestedQuantity ?? lineItem.remainingQuantity ?? lineItem.totalQuantity,
@@ -6360,7 +6553,7 @@ export function handleOrderMutation(
             });
           const trackingInfo = readFulfillmentCreateTrackingInfoInput(fulfillment);
           const createdFulfillment: OrderFulfillmentRecord = {
-            id: makeSyntheticGid('Fulfillment'),
+            id: runtime.syntheticIdentity.makeSyntheticGid('Fulfillment'),
             status: 'SUCCESS',
             displayStatus: 'FULFILLED',
             createdAt,
@@ -6402,9 +6595,9 @@ export function handleOrderMutation(
               candidate.status !== 'CLOSED' &&
               (candidate.lineItems ?? []).some((lineItem) => lineItem.remainingQuantity > 0),
           );
-          store.updateOrder({
+          runtime.store.updateOrder({
             ...match.order,
-            updatedAt: makeSyntheticTimestamp(),
+            updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
             displayFulfillmentStatus: hasOpenFulfillmentOrder ? 'PARTIALLY_FULFILLED' : 'FULFILLED',
             fulfillments: [createdFulfillment, ...(match.order.fulfillments ?? [])],
             fulfillmentOrders: updatedFulfillmentOrders,

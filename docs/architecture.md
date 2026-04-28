@@ -2,7 +2,9 @@
 
 ## Overview
 
-`shopify-draft-proxy` is a Koa-based reverse proxy for Shopify Admin GraphQL. It supports three read execution modes and two mutation execution paths.
+`shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy with a
+Koa webservice adapter. It supports three read execution modes and two mutation
+execution paths.
 
 ### Read execution modes
 
@@ -31,14 +33,19 @@
 ## High-level request flow
 
 ```text
-App -> Koa server -> operation classifier
-                     ├─ Query path
-                     │   ├─ live Shopify read (optional)
-                     │   ├─ normalized overlay engine
-                     │   └─ GraphQL response serializer
-                     └─ Mutation path
-                         ├─ supported? yes -> local stage + synthesized response
-                         └─ supported? no  -> passthrough to Shopify
+App/test harness -> DraftProxy instance -> operation classifier
+                                      ├─ Query path
+                                      │   ├─ live Shopify read (optional)
+                                      │   ├─ normalized overlay engine
+                                      │   └─ GraphQL response serializer
+                                      ├─ Mutation path
+                                      │   ├─ supported? yes -> local stage + synthesized response
+                                      │   └─ supported? no  -> passthrough to Shopify
+                                      └─ Meta API path
+                                          ├─ reset/log/state/config/health
+                                          └─ commit replay
+
+Koa server -> DraftProxy instance
 ```
 
 ## Primary modules
@@ -52,7 +59,17 @@ App -> Koa server -> operation classifier
 ### `src/app.ts`
 
 - build Koa app
-- register body parser, request logging, meta routes, proxy routes
+- register body parser and mount incoming HTTP requests onto a `DraftProxy`
+  instance
+
+### `src/proxy-instance.ts`
+
+- public embeddable API for creating isolated proxy instances
+- owns the runtime `AppConfig`, in-memory store, and synthetic ID/timestamp
+  registry for that instance
+- exposes request-form processing for versioned Shopify Admin GraphQL routes
+  plus public meta-equivalent methods for config, log, state, reset, and commit
+- provides the public object used by the Koa webservice adapter
 
 ### `src/logger.ts`
 
@@ -101,6 +118,8 @@ App -> Koa server -> operation classifier
 ### `src/meta/`
 
 - reset, commit, state, log endpoints
+- shared meta handlers used by both the Koa webservice and the embeddable
+  `DraftProxy` API
 
 ### `src/testing/`
 
@@ -139,6 +158,22 @@ The runtime should use a normalized object graph rather than raw GraphQL blobs.
   - stable generated GIDs, timestamps, handles, temp IDs
 - `queryCache` (optional)
   - normalized read-through cache useful for overlay operations
+
+Current implementation note:
+
+- Each `createDraftProxy(config)` call creates an isolated in-memory runtime
+  store, mutation log, and synthetic identity registry. Embedded callers should
+  treat the returned `DraftProxy` object as the owner of runtime APIs such as
+  request processing, state/log inspection, reset, and commit.
+- The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
+  is called, unless the caller explicitly provides one to mount. The server does
+  not use a process-wide runtime store or proxy singleton.
+- Public `DraftProxy` meta APIs pass their owned store and synthetic identity
+  explicitly. GraphQL request processing installs the instance runtime context
+  before entering domain handlers.
+- Domain handlers must receive instance-owned runtime state through the proxy
+  request/runtime path. Do not introduce `AsyncLocalStorage` or process-wide
+  mutable runtime singletons to bridge store or synthetic identity access.
 
 ## Admin API domain model
 

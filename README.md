@@ -72,6 +72,76 @@ curl -sS "$PROXY/__meta/health"
 curl -sS "$PROXY/__meta/config"
 ```
 
+## Public TypeScript API
+
+The proxy can also run as an embedded in-memory library without starting the
+Koa webservice.
+
+```ts
+import { createDraftProxy, type AppConfig } from 'shopify-draft-proxy';
+
+const config: AppConfig = {
+  port: 3000,
+  shopifyAdminOrigin: 'https://your-store.myshopify.com',
+  readMode: 'snapshot',
+  snapshotPath: './fixtures/normalized-state.json',
+};
+
+const proxy = createDraftProxy(config);
+
+const response = await proxy.processRequest({
+  method: 'POST',
+  path: '/admin/api/2025-01/graphql.json',
+  headers: {
+    'x-shopify-access-token': 'shpat_test_token',
+  },
+  body: {
+    query:
+      'mutation { productCreate(product: { title: "Embedded Hat", status: DRAFT }) { product { id title } userErrors { field message } } }',
+  },
+});
+
+console.log(response.status, response.body);
+```
+
+`createDraftProxy(config)` creates an isolated proxy instance with its own
+in-memory store, mutation log, snapshot baseline, and synthetic ID/timestamp
+registry.
+
+Public instance methods use ordinary TypeScript return values. HTTP-style
+`{ status, body }` shaping is limited to `processRequest(...)` and the Koa
+adapter.
+
+- `processRequest({ method, path, headers, body })`: handles Shopify Admin
+  GraphQL routes and `__meta` routes in HTTP-shaped request form.
+- `processGraphQLRequest(body, { apiVersion, path, headers })`: convenience
+  wrapper for a versioned Admin GraphQL `POST`; returns the same HTTP-shaped
+  result as `processRequest`.
+- `getConfig()`, `getLog()`, and `getState()`: meta API equivalents for
+  inspection.
+- `reset()`: discard staged state, logs, and generated IDs while restoring the
+  startup snapshot baseline. This method returns `void`; the
+  HTTP meta reset route converts success into `{ ok: true, message: ... }`.
+- `commit(headers)`: replay pending staged mutations to Shopify in original
+  order using the supplied auth/request headers. This method returns a commit
+  report when all replay attempts succeed and throws
+  `DraftProxyCommitError` with the partial report when replay stops on a
+  failure; the HTTP meta commit route converts that into its legacy `{ ok,
+stopIndex, attempts }` response body.
+
+The runnable Koa service is mounted on the same public API:
+
+```ts
+import { createApp, createDraftProxy } from 'shopify-draft-proxy';
+
+const proxy = createDraftProxy(config);
+const app = createApp(config, proxy);
+```
+
+When no proxy is supplied, `createApp(config)` creates a new isolated
+`DraftProxy` for that Koa app. The webservice does not share a process-wide
+runtime store with other embedded or server instances.
+
 ## Runtime modes
 
 `SHOPIFY_DRAFT_PROXY_READ_MODE` controls how reads are answered.

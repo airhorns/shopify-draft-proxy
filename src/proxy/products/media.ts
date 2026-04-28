@@ -1,18 +1,21 @@
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import { getVariableDefinitionLocation, type GraphqlErrorLocation } from '../graphql-helpers.js';
-import { makeSyntheticGid } from '../../state/synthetic-identity.js';
 import type { ProductMediaRecord } from '../../state/types.js';
 
-function makeSyntheticMediaId(mediaContentType: string | null | undefined): string {
+function makeSyntheticMediaId(runtime: ProxyRuntimeContext, mediaContentType: string | null | undefined): string {
   if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('MediaImage');
+    return runtime.syntheticIdentity.makeSyntheticGid('MediaImage');
   }
 
-  return makeSyntheticGid('Media');
+  return runtime.syntheticIdentity.makeSyntheticGid('Media');
 }
 
-function makeSyntheticProductImageId(mediaContentType: string | null | undefined): string | null {
+function makeSyntheticProductImageId(
+  runtime: ProxyRuntimeContext,
+  mediaContentType: string | null | undefined,
+): string | null {
   if (mediaContentType === 'IMAGE') {
-    return makeSyntheticGid('ProductImage');
+    return runtime.syntheticIdentity.makeSyntheticGid('ProductImage');
   }
 
   return null;
@@ -113,6 +116,7 @@ export function buildInvalidProductMediaProductIdVariableError(
 }
 
 export function makeCreatedMediaRecord(
+  runtime: ProxyRuntimeContext,
   productId: string,
   input: Record<string, unknown>,
   position: number,
@@ -127,11 +131,11 @@ export function makeCreatedMediaRecord(
     key: `${productId}:media:${position}`,
     productId,
     position,
-    id: makeSyntheticMediaId(mediaContentType),
+    id: makeSyntheticMediaId(runtime, mediaContentType),
     mediaContentType,
     alt: typeof rawAlt === 'string' ? rawAlt : null,
     status: 'UPLOADED',
-    productImageId: makeSyntheticProductImageId(mediaContentType),
+    productImageId: makeSyntheticProductImageId(runtime, mediaContentType),
     imageUrl: null,
     imageWidth: null,
     imageHeight: null,

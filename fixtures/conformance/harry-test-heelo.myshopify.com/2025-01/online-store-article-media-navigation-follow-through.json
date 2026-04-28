@@ -1,0 +1,191 @@
+{
+  "scenarioId": "online-store-article-media-navigation-follow-through",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-04-28T10:59:15Z",
+  "source": "live-shopify-disposable-capture",
+  "notes": [
+    "Disposable blog, article, page, and menu records were created and cleaned up during capture.",
+    "Page.onlineStoreUrl was absent from the Page schema; Article.seo was absent from the Article schema.",
+    "Article image create/update accepted ArticleImageInput.url and returned Shopify-hosted Image URLs with dimensions.",
+    "Article metafield create/update used ownerType ARTICLE and replaced the existing namespace/key metafield in place.",
+    "Menu PAGE items resolved resourceId to a storefront URL of /pages/<page handle>; full menu root support remains a navigation coverage gap because catalog behavior needs broader capture."
+  ],
+  "schemaEvidence": {
+    "pageHasOnlineStoreUrlField": false,
+    "articleHasSeoField": false
+  },
+  "primary": {
+    "variables": {
+      "blog": {
+        "title": "HAR 410 Media Blog",
+        "commentPolicy": "CLOSED"
+      },
+      "article": {
+        "title": "HAR 410 Media Article",
+        "body": "<p>HAR 410 article body</p>",
+        "summary": "<p>HAR 410 summary</p>",
+        "author": {
+          "name": "HAR 410 Author"
+        },
+        "isPublished": true,
+        "image": {
+          "altText": "HAR 410 hero",
+          "url": "https://placehold.co/64x64/png"
+        },
+        "metafields": [
+          {
+            "namespace": "har_410",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "created hero"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "primary": {
+      "data": {
+        "articleCreate": {
+          "article": {
+            "title": "HAR 410 Media Article",
+            "image": {
+              "altText": "HAR 410 hero",
+              "url": "https://placehold.co/64x64/png",
+              "width": null,
+              "height": null
+            },
+            "metafield": {
+              "namespace": "har_410",
+              "key": "hero",
+              "type": "single_line_text_field",
+              "value": "created hero",
+              "jsonValue": "created hero",
+              "ownerType": "ARTICLE"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "namespace": "har_410",
+                  "key": "hero",
+                  "type": "single_line_text_field",
+                  "value": "created hero",
+                  "jsonValue": "created hero",
+                  "ownerType": "ARTICLE"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "articleEvidence": {
+    "create": {
+      "image": {
+        "idType": "ArticleImage",
+        "altText": "HAR 410 hero",
+        "urlHost": "cdn.shopify.com",
+        "width": 64,
+        "height": 64
+      },
+      "metafields": {
+        "nodes": [
+          {
+            "namespace": "har_410",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "created hero",
+            "jsonValue": "created hero",
+            "ownerType": "ARTICLE"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      }
+    },
+    "update": {
+      "image": {
+        "idChanged": true,
+        "idType": "ArticleImage",
+        "altText": "HAR 410 updated hero",
+        "urlHost": "cdn.shopify.com",
+        "width": 80,
+        "height": 80
+      },
+      "metafields": {
+        "sameMetafieldId": true,
+        "nodes": [
+          {
+            "namespace": "har_410",
+            "key": "hero",
+            "type": "single_line_text_field",
+            "value": "updated hero",
+            "jsonValue": "updated hero",
+            "ownerType": "ARTICLE"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "imageMatchesUpdate": true,
+      "metafieldMatchesUpdate": true
+    }
+  },
+  "menuEvidence": {
+    "missingMenuRead": null,
+    "createPageItem": {
+      "menu": {
+        "isDefault": false,
+        "items": [
+          {
+            "title": "HAR 410 Page Link",
+            "type": "PAGE",
+            "resourceIdType": "Page",
+            "urlPattern": "/pages/<page-handle>",
+            "items": []
+          }
+        ]
+      },
+      "userErrors": []
+    },
+    "readAfterCreate": {
+      "menuByIdReturnedCreatedMenu": true,
+      "menusCatalogReturnedDefaultMenusInsteadOfCreatedCustomMenu": true
+    },
+    "update": {
+      "itemsWereReplaced": true,
+      "newMenuItemIdsGenerated": true,
+      "items": [
+        {
+          "type": "PAGE",
+          "resourceIdType": "Page",
+          "urlPattern": "/pages/<page-handle>"
+        },
+        {
+          "type": "HTTP",
+          "resourceId": null,
+          "url": "https://example.com/har-410"
+        }
+      ],
+      "userErrors": []
+    },
+    "delete": {
+      "deletedMenuIdReturned": true,
+      "readAfterDelete": null,
+      "userErrors": []
+    }
+  }
+}

@@ -1,8 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootField, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   InventoryLevelRecord,
   InventoryShipmentLineItemRecord,
@@ -56,8 +55,11 @@ function inventoryItemLegacyId(id: string): string | null {
   return id.split('/').at(-1)?.split('?')[0] ?? null;
 }
 
-function findVariantByInventoryItemId(inventoryItemId: string): ProductVariantRecord | null {
-  return store.findEffectiveVariantByInventoryItemId(inventoryItemId);
+function findVariantByInventoryItemId(
+  runtime: ProxyRuntimeContext,
+  inventoryItemId: string,
+): ProductVariantRecord | null {
+  return runtime.store.findEffectiveVariantByInventoryItemId(inventoryItemId);
 }
 
 function getShipmentLineItemUnreceivedQuantity(lineItem: InventoryShipmentLineItemRecord): number {
@@ -105,7 +107,12 @@ function readQuantity(level: InventoryLevelRecord, name: string): number {
   return level.quantities.find((quantity) => quantity.name === name)?.quantity ?? 0;
 }
 
-function writeQuantity(level: InventoryLevelRecord, name: string, delta: number): InventoryLevelRecord {
+function writeQuantity(
+  runtime: ProxyRuntimeContext,
+  level: InventoryLevelRecord,
+  name: string,
+  delta: number,
+): InventoryLevelRecord {
   const nextQuantity = Math.max(0, readQuantity(level, name) + delta);
   const existingIndex = level.quantities.findIndex((quantity) => quantity.name === name);
   const nextQuantities = [...level.quantities];
@@ -113,17 +120,21 @@ function writeQuantity(level: InventoryLevelRecord, name: string, delta: number)
     nextQuantities[existingIndex] = {
       ...nextQuantities[existingIndex]!,
       quantity: nextQuantity,
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     };
   } else {
-    nextQuantities.push({ name, quantity: nextQuantity, updatedAt: makeSyntheticTimestamp() });
+    nextQuantities.push({
+      name,
+      quantity: nextQuantity,
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+    });
   }
   return { ...level, quantities: nextQuantities };
 }
 
-function defaultInventoryLevel(variant: ProductVariantRecord): InventoryLevelRecord {
-  const inventoryItemId = variant.inventoryItem?.id ?? makeSyntheticGid('InventoryItem');
-  const location = store.listEffectiveLocations()[0] ?? null;
+function defaultInventoryLevel(runtime: ProxyRuntimeContext, variant: ProductVariantRecord): InventoryLevelRecord {
+  const inventoryItemId = variant.inventoryItem?.id ?? runtime.syntheticIdentity.makeSyntheticGid('InventoryItem');
+  const location = runtime.store.listEffectiveLocations()[0] ?? null;
   const locationId = location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID;
   const available = variant.inventoryQuantity ?? 0;
   return {
@@ -138,13 +149,17 @@ function defaultInventoryLevel(variant: ProductVariantRecord): InventoryLevelRec
   };
 }
 
-function adjustInventoryQuantities(inventoryItemId: string, deltas: { incoming?: number; available?: number }): void {
-  const baseVariant = findVariantByInventoryItemId(inventoryItemId);
+function adjustInventoryQuantities(
+  runtime: ProxyRuntimeContext,
+  inventoryItemId: string,
+  deltas: { incoming?: number; available?: number },
+): void {
+  const baseVariant = findVariantByInventoryItemId(runtime, inventoryItemId);
   if (!baseVariant?.inventoryItem) {
     return;
   }
 
-  const variants = store
+  const variants = runtime.store
     .getEffectiveVariantsByProductId(baseVariant.productId)
     .map((candidate) => structuredClone(candidate));
   const variantIndex = variants.findIndex((candidate) => candidate.inventoryItem?.id === inventoryItemId);
@@ -155,13 +170,18 @@ function adjustInventoryQuantities(inventoryItemId: string, deltas: { incoming?:
 
   const levels = variant.inventoryItem.inventoryLevels?.length
     ? structuredClone(variant.inventoryItem.inventoryLevels)
-    : [defaultInventoryLevel(variant)];
-  let targetLevel = levels[0] ?? defaultInventoryLevel(variant);
+    : [defaultInventoryLevel(runtime, variant)];
+  let targetLevel = levels[0] ?? defaultInventoryLevel(runtime, variant);
   if (typeof deltas.incoming === 'number') {
-    targetLevel = writeQuantity(targetLevel, 'incoming', deltas.incoming);
+    targetLevel = writeQuantity(runtime, targetLevel, 'incoming', deltas.incoming);
   }
   if (typeof deltas.available === 'number') {
-    targetLevel = writeQuantity(writeQuantity(targetLevel, 'available', deltas.available), 'on_hand', deltas.available);
+    targetLevel = writeQuantity(
+      runtime,
+      writeQuantity(runtime, targetLevel, 'available', deltas.available),
+      'on_hand',
+      deltas.available,
+    );
   }
   levels[0] = targetLevel;
 
@@ -174,7 +194,7 @@ function adjustInventoryQuantities(inventoryItemId: string, deltas: { incoming?:
       inventoryLevels: levels,
     },
   };
-  store.replaceStagedVariantsForProduct(baseVariant.productId, variants);
+  runtime.store.replaceStagedVariantsForProduct(baseVariant.productId, variants);
 }
 
 function serializeCount(count: number, selections: readonly SelectionNode[] | undefined): Record<string, unknown> {
@@ -195,10 +215,11 @@ function serializeCount(count: number, selections: readonly SelectionNode[] | un
 }
 
 function serializeInventoryItem(
+  runtime: ProxyRuntimeContext,
   inventoryItemId: string,
   selections: readonly SelectionNode[] | undefined,
 ): Record<string, unknown> | null {
-  const variant = findVariantByInventoryItemId(inventoryItemId);
+  const variant = findVariantByInventoryItemId(runtime, inventoryItemId);
   if (!variant?.inventoryItem) {
     return null;
   }
@@ -249,6 +270,7 @@ function serializeShipmentTracking(
 }
 
 function serializeShipmentLineItem(
+  runtime: ProxyRuntimeContext,
   lineItem: InventoryShipmentLineItemRecord,
   field: FieldNode,
 ): Record<string, unknown> {
@@ -271,7 +293,11 @@ function serializeShipmentLineItem(
         result[responseKey(child)] = getShipmentLineItemUnreceivedQuantity(lineItem);
         break;
       case 'inventoryItem':
-        result[responseKey(child)] = serializeInventoryItem(lineItem.inventoryItemId, child.selectionSet?.selections);
+        result[responseKey(child)] = serializeInventoryItem(
+          runtime,
+          lineItem.inventoryItemId,
+          child.selectionSet?.selections,
+        );
         break;
       default:
         result[responseKey(child)] = null;
@@ -281,6 +307,7 @@ function serializeShipmentLineItem(
 }
 
 function serializeShipmentLineItemsConnection(
+  runtime: ProxyRuntimeContext,
   shipment: InventoryShipmentRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -292,11 +319,12 @@ function serializeShipmentLineItemsConnection(
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (lineItem) => lineItem.id,
-    serializeNode: (lineItem, selection) => serializeShipmentLineItem(lineItem, selection),
+    serializeNode: (lineItem, selection) => serializeShipmentLineItem(runtime, lineItem, selection),
   });
 }
 
 function serializeShipment(
+  runtime: ProxyRuntimeContext,
   shipment: InventoryShipmentRecord | null,
   selections: readonly SelectionNode[] | undefined,
   variables: Record<string, unknown>,
@@ -320,7 +348,7 @@ function serializeShipment(
         result[responseKey(field)] = totals[field.name.value];
         break;
       case 'lineItems':
-        result[responseKey(field)] = serializeShipmentLineItemsConnection(shipment, field, variables);
+        result[responseKey(field)] = serializeShipmentLineItemsConnection(runtime, shipment, field, variables);
         break;
       case 'lineItemsCount':
         result[responseKey(field)] = serializeCount(shipment.lineItems.length, field.selectionSet?.selections);
@@ -370,6 +398,7 @@ function childField(root: FieldNode, name: string): FieldNode | undefined {
 }
 
 function validateLineItemInputs(
+  runtime: ProxyRuntimeContext,
   lineItems: Record<string, unknown>[],
   fieldPrefix: string[],
 ): InventoryShipmentUserError[] {
@@ -381,7 +410,7 @@ function validateLineItemInputs(
   lineItems.forEach((lineItem, index) => {
     const inventoryItemId = typeof lineItem['inventoryItemId'] === 'string' ? lineItem['inventoryItemId'] : null;
     const quantity = typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : null;
-    if (!inventoryItemId || !findVariantByInventoryItemId(inventoryItemId)) {
+    if (!inventoryItemId || !findVariantByInventoryItemId(runtime, inventoryItemId)) {
       userErrors.push({
         field: [...fieldPrefix, String(index), 'inventoryItemId'],
         message: 'The specified inventory item could not be found.',
@@ -399,9 +428,12 @@ function validateLineItemInputs(
   return userErrors;
 }
 
-function buildLineItems(lineItems: Record<string, unknown>[]): InventoryShipmentLineItemRecord[] {
+function buildLineItems(
+  runtime: ProxyRuntimeContext,
+  lineItems: Record<string, unknown>[],
+): InventoryShipmentLineItemRecord[] {
   return lineItems.map((lineItem) => ({
-    id: makeSyntheticGid('InventoryShipmentLineItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('InventoryShipmentLineItem'),
     inventoryItemId: lineItem['inventoryItemId'] as string,
     quantity: lineItem['quantity'] as number,
     acceptedQuantity: 0,
@@ -409,16 +441,19 @@ function buildLineItems(lineItems: Record<string, unknown>[]): InventoryShipment
   }));
 }
 
-function stageShipmentWithIncoming(shipment: InventoryShipmentRecord): InventoryShipmentRecord {
-  const previous = store.getEffectiveInventoryShipmentById(shipment.id);
+function stageShipmentWithIncoming(
+  runtime: ProxyRuntimeContext,
+  shipment: InventoryShipmentRecord,
+): InventoryShipmentRecord {
+  const previous = runtime.store.getEffectiveInventoryShipmentById(shipment.id);
   if (previous?.status !== 'IN_TRANSIT' && shipment.status === 'IN_TRANSIT') {
     for (const lineItem of shipment.lineItems) {
-      adjustInventoryQuantities(lineItem.inventoryItemId, {
+      adjustInventoryQuantities(runtime, lineItem.inventoryItemId, {
         incoming: getShipmentLineItemUnreceivedQuantity(lineItem),
       });
     }
   }
-  return store.stageInventoryShipment(shipment);
+  return runtime.store.stageInventoryShipment(shipment);
 }
 
 function mutationPayload(
@@ -438,14 +473,16 @@ function mutationPayload(
 }
 
 function shipmentPayloadValue(
+  runtime: ProxyRuntimeContext,
   shipment: InventoryShipmentRecord | null,
   field: FieldNode | undefined,
   variables: Record<string, unknown>,
 ): Record<string, unknown> | null {
-  return serializeShipment(shipment, field?.selectionSet?.selections, variables);
+  return serializeShipment(runtime, shipment, field?.selectionSet?.selections, variables);
 }
 
 export function handleInventoryShipmentQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -458,7 +495,8 @@ export function handleInventoryShipmentQuery(
     const shipmentId = typeof args['id'] === 'string' ? args['id'] : null;
     data[responseKey(rootField)] = shipmentId
       ? serializeShipment(
-          store.getEffectiveInventoryShipmentById(shipmentId),
+          runtime,
+          runtime.store.getEffectiveInventoryShipmentById(shipmentId),
           rootField.selectionSet?.selections,
           variables,
         )
@@ -471,40 +509,41 @@ export function handleInventoryShipmentQuery(
 }
 
 export function handleInventoryShipmentMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): ShipmentMutationResult | null {
   const rootField = getRootField(document);
   const args = getFieldArguments(rootField, variables);
   const rootName = rootField.name.value;
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
 
   if (rootName === 'inventoryShipmentCreate' || rootName === 'inventoryShipmentCreateInTransit') {
     const input = isObject(args['input']) ? args['input'] : {};
     const movementId = typeof input['movementId'] === 'string' ? input['movementId'] : null;
     const lineItemInputs = readObjectArray(input['lineItems']);
-    const userErrors = validateLineItemInputs(lineItemInputs, ['input', 'lineItems']);
+    const userErrors = validateLineItemInputs(runtime, lineItemInputs, ['input', 'lineItems']);
     if (!movementId) {
       userErrors.push({ field: ['input', 'movementId'], message: 'Movement id is required.', code: 'BLANK' });
     }
     const shipment =
       userErrors.length === 0 && movementId
-        ? stageShipmentWithIncoming({
-            id: makeSyntheticGid('InventoryShipment'),
+        ? stageShipmentWithIncoming(runtime, {
+            id: runtime.syntheticIdentity.makeSyntheticGid('InventoryShipment'),
             movementId,
-            name: `#S${store.listEffectiveInventoryShipments().length + 1}`,
+            name: `#S${runtime.store.listEffectiveInventoryShipments().length + 1}`,
             status: rootName === 'inventoryShipmentCreateInTransit' ? 'IN_TRANSIT' : 'DRAFT',
             createdAt: now,
             updatedAt: now,
             tracking: trackingFromInput(input['trackingInput']),
-            lineItems: buildLineItems(lineItemInputs),
+            lineItems: buildLineItems(runtime, lineItemInputs),
           })
         : null;
     const inventoryShipmentField = childField(rootField, 'inventoryShipment');
     return {
       response: mutationPayload(
         rootField,
-        { inventoryShipment: shipmentPayloadValue(shipment, inventoryShipmentField, variables) },
+        { inventoryShipment: shipmentPayloadValue(runtime, shipment, inventoryShipmentField, variables) },
         userErrors,
       ),
       staged: userErrors.length === 0,
@@ -514,7 +553,7 @@ export function handleInventoryShipmentMutation(
   }
 
   const shipmentId = typeof args['id'] === 'string' ? args['id'] : null;
-  const existing = shipmentId ? store.getEffectiveInventoryShipmentById(shipmentId) : null;
+  const existing = shipmentId ? runtime.store.getEffectiveInventoryShipmentById(shipmentId) : null;
   const notFound = !existing
     ? [{ field: ['id'], message: 'The specified inventory shipment could not be found.', code: 'NOT_FOUND' }]
     : [];
@@ -533,7 +572,11 @@ export function handleInventoryShipmentMutation(
       : [];
     const shipment =
       userErrors.length === 0
-        ? store.stageInventoryShipment({ ...existing, tracking: trackingFromInput(args['tracking']), updatedAt: now })
+        ? runtime.store.stageInventoryShipment({
+            ...existing,
+            tracking: trackingFromInput(args['tracking']),
+            updatedAt: now,
+          })
         : existing;
     const inventoryShipmentField = childField(rootField, 'inventoryShipment');
     return {
@@ -541,6 +584,7 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           inventoryShipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             inventoryShipmentField,
             variables,
@@ -561,7 +605,7 @@ export function handleInventoryShipmentMutation(
         : [{ field: ['id'], message: 'Only draft shipments can be marked in transit.', code: 'INVALID_STATUS' }];
     const shipment =
       userErrors.length === 0
-        ? stageShipmentWithIncoming({ ...existing, status: 'IN_TRANSIT', updatedAt: now })
+        ? stageShipmentWithIncoming(runtime, { ...existing, status: 'IN_TRANSIT', updatedAt: now })
         : existing;
     const inventoryShipmentField = childField(rootField, 'inventoryShipment');
     return {
@@ -569,6 +613,7 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           inventoryShipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             inventoryShipmentField,
             variables,
@@ -586,11 +631,11 @@ export function handleInventoryShipmentMutation(
     const lineItemInputs = readObjectArray(args['lineItems']);
     const userErrors = SHIPMENT_STATUS_TERMINAL.has(existing.status)
       ? [{ field: ['id'], message: 'Received shipments cannot be updated.', code: 'INVALID_STATUS' }]
-      : validateLineItemInputs(lineItemInputs, ['lineItems']);
-    const addedItems = userErrors.length === 0 ? buildLineItems(lineItemInputs) : [];
+      : validateLineItemInputs(runtime, lineItemInputs, ['lineItems']);
+    const addedItems = userErrors.length === 0 ? buildLineItems(runtime, lineItemInputs) : [];
     const shipment =
       userErrors.length === 0
-        ? store.stageInventoryShipment({
+        ? runtime.store.stageInventoryShipment({
             ...existing,
             updatedAt: now,
             lineItems: [...existing.lineItems, ...addedItems],
@@ -598,7 +643,7 @@ export function handleInventoryShipmentMutation(
         : existing;
     if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
       for (const lineItem of addedItems) {
-        adjustInventoryQuantities(lineItem.inventoryItemId, { incoming: lineItem.quantity });
+        adjustInventoryQuantities(runtime, lineItem.inventoryItemId, { incoming: lineItem.quantity });
       }
     }
     return {
@@ -606,9 +651,12 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           addedItems: childField(rootField, 'addedItems')
-            ? addedItems.map((lineItem) => serializeShipmentLineItem(lineItem, childField(rootField, 'addedItems')!))
+            ? addedItems.map((lineItem) =>
+                serializeShipmentLineItem(runtime, lineItem, childField(rootField, 'addedItems')!),
+              )
             : addedItems.map((lineItem) => ({ id: lineItem.id })),
           inventoryShipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             childField(rootField, 'inventoryShipment'),
             variables,
@@ -635,14 +683,14 @@ export function handleInventoryShipmentMutation(
     const removed = existing.lineItems.filter((lineItem) => ids.includes(lineItem.id));
     if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
       for (const lineItem of removed) {
-        adjustInventoryQuantities(lineItem.inventoryItemId, {
+        adjustInventoryQuantities(runtime, lineItem.inventoryItemId, {
           incoming: -getShipmentLineItemUnreceivedQuantity(lineItem),
         });
       }
     }
     const shipment =
       userErrors.length === 0
-        ? store.stageInventoryShipment({
+        ? runtime.store.stageInventoryShipment({
             ...existing,
             updatedAt: now,
             lineItems: existing.lineItems.filter((lineItem) => !ids.includes(lineItem.id)),
@@ -653,6 +701,7 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           inventoryShipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             childField(rootField, 'inventoryShipment'),
             variables,
@@ -702,12 +751,12 @@ export function handleInventoryShipmentMutation(
     }
     if (userErrors.length === 0) {
       for (const delta of inventoryDeltas) {
-        adjustInventoryQuantities(delta.inventoryItemId, { incoming: delta.incoming });
+        adjustInventoryQuantities(runtime, delta.inventoryItemId, { incoming: delta.incoming });
       }
     }
     const shipment =
       userErrors.length === 0
-        ? store.stageInventoryShipment({ ...existing, updatedAt: now, lineItems: nextLineItems })
+        ? runtime.store.stageInventoryShipment({ ...existing, updatedAt: now, lineItems: nextLineItems })
         : existing;
     const updatedLineItems = updates
       .map((update) =>
@@ -721,6 +770,7 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           shipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             childField(rootField, 'shipment'),
             variables,
@@ -728,7 +778,7 @@ export function handleInventoryShipmentMutation(
           updatedLineItems: childField(rootField, 'updatedLineItems')
             ? userErrors.length === 0
               ? updatedLineItems.map((lineItem) =>
-                  serializeShipmentLineItem(lineItem, childField(rootField, 'updatedLineItems')!),
+                  serializeShipmentLineItem(runtime, lineItem, childField(rootField, 'updatedLineItems')!),
                 )
               : []
             : userErrors.length === 0
@@ -800,7 +850,7 @@ export function handleInventoryShipmentMutation(
     }
     if (userErrors.length === 0) {
       for (const delta of inventoryDeltas) {
-        adjustInventoryQuantities(delta.inventoryItemId, {
+        adjustInventoryQuantities(runtime, delta.inventoryItemId, {
           incoming: delta.incoming,
           ...(typeof delta.available === 'number' ? { available: delta.available } : {}),
         });
@@ -808,7 +858,7 @@ export function handleInventoryShipmentMutation(
     }
     const shipment =
       userErrors.length === 0
-        ? store.stageInventoryShipment({
+        ? runtime.store.stageInventoryShipment({
             ...existing,
             status: statusAfterReceive(nextLineItems),
             updatedAt: now,
@@ -820,6 +870,7 @@ export function handleInventoryShipmentMutation(
         rootField,
         {
           inventoryShipment: shipmentPayloadValue(
+            runtime,
             userErrors.length === 0 ? shipment : null,
             childField(rootField, 'inventoryShipment'),
             variables,
@@ -840,13 +891,13 @@ export function handleInventoryShipmentMutation(
         : [];
     if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
       for (const lineItem of existing.lineItems) {
-        adjustInventoryQuantities(lineItem.inventoryItemId, {
+        adjustInventoryQuantities(runtime, lineItem.inventoryItemId, {
           incoming: -getShipmentLineItemUnreceivedQuantity(lineItem),
         });
       }
     }
     if (userErrors.length === 0) {
-      store.stageDeleteInventoryShipment(existing.id);
+      runtime.store.stageDeleteInventoryShipment(existing.id);
     }
     return {
       response: mutationPayload(rootField, { id: userErrors.length === 0 ? existing.id : null }, userErrors),

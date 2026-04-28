@@ -1,8 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import type { FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   CartTransformRecord,
   ShopifyFunctionRecord,
@@ -74,12 +73,15 @@ function titleFromHandle(handle: string): string {
     .join(' ');
 }
 
-function findExistingShopifyFunction(input: {
-  functionId: string | null;
-  functionHandle: string | null;
-}): ShopifyFunctionRecord | null {
+function findExistingShopifyFunction(
+  runtime: ProxyRuntimeContext,
+  input: {
+    functionId: string | null;
+    functionHandle: string | null;
+  },
+): ShopifyFunctionRecord | null {
   if (input.functionId) {
-    return store.getEffectiveShopifyFunctionById(input.functionId);
+    return runtime.store.getEffectiveShopifyFunctionById(input.functionId);
   }
 
   if (!input.functionHandle) {
@@ -90,7 +92,7 @@ function findExistingShopifyFunction(input: {
   const normalizedHandle = normalizeFunctionHandle(functionHandle);
   const handleBasedId = shopifyFunctionIdFromHandle(functionHandle);
   return (
-    store
+    runtime.store
       .listEffectiveShopifyFunctions()
       .find(
         (candidate) =>
@@ -101,13 +103,16 @@ function findExistingShopifyFunction(input: {
   );
 }
 
-function ensureShopifyFunction(input: {
-  functionId: string | null;
-  functionHandle: string | null;
-  apiType: string;
-  fallbackTitle: string;
-}): ShopifyFunctionRecord {
-  const existing = findExistingShopifyFunction(input);
+function ensureShopifyFunction(
+  runtime: ProxyRuntimeContext,
+  input: {
+    functionId: string | null;
+    functionHandle: string | null;
+    apiType: string;
+    fallbackTitle: string;
+  },
+): ShopifyFunctionRecord {
+  const existing = findExistingShopifyFunction(runtime, input);
   const id =
     existing?.id ??
     input.functionId ??
@@ -115,7 +120,7 @@ function ensureShopifyFunction(input: {
   const handle = input.functionHandle ?? existing?.handle ?? null;
   const title = existing?.title ?? (handle ? titleFromHandle(handle) : input.fallbackTitle);
   const shopifyFunction: ShopifyFunctionRecord = {
-    id: id ?? makeSyntheticGid('ShopifyFunction'),
+    id: id ?? runtime.syntheticIdentity.makeSyntheticGid('ShopifyFunction'),
     title,
     handle,
     apiType: input.apiType,
@@ -123,7 +128,7 @@ function ensureShopifyFunction(input: {
     ...(existing?.appKey !== undefined ? { appKey: existing.appKey } : {}),
     ...(existing?.app !== undefined ? { app: existing.app } : {}),
   };
-  store.upsertStagedShopifyFunction(shopifyFunction);
+  runtime.store.upsertStagedShopifyFunction(shopifyFunction);
   return shopifyFunction;
 }
 
@@ -190,7 +195,11 @@ function serializeShopifyFunction(shopifyFunction: ShopifyFunctionRecord, field:
   return result;
 }
 
-function serializeValidation(validation: ValidationRecord, field: FieldNode): Record<string, unknown> {
+function serializeValidation(
+  runtime: ProxyRuntimeContext,
+  validation: ValidationRecord,
+  field: FieldNode,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field, { includeInlineFragments: true })) {
     const key = getFieldResponseKey(selection);
@@ -219,7 +228,7 @@ function serializeValidation(validation: ValidationRecord, field: FieldNode): Re
         break;
       case 'shopifyFunction': {
         const shopifyFunction = validation.shopifyFunctionId
-          ? store.getEffectiveShopifyFunctionById(validation.shopifyFunctionId)
+          ? runtime.store.getEffectiveShopifyFunctionById(validation.shopifyFunctionId)
           : null;
         result[key] = shopifyFunction ? serializeShopifyFunction(shopifyFunction, selection) : null;
         break;
@@ -328,23 +337,28 @@ function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
   });
 }
 
-function serializeValidationConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
-  const items = store.listEffectiveValidations();
+function serializeValidationConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const items = runtime.store.listEffectiveValidations();
   const window = paginateConnectionItems(items, field, variables, (item) => item.id);
   return serializeConnection(field, {
     items: window.items,
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (item) => item.id,
-    serializeNode: (item, selection) => serializeValidation(item, selection),
+    serializeNode: (item, selection) => serializeValidation(runtime, item, selection),
   });
 }
 
 function serializeCartTransformConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const items = store.listEffectiveCartTransforms();
+  const items = runtime.store.listEffectiveCartTransforms();
   const window = paginateConnectionItems(items, field, variables, (item) => item.id);
   return serializeConnection(field, {
     items: window.items,
@@ -356,14 +370,15 @@ function serializeCartTransformConnection(
 }
 
 function serializeShopifyFunctionConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const apiType = typeof args['apiType'] === 'string' ? args['apiType'] : null;
   const items = apiType
-    ? store.listEffectiveShopifyFunctions().filter((shopifyFunction) => shopifyFunction.apiType === apiType)
-    : store.listEffectiveShopifyFunctions();
+    ? runtime.store.listEffectiveShopifyFunctions().filter((shopifyFunction) => shopifyFunction.apiType === apiType)
+    : runtime.store.listEffectiveShopifyFunctions();
   const window = paginateConnectionItems(items, field, variables, (item) => item.id);
   return serializeConnection(field, {
     items: window.items,
@@ -401,6 +416,7 @@ function readFunctionReference(input: Record<string, unknown>): {
 }
 
 function serializeValidationMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   payload: { validation: ValidationRecord | null; userErrors: FunctionUserError[] },
 ): Record<string, unknown> {
@@ -409,7 +425,7 @@ function serializeValidationMutationPayload(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'validation':
-        result[key] = payload.validation ? serializeValidation(payload.validation, selection) : null;
+        result[key] = payload.validation ? serializeValidation(runtime, payload.validation, selection) : null;
         break;
       case 'userErrors':
         result[key] = serializeUserErrors(payload.userErrors, selection);
@@ -466,26 +482,30 @@ function serializeDeletePayload(
   return result;
 }
 
-function createValidation(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createValidation(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['validation']) ? args['validation'] : {};
   const { functionId, functionHandle } = readFunctionReference(input);
   if (!functionId && !functionHandle) {
-    return serializeValidationMutationPayload(field, {
+    return serializeValidationMutationPayload(runtime, field, {
       validation: null,
       userErrors: [missingFunctionError(['validation', 'functionHandle'])],
     });
   }
 
-  const shopifyFunction = ensureShopifyFunction({
+  const shopifyFunction = ensureShopifyFunction(runtime, {
     functionId,
     functionHandle,
     apiType: 'VALIDATION',
     fallbackTitle: readString(input['title']) ?? 'Local validation function',
   });
-  const timestamp = makeSyntheticTimestamp();
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const validation: ValidationRecord = {
-    id: makeSyntheticGid('Validation'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('Validation'),
     title: readString(input['title']),
     enable: readBoolean(input['enable']) ?? readBoolean(input['enabled']) ?? true,
     blockOnFailure: readBoolean(input['blockOnFailure']) ?? false,
@@ -495,16 +515,20 @@ function createValidation(field: FieldNode, variables: Record<string, unknown>):
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  store.upsertStagedValidation(validation);
-  return serializeValidationMutationPayload(field, { validation, userErrors: [] });
+  runtime.store.upsertStagedValidation(validation);
+  return serializeValidationMutationPayload(runtime, field, { validation, userErrors: [] });
 }
 
-function updateValidation(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function updateValidation(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readString(args['id']) ?? '';
-  const current = store.getEffectiveValidationById(id);
+  const current = runtime.store.getEffectiveValidationById(id);
   if (!current) {
-    return serializeValidationMutationPayload(field, {
+    return serializeValidationMutationPayload(runtime, field, {
       validation: null,
       userErrors: [notFoundError('id', id)],
     });
@@ -514,13 +538,13 @@ function updateValidation(field: FieldNode, variables: Record<string, unknown>):
   const { functionId, functionHandle } = readFunctionReference(input);
   const shopifyFunction =
     functionId || functionHandle
-      ? ensureShopifyFunction({
+      ? ensureShopifyFunction(runtime, {
           functionId,
           functionHandle,
           apiType: 'VALIDATION',
           fallbackTitle: current.title ?? 'Local validation function',
         })
-      : store.getEffectiveShopifyFunctionById(current.shopifyFunctionId ?? '');
+      : runtime.store.getEffectiveShopifyFunctionById(current.shopifyFunctionId ?? '');
   const validation: ValidationRecord = {
     ...current,
     title: readString(input['title']) ?? current.title,
@@ -530,24 +554,32 @@ function updateValidation(field: FieldNode, variables: Record<string, unknown>):
     functionHandle:
       functionHandle ?? (functionId !== null ? (shopifyFunction?.handle ?? undefined) : current.functionHandle),
     shopifyFunctionId: shopifyFunction?.id ?? current.shopifyFunctionId,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
-  store.upsertStagedValidation(validation);
-  return serializeValidationMutationPayload(field, { validation, userErrors: [] });
+  runtime.store.upsertStagedValidation(validation);
+  return serializeValidationMutationPayload(runtime, field, { validation, userErrors: [] });
 }
 
-function deleteValidation(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function deleteValidation(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readString(args['id']) ?? '';
-  if (!store.getEffectiveValidationById(id)) {
+  if (!runtime.store.getEffectiveValidationById(id)) {
     return serializeDeletePayload(field, { deletedId: null, userErrors: [notFoundError('id', id)] });
   }
 
-  store.deleteStagedValidation(id);
+  runtime.store.deleteStagedValidation(id);
   return serializeDeletePayload(field, { deletedId: id, userErrors: [] });
 }
 
-function createCartTransform(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createCartTransform(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['cartTransform']) ? args['cartTransform'] : args;
   const { functionId, functionHandle } = readFunctionReference(input);
@@ -558,15 +590,15 @@ function createCartTransform(field: FieldNode, variables: Record<string, unknown
     });
   }
 
-  const shopifyFunction = ensureShopifyFunction({
+  const shopifyFunction = ensureShopifyFunction(runtime, {
     functionId,
     functionHandle,
     apiType: 'CART_TRANSFORM',
     fallbackTitle: readString(input['title']) ?? 'Local cart transform function',
   });
-  const timestamp = makeSyntheticTimestamp();
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const cartTransform: CartTransformRecord = {
-    id: makeSyntheticGid('CartTransform'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CartTransform'),
     title: readString(input['title']) ?? shopifyFunction.title,
     blockOnFailure: readBoolean(input['blockOnFailure']) ?? false,
     functionId,
@@ -575,36 +607,44 @@ function createCartTransform(field: FieldNode, variables: Record<string, unknown
     createdAt: timestamp,
     updatedAt: timestamp,
   };
-  store.upsertStagedCartTransform(cartTransform);
+  runtime.store.upsertStagedCartTransform(cartTransform);
   return serializeCartTransformMutationPayload(field, { cartTransform, userErrors: [] });
 }
 
-function deleteCartTransform(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function deleteCartTransform(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readString(args['id']) ?? '';
-  if (!store.getEffectiveCartTransformById(id)) {
+  if (!runtime.store.getEffectiveCartTransformById(id)) {
     return serializeDeletePayload(field, { deletedId: null, userErrors: [notFoundError('id', id)] });
   }
 
-  store.deleteStagedCartTransform(id);
+  runtime.store.deleteStagedCartTransform(id);
   return serializeDeletePayload(field, { deletedId: id, userErrors: [] });
 }
 
-function configureTaxApp(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function configureTaxApp(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const ready = readBoolean(args['ready']);
   const userErrors =
     ready === null ? [{ field: ['ready'], message: 'Ready must be true or false', code: 'INVALID' }] : [];
-  let configuration = store.getEffectiveTaxAppConfiguration();
+  let configuration = runtime.store.getEffectiveTaxAppConfiguration();
 
   if (ready !== null) {
     configuration = {
       id: 'gid://shopify/TaxAppConfiguration/local',
       ready,
       state: ready ? 'READY' : 'NOT_READY',
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     };
-    store.setStagedTaxAppConfiguration(configuration);
+    runtime.store.setStagedTaxAppConfiguration(configuration);
   }
 
   const result: Record<string, unknown> = {};
@@ -625,7 +665,11 @@ function configureTaxApp(field: FieldNode, variables: Record<string, unknown>): 
   return result;
 }
 
-export function handleFunctionQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleFunctionQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
@@ -633,24 +677,24 @@ export function handleFunctionQuery(document: string, variables: Record<string, 
     switch (field.name.value) {
       case 'validation': {
         const id = readString(args['id']);
-        const validation = id ? store.getEffectiveValidationById(id) : null;
-        data[key] = validation ? serializeValidation(validation, field) : null;
+        const validation = id ? runtime.store.getEffectiveValidationById(id) : null;
+        data[key] = validation ? serializeValidation(runtime, validation, field) : null;
         break;
       }
       case 'validations':
-        data[key] = serializeValidationConnection(field, variables);
+        data[key] = serializeValidationConnection(runtime, field, variables);
         break;
       case 'cartTransforms':
-        data[key] = serializeCartTransformConnection(field, variables);
+        data[key] = serializeCartTransformConnection(runtime, field, variables);
         break;
       case 'shopifyFunction': {
         const id = readString(args['id']);
-        const shopifyFunction = id ? store.getEffectiveShopifyFunctionById(id) : null;
+        const shopifyFunction = id ? runtime.store.getEffectiveShopifyFunctionById(id) : null;
         data[key] = shopifyFunction ? serializeShopifyFunction(shopifyFunction, field) : null;
         break;
       }
       case 'shopifyFunctions':
-        data[key] = serializeShopifyFunctionConnection(field, variables);
+        data[key] = serializeShopifyFunctionConnection(runtime, field, variables);
         break;
       default:
         data[key] = null;
@@ -660,28 +704,32 @@ export function handleFunctionQuery(document: string, variables: Record<string, 
   return { data };
 }
 
-export function handleFunctionMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleFunctionMutation(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'validationCreate':
-        data[key] = createValidation(field, variables);
+        data[key] = createValidation(runtime, field, variables);
         break;
       case 'validationUpdate':
-        data[key] = updateValidation(field, variables);
+        data[key] = updateValidation(runtime, field, variables);
         break;
       case 'validationDelete':
-        data[key] = deleteValidation(field, variables);
+        data[key] = deleteValidation(runtime, field, variables);
         break;
       case 'cartTransformCreate':
-        data[key] = createCartTransform(field, variables);
+        data[key] = createCartTransform(runtime, field, variables);
         break;
       case 'cartTransformDelete':
-        data[key] = deleteCartTransform(field, variables);
+        data[key] = deleteCartTransform(runtime, field, variables);
         break;
       case 'taxAppConfigure':
-        data[key] = configureTaxApp(field, variables);
+        data[key] = configureTaxApp(runtime, field, variables);
         break;
       default:
         data[key] = null;

@@ -1,10 +1,9 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import type { FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
 import { normalizeSearchQueryValue, parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   CustomerPaymentMethodInstrumentRecord,
   CustomerPaymentMethodRecord,
@@ -117,16 +116,17 @@ function matchesPaymentCustomizationTerm(customization: PaymentCustomizationReco
 }
 
 function listPaymentCustomizationsForField(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): PaymentCustomizationRecord[] {
   const args = getFieldArguments(field, variables);
   const terms = parsePaymentCustomizationQuery(args['query']);
   const filtered = terms.length
-    ? store
+    ? runtime.store
         .listEffectivePaymentCustomizations()
         .filter((customization) => terms.every((term) => matchesPaymentCustomizationTerm(customization, term)))
-    : store.listEffectivePaymentCustomizations();
+    : runtime.store.listEffectivePaymentCustomizations();
   return args['reverse'] === true ? [...filtered].reverse() : filtered;
 }
 
@@ -243,10 +243,11 @@ function serializePaymentCustomizationUserErrors(
 }
 
 function serializePaymentCustomizationsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const customizations = listPaymentCustomizationsForField(field, variables);
+  const customizations = listPaymentCustomizationsForField(runtime, field, variables);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     customizations,
     field,
@@ -322,12 +323,13 @@ function serializeEmptyPaymentCustomizationsConnection(field: FieldNode): Record
 }
 
 function listPaymentTermsTemplatesForField(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): PaymentTermsTemplateRecord[] {
   const args = getFieldArguments(field, variables);
   const paymentTermsType = typeof args['paymentTermsType'] === 'string' ? args['paymentTermsType'] : null;
-  const templates = store.listEffectivePaymentTermsTemplates();
+  const templates = runtime.store.listEffectivePaymentTermsTemplates();
   return paymentTermsType === null
     ? templates
     : templates.filter((template) => template.paymentTermsType === paymentTermsType);
@@ -372,8 +374,12 @@ function serializePaymentTermsTemplate(
   return result;
 }
 
-export function serializePaymentTermsTemplateNodeById(id: string, field: FieldNode): Record<string, unknown> | null {
-  const template = store.getEffectivePaymentTermsTemplateById(id);
+export function serializePaymentTermsTemplateNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  const template = runtime.store.getEffectivePaymentTermsTemplateById(id);
   return template ? serializePaymentTermsTemplate(template, field) : null;
 }
 
@@ -543,6 +549,7 @@ function validateCreateInput(input: Record<string, unknown>): PaymentCustomizati
 }
 
 function applyMetafieldInputs(
+  runtime: ProxyRuntimeContext,
   ownerId: string,
   input: Record<string, unknown>,
   existing: PaymentCustomizationMetafieldRecord[] = [],
@@ -552,15 +559,18 @@ function applyMetafieldInputs(
     return existing;
   }
 
-  return upsertOwnerMetafields('paymentCustomizationId', ownerId, inputs, existing, {
+  return upsertOwnerMetafields(runtime, 'paymentCustomizationId', ownerId, inputs, existing, {
     allowIdLookup: true,
     ownerType: 'PAYMENT_CUSTOMIZATION',
     trimIdentity: true,
   }).metafields;
 }
 
-function buildPaymentCustomizationFromInput(input: Record<string, unknown>): PaymentCustomizationRecord {
-  const id = makeSyntheticGid('PaymentCustomization');
+function buildPaymentCustomizationFromInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): PaymentCustomizationRecord {
+  const id = runtime.syntheticIdentity.makeSyntheticGid('PaymentCustomization');
   const customization: PaymentCustomizationRecord = {
     id,
     title: typeof input['title'] === 'string' ? input['title'] : null,
@@ -569,11 +579,12 @@ function buildPaymentCustomizationFromInput(input: Record<string, unknown>): Pay
     functionHandle: readFunctionHandle(input),
     metafields: [],
   };
-  customization.metafields = applyMetafieldInputs(id, input, []);
+  customization.metafields = applyMetafieldInputs(runtime, id, input, []);
   return customization;
 }
 
 function updatePaymentCustomizationFromInput(
+  runtime: ProxyRuntimeContext,
   current: PaymentCustomizationRecord,
   input: Record<string, unknown>,
 ): PaymentCustomizationRecord {
@@ -596,7 +607,7 @@ function updatePaymentCustomizationFromInput(
     next.functionId = null;
     next.shopifyFunction = undefined;
   }
-  next.metafields = applyMetafieldInputs(current.id, input, current.metafields ?? []);
+  next.metafields = applyMetafieldInputs(runtime, current.id, input, current.metafields ?? []);
   return next;
 }
 
@@ -669,7 +680,11 @@ function serializePaymentCustomizationActivationPayload(
   return result;
 }
 
-function createPaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createPaymentCustomization(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['paymentCustomization']) ? args['paymentCustomization'] : {};
   const userErrors = validateCreateInput(input);
@@ -680,18 +695,22 @@ function createPaymentCustomization(field: FieldNode, variables: Record<string, 
     });
   }
 
-  const customization = buildPaymentCustomizationFromInput(input);
-  store.upsertStagedPaymentCustomization(customization);
+  const customization = buildPaymentCustomizationFromInput(runtime, input);
+  runtime.store.upsertStagedPaymentCustomization(customization);
   return serializePaymentCustomizationMutationPayload(field, variables, {
     paymentCustomization: customization,
     userErrors: [],
   });
 }
 
-function updatePaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function updatePaymentCustomization(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : '';
-  const current = store.getEffectivePaymentCustomizationById(id);
+  const current = runtime.store.getEffectivePaymentCustomizationById(id);
   if (!current) {
     return serializePaymentCustomizationMutationPayload(field, variables, {
       paymentCustomization: null,
@@ -716,18 +735,22 @@ function updatePaymentCustomization(field: FieldNode, variables: Record<string, 
     });
   }
 
-  const customization = updatePaymentCustomizationFromInput(current, input);
-  store.upsertStagedPaymentCustomization(customization);
+  const customization = updatePaymentCustomizationFromInput(runtime, current, input);
+  runtime.store.upsertStagedPaymentCustomization(customization);
   return serializePaymentCustomizationMutationPayload(field, variables, {
     paymentCustomization: customization,
     userErrors: [],
   });
 }
 
-function deletePaymentCustomization(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function deletePaymentCustomization(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : '';
-  const current = store.getEffectivePaymentCustomizationById(id);
+  const current = runtime.store.getEffectivePaymentCustomizationById(id);
   if (!current) {
     return serializePaymentCustomizationDeletePayload(field, {
       deletedId: null,
@@ -735,14 +758,18 @@ function deletePaymentCustomization(field: FieldNode, variables: Record<string, 
     });
   }
 
-  store.deleteStagedPaymentCustomization(id);
+  runtime.store.deleteStagedPaymentCustomization(id);
   return serializePaymentCustomizationDeletePayload(field, {
     deletedId: id,
     userErrors: [],
   });
 }
 
-function activatePaymentCustomizations(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function activatePaymentCustomizations(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const ids = Array.isArray(args['ids'])
     ? Array.from(new Set(args['ids'].filter((id): id is string => typeof id === 'string')))
@@ -752,13 +779,13 @@ function activatePaymentCustomizations(field: FieldNode, variables: Record<strin
   const missingIds: string[] = [];
 
   for (const id of ids) {
-    const current = store.getEffectivePaymentCustomizationById(id);
+    const current = runtime.store.getEffectivePaymentCustomizationById(id);
     if (!current) {
       missingIds.push(id);
       continue;
     }
 
-    store.upsertStagedPaymentCustomization({
+    runtime.store.upsertStagedPaymentCustomization({
       ...current,
       enabled,
     });
@@ -851,6 +878,7 @@ function serializeCustomerPaymentMethodUserErrors(
 }
 
 function serializeCustomerPaymentMethodMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -869,7 +897,7 @@ function serializeCustomerPaymentMethodMutationPayload(
     switch (selection.name.value) {
       case 'customerPaymentMethod':
         result[key] = payload.customerPaymentMethod
-          ? serializeCustomerPaymentMethodSelection(payload.customerPaymentMethod, selection, variables)
+          ? serializeCustomerPaymentMethodSelection(runtime, payload.customerPaymentMethod, selection, variables)
           : null;
         break;
       case 'encryptedDuplicationData':
@@ -925,11 +953,12 @@ function scrubbedPaypalInstrument(inactive: boolean): CustomerPaymentMethodInstr
 }
 
 function createCustomerPaymentMethod(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   instrument: CustomerPaymentMethodInstrumentRecord | null,
 ): CustomerPaymentMethodRecord {
-  return store.stageUpsertCustomerPaymentMethod({
-    id: makeSyntheticGid('CustomerPaymentMethod'),
+  return runtime.store.stageUpsertCustomerPaymentMethod({
+    id: runtime.syntheticIdentity.makeSyntheticGid('CustomerPaymentMethod'),
     customerId,
     instrument,
     revokedAt: null,
@@ -939,16 +968,18 @@ function createCustomerPaymentMethod(
 }
 
 function updateCustomerPaymentMethod(
+  runtime: ProxyRuntimeContext,
   current: CustomerPaymentMethodRecord,
   instrument: CustomerPaymentMethodInstrumentRecord | null,
 ): CustomerPaymentMethodRecord {
-  return store.stageUpsertCustomerPaymentMethod({
+  return runtime.store.stageUpsertCustomerPaymentMethod({
     ...current,
     instrument,
   });
 }
 
 function activeCustomerPaymentMethodById(
+  runtime: ProxyRuntimeContext,
   paymentMethodId: string | null,
   fieldName = 'customerPaymentMethodId',
 ): { paymentMethod: CustomerPaymentMethodRecord | null; error: CustomerPaymentMethodUserError | null } {
@@ -956,7 +987,7 @@ function activeCustomerPaymentMethodById(
     return { paymentMethod: null, error: paymentMethodDoesNotExistError(fieldName) };
   }
 
-  const paymentMethod = store.getEffectiveCustomerPaymentMethodById(paymentMethodId);
+  const paymentMethod = runtime.store.getEffectiveCustomerPaymentMethodById(paymentMethodId);
   return paymentMethod
     ? { paymentMethod, error: null }
     : { paymentMethod: null, error: paymentMethodDoesNotExistError(fieldName) };
@@ -1007,98 +1038,122 @@ function buildPaymentMethodUpdateUrl(paymentMethodId: string): string {
   )}/update?token=local-only`;
 }
 
-function createCreditCardPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createCreditCardPaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
   const customer =
-    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+    customerId && isShopifyGid(customerId, 'Customer') ? runtime.store.getEffectiveCustomerById(customerId) : null;
   if (!customerId || !customer) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       processing: false,
       userErrors: [customerDoesNotExistError()],
     });
   }
 
-  const paymentMethod = createCustomerPaymentMethod(customerId, scrubbedCreditCardInstrument());
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const paymentMethod = createCustomerPaymentMethod(runtime, customerId, scrubbedCreditCardInstrument());
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: paymentMethod,
     processing: false,
     userErrors: [],
   });
 }
 
-function updateCreditCardPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function updateCreditCardPaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
-  const { paymentMethod, error } = activeCustomerPaymentMethodById(id, 'id');
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(runtime, id, 'id');
   if (!paymentMethod || error) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       processing: false,
       userErrors: [error ?? paymentMethodDoesNotExistError('id')],
     });
   }
 
-  const updated = updateCustomerPaymentMethod(paymentMethod, scrubbedCreditCardInstrument());
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const updated = updateCustomerPaymentMethod(runtime, paymentMethod, scrubbedCreditCardInstrument());
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: updated,
     processing: false,
     userErrors: [],
   });
 }
 
-function createRemotePaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createRemotePaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
   const customer =
-    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+    customerId && isShopifyGid(customerId, 'Customer') ? runtime.store.getEffectiveCustomerById(customerId) : null;
   if (!customerId || !customer) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [customerDoesNotExistError()],
     });
   }
 
   if (countRemoteReferenceKinds(args['remoteReference']) !== 1) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [exactlyOneRemoteReferenceError()],
     });
   }
 
-  const paymentMethod = createCustomerPaymentMethod(customerId, null);
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const paymentMethod = createCustomerPaymentMethod(runtime, customerId, null);
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: paymentMethod,
     userErrors: [],
   });
 }
 
-function createPaypalPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function createPaypalPaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
   const customer =
-    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+    customerId && isShopifyGid(customerId, 'Customer') ? runtime.store.getEffectiveCustomerById(customerId) : null;
   if (!customerId || !customer) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [customerDoesNotExistError()],
     });
   }
 
-  const paymentMethod = createCustomerPaymentMethod(customerId, scrubbedPaypalInstrument(args['inactive'] === true));
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const paymentMethod = createCustomerPaymentMethod(
+    runtime,
+    customerId,
+    scrubbedPaypalInstrument(args['inactive'] === true),
+  );
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: paymentMethod,
     userErrors: [],
   });
 }
 
-function updatePaypalPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function updatePaypalPaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
-  const { paymentMethod, error } = activeCustomerPaymentMethodById(id, 'id');
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(runtime, id, 'id');
   if (!paymentMethod || error) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [error ?? paymentMethodDoesNotExistError('id')],
     });
@@ -1108,22 +1163,23 @@ function updatePaypalPaymentMethod(field: FieldNode, variables: Record<string, u
     paymentMethod.instrument?.typeName === 'CustomerPaypalBillingAgreement'
       ? paymentMethod.instrument.data['inactive'] === true
       : false;
-  const updated = updateCustomerPaymentMethod(paymentMethod, scrubbedPaypalInstrument(inactive));
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const updated = updateCustomerPaymentMethod(runtime, paymentMethod, scrubbedPaypalInstrument(inactive));
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: updated,
     userErrors: [],
   });
 }
 
 function getPaymentMethodDuplicationData(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
-  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(runtime, paymentMethodId);
   if (!paymentMethod || error) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       encryptedDuplicationData: null,
       userErrors: [error ?? paymentMethodDoesNotExistError()],
     });
@@ -1132,17 +1188,17 @@ function getPaymentMethodDuplicationData(
   const targetCustomerId = typeof args['targetCustomerId'] === 'string' ? args['targetCustomerId'] : null;
   const targetCustomer =
     targetCustomerId && isShopifyGid(targetCustomerId, 'Customer')
-      ? store.getEffectiveCustomerById(targetCustomerId)
+      ? runtime.store.getEffectiveCustomerById(targetCustomerId)
       : null;
   if (!targetCustomerId || !targetCustomer) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       encryptedDuplicationData: null,
       userErrors: [customerDoesNotExistError('targetCustomerId')],
     });
   }
 
   const targetShopId = typeof args['targetShopId'] === 'string' ? args['targetShopId'] : '';
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     encryptedDuplicationData: encodeDuplicationData({
       customerPaymentMethodId: paymentMethod.id,
       targetCustomerId,
@@ -1153,15 +1209,16 @@ function getPaymentMethodDuplicationData(
 }
 
 function createPaymentMethodFromDuplicationData(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
   const customer =
-    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+    customerId && isShopifyGid(customerId, 'Customer') ? runtime.store.getEffectiveCustomerById(customerId) : null;
   if (!customerId || !customer) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [customerDoesNotExistError()],
     });
@@ -1171,89 +1228,105 @@ function createPaymentMethodFromDuplicationData(
   const sourcePaymentMethodId = decoded?.['customerPaymentMethodId'] ?? null;
   const sourcePaymentMethod =
     sourcePaymentMethodId && isShopifyGid(sourcePaymentMethodId, 'CustomerPaymentMethod')
-      ? store.getEffectiveCustomerPaymentMethodById(sourcePaymentMethodId, { showRevoked: true })
+      ? runtime.store.getEffectiveCustomerPaymentMethodById(sourcePaymentMethodId, { showRevoked: true })
       : null;
   if (!decoded || !sourcePaymentMethod || decoded['targetCustomerId'] !== customerId) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       customerPaymentMethod: null,
       userErrors: [invalidDuplicationDataError()],
     });
   }
 
-  const paymentMethod = createCustomerPaymentMethod(customerId, sourcePaymentMethod.instrument);
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  const paymentMethod = createCustomerPaymentMethod(runtime, customerId, sourcePaymentMethod.instrument);
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     customerPaymentMethod: paymentMethod,
     userErrors: [],
   });
 }
 
-function getPaymentMethodUpdateUrl(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function getPaymentMethodUpdateUrl(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
-  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(runtime, paymentMethodId);
   if (!paymentMethod || error) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       updatePaymentMethodUrl: null,
       userErrors: [error ?? paymentMethodDoesNotExistError()],
     });
   }
 
-  const updateUrl = store.stageCustomerPaymentMethodUpdateUrl({
-    id: makeSyntheticGid('CustomerPaymentMethodUpdateUrl'),
+  const updateUrl = runtime.store.stageCustomerPaymentMethodUpdateUrl({
+    id: runtime.syntheticIdentity.makeSyntheticGid('CustomerPaymentMethodUpdateUrl'),
     customerPaymentMethodId: paymentMethod.id,
     updatePaymentMethodUrl: buildPaymentMethodUpdateUrl(paymentMethod.id),
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   });
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     updatePaymentMethodUrl: updateUrl.updatePaymentMethodUrl,
     userErrors: [],
   });
 }
 
-function revokePaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function revokePaymentMethod(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
-  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(runtime, paymentMethodId);
   if (!paymentMethod || error) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       revokedCustomerPaymentMethodId: null,
       userErrors: [error ?? paymentMethodDoesNotExistError()],
     });
   }
 
-  store.stageUpsertCustomerPaymentMethod({
+  runtime.store.stageUpsertCustomerPaymentMethod({
     ...paymentMethod,
-    revokedAt: makeSyntheticTimestamp(),
+    revokedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     revokedReason: 'CUSTOMER_REVOKED',
   });
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     revokedCustomerPaymentMethodId: paymentMethod.id,
     userErrors: [],
   });
 }
 
-function sendPaymentReminder(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function sendPaymentReminder(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const paymentScheduleId = typeof args['paymentScheduleId'] === 'string' ? args['paymentScheduleId'] : null;
   if (typeof paymentScheduleId !== 'string' || !isShopifyGid(paymentScheduleId, 'PaymentSchedule')) {
-    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
       success: false,
       userErrors: [paymentReminderSendError()],
     });
   }
 
-  store.stagePaymentReminderSend({
-    id: makeSyntheticGid('PaymentReminderSend'),
+  runtime.store.stagePaymentReminderSend({
+    id: runtime.syntheticIdentity.makeSyntheticGid('PaymentReminderSend'),
     paymentScheduleId,
-    sentAt: makeSyntheticTimestamp(),
+    sentAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   });
-  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+  return serializeCustomerPaymentMethodMutationPayload(runtime, field, variables, {
     success: true,
     userErrors: [],
   });
 }
 
-export function handlePaymentQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handlePaymentQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
@@ -1261,20 +1334,20 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
     const args = getFieldArguments(field, variables);
     switch (field.name.value) {
       case 'paymentTermsTemplates':
-        data[key] = listPaymentTermsTemplatesForField(field, variables).map((template) =>
+        data[key] = listPaymentTermsTemplatesForField(runtime, field, variables).map((template) =>
           serializePaymentTermsTemplate(template, field),
         );
         break;
       case 'paymentCustomizations':
-        data[key] = store.hasPaymentCustomizations()
-          ? serializePaymentCustomizationsConnection(field, variables)
+        data[key] = runtime.store.hasPaymentCustomizations()
+          ? serializePaymentCustomizationsConnection(runtime, field, variables)
           : serializeEmptyPaymentCustomizationsConnection(field);
         break;
       case 'paymentCustomization':
         data[key] =
           typeof args['id'] === 'string'
             ? (() => {
-                const customization = store.getEffectivePaymentCustomizationById(args['id']);
+                const customization = runtime.store.getEffectivePaymentCustomizationById(args['id']);
                 return customization ? serializePaymentCustomization(customization, field, variables) : null;
               })()
             : null;
@@ -1300,53 +1373,57 @@ export function handlePaymentQuery(document: string, variables: Record<string, u
   return { data };
 }
 
-export function handlePaymentMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handlePaymentMutation(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'paymentCustomizationCreate':
-        data[key] = createPaymentCustomization(field, variables);
+        data[key] = createPaymentCustomization(runtime, field, variables);
         break;
       case 'paymentCustomizationUpdate':
-        data[key] = updatePaymentCustomization(field, variables);
+        data[key] = updatePaymentCustomization(runtime, field, variables);
         break;
       case 'paymentCustomizationDelete':
-        data[key] = deletePaymentCustomization(field, variables);
+        data[key] = deletePaymentCustomization(runtime, field, variables);
         break;
       case 'paymentCustomizationActivation':
-        data[key] = activatePaymentCustomizations(field, variables);
+        data[key] = activatePaymentCustomizations(runtime, field, variables);
         break;
       case 'customerPaymentMethodCreditCardCreate':
-        data[key] = createCreditCardPaymentMethod(field, variables);
+        data[key] = createCreditCardPaymentMethod(runtime, field, variables);
         break;
       case 'customerPaymentMethodCreditCardUpdate':
-        data[key] = updateCreditCardPaymentMethod(field, variables);
+        data[key] = updateCreditCardPaymentMethod(runtime, field, variables);
         break;
       case 'customerPaymentMethodRemoteCreate':
-        data[key] = createRemotePaymentMethod(field, variables);
+        data[key] = createRemotePaymentMethod(runtime, field, variables);
         break;
       case 'customerPaymentMethodPaypalBillingAgreementCreate':
-        data[key] = createPaypalPaymentMethod(field, variables);
+        data[key] = createPaypalPaymentMethod(runtime, field, variables);
         break;
       case 'customerPaymentMethodPaypalBillingAgreementUpdate':
-        data[key] = updatePaypalPaymentMethod(field, variables);
+        data[key] = updatePaypalPaymentMethod(runtime, field, variables);
         break;
       case 'customerPaymentMethodGetDuplicationData':
-        data[key] = getPaymentMethodDuplicationData(field, variables);
+        data[key] = getPaymentMethodDuplicationData(runtime, field, variables);
         break;
       case 'customerPaymentMethodCreateFromDuplicationData':
-        data[key] = createPaymentMethodFromDuplicationData(field, variables);
+        data[key] = createPaymentMethodFromDuplicationData(runtime, field, variables);
         break;
       case 'customerPaymentMethodGetUpdateUrl':
-        data[key] = getPaymentMethodUpdateUrl(field, variables);
+        data[key] = getPaymentMethodUpdateUrl(runtime, field, variables);
         break;
       case 'customerPaymentMethodRevoke':
-        data[key] = revokePaymentMethod(field, variables);
+        data[key] = revokePaymentMethod(runtime, field, variables);
         break;
       case 'paymentReminderSend':
-        data[key] = sendPaymentReminder(field, variables);
+        data[key] = sendPaymentReminder(runtime, field, variables);
         break;
       default:
         data[key] = null;

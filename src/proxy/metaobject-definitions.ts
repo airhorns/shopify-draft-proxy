@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type ArgumentNode, type FieldNode, type ValueNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -10,8 +11,6 @@ import {
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   MetaobjectDefinitionCapabilitiesRecord,
   MetaobjectDefinitionRecord,
@@ -427,7 +426,10 @@ function buildDefinitionAccess(
   return result;
 }
 
-function buildCreateDefinitionUserErrors(input: Record<string, unknown>): MetaobjectUserError[] {
+function buildCreateDefinitionUserErrors(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): MetaobjectUserError[] {
   const type = readStringValue(input['type']);
   const access = isPlainObject(input['access']) ? input['access'] : null;
   const userErrors: MetaobjectUserError[] = [];
@@ -456,7 +458,7 @@ function buildCreateDefinitionUserErrors(input: Record<string, unknown>): Metaob
     });
   }
 
-  if (type && store.findEffectiveMetaobjectDefinitionByType(type)) {
+  if (type && runtime.store.findEffectiveMetaobjectDefinitionByType(type)) {
     userErrors.push({
       field: ['definition', 'type'],
       message: 'Type has already been taken',
@@ -467,12 +469,15 @@ function buildCreateDefinitionUserErrors(input: Record<string, unknown>): Metaob
   return userErrors;
 }
 
-function buildMetaobjectDefinitionFromCreateInput(input: Record<string, unknown>): MetaobjectDefinitionRecord {
-  const now = makeSyntheticTimestamp();
+function buildMetaobjectDefinitionFromCreateInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): MetaobjectDefinitionRecord {
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const type = readStringValue(input['type']) ?? 'metaobject_definition';
 
   return {
-    id: makeProxySyntheticGid('MetaobjectDefinition'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('MetaobjectDefinition'),
     type,
     name: readStringValue(input['name']),
     description: readStringValue(input['description']),
@@ -536,8 +541,11 @@ function projectMetaobjectFieldsThroughDefinition(
   });
 }
 
-function projectMetaobjectThroughDefinition(metaobject: MetaobjectRecord): MetaobjectRecord {
-  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+function projectMetaobjectThroughDefinition(
+  runtime: ProxyRuntimeContext,
+  metaobject: MetaobjectRecord,
+): MetaobjectRecord {
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
   const fields = projectMetaobjectFieldsThroughDefinition(metaobject, definition);
 
   return {
@@ -746,12 +754,12 @@ function normalizeMetaobjectHandle(value: string): string {
     .replace(/^-+|-+$/gu, '');
 }
 
-function makeUniqueMetaobjectHandle(type: string, preferredHandle: string): string {
+function makeUniqueMetaobjectHandle(runtime: ProxyRuntimeContext, type: string, preferredHandle: string): string {
   const baseHandle = normalizeMetaobjectHandle(preferredHandle) || normalizeMetaobjectHandle(type) || 'metaobject';
   let handle = baseHandle;
   let suffix = 1;
 
-  while (store.findEffectiveMetaobjectByHandle({ type, handle })) {
+  while (runtime.store.findEffectiveMetaobjectByHandle({ type, handle })) {
     suffix += 1;
     handle = `${baseHandle}-${suffix}`;
   }
@@ -809,17 +817,17 @@ function buildMetaobjectCapabilitiesFromInput(
   return result;
 }
 
-function adjustDefinitionMetaobjectsCount(type: string, delta: number): void {
-  const definition = store.findEffectiveMetaobjectDefinitionByType(type);
+function adjustDefinitionMetaobjectsCount(runtime: ProxyRuntimeContext, type: string, delta: number): void {
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(type);
   if (!definition) {
     return;
   }
 
-  store.upsertStagedMetaobjectDefinitions([
+  runtime.store.upsertStagedMetaobjectDefinitions([
     {
       ...definition,
       metaobjectsCount: Math.max(0, (definition.metaobjectsCount ?? 0) + delta),
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     },
   ]);
 }
@@ -859,6 +867,7 @@ function recordNotFoundUserError(field: string[] = ['id']): MetaobjectUserError 
 }
 
 function buildMetaobjectFromCreateInput(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   definition: MetaobjectDefinitionRecord,
 ): { metaobject: MetaobjectRecord | null; userErrors: MetaobjectUserError[] } {
@@ -872,12 +881,12 @@ function buildMetaobjectFromCreateInput(
 
   const displayName = metaobjectDisplayName(definition, fieldResult.fields);
   const preferredHandle = readNonBlankStringValue(input['handle']) ?? displayName ?? definition.type;
-  const handle = makeUniqueMetaobjectHandle(definition.type, preferredHandle);
-  const now = makeSyntheticTimestamp();
+  const handle = makeUniqueMetaobjectHandle(runtime, definition.type, preferredHandle);
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
 
   return {
     metaobject: {
-      id: makeProxySyntheticGid('Metaobject'),
+      id: runtime.syntheticIdentity.makeProxySyntheticGid('Metaobject'),
       handle,
       type: definition.type,
       displayName,
@@ -891,6 +900,7 @@ function buildMetaobjectFromCreateInput(
 }
 
 function applyMetaobjectUpdateInput(
+  runtime: ProxyRuntimeContext,
   existing: MetaobjectRecord,
   input: Record<string, unknown>,
   definition: MetaobjectDefinitionRecord,
@@ -909,7 +919,7 @@ function applyMetaobjectUpdateInput(
     };
   }
 
-  const handleOwner = store.findEffectiveMetaobjectByHandle({ type: existing.type, handle: requestedHandle });
+  const handleOwner = runtime.store.findEffectiveMetaobjectByHandle({ type: existing.type, handle: requestedHandle });
   if (handleOwner && handleOwner.id !== existing.id) {
     return {
       metaobject: null,
@@ -938,13 +948,14 @@ function applyMetaobjectUpdateInput(
       displayName: metaobjectDisplayName(definition, fields, requestedHandle),
       fields,
       capabilities: buildMetaobjectCapabilitiesFromInput(input, definition, existing.capabilities),
-      updatedAt: makeSyntheticTimestamp(),
+      updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     },
     userErrors: [],
   };
 }
 
 function applyDefinitionScalarUpdates(
+  runtime: ProxyRuntimeContext,
   existing: MetaobjectDefinitionRecord,
   input: Record<string, unknown>,
 ): MetaobjectDefinitionRecord {
@@ -959,7 +970,7 @@ function applyDefinitionScalarUpdates(
     capabilities: hasOwnProperty(input, 'capabilities')
       ? normalizeCapabilitiesFromInput(input['capabilities'], existing.capabilities)
       : existing.capabilities,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -1333,9 +1344,12 @@ function readMetaobjectReferenceIdsFromValue(
   }
 }
 
-function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<string, unknown> {
-  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
-  const definition = store.findEffectiveMetaobjectDefinitionByType(projectedMetaobject.type);
+function buildSerializableMetaobject(
+  runtime: ProxyRuntimeContext,
+  metaobject: MetaobjectRecord,
+): Record<string, unknown> {
+  const projectedMetaobject = projectMetaobjectThroughDefinition(runtime, metaobject);
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(projectedMetaobject.type);
   const publishable =
     definition?.capabilities.publishable?.enabled === false
       ? null
@@ -1362,6 +1376,7 @@ function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<strin
 }
 
 function projectMetaobjectSerializableObject(
+  runtime: ProxyRuntimeContext,
   source: Record<string, unknown>,
   selections: readonly SelectionNode[],
   fragments: ReturnType<typeof getDocumentFragments>,
@@ -1369,20 +1384,28 @@ function projectMetaobjectSerializableObject(
 ): Record<string, unknown> {
   return projectGraphqlObject(source, selections, fragments, {
     projectFieldValue: ({ source: selectedSource, field, fieldName }) =>
-      projectMetaobjectFieldValue(selectedSource, field, fieldName, fragments, variables),
+      projectMetaobjectFieldValue(runtime, selectedSource, field, fieldName, fragments, variables),
   });
 }
 
 function serializeMetaobjectReferenceSelection(
+  runtime: ProxyRuntimeContext,
   metaobject: MetaobjectRecord,
   selections: readonly SelectionNode[],
   fragments: ReturnType<typeof getDocumentFragments>,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return projectMetaobjectSerializableObject(buildSerializableMetaobject(metaobject), selections, fragments, variables);
+  return projectMetaobjectSerializableObject(
+    runtime,
+    buildSerializableMetaobject(runtime, metaobject),
+    selections,
+    fragments,
+    variables,
+  );
 }
 
 function serializeMetaobjectReferencesConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   source: Record<string, unknown>,
   fragments: ReturnType<typeof getDocumentFragments>,
@@ -1399,7 +1422,7 @@ function serializeMetaobjectReferencesConnection(
     jsonValue: source['jsonValue'] as MetaobjectFieldRecord['jsonValue'],
   });
   const references = referenceIds.flatMap((referenceId) => {
-    const reference = store.getEffectiveMetaobjectById(referenceId);
+    const reference = runtime.store.getEffectiveMetaobjectById(referenceId);
     return reference ? [reference] : [];
   });
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
@@ -1415,14 +1438,23 @@ function serializeMetaobjectReferencesConnection(
     hasPreviousPage,
     getCursorValue: (reference) => reference.id,
     serializeNode: (reference, nodeField) =>
-      serializeMetaobjectReferenceSelection(reference, nodeField.selectionSet?.selections ?? [], fragments, variables),
+      serializeMetaobjectReferenceSelection(
+        runtime,
+        reference,
+        nodeField.selectionSet?.selections ?? [],
+        fragments,
+        variables,
+      ),
   });
 }
 
-function buildMetaobjectReferenceRelations(targetId: string): MetaobjectReferenceRelation[] {
-  return store.listEffectiveMetaobjects().flatMap((referencer) => {
-    const definition = store.findEffectiveMetaobjectDefinitionByType(referencer.type);
-    const projectedReferencer = projectMetaobjectThroughDefinition(referencer);
+function buildMetaobjectReferenceRelations(
+  runtime: ProxyRuntimeContext,
+  targetId: string,
+): MetaobjectReferenceRelation[] {
+  return runtime.store.listEffectiveMetaobjects().flatMap((referencer) => {
+    const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(referencer.type);
+    const projectedReferencer = projectMetaobjectThroughDefinition(runtime, referencer);
 
     return projectedReferencer.fields.flatMap((field, fieldIndex) => {
       if (!readMetaobjectReferenceIdsFromValue(field).includes(targetId)) {
@@ -1443,23 +1475,27 @@ function buildMetaobjectReferenceRelations(targetId: string): MetaobjectReferenc
   });
 }
 
-function buildSerializableMetaobjectReferenceRelation(relation: MetaobjectReferenceRelation): Record<string, unknown> {
+function buildSerializableMetaobjectReferenceRelation(
+  runtime: ProxyRuntimeContext,
+  relation: MetaobjectReferenceRelation,
+): Record<string, unknown> {
   return {
     __typename: 'MetafieldRelation',
     key: relation.key,
     name: relation.name,
     namespace: relation.namespace,
-    referencer: buildSerializableMetaobject(relation.referencer),
+    referencer: buildSerializableMetaobject(runtime, relation.referencer),
   };
 }
 
 function serializeMetaobjectReferencedByConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   metaobjectId: string,
   fragments: ReturnType<typeof getDocumentFragments>,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const relations = buildMetaobjectReferenceRelations(metaobjectId);
+  const relations = buildMetaobjectReferenceRelations(runtime, metaobjectId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     relations,
     field,
@@ -1474,7 +1510,8 @@ function serializeMetaobjectReferencedByConnection(
     getCursorValue: (relation) => relation.cursorKey,
     serializeNode: (relation, nodeField) =>
       projectMetaobjectSerializableObject(
-        buildSerializableMetaobjectReferenceRelation(relation),
+        runtime,
+        buildSerializableMetaobjectReferenceRelation(runtime, relation),
         nodeField.selectionSet?.selections ?? [],
         fragments,
         variables,
@@ -1483,6 +1520,7 @@ function serializeMetaobjectReferencedByConnection(
 }
 
 function projectMetaobjectFieldValue(
+  runtime: ProxyRuntimeContext,
   source: Record<string, unknown>,
   field: FieldNode,
   fieldName: string,
@@ -1498,6 +1536,7 @@ function projectMetaobjectFieldValue(
         handled: true,
         value: selectedField
           ? projectMetaobjectSerializableObject(
+              runtime,
               selectedField,
               field.selectionSet?.selections ?? [],
               fragments,
@@ -1512,7 +1551,7 @@ function projectMetaobjectFieldValue(
       return {
         handled: true,
         value: metaobjectId
-          ? serializeMetaobjectReferencedByConnection(field, metaobjectId, fragments, variables)
+          ? serializeMetaobjectReferencedByConnection(runtime, field, metaobjectId, fragments, variables)
           : serializeEmptyReferencedByConnection(field),
       };
     }
@@ -1529,11 +1568,17 @@ function projectMetaobjectFieldValue(
         value: readStringValue(source['value']),
         jsonValue: source['jsonValue'] as MetaobjectFieldRecord['jsonValue'],
       })[0];
-      const reference = referenceId ? store.getEffectiveMetaobjectById(referenceId) : null;
+      const reference = referenceId ? runtime.store.getEffectiveMetaobjectById(referenceId) : null;
       return {
         handled: true,
         value: reference
-          ? serializeMetaobjectReferenceSelection(reference, field.selectionSet?.selections ?? [], fragments, variables)
+          ? serializeMetaobjectReferenceSelection(
+              runtime,
+              reference,
+              field.selectionSet?.selections ?? [],
+              fragments,
+              variables,
+            )
           : null,
       };
     }
@@ -1541,7 +1586,7 @@ function projectMetaobjectFieldValue(
     if (fieldName === 'references') {
       return {
         handled: true,
-        value: serializeMetaobjectReferencesConnection(field, source, fragments, variables),
+        value: serializeMetaobjectReferencesConnection(runtime, field, source, fragments, variables),
       };
     }
   }
@@ -1568,16 +1613,18 @@ function serializeEmptyReferencedByConnection(field: FieldNode): Record<string, 
 }
 
 function serializeMetaobjectSelection(
+  runtime: ProxyRuntimeContext,
   metaobject: MetaobjectRecord,
   selections: readonly SelectionNode[],
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
-  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
+  const projectedMetaobject = projectMetaobjectThroughDefinition(runtime, metaobject);
 
   return projectMetaobjectSerializableObject(
-    buildSerializableMetaobject(projectedMetaobject),
+    runtime,
+    buildSerializableMetaobject(runtime, projectedMetaobject),
     selections,
     fragments,
     variables,
@@ -1741,8 +1788,8 @@ function metaobjectHasRequiredFieldValues(
   });
 }
 
-function isMetaobjectVisibleInCatalog(metaobject: MetaobjectRecord): boolean {
-  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+function isMetaobjectVisibleInCatalog(runtime: ProxyRuntimeContext, metaobject: MetaobjectRecord): boolean {
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
   if (!definition) {
     return true;
   }
@@ -1759,12 +1806,13 @@ function isMetaobjectVisibleInCatalog(metaobject: MetaobjectRecord): boolean {
 }
 
 function serializeMetaobjectDefinitionsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const definitions = sortDefinitions(store.listEffectiveMetaobjectDefinitions(), args['reverse']);
+  const definitions = sortDefinitions(runtime.store.listEffectiveMetaobjectDefinitions(), args['reverse']);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     definitions,
     field,
@@ -1783,6 +1831,7 @@ function serializeMetaobjectDefinitionsConnection(
 }
 
 function serializeMetaobjectsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
@@ -1791,7 +1840,11 @@ function serializeMetaobjectsConnection(
   const type = readStringValue(args['type']);
   const metaobjects = sortMetaobjects(
     applyMetaobjectQuery(
-      type ? store.listEffectiveMetaobjectsByType(type).filter(isMetaobjectVisibleInCatalog) : [],
+      type
+        ? runtime.store
+            .listEffectiveMetaobjectsByType(type)
+            .filter((metaobject) => isMetaobjectVisibleInCatalog(runtime, metaobject))
+        : [],
       args['query'],
     ),
     args['sortKey'],
@@ -1810,7 +1863,7 @@ function serializeMetaobjectsConnection(
     hasPreviousPage,
     getCursorValue: (metaobject) => metaobject.id,
     serializeNode: (metaobject, nodeField) =>
-      serializeMetaobjectSelection(metaobject, nodeField.selectionSet?.selections ?? [], document, variables),
+      serializeMetaobjectSelection(runtime, metaobject, nodeField.selectionSet?.selections ?? [], document, variables),
   });
 }
 
@@ -1883,6 +1936,7 @@ function serializeDefinitionMutationPayload(
 }
 
 function serializeMetaobjectMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   document: string,
   variables: Record<string, unknown>,
@@ -1896,7 +1950,13 @@ function serializeMetaobjectMutationPayload(
     switch (selection.name.value) {
       case 'metaobject':
         result[key] = metaobject
-          ? serializeMetaobjectSelection(metaobject, selection.selectionSet?.selections ?? [], document, variables)
+          ? serializeMetaobjectSelection(
+              runtime,
+              metaobject,
+              selection.selectionSet?.selections ?? [],
+              document,
+              variables,
+            )
           : null;
         break;
       case 'userErrors':
@@ -2016,37 +2076,39 @@ function serializeMetaobjectBulkDeletePayload(
 }
 
 function serializeMetaobjectDefinitionCreateMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['definition']) ? args['definition'] : {};
-  const userErrors = buildCreateDefinitionUserErrors(input);
+  const userErrors = buildCreateDefinitionUserErrors(runtime, input);
 
   if (userErrors.length > 0) {
     return serializeDefinitionMutationPayload(field, document, null, userErrors);
   }
 
-  const definition = buildMetaobjectDefinitionFromCreateInput(input);
-  store.upsertStagedMetaobjectDefinitions([definition]);
+  const definition = buildMetaobjectDefinitionFromCreateInput(runtime, input);
+  runtime.store.upsertStagedMetaobjectDefinitions([definition]);
   return serializeDefinitionMutationPayload(field, document, definition, []);
 }
 
 function serializeMetaobjectDefinitionUpdateMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readStringValue(args['id']);
-  const existingDefinition = id ? store.getEffectiveMetaobjectDefinitionById(id) : null;
+  const existingDefinition = id ? runtime.store.getEffectiveMetaobjectDefinitionById(id) : null;
   if (!id || !existingDefinition) {
     return serializeDefinitionMutationPayload(field, document, null, [recordNotFoundUserError()]);
   }
 
   const input = isPlainObject(args['definition']) ? args['definition'] : {};
-  let definition = applyDefinitionScalarUpdates(existingDefinition, input);
+  let definition = applyDefinitionScalarUpdates(runtime, existingDefinition, input);
   const fieldDefinitionUpdate = hasOwnProperty(input, 'fieldDefinitions')
     ? applyFieldDefinitionOperations(definition.fieldDefinitions, input['fieldDefinitions'])
     : null;
@@ -2065,17 +2127,18 @@ function serializeMetaobjectDefinitionUpdateMutation(
     };
   }
 
-  store.upsertStagedMetaobjectDefinitions([definition]);
+  runtime.store.upsertStagedMetaobjectDefinitions([definition]);
   return serializeDefinitionMutationPayload(field, document, definition, []);
 }
 
 function serializeMetaobjectDefinitionDeleteMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readStringValue(args['id']);
-  const definition = id ? store.getEffectiveMetaobjectDefinitionById(id) : null;
+  const definition = id ? runtime.store.getEffectiveMetaobjectDefinitionById(id) : null;
 
   if (!id || !definition) {
     return serializeDeleteDefinitionPayload(field, null, [recordNotFoundUserError()]);
@@ -2092,11 +2155,12 @@ function serializeMetaobjectDefinitionDeleteMutation(
     ]);
   }
 
-  store.deleteStagedMetaobjectDefinition(id);
+  runtime.store.deleteStagedMetaobjectDefinition(id);
   return serializeDeleteDefinitionPayload(field, id, []);
 }
 
 function serializeStandardMetaobjectDefinitionEnableMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
@@ -2125,10 +2189,10 @@ function serializeStandardMetaobjectDefinitionEnableMutation(
     ]);
   }
 
-  const existingDefinition = store.findEffectiveMetaobjectDefinitionByType(type);
-  const now = makeSyntheticTimestamp();
+  const existingDefinition = runtime.store.findEffectiveMetaobjectDefinitionByType(type);
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const definition: MetaobjectDefinitionRecord = existingDefinition ?? {
-    id: makeProxySyntheticGid('MetaobjectDefinition'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('MetaobjectDefinition'),
     type: template.type,
     name: template.name,
     description: null,
@@ -2146,11 +2210,12 @@ function serializeStandardMetaobjectDefinitionEnableMutation(
     updatedAt: now,
   };
 
-  store.upsertStagedMetaobjectDefinitions([definition]);
+  runtime.store.upsertStagedMetaobjectDefinitions([definition]);
   return serializeDefinitionMutationPayload(field, document, definition, []);
 }
 
 function serializeMetaobjectCreateMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
@@ -2158,37 +2223,38 @@ function serializeMetaobjectCreateMutation(
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
   const type = readStringValue(input['type']);
-  const definition = type ? store.findEffectiveMetaobjectDefinitionByType(type) : null;
+  const definition = type ? runtime.store.findEffectiveMetaobjectDefinitionByType(type) : null;
   const userErrors = buildCreateMetaobjectUserErrors(input, definition);
   if (userErrors.length > 0 || !definition) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, userErrors);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, userErrors);
   }
 
-  const createResult = buildMetaobjectFromCreateInput(input, definition);
+  const createResult = buildMetaobjectFromCreateInput(runtime, input, definition);
   if (!createResult.metaobject) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, createResult.userErrors);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, createResult.userErrors);
   }
 
-  store.upsertStagedMetaobjects([createResult.metaobject]);
-  adjustDefinitionMetaobjectsCount(createResult.metaobject.type, 1);
-  return serializeMetaobjectMutationPayload(field, document, variables, createResult.metaobject, []);
+  runtime.store.upsertStagedMetaobjects([createResult.metaobject]);
+  adjustDefinitionMetaobjectsCount(runtime, createResult.metaobject.type, 1);
+  return serializeMetaobjectMutationPayload(runtime, field, document, variables, createResult.metaobject, []);
 }
 
 function serializeMetaobjectUpdateMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readStringValue(args['id']);
-  const existingMetaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+  const existingMetaobject = id ? runtime.store.getEffectiveMetaobjectById(id) : null;
   if (!id || !existingMetaobject) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, [recordNotFoundUserError()]);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, [recordNotFoundUserError()]);
   }
 
-  const definition = store.findEffectiveMetaobjectDefinitionByType(existingMetaobject.type);
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(existingMetaobject.type);
   if (!definition) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, [
       {
         field: ['id'],
         message: `No metaobject definition exists for type "${existingMetaobject.type}"`,
@@ -2198,16 +2264,17 @@ function serializeMetaobjectUpdateMutation(
   }
 
   const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
-  const updateResult = applyMetaobjectUpdateInput(existingMetaobject, input, definition);
+  const updateResult = applyMetaobjectUpdateInput(runtime, existingMetaobject, input, definition);
   if (!updateResult.metaobject) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, updateResult.userErrors);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, updateResult.userErrors);
   }
 
-  store.upsertStagedMetaobjects([updateResult.metaobject]);
-  return serializeMetaobjectMutationPayload(field, document, variables, updateResult.metaobject, []);
+  runtime.store.upsertStagedMetaobjects([updateResult.metaobject]);
+  return serializeMetaobjectMutationPayload(runtime, field, document, variables, updateResult.metaobject, []);
 }
 
 function serializeMetaobjectUpsertMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   document: string,
@@ -2215,7 +2282,7 @@ function serializeMetaobjectUpsertMutation(
   const args = getFieldArguments(field, variables);
   const handle = readMetaobjectHandleInput(args['handle']);
   if (!handle.type) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, [
       {
         field: ['handle', 'type'],
         message: "Type can't be blank",
@@ -2224,9 +2291,9 @@ function serializeMetaobjectUpsertMutation(
     ]);
   }
 
-  const definition = store.findEffectiveMetaobjectDefinitionByType(handle.type);
+  const definition = runtime.store.findEffectiveMetaobjectDefinitionByType(handle.type);
   if (!definition) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, [
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, [
       {
         field: ['handle', 'type'],
         message: `No metaobject definition exists for type "${handle.type}"`,
@@ -2238,24 +2305,26 @@ function serializeMetaobjectUpsertMutation(
   const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
   const requestedHandle = readNonBlankStringValue(handle.handle);
   const existingMetaobject = requestedHandle
-    ? store.findEffectiveMetaobjectByHandle({ type: handle.type, handle: requestedHandle })
+    ? runtime.store.findEffectiveMetaobjectByHandle({ type: handle.type, handle: requestedHandle })
     : null;
   if (existingMetaobject) {
     const updateResult = applyMetaobjectUpdateInput(
+      runtime,
       existingMetaobject,
       hasOwnProperty(input, 'handle') ? input : { ...input, handle: existingMetaobject.handle },
       definition,
     );
     if (!updateResult.metaobject) {
-      return serializeMetaobjectMutationPayload(field, document, variables, null, updateResult.userErrors);
+      return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, updateResult.userErrors);
     }
 
-    store.upsertStagedMetaobjects([updateResult.metaobject]);
-    return serializeMetaobjectMutationPayload(field, document, variables, updateResult.metaobject, []);
+    runtime.store.upsertStagedMetaobjects([updateResult.metaobject]);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, updateResult.metaobject, []);
   }
 
   const createHandle = readNonBlankStringValue(input['handle']) ?? requestedHandle;
   const createResult = buildMetaobjectFromCreateInput(
+    runtime,
     {
       ...input,
       type: handle.type,
@@ -2264,32 +2333,33 @@ function serializeMetaobjectUpsertMutation(
     definition,
   );
   if (!createResult.metaobject) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, createResult.userErrors);
+    return serializeMetaobjectMutationPayload(runtime, field, document, variables, null, createResult.userErrors);
   }
 
-  store.upsertStagedMetaobjects([createResult.metaobject]);
-  adjustDefinitionMetaobjectsCount(createResult.metaobject.type, 1);
-  return serializeMetaobjectMutationPayload(field, document, variables, createResult.metaobject, []);
+  runtime.store.upsertStagedMetaobjects([createResult.metaobject]);
+  adjustDefinitionMetaobjectsCount(runtime, createResult.metaobject.type, 1);
+  return serializeMetaobjectMutationPayload(runtime, field, document, variables, createResult.metaobject, []);
 }
 
 function serializeMetaobjectDeleteMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const id = readStringValue(args['id']);
-  const metaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+  const metaobject = id ? runtime.store.getEffectiveMetaobjectById(id) : null;
 
   if (!id || !metaobject) {
     return serializeMetaobjectDeletePayload(field, null, [recordNotFoundUserError()]);
   }
 
-  store.deleteStagedMetaobject(id);
-  adjustDefinitionMetaobjectsCount(metaobject.type, -1);
+  runtime.store.deleteStagedMetaobject(id);
+  adjustDefinitionMetaobjectsCount(runtime, metaobject.type, -1);
   return serializeMetaobjectDeletePayload(field, id, []);
 }
 
-function readMetaobjectBulkDeleteIds(args: Record<string, unknown>): string[] {
+function readMetaobjectBulkDeleteIds(runtime: ProxyRuntimeContext, args: Record<string, unknown>): string[] {
   const directIds = Array.isArray(args['ids']) ? args['ids'] : null;
   if (directIds) {
     return directIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -2302,15 +2372,16 @@ function readMetaobjectBulkDeleteIds(args: Record<string, unknown>): string[] {
   }
 
   const type = where ? readStringValue(where['type']) : null;
-  return type ? store.listEffectiveMetaobjectsByType(type).map((metaobject) => metaobject.id) : [];
+  return type ? runtime.store.listEffectiveMetaobjectsByType(type).map((metaobject) => metaobject.id) : [];
 }
 
 function serializeMetaobjectBulkDeleteMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const ids = readMetaobjectBulkDeleteIds(args);
+  const ids = readMetaobjectBulkDeleteIds(runtime, args);
   const userErrors: MetaobjectUserError[] = [];
   const deletedCountsByType = new Map<string, number>();
 
@@ -2325,7 +2396,7 @@ function serializeMetaobjectBulkDeleteMutation(
   }
 
   for (const [index, id] of ids.entries()) {
-    const metaobject = store.getEffectiveMetaobjectById(id);
+    const metaobject = runtime.store.getEffectiveMetaobjectById(id);
     if (!metaobject) {
       userErrors.push({
         ...recordNotFoundUserError(['ids', String(index)]),
@@ -2334,17 +2405,17 @@ function serializeMetaobjectBulkDeleteMutation(
       continue;
     }
 
-    store.deleteStagedMetaobject(id);
+    runtime.store.deleteStagedMetaobject(id);
     deletedCountsByType.set(metaobject.type, (deletedCountsByType.get(metaobject.type) ?? 0) + 1);
   }
 
   for (const [type, count] of deletedCountsByType) {
-    adjustDefinitionMetaobjectsCount(type, -count);
+    adjustDefinitionMetaobjectsCount(runtime, type, -count);
   }
 
   return serializeMetaobjectBulkDeletePayload(
     field,
-    deletedCountsByType.size > 0 ? { id: makeSyntheticGid('Job'), done: true } : null,
+    deletedCountsByType.size > 0 ? { id: runtime.syntheticIdentity.makeSyntheticGid('Job'), done: true } : null,
     userErrors,
   );
 }
@@ -2403,6 +2474,7 @@ function validateMetaobjectMutationArguments(
 }
 
 export function handleMetaobjectDefinitionQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -2413,7 +2485,7 @@ export function handleMetaobjectDefinitionQuery(
     switch (field.name.value) {
       case 'metaobjectDefinition': {
         const id = readRootStringArgument(field, variables, 'id');
-        const definition = id ? store.getEffectiveMetaobjectDefinitionById(id) : null;
+        const definition = id ? runtime.store.getEffectiveMetaobjectDefinitionById(id) : null;
         data[responseKey] = definition
           ? serializeDefinitionSelection(definition, field.selectionSet?.selections ?? [], document)
           : null;
@@ -2421,20 +2493,20 @@ export function handleMetaobjectDefinitionQuery(
       }
       case 'metaobjectDefinitionByType': {
         const type = readRootStringArgument(field, variables, 'type');
-        const definition = type ? store.findEffectiveMetaobjectDefinitionByType(type) : null;
+        const definition = type ? runtime.store.findEffectiveMetaobjectDefinitionByType(type) : null;
         data[responseKey] = definition
           ? serializeDefinitionSelection(definition, field.selectionSet?.selections ?? [], document)
           : null;
         break;
       }
       case 'metaobjectDefinitions':
-        data[responseKey] = serializeMetaobjectDefinitionsConnection(field, variables, document);
+        data[responseKey] = serializeMetaobjectDefinitionsConnection(runtime, field, variables, document);
         break;
       case 'metaobject': {
         const id = readRootStringArgument(field, variables, 'id');
-        const metaobject = id ? store.getEffectiveMetaobjectById(id) : null;
+        const metaobject = id ? runtime.store.getEffectiveMetaobjectById(id) : null;
         data[responseKey] = metaobject
-          ? serializeMetaobjectSelection(metaobject, field.selectionSet?.selections ?? [], document, variables)
+          ? serializeMetaobjectSelection(runtime, metaobject, field.selectionSet?.selections ?? [], document, variables)
           : null;
         break;
       }
@@ -2444,14 +2516,14 @@ export function handleMetaobjectDefinitionQuery(
         const type = handle ? readStringValue(handle['type']) : null;
         const handleValue = handle ? readStringValue(handle['handle']) : null;
         const metaobject =
-          type && handleValue ? store.findEffectiveMetaobjectByHandle({ type, handle: handleValue }) : null;
+          type && handleValue ? runtime.store.findEffectiveMetaobjectByHandle({ type, handle: handleValue }) : null;
         data[responseKey] = metaobject
-          ? serializeMetaobjectSelection(metaobject, field.selectionSet?.selections ?? [], document, variables)
+          ? serializeMetaobjectSelection(runtime, metaobject, field.selectionSet?.selections ?? [], document, variables)
           : null;
         break;
       }
       case 'metaobjects':
-        data[responseKey] = serializeMetaobjectsConnection(field, variables, document);
+        data[responseKey] = serializeMetaobjectsConnection(runtime, field, variables, document);
         break;
       default:
         data[responseKey] = null;
@@ -2465,6 +2537,7 @@ export function handleMetaobjectDefinitionQuery(
 export const handleMetaobjectQuery = handleMetaobjectDefinitionQuery;
 
 export function handleMetaobjectDefinitionMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -2479,31 +2552,31 @@ export function handleMetaobjectDefinitionMutation(
 
     switch (field.name.value) {
       case 'metaobjectDefinitionCreate':
-        data[responseKey] = serializeMetaobjectDefinitionCreateMutation(field, variables, document);
+        data[responseKey] = serializeMetaobjectDefinitionCreateMutation(runtime, field, variables, document);
         break;
       case 'metaobjectDefinitionUpdate':
-        data[responseKey] = serializeMetaobjectDefinitionUpdateMutation(field, variables, document);
+        data[responseKey] = serializeMetaobjectDefinitionUpdateMutation(runtime, field, variables, document);
         break;
       case 'metaobjectDefinitionDelete':
-        data[responseKey] = serializeMetaobjectDefinitionDeleteMutation(field, variables);
+        data[responseKey] = serializeMetaobjectDefinitionDeleteMutation(runtime, field, variables);
         break;
       case 'standardMetaobjectDefinitionEnable':
-        data[responseKey] = serializeStandardMetaobjectDefinitionEnableMutation(field, variables, document);
+        data[responseKey] = serializeStandardMetaobjectDefinitionEnableMutation(runtime, field, variables, document);
         break;
       case 'metaobjectCreate':
-        data[responseKey] = serializeMetaobjectCreateMutation(field, variables, document);
+        data[responseKey] = serializeMetaobjectCreateMutation(runtime, field, variables, document);
         break;
       case 'metaobjectUpdate':
-        data[responseKey] = serializeMetaobjectUpdateMutation(field, variables, document);
+        data[responseKey] = serializeMetaobjectUpdateMutation(runtime, field, variables, document);
         break;
       case 'metaobjectUpsert':
-        data[responseKey] = serializeMetaobjectUpsertMutation(field, variables, document);
+        data[responseKey] = serializeMetaobjectUpsertMutation(runtime, field, variables, document);
         break;
       case 'metaobjectDelete':
-        data[responseKey] = serializeMetaobjectDeleteMutation(field, variables);
+        data[responseKey] = serializeMetaobjectDeleteMutation(runtime, field, variables);
         break;
       case 'metaobjectBulkDelete':
-        data[responseKey] = serializeMetaobjectBulkDeleteMutation(field, variables);
+        data[responseKey] = serializeMetaobjectBulkDeleteMutation(runtime, field, variables);
         break;
       default:
         data[responseKey] = null;
@@ -2561,6 +2634,7 @@ function collectMetaobjectsFromConnection(connection: unknown): MetaobjectRecord
 }
 
 export function hydrateMetaobjectDefinitionsFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
@@ -2600,11 +2674,11 @@ export function hydrateMetaobjectDefinitionsFromUpstreamResponse(
   }
 
   if (definitions.length > 0) {
-    store.upsertBaseMetaobjectDefinitions(definitions);
+    runtime.store.upsertBaseMetaobjectDefinitions(definitions);
   }
 
   if (metaobjects.length > 0) {
-    store.upsertBaseMetaobjects(metaobjects);
+    runtime.store.upsertBaseMetaobjects(metaobjects);
   }
 }
 
