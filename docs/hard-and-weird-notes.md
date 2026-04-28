@@ -949,7 +949,8 @@ Current modeled behavior:
 - the merchant-facing `product.options` slice also needs a plain `values` array derived from `optionValues[].name`; Shopify examples routinely request both in the same payload
 - live-hybrid hydration preserves upstream option ids, names, positions, and `hasVariants`
 - local option mutations are split across three real root fields, not one family name: `productOptionsCreate`, `productOptionUpdate` (singular), and `productOptionsDelete`
-- a useful first staged-mutation slice is LEAVE_AS_IS-style option list editing: insert/reorder options, rename them, and add/update/delete option values while leaving variant fanout semantics for a later increment
+- the initial staged-mutation slice was LEAVE_AS_IS-style option list editing: insert/reorder options, rename them, and add/update/delete option values while preserving only variant-backed values in `values`
+- `productOptionsCreate(variantStrategy: CREATE)` now stages the documented option-value Cartesian variant fanout locally for default-only and existing-variant products; broader plan-limit and non-default strategy edge cases still need direct live evidence before claiming every validation branch
 - `productUpdate` preserves option state unless a future option-specific mutation changes it
 - live option-mutation capture on this host settled three easy-to-guess-wrong quirks:
   - `productOptionsCreate` against a default-only product replaces the synthetic `Title` option instead of returning both the new option and `Title`
