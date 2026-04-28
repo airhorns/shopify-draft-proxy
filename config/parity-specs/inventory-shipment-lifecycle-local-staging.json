@@ -1,9 +1,8 @@
 {
   "scenarioId": "inventory-shipment-lifecycle-local-staging",
-  "operationNames": [
-    "inventoryShipment",
+  "operationNames": ["inventoryShipment", "inventoryShipmentCreateInTransit"],
+  "runtimeBackedOperationNames": [
     "inventoryShipmentCreate",
-    "inventoryShipmentCreateInTransit",
     "inventoryShipmentAddItems",
     "inventoryShipmentRemoveItems",
     "inventoryShipmentUpdateItemQuantities",

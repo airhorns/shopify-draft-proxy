@@ -5,11 +5,13 @@
     "giftCards",
     "giftCardsCount",
     "giftCardConfiguration",
-    "giftCardCreate",
     "giftCardUpdate",
     "giftCardCredit",
     "giftCardDebit",
-    "giftCardDeactivate",
+    "giftCardDeactivate"
+  ],
+  "runtimeBackedOperationNames": [
+    "giftCardCreate",
     "giftCardSendNotificationToCustomer",
     "giftCardSendNotificationToRecipient"
   ],

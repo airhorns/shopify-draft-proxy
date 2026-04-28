@@ -132,6 +132,7 @@ export const paritySpecSchema = z
   .strictObject({
     scenarioId: z.string().optional(),
     operationNames: z.array(z.string()).optional(),
+    runtimeBackedOperationNames: z.array(z.string()).optional(),
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
@@ -167,6 +168,7 @@ export type ParitySpec = z.infer<typeof paritySpecSchema>;
 
 export const conformanceScenarioOverrideSchema = z.strictObject({
   operationNames: z.array(z.string()).optional(),
+  runtimeBackedOperationNames: z.array(z.string()).optional(),
   status: z.string().optional(),
   assertionKinds: z.array(z.string()).optional(),
   captureFiles: z.array(z.string()).optional(),

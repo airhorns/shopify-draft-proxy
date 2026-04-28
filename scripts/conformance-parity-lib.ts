@@ -874,11 +874,8 @@ export function validateParityScenarioOperationNames({
   const runtimeTestBackedMutationOperationNames = declaredMutationOperationNames.filter((operationName) =>
     hasRuntimeTestEvidence(operationName, paritySpec),
   );
-  const runtimeTestBackedMutationOperationNameSet = new Set(runtimeTestBackedMutationOperationNames);
   const missingMutationOperationNames = declaredMutationOperationNames.filter(
-    (operationName) =>
-      !actualMutationOperationNameSet.has(operationName) &&
-      !runtimeTestBackedMutationOperationNameSet.has(operationName),
+    (operationName) => !actualMutationOperationNameSet.has(operationName),
   );
   const unexpectedMutationOperationNames = actualMutationOperationNames.filter(
     (operationName) => !declaredMutationOperationNameSet.has(operationName),

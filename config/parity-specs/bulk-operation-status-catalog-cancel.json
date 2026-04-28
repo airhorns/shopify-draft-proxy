@@ -5,9 +5,9 @@
     "bulkOperations",
     "currentBulkOperation",
     "bulkOperationCancel",
-    "bulkOperationRunQuery",
-    "bulkOperationRunMutation"
+    "bulkOperationRunQuery"
   ],
+  "runtimeBackedOperationNames": ["bulkOperationRunMutation"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "local-state-foundation"],
   "liveCaptureFiles": [

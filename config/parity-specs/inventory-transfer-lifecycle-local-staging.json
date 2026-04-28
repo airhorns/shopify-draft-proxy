@@ -4,14 +4,16 @@
     "inventoryTransfer",
     "inventoryTransfers",
     "inventoryTransferCreate",
+    "inventoryTransferMarkAsReadyToShip",
+    "inventoryTransferCancel",
+    "inventoryTransferDelete"
+  ],
+  "runtimeBackedOperationNames": [
     "inventoryTransferCreateAsReadyToShip",
     "inventoryTransferEdit",
     "inventoryTransferSetItems",
     "inventoryTransferRemoveItems",
-    "inventoryTransferMarkAsReadyToShip",
-    "inventoryTransferDuplicate",
-    "inventoryTransferCancel",
-    "inventoryTransferDelete"
+    "inventoryTransferDuplicate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [

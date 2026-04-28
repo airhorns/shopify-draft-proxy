@@ -19,6 +19,7 @@ const overrideConfigPath = path.join('config', 'conformance-scenario-overrides.j
 export type ConformanceScenario = {
   id: string;
   operationNames: string[];
+  runtimeBackedOperationNames: string[];
   status: string;
   assertionKinds: string[];
   captureFiles: string[];
@@ -88,6 +89,8 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
     return {
       id: scenarioId,
       operationNames: override.operationNames ?? stringArray(paritySpec.operationNames),
+      runtimeBackedOperationNames:
+        override.runtimeBackedOperationNames ?? stringArray(paritySpec.runtimeBackedOperationNames),
       status: override.status ?? (typeof paritySpec.scenarioStatus === 'string' ? paritySpec.scenarioStatus : ''),
       assertionKinds: override.assertionKinds ?? stringArray(paritySpec.assertionKinds),
       captureFiles: override.captureFiles ?? stringArray(paritySpec.liveCaptureFiles),
@@ -104,7 +107,7 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
 export function groupScenariosByOperation(scenarios: ConformanceScenario[]): Map<string, ConformanceScenario[]> {
   const result = new Map<string, ConformanceScenario[]>();
   for (const scenario of scenarios) {
-    for (const operationName of scenario.operationNames) {
+    for (const operationName of [...scenario.operationNames, ...scenario.runtimeBackedOperationNames]) {
       const scenariosForOperation = result.get(operationName) ?? [];
       scenariosForOperation.push(scenario);
       result.set(operationName, scenariosForOperation);

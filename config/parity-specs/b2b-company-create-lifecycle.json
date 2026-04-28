@@ -1,6 +1,7 @@
 {
   "scenarioId": "b2b-company-create-lifecycle",
-  "operationNames": [
+  "operationNames": ["companyCreate", "company"],
+  "runtimeBackedOperationNames": [
     "companiesDelete",
     "companyAddressDelete",
     "companyAssignCustomerAsContact",
@@ -14,7 +15,6 @@
     "companyContactRevokeRoles",
     "companyContactsDelete",
     "companyContactUpdate",
-    "companyCreate",
     "companyDelete",
     "companyLocationAssignAddress",
     "companyLocationAssignRoles",
@@ -27,8 +27,7 @@
     "companyLocationTaxSettingsUpdate",
     "companyLocationUpdate",
     "companyRevokeMainContact",
-    "companyUpdate",
-    "company"
+    "companyUpdate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "read-after-write"],

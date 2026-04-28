@@ -30,6 +30,14 @@ This endpoint group tracks Admin GraphQL app identity, app installation, app bil
 
 HAR-364 implements local staging for these roots. Supported runtime requests no longer proxy to Shopify; they append the original raw mutation request to the meta log for ordered commit replay and synthesize Shopify-like payloads from in-memory state.
 
+### Local state model
+
+The app domain uses dedicated normalized state buckets for app identity, current app installation, access scopes, app subscriptions, subscription line items, one-time purchases, usage records, and delegated-token metadata. This keeps side-effect-heavy app behavior separate from product and shop state while preserving read-after-write consistency for app installation billing/access reads.
+
+Billing and delegated-token mutation handlers synthesize local confirmation URLs and delegated tokens, then stage the derived records in memory without sending runtime writes to Shopify. Delegated-token raw values are intentionally not stored in meta-visible state; the proxy retains only a SHA-256 hash and redacted preview for local destroy lookup and inspection.
+
+Live-hybrid app installation reads can hydrate this local app model from upstream read responses. Snapshot and local-only reads return Shopify-like null/empty structures when no app installation state has been staged or hydrated.
+
 Current modeled behavior:
 
 - `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL.

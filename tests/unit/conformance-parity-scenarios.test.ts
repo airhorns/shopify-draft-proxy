@@ -77,6 +77,35 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
     ]);
   });
 
+  it('does not let runtime test evidence satisfy ready parity mutation execution claims', () => {
+    const validation = validateParityScenarioOperationNames({
+      scenario: {
+        id: 'operation-name-runtime-test-gap-example',
+        status: 'captured',
+        operationNames: ['appPurchaseOneTimeCreate', 'appSubscriptionCancel'],
+      },
+      paritySpec: {
+        runtimeTestFiles: ['tests/integration/app-billing-access-flow.test.ts'],
+      },
+      executedOperations: [
+        {
+          type: 'mutation',
+          name: 'CancelSubscription',
+          rootFields: ['appSubscriptionCancel'],
+        },
+      ],
+    });
+
+    expect(validation.runtimeTestBackedMutationOperationNames).toEqual([
+      'appPurchaseOneTimeCreate',
+      'appSubscriptionCancel',
+    ]);
+    expect(validation.missingMutationOperationNames).toEqual(['appPurchaseOneTimeCreate']);
+    expect(validation.errors).toEqual([
+      'Scenario operation-name-runtime-test-gap-example declares mutation operation(s) appPurchaseOneTimeCreate in operationNames but did not execute them. Actual executed mutation operation(s): appSubscriptionCancel.',
+    ]);
+  });
+
   it('keeps the app billing ready parity spec scoped to executed mutation roots', async () => {
     const scenario = readyScenarios.find((candidate) => candidate.id === 'app-billing-access-local-staging');
     expect(scenario).toBeDefined();

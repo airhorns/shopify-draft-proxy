@@ -1,15 +1,7 @@
 {
   "scenarioId": "metaobject-entry-lifecycle-local-staging",
-  "operationNames": [
-    "metaobjectCreate",
-    "metaobjectUpdate",
-    "metaobjectUpsert",
-    "metaobjectDelete",
-    "metaobjectBulkDelete",
-    "metaobject",
-    "metaobjectByHandle",
-    "metaobjects"
-  ],
+  "operationNames": ["metaobjectCreate", "metaobjectDelete", "metaobject", "metaobjectByHandle", "metaobjects"],
+  "runtimeBackedOperationNames": ["metaobjectUpdate", "metaobjectUpsert", "metaobjectBulkDelete"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "mutation-log-replay", "no-upstream-passthrough"],
   "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json"],

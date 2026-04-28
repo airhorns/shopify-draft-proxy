@@ -1,13 +1,15 @@
 {
   "scenarioId": "product-merchandising-mutation-guardrails",
   "operationNames": [
-    "productFeedCreate",
     "productFeedDelete",
     "productFullSync",
     "productBundleCreate",
     "productBundleUpdate",
     "combinedListingUpdate",
-    "productVariantRelationshipBulkUpdate",
+    "productVariantRelationshipBulkUpdate"
+  ],
+  "runtimeBackedOperationNames": [
+    "productFeedCreate",
     "bulkProductResourceFeedbackCreate",
     "shopResourceFeedbackCreate"
   ],
