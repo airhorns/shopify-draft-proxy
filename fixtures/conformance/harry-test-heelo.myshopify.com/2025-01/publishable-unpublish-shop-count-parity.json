@@ -1,0 +1,72 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10172067414322",
+    "title": "Hermes Product Publication Conformance 1777340869119",
+    "status": "DRAFT"
+  },
+  "seedPublications": [
+    {
+      "id": "gid://shopify/Publication/268039389490",
+      "name": "Online Store"
+    },
+    {
+      "id": "gid://shopify/Publication/268039455026",
+      "name": "Point of Sale"
+    },
+    {
+      "id": "gid://shopify/Publication/268039487794",
+      "name": "Shop"
+    },
+    {
+      "id": "gid://shopify/Publication/273897881906",
+      "name": "Shopify GraphiQL App"
+    },
+    {
+      "id": "gid://shopify/Publication/292074258738",
+      "name": "example.com"
+    }
+  ],
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Product/10172067414322",
+      "input": [
+        {
+          "publicationId": "gid://shopify/Publication/268039389490"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "publishableUnpublish": {
+          "publishable": {
+            "id": "gid://shopify/Product/10172067414322",
+            "publishedOnCurrentPublication": false,
+            "availablePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            },
+            "resourcePublicationsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "shop": {
+            "publicationCount": 5
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}
