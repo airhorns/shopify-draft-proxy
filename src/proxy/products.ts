@@ -6606,6 +6606,7 @@ function serializeCollectionField(
   collection: CollectionRecord | ProductCollectionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): unknown {
   const publicationIds = getCollectionPublicationIds(collection);
 
@@ -6655,7 +6656,10 @@ function serializeCollectionField(
     case 'image':
       return serializeCollectionImage(collection.image, field.selectionSet?.selections ?? []);
     case 'productsCount':
-      return serializeCountValue(field, listEffectiveProductsForCollection(collection.id).length);
+      return serializeCountValue(
+        field,
+        options.productsCountOverride ?? listEffectiveProductsForCollection(collection.id).length,
+      );
     case 'hasProduct': {
       const args = getFieldArguments(field, variables);
       const productId = typeof args['id'] === 'string' ? args['id'] : null;
@@ -6695,6 +6699,7 @@ function serializeCollectionObject(
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -6705,7 +6710,10 @@ function serializeCollectionObject(
         continue;
       }
 
-      Object.assign(result, serializeCollectionObject(collection, selection.selectionSet.selections, variables));
+      Object.assign(
+        result,
+        serializeCollectionObject(collection, selection.selectionSet.selections, variables, options),
+      );
       continue;
     }
 
@@ -6737,7 +6745,7 @@ function serializeCollectionObject(
         break;
       }
       default:
-        result[key] = serializeCollectionField(collection, selection, variables);
+        result[key] = serializeCollectionField(collection, selection, variables, options);
     }
   }
 
@@ -10964,6 +10972,7 @@ export function handleProductMutation(
               stagedCollection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
+              { productsCountOverride: 0 },
             ),
             userErrors: [],
           },

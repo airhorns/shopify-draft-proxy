@@ -142,14 +142,14 @@ describe('collection draft flow', () => {
         },
       },
       hasProduct: true,
-      productsCount: { count: 2, precision: 'EXACT' },
+      productsCount: { count: 0, precision: 'EXACT' },
     });
 
     const readResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query:
-          'query InitialCollectionRead($collectionId: ID!, $productId: ID!) { collection(id: $collectionId) { id products(first: 10, sortKey: MANUAL) { nodes { id title } } } product(id: $productId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } collections(first: 10, query: "product_id:gid://shopify/Product/102") { nodes { id title handle } } }',
+          'query InitialCollectionRead($collectionId: ID!, $productId: ID!) { collection(id: $collectionId) { id products(first: 10, sortKey: MANUAL) { nodes { id title } } productsCount { count precision } hasProduct(id: "gid://shopify/Product/102") } product(id: $productId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } collections(first: 10, query: "product_id:gid://shopify/Product/102") { nodes { id title handle } } }',
         variables: {
           collectionId: collection.id,
           productId: 'gid://shopify/Product/101',
@@ -166,6 +166,8 @@ describe('collection draft flow', () => {
             { id: 'gid://shopify/Product/102', title: 'Initial Bravo Hat' },
           ],
         },
+        productsCount: { count: 2, precision: 'EXACT' },
+        hasProduct: true,
       },
       product: {
         id: 'gid://shopify/Product/101',
@@ -1701,6 +1703,102 @@ describe('collection draft flow', () => {
         },
         status: 'staged',
       },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages collectionReorderProducts moves into the middle of manual collection order', async () => {
+    store.upsertBaseProducts([
+      makeBaseProduct('gid://shopify/Product/180', 'Alpha Middle Hat', 'alpha-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/181', 'Bravo Middle Hat', 'bravo-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/182', 'Charlie Middle Hat', 'charlie-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/183', 'Delta Middle Hat', 'delta-middle-hat'),
+    ]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/1980',
+        title: 'Manual Middle Hats',
+        handle: 'manual-middle-hats',
+        sortOrder: 'MANUAL',
+      },
+    ]);
+    for (const [position, productId] of [
+      'gid://shopify/Product/180',
+      'gid://shopify/Product/181',
+      'gid://shopify/Product/182',
+      'gid://shopify/Product/183',
+    ].entries()) {
+      store.replaceBaseCollectionsForProduct(productId, [
+        {
+          id: 'gid://shopify/Collection/1980',
+          productId,
+          title: 'Manual Middle Hats',
+          handle: 'manual-middle-hats',
+          sortOrder: 'MANUAL',
+          position,
+        },
+      ]);
+    }
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const reorderResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ReorderProducts($id: ID!, $moves: [MoveInput!]!) { collectionReorderProducts(id: $id, moves: $moves) { job { id done } userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Collection/1980',
+          moves: [{ id: 'gid://shopify/Product/183', newPosition: '2' }],
+        },
+      });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body.data.collectionReorderProducts).toEqual({
+      job: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+        done: false,
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query MiddleOrder($collectionId: ID!) { collection(id: $collectionId) { id products(first: 10, sortKey: MANUAL) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } productsCount { count precision } } }',
+        variables: {
+          collectionId: 'gid://shopify/Collection/1980',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.collection).toEqual({
+      id: 'gid://shopify/Collection/1980',
+      products: {
+        nodes: [
+          { id: 'gid://shopify/Product/180', title: 'Alpha Middle Hat' },
+          { id: 'gid://shopify/Product/181', title: 'Bravo Middle Hat' },
+          { id: 'gid://shopify/Product/183', title: 'Delta Middle Hat' },
+          { id: 'gid://shopify/Product/182', title: 'Charlie Middle Hat' },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+      productsCount: { count: 4, precision: 'EXACT' },
+    });
+
+    const stagedMemberships = Object.values(store.getState().stagedState.productCollections).sort(
+      (left, right) => (left.position ?? 0) - (right.position ?? 0),
+    );
+    expect(stagedMemberships.map((membership) => [membership.productId, membership.position])).toEqual([
+      ['gid://shopify/Product/180', 0],
+      ['gid://shopify/Product/181', 1],
+      ['gid://shopify/Product/183', 2],
+      ['gid://shopify/Product/182', 3],
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
