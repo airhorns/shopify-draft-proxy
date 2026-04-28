@@ -180,6 +180,7 @@ function filterArticleMetafields(
 }
 
 function readArticleImage(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreContentRecord | null,
 ): Record<string, JsonValue> | null | undefined {
@@ -202,7 +203,7 @@ function readArticleImage(
 
   return {
     __typename: 'Image',
-    id: makeProxySyntheticGid('ArticleImage'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('ArticleImage'),
     altText: readOptionalString(image, 'altText') ?? null,
     url: readOptionalString(image, 'url') ?? null,
     width: null,
@@ -707,7 +708,7 @@ function makeArticle(
   const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Article');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
-  const image = readArticleImage(input, existing);
+  const image = readArticleImage(runtime, input, existing);
   const existingMetafields = readArticleMetafields(
     existing ?? {
       id,
@@ -715,7 +716,8 @@ function makeArticle(
       data: {},
     },
   );
-  const { metafields } = upsertOwnerMetafields(
+  const { metafields } = upsertOwnerMetafields<'articleId'>(
+    runtime,
     'articleId',
     id,
     readMetafieldInputObjects(input['metafields']),
