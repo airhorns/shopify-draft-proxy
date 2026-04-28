@@ -1,0 +1,30 @@
+mutation CustomerPaymentMethodDuplicationLocalStaging(
+  $customerId: ID!
+  $billingAddress: MailingAddressInput!
+  $encryptedDuplicationData: String!
+) {
+  customerPaymentMethodCreateFromDuplicationData(
+    customerId: $customerId
+    billingAddress: $billingAddress
+    encryptedDuplicationData: $encryptedDuplicationData
+  ) {
+    customerPaymentMethod {
+      id
+      customer {
+        id
+      }
+      instrument {
+        __typename
+        ... on CustomerCreditCard {
+          lastDigits
+          maskedNumber
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

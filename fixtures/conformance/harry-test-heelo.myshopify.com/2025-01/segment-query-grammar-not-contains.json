@@ -1,0 +1,151 @@
+{
+  "capturedAt": "2026-04-28T02:59:29.798Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": [
+    {
+      "name": "segmentCreateNotContains",
+      "request": {
+        "query": "#graphql\n  mutation SegmentCreateNotContains($name: String!, $query: String!) {\n    segmentCreate(name: $name, query: $query) {\n      segment {\n        \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "name": "HAR-395 not contains har395-not-contains-1777345169268",
+          "query": "customer_tags NOT CONTAINS 'har395-not-contains-1777345169268'"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentCreate": {
+              "segment": {
+                "id": "gid://shopify/Segment/647744291122",
+                "name": "HAR-395 not contains har395-not-contains-1777345169268",
+                "query": "customer_tags NOT CONTAINS 'har395-not-contains-1777345169268'",
+                "creationDate": "2026-04-28T02:59:29Z",
+                "lastEditDate": "2026-04-28T02:59:29Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentReadCreated",
+      "request": {
+        "query": "#graphql\n  query SegmentQueryGrammarRead($id: ID!) {\n    segment(id: $id) {\n      \n  id\n  name\n  query\n  creationDate\n  lastEditDate\n\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/647744291122"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segment": {
+              "id": "gid://shopify/Segment/647744291122",
+              "name": "HAR-395 not contains har395-not-contains-1777345169268",
+              "query": "customer_tags NOT CONTAINS 'har395-not-contains-1777345169268'",
+              "creationDate": "2026-04-28T02:59:29Z",
+              "lastEditDate": "2026-04-28T02:59:29Z"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "customerSegmentMembersQueryCreateNotContains",
+      "request": {
+        "query": "#graphql\n  mutation CustomerSegmentMembersQueryCreate($input: CustomerSegmentMembersQueryInput!) {\n    customerSegmentMembersQueryCreate(input: $input) {\n      customerSegmentMembersQuery {\n        id\n        currentCount\n        done\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "query": "customer_tags NOT CONTAINS 'har395-not-contains-1777345169268'"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerSegmentMembersQueryCreate": {
+              "customerSegmentMembersQuery": {
+                "id": "gid://shopify/CustomerSegmentMembersQuery/464a19f4-42ae-11f1-bd88-96ac15207945",
+                "currentCount": 0,
+                "done": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "segmentDeleteCleanup",
+      "request": {
+        "query": "#graphql\n  mutation SegmentDelete($id: ID!) {\n    segmentDelete(id: $id) {\n      deletedSegmentId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Segment/647744291122"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "segmentDelete": {
+              "deletedSegmentId": "gid://shopify/Segment/647744291122",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Live Shopify evidence that customer segment grammar accepts `customer_tags NOT CONTAINS 'tag'` for segmentCreate and customerSegmentMembersQueryCreate.",
+    "The segment created for this capture is deleted in the cleanup case. The member-query job is left as Shopify async query state and is not a store resource with a delete mutation."
+  ]
+}

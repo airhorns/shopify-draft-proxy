@@ -1,0 +1,25 @@
+query B2BCompanyCreateLifecycleRead($companyId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    externalId
+    contactsCount {
+      count
+    }
+    locationsCount {
+      count
+    }
+    locations(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+    contactRoles(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}

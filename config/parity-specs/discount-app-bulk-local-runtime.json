@@ -1,0 +1,108 @@
+{
+  "scenarioId": "discount-app-bulk-local-runtime",
+  "operationNames": [
+    "discountCodeAppCreate",
+    "discountCodeAppUpdate",
+    "discountAutomaticAppCreate",
+    "discountAutomaticAppUpdate",
+    "discountCodeBulkActivate",
+    "discountCodeBulkDeactivate",
+    "discountCodeBulkDelete",
+    "discountAutomaticBulkDelete",
+    "discountRedeemCodeBulkAdd",
+    "discountCodeRedeemCodeBulkDelete",
+    "discountNode",
+    "codeDiscountNode",
+    "codeDiscountNodeByCode",
+    "automaticDiscountNode",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "async-job-payload",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "function-metadata-only"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/discount-app-bulk-local-runtime.json"],
+  "runtimeTestFiles": ["tests/integration/discount-app-bulk-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discount-app-bulk-local-runtime-create.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-discount-create-payloads",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "app-discount-update-payloads",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-app-bulk-local-runtime-update.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeAppCreate.codeAppDiscount.discountId"
+            },
+            "codeInput": {
+              "fromCapturePath": "$.update.variables.codeInput"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            },
+            "automaticInput": {
+              "fromCapturePath": "$.update.variables.automaticInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-bulk-job-payloads",
+        "capturePath": "$.bulkJobs.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-bulk-local-runtime-jobs.graphql",
+          "variablesCapturePath": "$.bulkJobs.variables"
+        }
+      },
+      {
+        "name": "redeem-code-bulk-payloads",
+        "capturePath": "$.redeemCodeBulk.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-redeem-code-bulk-local-runtime.graphql",
+          "variablesCapturePath": "$.redeemCodeBulk.variables"
+        }
+      },
+      {
+        "name": "app-and-bulk-downstream-reads",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discount-app-bulk-local-runtime-read.graphql",
+          "variables": {
+            "codeId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeAppCreate.codeAppDiscount.discountId"
+            },
+            "automaticId": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            },
+            "deletedCodeId": "gid://shopify/DiscountCodeNode/366002",
+            "deletedAutomaticId": "gid://shopify/DiscountAutomaticNode/366003",
+            "redeemDiscountId": "gid://shopify/DiscountCodeNode/366004",
+            "removedCode": "HAR366REDEEM"
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-366 provides executable local-runtime parity for app-managed discount create/update and discount bulk job staging without runtime Shopify writes. The fixture seeds explicit Shopify Function metadata as the app-discount ownership evidence; live app-discount success capture remains blocked because the checked-in disposable conformance app has no discount Function extension. Bulk selectors are also covered by runtime tests for search selectors and broad destructive refusals."
+}
