@@ -1,0 +1,10 @@
+query BackupRegionRead {
+  backupRegion {
+    __typename
+    id
+    name
+    ... on MarketRegionCountry {
+      code
+    }
+  }
+}

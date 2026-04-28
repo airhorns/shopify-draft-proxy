@@ -3,6 +3,8 @@ import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
   AbandonmentRecord,
+  AdminPlatformFlowSignatureRecord,
+  AdminPlatformFlowTriggerRecord,
   AppInstallationRecord,
   AppOneTimePurchaseRecord,
   AppRecord,
@@ -13,6 +15,7 @@ import type {
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
   B2BCompanyRecord,
+  BackupRegionRecord,
   BulkOperationRecord,
   BusinessEntityRecord,
   CalculatedOrderRecord,
@@ -211,6 +214,11 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   abandonedCheckoutOrder: [],
   abandonments: {},
   abandonmentOrder: [],
+  backupRegion: null,
+  adminPlatformFlowSignatures: {},
+  adminPlatformFlowSignatureOrder: [],
+  adminPlatformFlowTriggers: {},
+  adminPlatformFlowTriggerOrder: [],
   productCollections: {},
   productMedia: {},
   files: {},
@@ -706,6 +714,31 @@ export class InMemoryStore {
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
+  }
+
+  getEffectiveBackupRegion(): BackupRegionRecord | null {
+    return structuredClone(this.stagedState.backupRegion ?? this.baseState.backupRegion ?? null);
+  }
+
+  stageBackupRegion(region: BackupRegionRecord): BackupRegionRecord {
+    this.stagedState.backupRegion = structuredClone(region);
+    return structuredClone(region);
+  }
+
+  stageAdminPlatformFlowSignature(signature: AdminPlatformFlowSignatureRecord): AdminPlatformFlowSignatureRecord {
+    this.stagedState.adminPlatformFlowSignatures[signature.id] = structuredClone(signature);
+    if (!this.stagedState.adminPlatformFlowSignatureOrder.includes(signature.id)) {
+      this.stagedState.adminPlatformFlowSignatureOrder.push(signature.id);
+    }
+    return structuredClone(signature);
+  }
+
+  stageAdminPlatformFlowTrigger(trigger: AdminPlatformFlowTriggerRecord): AdminPlatformFlowTriggerRecord {
+    this.stagedState.adminPlatformFlowTriggers[trigger.id] = structuredClone(trigger);
+    if (!this.stagedState.adminPlatformFlowTriggerOrder.includes(trigger.id)) {
+      this.stagedState.adminPlatformFlowTriggerOrder.push(trigger.id);
+    }
+    return structuredClone(trigger);
   }
 
   stageUploadContent(keys: string[], content: string): void {
@@ -3087,6 +3120,16 @@ export class InMemoryStore {
       this.stagedState.webPresenceOrder.push(webPresence.id);
     }
     return structuredClone(webPresence);
+  }
+
+  stageDeleteWebPresence(webPresenceId: string): void {
+    delete this.stagedState.webPresences[webPresenceId];
+    this.stagedState.webPresenceOrder = this.stagedState.webPresenceOrder.filter((id) => id !== webPresenceId);
+    this.stagedState.deletedWebPresenceIds[webPresenceId] = true;
+  }
+
+  isWebPresenceDeleted(webPresenceId: string): boolean {
+    return this.stagedState.deletedWebPresenceIds[webPresenceId] === true;
   }
 
   getEffectiveWebPresenceRecordById(webPresenceId: string): WebPresenceRecord | null {

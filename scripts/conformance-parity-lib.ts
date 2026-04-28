@@ -27,7 +27,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAdminPlatformMutation, handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleAppMutation, handleAppQuery, hydrateAppsFromUpstreamResponse } from '../src/proxy/apps.js';
 import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
@@ -1147,6 +1147,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleFunctionMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'admin-platform') {
+    const result = handleAdminPlatformMutation(document, variables);
+    if (!result) {
+      throw new Error(`Admin platform parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (result.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        stagedResourceIds: result.stagedResourceIds ?? [],
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: result.notes ?? 'Staged locally in the conformance parity proxy harness.',
+      });
+    }
+
+    return {
+      status: 200,
+      body: result.response,
     };
   }
 
