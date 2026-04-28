@@ -980,6 +980,26 @@ export const onlineStoreContentRecordSchema = z.strictObject({
 });
 export type OnlineStoreContentRecord = z.infer<typeof onlineStoreContentRecordSchema>;
 
+export const onlineStoreIntegrationKindSchema = z.enum([
+  'theme',
+  'scriptTag',
+  'webPixel',
+  'serverPixel',
+  'storefrontAccessToken',
+  'mobilePlatformApplication',
+]);
+export type OnlineStoreIntegrationKind = z.infer<typeof onlineStoreIntegrationKindSchema>;
+
+export const onlineStoreIntegrationRecordSchema = z.strictObject({
+  id: z.string(),
+  kind: onlineStoreIntegrationKindSchema,
+  cursor: nullableStringSchema.optional(),
+  createdAt: nullableStringSchema.optional(),
+  updatedAt: nullableStringSchema.optional(),
+  data: z.record(z.string(), jsonValueSchema),
+});
+export type OnlineStoreIntegrationRecord = z.infer<typeof onlineStoreIntegrationRecordSchema>;
+
 export const savedSearchFilterRecordSchema = z.strictObject({
   key: z.string(),
   value: z.string(),
@@ -2438,6 +2458,18 @@ export const stateSnapshotSchema = z.strictObject({
   onlineStorePageOrder: z.array(z.string()).default([]),
   onlineStoreComments: z.record(z.string(), onlineStoreContentRecordSchema).default({}),
   onlineStoreCommentOrder: z.array(z.string()).default([]),
+  onlineStoreThemes: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreThemeOrder: z.array(z.string()).default([]),
+  onlineStoreScriptTags: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreScriptTagOrder: z.array(z.string()).default([]),
+  onlineStoreWebPixels: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreWebPixelOrder: z.array(z.string()).default([]),
+  onlineStoreServerPixels: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreServerPixelOrder: z.array(z.string()).default([]),
+  onlineStoreStorefrontAccessTokens: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreStorefrontAccessTokenOrder: z.array(z.string()).default([]),
+  onlineStoreMobilePlatformApplications: z.record(z.string(), onlineStoreIntegrationRecordSchema).default({}),
+  onlineStoreMobilePlatformApplicationOrder: z.array(z.string()).default([]),
   savedSearches: z.record(z.string(), savedSearchRecordSchema).default({}),
   savedSearchOrder: z.array(z.string()).default([]),
   bulkOperations: z.record(z.string(), bulkOperationRecordSchema).default({}),
@@ -2522,6 +2554,12 @@ export const stateSnapshotSchema = z.strictObject({
   deletedOnlineStoreBlogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedOnlineStorePageIds: z.record(z.string(), z.literal(true)).default({}),
   deletedOnlineStoreCommentIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreThemeIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreScriptTagIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreWebPixelIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreServerPixelIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreStorefrontAccessTokenIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedOnlineStoreMobilePlatformApplicationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedSavedSearchIds: z.record(z.string(), z.literal(true)).default({}),
   deletedDiscountIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),

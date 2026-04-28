@@ -2509,80 +2509,80 @@
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["theme", "Theme"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured theme detail/null behavior, role/state fields, and a local theme asset model before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: snapshot/local detail reads return staged or hydrated OnlineStoreTheme records with local theme-file connection projection and null for missing IDs."
   },
   {
     "name": "themes",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themes", "Themes"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured theme catalog pagination, main/unpublished roles, and empty-store behavior before overlay-read support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: supports snapshot/local Theme catalog reads, role/name filters, reverse ordering, cursor windows, and staged publish/update/delete visibility."
   },
   {
     "name": "scriptTag",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["scriptTag", "ScriptTag"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured script tag detail/null behavior and a local storefront script model before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: snapshot/local detail reads return staged or hydrated ScriptTag records and null for missing IDs without loading storefront scripts."
   },
   {
     "name": "scriptTags",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["scriptTags", "ScriptTags"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured script tag catalog pagination/filtering and empty-store behavior before overlay-read support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: supports snapshot/local ScriptTag catalog reads, simple query/src filters, reverse ordering, cursor windows, and staged lifecycle visibility."
   },
   {
     "name": "webPixel",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPixel", "WebPixel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured pixel detail/null behavior and a local pixel configuration model before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: snapshot/local reads return the current staged WebPixel configuration or null when absent; no tracking code is activated at runtime."
   },
   {
     "name": "serverPixel",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["serverPixel", "ServerPixel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured server pixel detail/null behavior, app-scope constraints, and a local pixel configuration model before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: snapshot/local reads return the current staged ServerPixel configuration or null when absent; EventBridge/PubSub endpoints are stored only as inert local configuration."
   },
   {
     "name": "mobilePlatformApplication",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["mobilePlatformApplication", "MobilePlatformApplication"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured mobile platform application detail/null behavior and a local integration settings model before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: snapshot/local detail reads return staged MobilePlatformApplication union records and null for missing IDs."
   },
   {
     "name": "mobilePlatformApplications",
     "type": "query",
     "domain": "online-store",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["mobilePlatformApplications", "MobilePlatformApplications"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 online-store read gap. Requires captured mobile platform application catalog pagination and empty-store behavior before overlay-read support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: supports snapshot/local MobilePlatformApplication catalog reads with union projection and staged lifecycle visibility."
   },
   {
     "name": "menuCreate",
@@ -2619,220 +2619,220 @@
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeCreate", "ThemeCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme mutation gap. Theme creation is externally visible; keep unsupported until a local theme model, validation capture, and downstream read behavior exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themeUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeUpdate", "ThemeUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme mutation gap. Future support must stage theme metadata changes locally and overlay theme/themes reads without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themeDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeDelete", "ThemeDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme mutation gap. Future support must model deletion safety, validation errors, and downstream null/catalog effects locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themePublish",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themePublish", "ThemePublish"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme publish gap. Publishing changes storefront presentation and must remain unsupported until explicit local staging safety and conformance evidence exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themeFilesCopy",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeFilesCopy", "ThemeFilesCopy"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme file mutation gap. Future support must model local theme asset copies, userErrors, and downstream file reads before this root is supported."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themeFilesUpsert",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeFilesUpsert", "ThemeFilesUpsert"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme file mutation gap. Future support must stage local theme asset writes and preserve raw mutation replay order without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "themeFilesDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["themeFilesDelete", "ThemeFilesDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 theme file mutation gap. Future support must stage asset deletion/tombstones and downstream read effects locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "scriptTagCreate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["scriptTagCreate", "ScriptTagCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 script tag mutation gap. Script tags alter storefront script execution; keep unsupported until local staging and downstream scriptTag/scriptTags reads are modeled."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "scriptTagUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["scriptTagUpdate", "ScriptTagUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 script tag mutation gap. Future support must stage updates and validation branches locally before this root is supported."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "scriptTagDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["scriptTagDelete", "ScriptTagDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 script tag mutation gap. Future support must stage deletion and downstream catalog/detail effects locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "webPixelCreate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPixelCreate", "WebPixelCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 web pixel mutation gap. Pixel creation has externally visible tracking side effects; keep unsupported until local staging safety and read-after-write evidence exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "webPixelUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPixelUpdate", "WebPixelUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 web pixel mutation gap. Future support must stage configuration updates locally and overlay webPixel reads without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "webPixelDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPixelDelete", "WebPixelDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 web pixel mutation gap. Future support must stage deletion and downstream null behavior locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "serverPixelCreate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["serverPixelCreate", "ServerPixelCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 server pixel mutation gap. Pixel creation has externally visible tracking side effects; keep unsupported until local staging safety and conformance evidence exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "serverPixelDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["serverPixelDelete", "ServerPixelDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 server pixel mutation gap. Future support must stage deletion and downstream null behavior locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "eventBridgeServerPixelUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["eventBridgeServerPixelUpdate", "EventBridgeServerPixelUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 server pixel integration gap. EventBridge updates must remain unsupported until the proxy can model app-specific server pixel configuration and side effects locally."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "pubSubServerPixelUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["pubSubServerPixelUpdate", "PubSubServerPixelUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 server pixel integration gap. Pub/Sub updates must remain unsupported until local server pixel configuration staging and read-after-write effects are modeled."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "storefrontAccessTokenCreate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["storefrontAccessTokenCreate", "StorefrontAccessTokenCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 storefront token mutation gap. Token creation has credential side effects; keep unsupported until explicit safety, validation capture, and local commit replay semantics exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "storefrontAccessTokenDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["storefrontAccessTokenDelete", "StorefrontAccessTokenDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 storefront token mutation gap. Token deletion has credential side effects; keep unsupported until local token lifecycle modeling and downstream evidence exist."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "mobilePlatformApplicationCreate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["mobilePlatformApplicationCreate", "MobilePlatformApplicationCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage app integration settings locally and preserve raw commit replay order before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "mobilePlatformApplicationUpdate",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["mobilePlatformApplicationUpdate", "MobilePlatformApplicationUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage updates and downstream reads locally without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "mobilePlatformApplicationDelete",
     "type": "mutation",
     "domain": "online-store",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["mobilePlatformApplicationDelete", "MobilePlatformApplicationDelete"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-304 mobile platform application mutation gap. Future support must stage deletion and downstream null/catalog behavior locally before support."
+    "runtimeTests": ["tests/integration/online-store-integrations-flow.test.ts"],
+    "supportNotes": "HAR-372: stages this online-store presentation/integration mutation locally with downstream read-after-write effects, sensitive values redacted from debug/meta state, and no runtime Shopify write or external activation."
   },
   {
     "name": "privacySettings",
