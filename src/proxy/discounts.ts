@@ -26,6 +26,7 @@ import type {
   DiscountMinimumRequirementRecord,
   DiscountRecord,
   DiscountValueRecord,
+  ShopifyFunctionRecord,
 } from '../state/types.js';
 import {
   getFieldResponseKey,
@@ -135,6 +136,20 @@ const discountMutationArgumentTypes: Record<string, Record<string, string>> = {
   },
   discountRedeemCodeBulkDelete: {
     discountId: 'ID!',
+  },
+  discountCodeAppCreate: {
+    codeAppDiscount: 'DiscountCodeAppInput!',
+  },
+  discountCodeAppUpdate: {
+    codeAppDiscount: 'DiscountCodeAppInput!',
+    id: 'ID!',
+  },
+  discountAutomaticAppCreate: {
+    automaticAppDiscount: 'DiscountAutomaticAppInput!',
+  },
+  discountAutomaticAppUpdate: {
+    automaticAppDiscount: 'DiscountAutomaticAppInput!',
+    id: 'ID!',
   },
 };
 
@@ -512,8 +527,20 @@ function serializeDiscountBulkOperation(
       case 'failedCount':
         result[key] = operation.failedCount ?? 0;
         break;
+      case 'createdAt':
+        result[key] = operation.createdAt;
+        break;
+      case 'completedAt':
+        result[key] = operation.completedAt ?? null;
+        break;
+      case 'discountCode':
+      case 'discount':
+        result[key] = operation.discountId
+          ? serializeDiscountOwnerNodeById(operation.discountId, selection, {}, { errors: [], path: [key] })
+          : null;
+        break;
       case 'query':
-        result[key] = null;
+        result[key] = operation.query ?? null;
         break;
       default:
         result[key] = null;
@@ -536,6 +563,36 @@ function serializeDiscountBulkMutationPayload(
       case 'job':
         payload[key] =
           operation && userErrors.length === 0 ? serializeDiscountBulkOperation(operation, selection) : null;
+        break;
+      case 'userErrors':
+        payload[key] = serializeDiscountMutationUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeAppDiscountMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  discount: DiscountRecord | null,
+  userErrors: DiscountMutationUserError[],
+  payloadFieldName: 'codeAppDiscount' | 'automaticAppDiscount',
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const context: DiscountSerializationContext = { errors: [], path: [getFieldResponseKey(field)] };
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'codeAppDiscount':
+      case 'automaticAppDiscount':
+        payload[key] =
+          selection.name.value === payloadFieldName && discount && userErrors.length === 0
+            ? serializeDiscountUnion(discount, selection, variables, { ...context, path: [...context.path, key] })
+            : null;
         break;
       case 'userErrors':
         payload[key] = serializeDiscountMutationUserErrors(selection, userErrors);
@@ -960,10 +1017,13 @@ function buildDiscountBulkOperation(
   values: {
     id: string;
     typeName: string;
+    query?: string | null;
     codesCount?: number;
     importedCount?: number;
     failedCount?: number;
     redeemCodeIds?: string[];
+    discountIds?: string[];
+    selector?: Record<string, JsonValue>;
   },
 ): DiscountBulkOperationRecord {
   const now = makeSyntheticTimestamp();
@@ -976,10 +1036,13 @@ function buildDiscountBulkOperation(
     done: true,
     createdAt: now,
     completedAt: now,
+    ...(values.query === undefined ? {} : { query: values.query }),
     ...(values.codesCount === undefined ? {} : { codesCount: values.codesCount }),
     ...(values.importedCount === undefined ? {} : { importedCount: values.importedCount }),
     ...(values.failedCount === undefined ? {} : { failedCount: values.failedCount }),
     ...(values.redeemCodeIds === undefined ? {} : { redeemCodeIds: values.redeemCodeIds }),
+    ...(values.discountIds === undefined ? {} : { discountIds: values.discountIds }),
+    ...(values.selector === undefined ? {} : { selector: values.selector }),
   };
 }
 
@@ -1038,6 +1101,277 @@ function stageRedeemCodeBulkDelete(discountId: string, redeemCodeIds: string[]):
       redeemCodeIds,
     }),
   );
+}
+
+function readDiscountClasses(input: Record<string, unknown> | null, fallback: string[] = ['ORDER']): string[] {
+  const classes = readStringArray(input?.['discountClasses']);
+  return classes.length > 0 ? classes : fallback;
+}
+
+function readAppFunctionReference(input: Record<string, unknown> | null): {
+  field: string[];
+  value: string | null;
+  shopifyFunction: ShopifyFunctionRecord | null;
+} {
+  const functionId = readString(input?.['functionId']);
+  const functionHandle = readString(input?.['functionHandle']);
+  const lookup = functionId ?? functionHandle;
+  const field = functionId ? ['functionId'] : ['functionHandle'];
+  if (!lookup) {
+    return { field: ['functionId'], value: null, shopifyFunction: null };
+  }
+
+  const shopifyFunction =
+    store
+      .listEffectiveShopifyFunctions()
+      .find(
+        (candidate) =>
+          candidate.id === lookup ||
+          candidate.handle === lookup ||
+          candidate.id.endsWith(`/${lookup}`) ||
+          (functionHandle !== null && candidate.handle === functionHandle),
+      ) ?? null;
+
+  return { field, value: lookup, shopifyFunction };
+}
+
+function validateAppFunctionEvidence(input: Record<string, unknown> | null): DiscountMutationUserError[] | null {
+  const functionReference = readAppFunctionReference(input);
+  if (!functionReference.value) {
+    return [
+      {
+        field: functionReference.field,
+        message: 'Function ID or function handle is required for local app-discount staging.',
+        code: 'BLANK',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  if (!functionReference.shopifyFunction) {
+    return [
+      {
+        field: functionReference.field,
+        message: `Function ${functionReference.value} not found. Ensure that it is released in the current app, and that the app is installed.`,
+        code: 'INVALID',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  return null;
+}
+
+function validateDiscountAppCreate(
+  input: Record<string, unknown> | null,
+  inputFieldName: string,
+  isCodeDiscount: boolean,
+): DiscountMutationUserError[] | null {
+  if (!input) {
+    return [
+      {
+        field: [inputFieldName],
+        message: 'Input is required',
+        code: 'BLANK',
+        extraInfo: null,
+      },
+    ];
+  }
+
+  const errors: DiscountMutationUserError[] = [];
+  const title = readString(input['title']);
+  if (!title || title.trim().length === 0) {
+    errors.push({
+      field: [inputFieldName, 'title'],
+      message: "Title can't be blank",
+      code: 'BLANK',
+      extraInfo: null,
+    });
+  }
+
+  if (isCodeDiscount) {
+    const code = readString(input['code']);
+    if (!code || code.trim().length === 0) {
+      errors.push({
+        field: [inputFieldName, 'code'],
+        message: "Code can't be blank",
+        code: 'BLANK',
+        extraInfo: null,
+      });
+    }
+  }
+
+  const functionErrors = validateAppFunctionEvidence(input);
+  if (functionErrors) {
+    errors.push(...functionErrors.map((error) => ({ ...error, field: [inputFieldName, ...(error.field ?? [])] })));
+  }
+
+  if (hasDateRangeError(input)) {
+    errors.push({
+      field: [inputFieldName, 'endsAt'],
+      message: 'End date must be after start date',
+      code: 'INVALID',
+      extraInfo: null,
+    });
+  }
+
+  return errors.length > 0 ? errors : null;
+}
+
+function findAppDiscountById(id: unknown, typeName: string): DiscountRecord | null {
+  return typeof id === 'string'
+    ? (store.listEffectiveDiscounts().find((discount) => discount.id === id && discount.typeName === typeName) ?? null)
+    : null;
+}
+
+function validateKnownAppDiscountId(id: unknown, typeName: string): DiscountMutationUserError[] | null {
+  if (findAppDiscountById(id, typeName)) {
+    return null;
+  }
+
+  return [
+    {
+      field: ['id'],
+      message: 'Discount does not exist',
+      code: null,
+      extraInfo: null,
+    },
+  ];
+}
+
+function normalizeDiscountMetafields(
+  input: Record<string, unknown> | null,
+  _ownerId: string,
+  existing: DiscountMetafieldRecord[] = [],
+): DiscountMetafieldRecord[] {
+  if (!ownsKey(input ?? {}, 'metafields')) {
+    return structuredClone(existing);
+  }
+
+  const metafields = Array.isArray(input?.['metafields']) ? input['metafields'] : [];
+  return metafields
+    .map((item): DiscountMetafieldRecord | null => {
+      const metafield = readRecord(item);
+      const namespace = readString(metafield?.['namespace']);
+      const key = readString(metafield?.['key']);
+      if (!namespace || !key) {
+        return null;
+      }
+
+      const type = readString(metafield?.['type']);
+      const value = readString(metafield?.['value']);
+      return {
+        id: makeProxySyntheticGid('Metafield'),
+        namespace,
+        key,
+        type: type ?? 'single_line_text_field',
+        value: value ?? '',
+        compareDigest: null,
+        createdAt: makeSyntheticTimestamp(),
+        updatedAt: makeSyntheticTimestamp(),
+        ownerType: 'DISCOUNT',
+      };
+    })
+    .filter((metafield): metafield is DiscountMetafieldRecord => metafield !== null);
+}
+
+function makeAppDiscountType(
+  shopifyFunction: ShopifyFunctionRecord,
+  functionReference: string,
+  discountClasses: string[],
+): Record<string, JsonValue> {
+  return {
+    __typename: 'AppDiscountType',
+    appKey: shopifyFunction.appKey ?? null,
+    title: shopifyFunction.title ?? 'Local app discount',
+    description: shopifyFunction.description ?? null,
+    functionId: functionReference,
+    discountClass: discountClasses[0] ?? 'ORDER',
+    targetType: null,
+    app: shopifyFunction.app ?? null,
+  };
+}
+
+function buildAppDiscount(
+  input: Record<string, unknown>,
+  isCodeDiscount: boolean,
+  existing: DiscountRecord | null = null,
+): DiscountRecord {
+  const now = makeSyntheticTimestamp();
+  const id = existing?.id ?? makeProxySyntheticGid(isCodeDiscount ? 'DiscountCodeNode' : 'DiscountAutomaticNode');
+  const functionReference = readAppFunctionReference(input);
+  if (!functionReference.value || !functionReference.shopifyFunction) {
+    throw new Error('Cannot build app discount without Function evidence');
+  }
+
+  const discountClasses = readDiscountClasses(input, existing?.discountClasses ?? ['ORDER']);
+  const code = isCodeDiscount ? readDiscountCode(input, existing?.codes[0] ?? null) : null;
+  const startsAt = readNullableString(input['startsAt'], existing?.startsAt ?? now);
+  const endsAt = readNullableString(input['endsAt'], existing?.endsAt ?? null);
+  const discount: DiscountRecord = {
+    id,
+    typeName: isCodeDiscount ? 'DiscountCodeApp' : 'DiscountAutomaticApp',
+    method: isCodeDiscount ? 'code' : 'automatic',
+    title: readDiscountTitle(input, existing?.title ?? null),
+    status: existing?.status ?? null,
+    summary: existing?.summary ?? null,
+    startsAt,
+    endsAt,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    asyncUsageCount: existing?.asyncUsageCount ?? 0,
+    usageLimit: typeof input['usageLimit'] === 'number' ? input['usageLimit'] : (existing?.usageLimit ?? null),
+    discountClasses,
+    combinesWith: readCombinesWith(input['combinesWith'], existing?.combinesWith),
+    codes: code ? [code] : [],
+    redeemCodes: code
+      ? [
+          {
+            id: existing?.redeemCodes?.[0]?.id ?? makeProxySyntheticGid('DiscountRedeemCode'),
+            code,
+            asyncUsageCount: existing?.redeemCodes?.[0]?.asyncUsageCount ?? 0,
+          },
+        ]
+      : [],
+    context: ownsKey(input, 'context') ? readDiscountContext(input['context'], existing?.context) : existing?.context,
+    customerGets: existing?.customerGets ?? null,
+    minimumRequirement: existing?.minimumRequirement ?? null,
+    metafields: normalizeDiscountMetafields(input, id, existing?.metafields ?? []),
+    events: existing?.events ? structuredClone(existing.events) : [],
+    discountType: 'app',
+    appId: functionReference.shopifyFunction.appKey ?? null,
+    appDiscountType: makeAppDiscountType(functionReference.shopifyFunction, functionReference.value, discountClasses),
+    discountId: id,
+    errorHistory: null,
+    appliesOncePerCustomer: isCodeDiscount
+      ? readBoolean(input['appliesOncePerCustomer'], existing?.appliesOncePerCustomer ?? false)
+      : (existing?.appliesOncePerCustomer ?? null),
+    appliesOnOneTimePurchase: readBoolean(
+      input['appliesOnOneTimePurchase'],
+      existing?.appliesOnOneTimePurchase ?? true,
+    ),
+    appliesOnSubscription: readBoolean(input['appliesOnSubscription'], existing?.appliesOnSubscription ?? false),
+    recurringCycleLimit: readInteger(input['recurringCycleLimit'], existing?.recurringCycleLimit ?? 1),
+  };
+
+  discount.status = computeDiscountStatus(discount, now);
+  return discount;
+}
+
+function stageCodeAppCreate(input: Record<string, unknown>): DiscountRecord {
+  return store.stageCreateDiscount(buildAppDiscount(input, true));
+}
+
+function stageCodeAppUpdate(id: string, input: Record<string, unknown>): DiscountRecord {
+  return store.stageCreateDiscount(buildAppDiscount(input, true, findAppDiscountById(id, 'DiscountCodeApp')));
+}
+
+function stageAutomaticAppCreate(input: Record<string, unknown>): DiscountRecord {
+  return store.stageCreateDiscount(buildAppDiscount(input, false));
+}
+
+function stageAutomaticAppUpdate(id: string, input: Record<string, unknown>): DiscountRecord {
+  return store.stageCreateDiscount(buildAppDiscount(input, false, findAppDiscountById(id, 'DiscountAutomaticApp')));
 }
 
 function normalizeDiscountCombinesWith(
@@ -1468,6 +1802,135 @@ function validateRedeemCodeBulkDelete(args: Record<string, unknown>): DiscountMu
   }
 
   return null;
+}
+
+type DiscountBulkSelectorResolution = {
+  targets: DiscountRecord[];
+  query: string | null;
+  selector: Record<string, JsonValue>;
+  userErrors: DiscountMutationUserError[] | null;
+};
+
+function resolveDiscountBulkSelector(
+  args: Record<string, unknown>,
+  method: DiscountRecord['method'],
+): DiscountBulkSelectorResolution {
+  const ids = readStringArray(args['ids']);
+  if (ids.length > 0) {
+    const idSet = new Set(ids);
+    const targets = store
+      .listEffectiveDiscounts()
+      .filter((discount) => discount.method === method && idSet.has(discount.id));
+    const foundIds = new Set(targets.map((discount) => discount.id));
+    const missingId = ids.find((id) => !foundIds.has(id));
+    if (missingId) {
+      return {
+        targets: [],
+        query: null,
+        selector: { ids },
+        userErrors: [
+          {
+            field: ['ids'],
+            message: `Discount ${missingId} does not exist`,
+            code: null,
+            extraInfo: null,
+          },
+        ],
+      };
+    }
+
+    return { targets, query: null, selector: { ids }, userErrors: null };
+  }
+
+  const search = readString(args['search']);
+  if (search !== null) {
+    const candidates = store.listEffectiveDiscounts().filter((discount) => discount.method === method);
+    return {
+      targets: filterDiscountsByQuery(candidates, search),
+      query: search,
+      selector: { search },
+      userErrors: null,
+    };
+  }
+
+  const savedSearchId = readString(args['savedSearchId']);
+  if (savedSearchId !== null) {
+    const savedSearch = store.getEffectiveSavedSearchById(savedSearchId);
+    if (!savedSearch) {
+      return {
+        targets: [],
+        query: null,
+        selector: { savedSearchId },
+        userErrors: [
+          {
+            field: ['savedSearchId'],
+            message: 'Saved search does not exist',
+            code: null,
+            extraInfo: null,
+          },
+        ],
+      };
+    }
+
+    const candidates = store.listEffectiveDiscounts().filter((discount) => discount.method === method);
+    return {
+      targets: filterDiscountsByQuery(candidates, savedSearch.query),
+      query: savedSearch.query,
+      selector: { savedSearchId, query: savedSearch.query },
+      userErrors: null,
+    };
+  }
+
+  return { targets: [], query: null, selector: {}, userErrors: null };
+}
+
+function stageDiscountBulkMutation(
+  operation: Extract<
+    DiscountBulkOperationRecord['operation'],
+    'discountCodeBulkActivate' | 'discountCodeBulkDeactivate' | 'discountCodeBulkDelete' | 'discountAutomaticBulkDelete'
+  >,
+  args: Record<string, unknown>,
+): { operation: DiscountBulkOperationRecord; targetIds: string[]; userErrors: DiscountMutationUserError[] | null } {
+  const method: DiscountRecord['method'] = operation === 'discountAutomaticBulkDelete' ? 'automatic' : 'code';
+  const resolution = resolveDiscountBulkSelector(args, method);
+  if (resolution.userErrors) {
+    return {
+      operation: buildDiscountBulkOperation(operation, '', {
+        id: makeProxySyntheticGid('Job'),
+        typeName: 'Job',
+        query: resolution.query,
+        selector: resolution.selector,
+      }),
+      targetIds: [],
+      userErrors: resolution.userErrors,
+    };
+  }
+
+  const targetIds = resolution.targets.map((discount) => discount.id);
+  const now = makeSyntheticTimestamp();
+  for (const discount of resolution.targets) {
+    if (operation === 'discountCodeBulkActivate') {
+      store.stageCreateDiscount({ ...structuredClone(discount), status: 'ACTIVE', updatedAt: now });
+    } else if (operation === 'discountCodeBulkDeactivate') {
+      store.stageCreateDiscount({ ...structuredClone(discount), status: 'EXPIRED', updatedAt: now });
+    } else {
+      store.stageDeleteDiscount(discount.id);
+    }
+  }
+
+  return {
+    operation: store.stageDiscountBulkOperation(
+      buildDiscountBulkOperation(operation, targetIds[0] ?? '', {
+        id: makeProxySyntheticGid('Job'),
+        typeName: 'Job',
+        query: resolution.query,
+        discountIds: targetIds,
+        selector: resolution.selector,
+      }),
+    ),
+    targetIds,
+    userErrors: null,
+  };
 }
 
 function inferDiscountType(discount: DiscountRecord): string | null {
@@ -3446,6 +3909,22 @@ function serializeDiscountOwnerNode(
   return result;
 }
 
+function serializeDiscountOwnerNodeById(
+  discountId: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  context: DiscountSerializationContext,
+): Record<string, unknown> | null {
+  const discount = findDiscountById(discountId);
+  if (!discount) {
+    return null;
+  }
+
+  return discount.method === 'code'
+    ? serializeDiscountOwnerNode(discount, field, variables, 'DiscountCodeNode', 'codeDiscount', context)
+    : serializeDiscountOwnerNode(discount, field, variables, 'DiscountAutomaticNode', 'automaticDiscount', context);
+}
+
 export function handleDiscountQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   const context: DiscountSerializationContext = { errors: [], path: [] };
@@ -3541,6 +4020,58 @@ export function handleDiscountMutation(
     let deletedCodeDiscountId: string | null = null;
 
     switch (rootName) {
+      case 'discountCodeAppCreate': {
+        const input = readRecord(args['codeAppDiscount']);
+        userErrors = validateDiscountAppCreate(input, 'codeAppDiscount', true);
+        if (input && userErrors === null) {
+          const discount = stageCodeAppCreate(input);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          data[key] = serializeAppDiscountMutationPayload(field, variables, discount, [], 'codeAppDiscount');
+        }
+        break;
+      }
+      case 'discountCodeAppUpdate': {
+        const input = readRecord(args['codeAppDiscount']);
+        userErrors =
+          validateKnownAppDiscountId(args['id'], 'DiscountCodeApp') ??
+          validateDiscountAppCreate(input, 'codeAppDiscount', true);
+        if (typeof args['id'] === 'string' && input && userErrors === null) {
+          const discount = stageCodeAppUpdate(args['id'], input);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          data[key] = serializeAppDiscountMutationPayload(field, variables, discount, [], 'codeAppDiscount');
+        }
+        break;
+      }
+      case 'discountAutomaticAppCreate': {
+        const input = readRecord(args['automaticAppDiscount']);
+        userErrors = validateDiscountAppCreate(input, 'automaticAppDiscount', false);
+        if (input && userErrors === null) {
+          const discount = stageAutomaticAppCreate(input);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          data[key] = serializeAppDiscountMutationPayload(field, variables, discount, [], 'automaticAppDiscount');
+        }
+        break;
+      }
+      case 'discountAutomaticAppUpdate': {
+        const input = readRecord(args['automaticAppDiscount']);
+        userErrors =
+          validateKnownAppDiscountId(args['id'], 'DiscountAutomaticApp') ??
+          validateDiscountAppCreate(input, 'automaticAppDiscount', false);
+        if (typeof args['id'] === 'string' && input && userErrors === null) {
+          const discount = stageAutomaticAppUpdate(args['id'], input);
+          handled = true;
+          staged = true;
+          stagedResourceIds.push(discount.id);
+          data[key] = serializeAppDiscountMutationPayload(field, variables, discount, [], 'automaticAppDiscount');
+        }
+        break;
+      }
       case 'discountCodeBasicCreate': {
         const input = readRecord(args['basicCodeDiscount']);
         userErrors = validateDiscountCodeBasicCreate(input);
@@ -3771,14 +4302,60 @@ export function handleDiscountMutation(
         }
         break;
       case 'discountCodeBulkActivate':
+        userErrors = validateBroadBulkSelector(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        if (userErrors === null) {
+          const result = stageDiscountBulkMutation('discountCodeBulkActivate', args);
+          if (result.userErrors === null) {
+            handled = true;
+            staged = true;
+            stagedResourceIds.push(result.operation.id, ...result.targetIds);
+            data[key] = serializeDiscountBulkMutationPayload(field, result.operation, []);
+          } else {
+            userErrors = result.userErrors;
+          }
+        }
+        break;
       case 'discountCodeBulkDelete':
         userErrors = validateBroadBulkSelector(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        if (userErrors === null) {
+          const result = stageDiscountBulkMutation('discountCodeBulkDelete', args);
+          if (result.userErrors === null) {
+            handled = true;
+            staged = true;
+            stagedResourceIds.push(result.operation.id, ...result.targetIds);
+            data[key] = serializeDiscountBulkMutationPayload(field, result.operation, []);
+          } else {
+            userErrors = result.userErrors;
+          }
+        }
         break;
       case 'discountCodeBulkDeactivate':
         userErrors = validateBroadBulkSelector(args, "Only one of 'ids', 'search' or 'saved_search_id' is allowed.");
+        if (userErrors === null) {
+          const result = stageDiscountBulkMutation('discountCodeBulkDeactivate', args);
+          if (result.userErrors === null) {
+            handled = true;
+            staged = true;
+            stagedResourceIds.push(result.operation.id, ...result.targetIds);
+            data[key] = serializeDiscountBulkMutationPayload(field, result.operation, []);
+          } else {
+            userErrors = result.userErrors;
+          }
+        }
         break;
       case 'discountAutomaticBulkDelete':
         userErrors = validateBroadBulkSelector(args, 'Only one of IDs, search argument or saved search ID is allowed.');
+        if (userErrors === null) {
+          const result = stageDiscountBulkMutation('discountAutomaticBulkDelete', args);
+          if (result.userErrors === null) {
+            handled = true;
+            staged = true;
+            stagedResourceIds.push(result.operation.id, ...result.targetIds);
+            data[key] = serializeDiscountBulkMutationPayload(field, result.operation, []);
+          } else {
+            userErrors = result.userErrors;
+          }
+        }
         break;
       default:
         break;
@@ -3805,9 +4382,17 @@ export function handleDiscountMutation(
     } else if (
       rootName === 'discountRedeemCodeBulkAdd' ||
       rootName === 'discountCodeRedeemCodeBulkDelete' ||
-      rootName === 'discountRedeemCodeBulkDelete'
+      rootName === 'discountRedeemCodeBulkDelete' ||
+      rootName === 'discountCodeBulkActivate' ||
+      rootName === 'discountCodeBulkDeactivate' ||
+      rootName === 'discountCodeBulkDelete' ||
+      rootName === 'discountAutomaticBulkDelete'
     ) {
       data[key] = serializeDiscountBulkMutationPayload(field, null, userErrors);
+    } else if (rootName === 'discountCodeAppCreate' || rootName === 'discountCodeAppUpdate') {
+      data[key] = serializeAppDiscountMutationPayload(field, variables, null, userErrors, 'codeAppDiscount');
+    } else if (rootName === 'discountAutomaticAppCreate' || rootName === 'discountAutomaticAppUpdate') {
+      data[key] = serializeAppDiscountMutationPayload(field, variables, null, userErrors, 'automaticAppDiscount');
     } else {
       data[key] = serializeDiscountMutationPayload(field, nodeField, userErrors, discount, deletedCodeDiscountId);
     }

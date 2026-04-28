@@ -45,6 +45,7 @@ Staged mutations:
 - Member-query evaluation is intentionally narrow and evidence-backed. The proxy currently supports:
   - `number_of_orders = N`, `>`, `>=`, `<`, and `<=`
   - `customer_tags CONTAINS 'tag'`
+  - `customer_tags NOT CONTAINS 'tag'`
 - `customerSegmentMembers(query:)`, `customerSegmentMembers(queryId:)`, and `customerSegmentMembers(segmentId:)`
   return Shopify-like `totalCount`, `statistics.attributeStatistics(...){ average sum }`, `edges`, and `pageInfo`.
   Connection pagination uses local stable cursors rather than Shopify's opaque cursor encoding.
@@ -54,7 +55,10 @@ Staged mutations:
   effective local segment state. Missing segment IDs are skipped, and missing/non-matching customers return
   `isMember: false` for known segments.
 - Customer member evaluation observes staged `customerCreate` / customer updates and staged segment definitions for
-  the supported query grammar. Broader Shopify segment grammar is not claimed.
+  the supported query grammar. Tag membership is evaluated against normalized local customer `tags` with exact string
+  equality, and order-count membership is evaluated against local `numberOfOrders`. The proxy does not infer customer
+  membership for filters that are accepted for segment storage but do not have a modeled customer-state dependency, such
+  as `email_subscription_status = 'SUBSCRIBED'`. Broader Shopify segment grammar is not claimed.
 - Segment search, sort, and uncaptured member-query grammar are not inferred beyond the captured request arguments.
 
 ## Historical and developer notes
@@ -67,6 +71,9 @@ Staged mutations:
 - Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments-baseline.json`
 - Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segment-lifecycle-validation.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-segment-members-query-lifecycle.json`
+- Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segment-query-grammar-not-contains.json`
 - Conformance request/spec: `config/parity-requests/segments-baseline-read.graphql`, `config/parity-specs/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segment-create-invalid-query-validation.json`, `config/parity-specs/segment-update-unknown-id-validation.json`, `config/parity-specs/segment-delete-unknown-id-validation.json`
 - Customer segment member parity spec: `config/parity-specs/customer-segment-members-query-lifecycle.json`
+- Segment query grammar parity spec: `config/parity-specs/segment-query-grammar-not-contains.json`
+- Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`

@@ -38,6 +38,7 @@ type SupportedSegmentQuery =
   | {
       type: 'customer_tags_contains';
       value: string;
+      negated: boolean;
     };
 
 const segmentProjectionOptions = {
@@ -311,11 +312,12 @@ function parseSupportedSegmentQuery(query: string | null): SupportedSegmentQuery
     };
   }
 
-  const tagContainsMatch = trimmed.match(/^customer_tags\s+CONTAINS\s+'([^']+)'$/u);
+  const tagContainsMatch = trimmed.match(/^customer_tags\s+(NOT\s+)?CONTAINS\s+'([^']+)'$/u);
   if (tagContainsMatch) {
     return {
       type: 'customer_tags_contains',
-      value: tagContainsMatch[1]!,
+      value: tagContainsMatch[2]!,
+      negated: Boolean(tagContainsMatch[1]),
     };
   }
 
@@ -341,7 +343,8 @@ function customerMatchesSupportedSegmentQuery(customer: CustomerRecord, parsed: 
   }
 
   if (parsed.type === 'customer_tags_contains') {
-    return customer.tags.some((tag) => tag === parsed.value);
+    const hasTag = customer.tags.some((tag) => tag === parsed.value);
+    return parsed.negated ? !hasTag : hasTag;
   }
 
   const value = customerNumberOfOrders(customer);
