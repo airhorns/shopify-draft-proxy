@@ -1,0 +1,1 @@
+export const DEFAULT_ADMIN_API_VERSION = '2026-04';

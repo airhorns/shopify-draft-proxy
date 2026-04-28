@@ -7,6 +7,7 @@ import {
   exchangeConformanceAuthCallback,
   getValidConformanceAccessToken,
 } from './shopify-conformance-auth.mjs';
+import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
 
 const callbackArgs = process.argv.slice(2).filter((value) => value !== '--');
 const callbackUrl = callbackArgs[0];
@@ -18,7 +19,7 @@ const adminOrigin = process.env['SHOPIFY_CONFORMANCE_ADMIN_ORIGIN'];
 if (!adminOrigin) {
   throw new Error('SHOPIFY_CONFORMANCE_ADMIN_ORIGIN is required to validate exchanged Shopify auth.');
 }
-const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || '2025-01';
+const apiVersion = process.env['SHOPIFY_CONFORMANCE_API_VERSION'] || DEFAULT_ADMIN_API_VERSION;
 
 const persisted = await exchangeConformanceAuthCallback({ callbackUrl });
 const accessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
