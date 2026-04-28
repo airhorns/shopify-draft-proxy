@@ -1,13 +1,15 @@
 # Marketing
 
-## Supported read roots
+## Current support and limitations
+
+### Supported read roots
 
 - `marketingActivities`
 - `marketingActivity`
 - `marketingEvents`
 - `marketingEvent`
 
-## Supported mutation roots
+### Supported mutation roots
 
 - `marketingActivityCreateExternal`
 - `marketingActivityUpdateExternal`
@@ -19,7 +21,7 @@
 
 Deprecated/non-external `marketingActivityCreate` and `marketingActivityUpdate` remain registered gaps, not implemented support. They are still explicit in the operation registry so unsupported runtime passthrough is observable, but the proxy does not claim local emulation for them.
 
-## Snapshot behavior
+### Snapshot behavior
 
 - Snapshot mode serves marketing activity and event reads from normalized raw marketing records hydrated from conformance captures or seeded directly in tests.
 - Staged external activity creates, updates, upserts, deletes, and bulk delete-all overlays are applied to snapshot/local reads immediately.
@@ -27,7 +29,7 @@ Deprecated/non-external `marketingActivityCreate` and `marketingActivityUpdate` 
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
 - Local connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo` fields. Captured Shopify cursors are reused when present; locally seeded records without captured cursors use stable synthetic `cursor:<gid>` cursors.
 
-## Captured scope
+### Captured scope
 
 HAR-212 captures the safe read model for:
 
@@ -61,7 +63,7 @@ HAR-214 captures marketing engagement write evidence with `write_marketing_event
 - `marketingEngagementsDelete` has no activity-level selector; missing delete selectors return `INVALID_DELETE_ENGAGEMENTS_ARGUMENTS`, `deleteEngagementsForAllChannels: true` returns the captured result string and removes known local channel-level engagement records, and activity-level engagement records are retained
 - immediate downstream `marketingActivity.adSpend` reads remained `null` after captured activity-level engagement writes, so local staging records the engagement in meta state but does not invent activity/event aggregate attribution
 
-## Local filtering and ordering
+### Local filtering and ordering
 
 Local snapshot filtering is intentionally narrow and evidence-backed:
 
@@ -72,3 +74,7 @@ Local snapshot filtering is intentionally narrow and evidence-backed:
 - Event sort keys currently modeled locally are `ID` and `STARTED_AT`.
 
 Unsupported marketing reads outside these registered roots continue through the generic unknown-operation path outside snapshot parity execution.
+
+## Historical and developer notes
+
+- Historical capture notes are embedded in the current behavior descriptions above for the HAR-212, HAR-213, and HAR-214 slices; keep future validation anchors or fixture-specific notes here.

@@ -2,7 +2,9 @@
 
 HAR-267 adds conformance evidence for Admin GraphQL webhook subscription roots. HAR-268 adds local runtime read support for API-created webhook subscription records. HAR-269 adds local staging for the captured create/update registration subset without firing webhooks or registering real subscriptions upstream during supported runtime handling. HAR-270 adds local deregistration staging for the same captured API-created subset without unsubscribing real Shopify webhook subscriptions at runtime.
 
-## Registered Roots
+## Current support and limitations
+
+### Registered Roots
 
 - `webhookSubscription(id:)`
 - `webhookSubscriptions(...)`
@@ -19,7 +21,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 
 `webhookSubscriptionCreate`, `webhookSubscriptionUpdate`, and `webhookSubscriptionDelete` are registered under the `webhooks` domain as implemented `stage-locally` operations for the captured Admin API-created HTTP URI subset.
 
-## Local Read Behavior
+### Local Read Behavior
 
 - Webhook subscription reads are backed by normalized `webhookSubscriptions` state plus `webhookSubscriptionOrder`.
 - Snapshot mode returns `null` for unknown `webhookSubscription(id:)`, an empty `webhookSubscriptions` connection, and `{ count: 0, precision: "EXACT" }` for `webhookSubscriptionsCount` when no records are present.
@@ -28,7 +30,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 - `webhookSubscriptionsCount` supports count `limit` semantics with `EXACT` / `AT_LEAST` precision and simple captured query filtering such as `id:<legacy id>`.
 - Live-hybrid reads hydrate upstream webhook subscription nodes into normalized base state and overlay staged local records when present.
 
-## Local Mutation Behavior
+### Local Mutation Behavior
 
 - `webhookSubscriptionCreate(topic:, webhookSubscription:)` stages a new normalized webhook subscription with a proxy synthetic `WebhookSubscription` GID, stable synthetic timestamps, the requested `topic`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, and a `WebhookHttpEndpoint.callbackUrl` derived from the captured `WebhookSubscriptionInput.uri` shape.
 - `webhookSubscriptionUpdate(id:, webhookSubscription:)` updates an existing staged or hydrated webhook subscription in place, preserving `topic` and `createdAt` while replacing the captured mutable fields and endpoint URI when present.
@@ -38,7 +40,7 @@ The three query roots are registered under the `webhooks` domain as implemented 
 - Missing or null `webhookSubscriptionDelete(id:)` arguments return Shopify-like GraphQL validation errors locally and do not append mutation-log entries.
 - Local registration/update/delete does not deliver webhook payloads and does not create, update, or unsubscribe real Shopify webhook subscriptions at runtime.
 
-## Draft Delivery Policy
+### Draft Delivery Policy
 
 Default runtime policy: supported draft-mode mutations must never send webhook deliveries to external systems. This includes HTTP callback URLs, EventBridge ARNs, Pub/Sub topics, app-config/TOML subscriptions, and any other destination Shopify can target. The proxy should treat registered webhook subscriptions as local subscription metadata during normal runtime handling, not as permission to notify the outside world.
 
@@ -52,7 +54,7 @@ Rejected alternatives:
 - Deliver during `__meta/commit`: commit replay may cause real Shopify to deliver real webhooks for the replayed mutations; the proxy must not also replay synthetic outbox entries or emit separate notifications, because that would create duplicate side effects.
 - Allow opt-in external delivery now: useful only after the outbox, payload-shape fixtures, topic coverage rules, isolation controls, and credential redaction rules are implemented. It should stay a separate future design/implementation slice, not the default HAR-271 policy.
 
-### Outbox Observability Contract
+#### Outbox Observability Contract
 
 The future meta API should expose webhook payload records separately from the existing mutation log, for example:
 
@@ -79,7 +81,7 @@ Ordering follows the mutation log: records are appended only for successful supp
 
 `includeFields`, `metafieldNamespaces`, and `filter` must be applied before writing the outbox record once those semantics are modeled. Until they are conformance-backed for a topic, the topic should remain unsupported for outbox generation rather than emitting a broad guessed payload.
 
-### Topic Mapping Policy
+#### Topic Mapping Policy
 
 Webhook payload generation should be driven by domain events emitted by supported local mutation handlers, not by patching GraphQL responses. A domain handler that stages a resource change should expose enough normalized before/after state for the webhook outbox mapper to decide whether a topic is eligible and to serialize the payload.
 
@@ -98,11 +100,13 @@ Later slices should follow the same rule:
 - Draft orders, refunds, fulfillments, discounts, files, markets, metaobjects, shop policies, and privacy topics remain unsupported for webhook outbox generation until their owning endpoint group has both local lifecycle fidelity and topic-specific payload fixtures.
 - App lifecycle topics, compliance topics, and subscription lifecycle topics remain unsupported by default because they are not caused by ordinary local draft-mode resource mutations.
 
-### Source Alignment
+#### Source Alignment
 
 This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscription docs and the current app webhook delivery docs. Relevant Shopify surfaces include `webhookSubscriptionCreate`, `WebhookSubscriptionInput.uri`, `WebhookSubscriptionTopic`, `WebhookSubscriptionFormat`, HTTP/EventBridge/PubSub endpoint variants, delivery headers, HMAC signing, retry behavior, and Shopify's warning that webhook ordering and duplicate delivery cannot be assumed. The draft proxy should record enough metadata for tests to assert intended local behavior, while explicitly not emulating network delivery, retry scheduling, or cloud destination semantics until a later isolated delivery mode is designed.
 
-## Captured Evidence
+## Historical and developer notes
+
+### Captured Evidence
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json` records:
 
@@ -121,17 +125,17 @@ HAR-356 promotes the captured evidence into two executable strict parity contrac
 - `webhook-subscription-catalog-read` compares the captured empty `webhookSubscriptions` connection, count precision, filtered count, and unknown-detail null behavior against the local proxy in snapshot mode.
 - `webhook-subscription-conformance` replays the captured create/update/delete lifecycle through local staging, then compares mutation payloads, detail read-after-write responses, read-after-delete absence, and captured validation branches. Live Shopify IDs and timestamps are accepted only through path-scoped matchers because the proxy uses synthetic IDs and a deterministic synthetic clock.
 
-## Access And Scope Notes
+### Access And Scope Notes
 
 The capture fixture includes the active app access scopes returned by `currentAppInstallation.accessScopes`. The captured grant did not expose dedicated `read_webhooks` or `write_webhooks` handles; it could still read and manage API-created subscriptions for the app. Topic-specific requirements can still vary by topic, so future runtime work should keep scope/topic failures as conformance-backed validation rather than hardcoded assumptions.
 
 The lifecycle capture uses `SHOP_UPDATE` because it is available in the topic enum and does not require creating or modifying products, orders, customers, inventory, or other domain records. The script does not trigger any shop update or delivery probe, so no webhook delivery is intentionally sent during HAR-267.
 
-## Out Of Scope
+### Out Of Scope
 
 App configuration/TOML webhooks remain out of scope. Shopify's Admin GraphQL subscription roots are being treated here as the API-created subscription lifecycle surface; future evidence must prove otherwise before TOML/app-config webhooks are modeled through these roots.
 
-## Validation
+### Validation
 
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

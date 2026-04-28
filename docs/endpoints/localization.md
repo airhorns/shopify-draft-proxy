@@ -2,7 +2,9 @@
 
 HAR-314 adds the first local localization slice for Admin GraphQL locale and translation roots.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 - `availableLocales`
 - `shopLocales`
@@ -15,7 +17,7 @@ HAR-314 adds the first local localization slice for Admin GraphQL locale and tra
 - `translationsRegister`
 - `translationsRemove`
 
-## Local model
+### Local model
 
 Locale state is normalized in memory as available locale records, shop locale records, and owner-scoped translation records keyed by resource, locale, optional market, and translation key.
 
@@ -28,7 +30,7 @@ The implemented translatable-resource owner slice is intentionally narrow:
 
 Product translatable content currently includes `title`, `handle`, optional `body_html`, and optional `product_type`. Content digests use Shopify's observed SHA-256 value digest behavior for those scalar values.
 
-## Mutation behavior
+### Mutation behavior
 
 `shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales.
 
@@ -36,7 +38,9 @@ Product translatable content currently includes `title`, `handle`, optional `bod
 
 Market-specific `TranslationInput.marketId` / `translationsRemove(marketIds:)` for this generic localization root remains explicit unsupported behavior in the local model. Market-specific metafield localization is covered separately by the Markets `marketLocalizations*` roots.
 
-## Conformance evidence
+## Historical and developer notes
+
+### Conformance evidence
 
 Live Admin GraphQL 2026-04 evidence was captured against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization-locale-translation-fixture.json`.
 

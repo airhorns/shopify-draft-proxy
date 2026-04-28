@@ -2,7 +2,9 @@
 
 The online-store group tracks Admin GraphQL roots for storefront content and presentation: articles, blogs, pages, comments, navigation menus, themes and theme files, script tags, storefront pixels, server pixels, storefront access tokens, and mobile platform applications.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Content roots from HAR-303:
 
@@ -13,7 +15,7 @@ The content model is normalized in memory as generic online-store content record
 
 Supported lifecycle mutations are staged locally and logged with the original raw GraphQL request for commit replay. They must not write to Shopify at normal runtime.
 
-## Content read behavior
+### Content read behavior
 
 Snapshot/local empty behavior follows the 2025-01 capture in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json`:
 
@@ -36,7 +38,7 @@ The HAR-352 parity promotion captures a Shopify quirk where top-level `articles`
 
 Metafield, translation, and event subresources on these content types remain shallow: local reads return empty connections, empty translation lists, or `null` singular metafields rather than inventing unsupported subresource data.
 
-## Content mutation behavior
+### Content mutation behavior
 
 Implemented local staging:
 
@@ -49,13 +51,13 @@ Unknown content IDs return local `userErrors` for supported mutations instead of
 
 Comment creation is not part of the Admin GraphQL root set captured for this ticket, so comment moderation support is intentionally limited to comments supplied by snapshot or hydrated upstream reads.
 
-## Captured quirks
+### Captured quirks
 
 The 2025-01 live capture showed `comment(id:)` with an unknown synthetic ID returning a Shopify internal error, while unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal `userErrors` with `field: ["id"]` and message `Comment does not exist`. The proxy does not emulate the internal-error branch for local snapshot reads; local missing comments return `null` to preserve stable no-data behavior.
 
 HAR-304 is registry/documentation inventory only for the presentation/integration roots below. Those entries remain declared gaps and must not be treated as supported runtime capabilities until a local model can reproduce downstream reads without sending supported mutations to Shopify.
 
-## Safe read gaps tracked by the registry
+### Safe read gaps tracked by the registry
 
 Planned overlay reads:
 
@@ -81,7 +83,7 @@ The checked-in Admin GraphQL root introspection fixture confirms these roots exi
 
 `storefrontAccessToken` has no read root in the checked-in root introspection fixture. Token work in this group is therefore tracked only through create/delete mutation blockers until a later schema capture proves a read surface.
 
-## Side-effect mutation gaps tracked by the registry
+### Side-effect mutation gaps tracked by the registry
 
 Planned local-staging mutations:
 
@@ -113,7 +115,9 @@ Planned local-staging mutations:
 
 These roots can affect the live storefront, tracking integrations, theme assets, or access credentials. They must remain unsupported until local staging covers the mutation lifecycle, validation/userErrors, downstream read-after-write effects, and original raw mutation commit replay order.
 
-## Evidence and blockers
+## Historical and developer notes
+
+### Evidence and blockers
 
 - Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors. HAR-352 promotes this fixture through `config/parity-specs/online-store-content-lifecycle.json` and `config/parity-requests/online-store-content-*.graphql`; `corepack pnpm conformance:parity` seeds the captured baseline read, replays local create/update/read/delete/comment guardrail requests, and strictly compares stable payload/count/null-empty/userErrors fields against the recording.
 - Current presentation/integration evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-304 query and mutation root names exist in the captured Admin GraphQL schema.
@@ -121,7 +125,7 @@ These roots can affect the live storefront, tracking integrations, theme assets,
 - Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible and must not be marked implemented from validation-only or branch-only evidence.
 - Parity-spec boundary: do not add planned-only parity specs for these gaps. Add `config/parity-specs` entries only when backed by captured interactions and executable comparison or runtime-test-backed fixture evidence.
 
-## Validation anchors
+### Validation anchors
 
 - Registry schema/discovery: `corepack pnpm conformance:check`
 - Root coverage snapshot: `corepack pnpm vitest run tests/unit/graphql-operation-coverage.test.ts`

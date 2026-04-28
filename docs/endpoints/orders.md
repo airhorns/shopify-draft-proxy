@@ -2,7 +2,9 @@
 
 The orders group is broadly implemented in the operation registry, with explicit blockers documented for roots that still lack enough Shopify evidence. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Overlay reads:
 
@@ -69,11 +71,11 @@ Local staged mutations:
 - `orderEditSetQuantity`
 - `orderEditCommit`
 
-## Declared Gaps
+### Declared Gaps
 
 - `orderRiskAssessmentCreate` is a registry-only HAR-316 scaffold. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
 
-## Behavior notes
+### Behavior notes
 
 - Order and draft-order reads use the shared Shopify-style search parser for catalog, count, invalid-query, and pagination slices covered by parity fixtures.
 - Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. Fulfillment-order request/cancellation roots stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history. HAR-234 fulfillment-order lifecycle support stages held, released, moved, progress-reported, reopened, and cancelled fulfillment orders from the same order-owned fulfillment-order graph and keeps downstream nested/top-level reads consistent without upstream writes.
@@ -118,7 +120,9 @@ Local staged mutations:
 - The local payment implementation does not contact real payment gateways and intentionally limits itself to local/synthetic orders and transaction branches covered by runtime tests or safe documentation evidence. HAR-353 promotes the local order payment fixture to executable strict parity: `order-payment-transaction-local-staging` replays order creation, over-capture validation, partial/final capture, downstream order reads, void-after-capture validation, and missing mandate idempotency-key validation; sibling specs replay successful `transactionVoid` and idempotent `orderCreateMandatePayment` branches because those require mutually exclusive order payment state. Broader Plus-only and permission-specific mandate/capture branches still require live conformance evidence before they should be expanded.
 - `orderInvoiceSend` is handled locally for existing orders and does not send upstream invoice email. Safe live success recapture is side-effect-heavy and remains blocked unless a no-recipient disposable capture path is available; local runtime coverage verifies no upstream/email call is made. `taxSummaryCreate` mirrors the captured access-denied branch without invoking tax calculation services until tax-app semantics can be safely captured.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Order reads: `tests/integration/order-query-shapes.test.ts`
 - Abandoned checkouts and abandonments: `tests/integration/abandoned-checkout-query-shapes.test.ts`

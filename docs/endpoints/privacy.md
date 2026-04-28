@@ -2,7 +2,9 @@
 
 The privacy group started as registry-only groundwork in HAR-250. These roots describe shop-level privacy settings and consent policy configuration, not customer marketing consent and not legal shop policy content.
 
-## Registry-only roots
+## Current support and limitations
+
+### Registry-only roots
 
 HAR-250 added the initial privacy endpoint grouping for five shop privacy and consent-policy roots:
 
@@ -32,7 +34,7 @@ HAR-322 adds customer data-erasure request/cancel roots under the customers endp
 
 These are customer privacy side-effect roots. The local runtime stages request/cancel intents for known normalized customers and keeps raw mutations for commit replay. Granted-scope HAR-322 capture records real request/cancel success payloads, unchanged immediate downstream customer reads, unknown-customer `DOES_NOT_EXIST` userErrors, and repeat-cancel `NOT_BEING_ERASED` cleanup behavior.
 
-## Coverage boundaries
+### Coverage boundaries
 
 - `privacySettings` returns shop privacy settings such as cookie banner, data sale opt-out page, and privacy policy settings. Shopify documents the `PrivacySettings` object as requiring the `read_privacy_settings` access scope.
 - `consentPolicy` and `consentPolicyRegions` are shop consent policy reads. They are separate from customer contact consent fields.
@@ -44,7 +46,9 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - Legal policy body updates are already tracked under store properties and HAR-173 through `shopPolicyUpdate`.
 - `dataSaleOptOut` is present as a mutation root in the checked-in 2025-01 root introspection fixture. Fixture-backed parity coverage lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/data-sale-opt-out-parity.json`.
 
-## Capture guidance
+## Historical and developer notes
+
+### Capture guidance
 
 The live capture entry point is `corepack pnpm conformance:capture-privacy`, backed by `scripts/capture-privacy-conformance.ts`.
 
@@ -57,7 +61,7 @@ The script uses the canonical conformance auth helper and defaults to Admin Grap
 
 Do not check in planned-only parity specs or parity request placeholders for this group. Add parity specs only after live capture produces fixture evidence and a strict comparison contract can run.
 
-## Validation anchors
+### Validation anchors
 
 - Local data-sale opt-out staging and read-after-write behavior: `tests/integration/customer-draft-flow.test.ts`
 - Privacy mutation observability and capability behavior: `tests/integration/proxy-capability-classification.test.ts`

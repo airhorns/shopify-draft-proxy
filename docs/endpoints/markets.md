@@ -2,7 +2,9 @@
 
 The markets group has local slices for captured Shopify Markets reads and stage-local lifecycle mutations. Keep Markets-specific capture details, coverage boundaries, and field behavior here instead of in `docs/architecture.md`.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Overlay reads:
 
@@ -43,11 +45,11 @@ Stage-local mutations:
 - `marketLocalizationsRegister`
 - `marketLocalizationsRemove`
 
-## Unsupported roots still tracked by the registry
+### Unsupported roots still tracked by the registry
 
 - `webPresenceDelete`
 
-## Behavior notes
+### Behavior notes
 
 - Captured Markets reads hydrate normalized Market, Catalog, and PriceList records keyed by ID, with captured cursor and order metadata preserved for connection responses.
 - Snapshot `market(id:)` and `markets(...)` reads resolve from the normalized Market bucket. The local serializer preserves selected-field behavior, unknown-id `null`, empty connections, `nodes`, `edges`, `pageInfo`, `first`, `last`, `before`, `after`, `reverse`, sort keys, root `type` and `status`, and captured-safe `query` filters such as `name`, `id`, `market_type`, and `market_condition_types`.
@@ -88,7 +90,9 @@ Stage-local mutations:
 - Current live evidence for these roots was captured against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04. The empty read capture proves `read_translations` access for the read roots; no-side-effect unknown-resource mutation captures prove `write_translations` access and `RESOURCE_NOT_FOUND` semantics. Successful live localization writes remain intentionally avoided until a disposable setup/cleanup story exists for buyer-facing localized values.
 - `webPresenceDelete` is schema-current in 2026-04, and deprecated `marketWebPresenceCreate` / `marketWebPresenceUpdate` / `marketWebPresenceDelete` aliases remain visible in Shopify docs, but this repo does not mark them implemented without fixture-backed behavior for payload shape, association cleanup, and validation errors.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Runtime reads: `tests/integration/markets-query-shapes.test.ts`
 - Runtime lifecycle staging: `tests/integration/markets-lifecycle-flow.test.ts`

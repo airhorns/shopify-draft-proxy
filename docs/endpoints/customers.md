@@ -2,7 +2,9 @@
 
 The customers group has implemented local slices, but the whole registry domain is not complete yet. Keep new customer-specific quirks here instead of in `docs/architecture.md`.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Overlay reads:
 
@@ -41,11 +43,11 @@ Local staged mutations:
 - `storeCreditAccountCredit`
 - `storeCreditAccountDebit`
 
-## Unsupported roots still tracked by the registry
+### Unsupported roots still tracked by the registry
 
 - `customerPaymentMethodGetUpdateUrl`
 
-## Behavior notes
+### Behavior notes
 
 - Customer-domain state deliberately stays narrower than the product model, but it is still normalized.
 - `CustomerRecord` carries scalar/detail fields plus `taxExemptions` as a separate list from the boolean `taxExempt`, and `dataSaleOptOut` for the privacy-domain `dataSaleOptOut` mutation's downstream read effect.
@@ -89,7 +91,7 @@ Local staged mutations:
 - `customerAccountPage(id:)` and `customerAccountPages` are read-only Customer Account system-page roots. Live 2025-01 capture on `harry-test-heelo.myshopify.com` returned the built-in Orders, Profile, and Settings pages with `id`, `title`, `handle`, `defaultCursor`, opaque edge cursors, and `customerAccountPage` returning `null` for an unknown page ID. Snapshot mode resolves these roots only from normalized local account-page state and otherwise returns `null` / empty connections instead of inventing pages. The HAR-322 parity spec replays the captured account-page read and then replays the same read from hydrated local state so the generic parity runner exercises local serialization rather than treating the fixture as capture-only evidence.
 - `customerRequestDataErasure` and `customerCancelDataErasure` are treated as sensitive customer privacy side effects. Runtime support stages only a local request/cancel intent for customers already present in normalized state, records that intent in meta state/logs, returns `customerId` plus selected `userErrors`, and preserves the original raw mutation request for commit replay. Granted-scope live 2025-01 capture now records success payloads for a disposable customer, unchanged immediate downstream customer reads after request/cancel, `DOES_NOT_EXIST` unknown-customer userErrors, and `NOT_BEING_ERASED` repeat-cancel cleanup behavior. The HAR-322 parity spec replays the success and unknown-customer mutation payloads locally while runtime tests cover no-upstream staging, meta audit state, and replay order.
 
-## Outbound email and activation buffering
+### Outbound email and activation buffering
 
 The customer surface includes roots that look related but have different safety profiles:
 
@@ -101,7 +103,9 @@ The customer surface includes roots that look related but have different safety 
 
 Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Customer reads: `tests/integration/customer-query-shapes.test.ts`
 - Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
