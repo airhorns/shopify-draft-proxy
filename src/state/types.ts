@@ -1144,16 +1144,26 @@ export type DiscountEventRecord = z.infer<typeof discountEventRecordSchema>;
 export const discountBulkOperationRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
-  operation: z.enum(['discountRedeemCodeBulkAdd', 'discountCodeRedeemCodeBulkDelete']),
+  operation: z.enum([
+    'discountRedeemCodeBulkAdd',
+    'discountCodeRedeemCodeBulkDelete',
+    'discountCodeBulkActivate',
+    'discountCodeBulkDeactivate',
+    'discountCodeBulkDelete',
+    'discountAutomaticBulkDelete',
+  ]),
   discountId: z.string(),
   status: z.enum(['COMPLETED', 'FAILED', 'IN_PROGRESS']),
   done: z.boolean(),
   createdAt: z.string(),
   completedAt: nullableStringSchema.optional(),
+  query: nullableStringSchema.optional(),
   codesCount: z.number().int().nonnegative().optional(),
   importedCount: z.number().int().nonnegative().optional(),
   failedCount: z.number().int().nonnegative().optional(),
   redeemCodeIds: z.array(z.string()).optional(),
+  discountIds: z.array(z.string()).optional(),
+  selector: jsonObjectSchema.optional(),
 });
 export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 

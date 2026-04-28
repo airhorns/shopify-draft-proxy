@@ -143,6 +143,7 @@ import type {
   SellingPlanGroupRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShopifyFunctionRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -2260,6 +2261,33 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
 
   store.upsertBaseDiscounts([...discountsById.values()]);
   return true;
+}
+
+function seedShopifyFunctionPreconditions(capture: unknown): boolean {
+  const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedShopifyFunctions').filter(isPlainObject);
+  const functions: ShopifyFunctionRecord[] = seedNodes
+    .map((node): ShopifyFunctionRecord | null => {
+      const id = readStringField(node, 'id');
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        title: readNullableStringField(node, 'title'),
+        handle: readNullableStringField(node, 'handle'),
+        apiType: readNullableStringField(node, 'apiType'),
+        description: readNullableStringField(node, 'description') ?? undefined,
+        appKey: readNullableStringField(node, 'appKey') ?? undefined,
+      };
+    })
+    .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
+
+  for (const shopifyFunction of functions) {
+    store.upsertStagedShopifyFunction(shopifyFunction);
+  }
+
+  return functions.length > 0;
 }
 
 function readMoneySetField(
@@ -7164,6 +7192,11 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedDiscountCatalogPreconditions(capture)) {
+    seedShopifyFunctionPreconditions(capture);
+    return;
+  }
+
+  if (seedShopifyFunctionPreconditions(capture)) {
     return;
   }
 
