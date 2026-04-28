@@ -1,0 +1,63 @@
+{
+  "scenarioId": "admin-platform-utility-reads",
+  "operationNames": ["publicApiVersions", "node", "nodes", "job", "taxonomy", "domain", "backupRegion"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.graphql",
+    "variablesPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-315 executable parity coverage for safe Admin platform utility reads: captured public API version shape, generic Node no-data behavior, arbitrary completed Job lookup, unknown Domain nullability, backupRegion shape, and unmatched taxonomy search empty connection behavior. HAR-400 adds runtime coverage for local Product and primary Domain dispatch through node/nodes. Broader generic Node resource dispatch, full taxonomy catalog modeling, and broader backup-region country mapping remain explicit gaps.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "public-api-versions-data",
+        "capturePath": "$.captures.publicApiVersions.result.payload.data.publicApiVersions",
+        "proxyPath": "$.data.publicApiVersions",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "node-no-data",
+        "capturePath": "$.captures.nodeNoData.result.payload.data.node",
+        "proxyPath": "$.data.node",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "nodes-no-data",
+        "capturePath": "$.captures.nodeNoData.result.payload.data.nodes",
+        "proxyPath": "$.data.nodes",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "unknown-domain-data",
+        "capturePath": "$.captures.jobDomainNoData.result.payload.data.domain",
+        "proxyPath": "$.data.domain",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "job-data",
+        "capturePath": "$.captures.jobDomainNoData.result.payload.data.job",
+        "proxyPath": "$.data.job",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "backup-region-data",
+        "capturePath": "$.captures.backupRegion.result.payload.data.backupRegion",
+        "proxyPath": "$.data.backupRegion",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-empty-search-data",
+        "capturePath": "$.captures.taxonomyEmptySearch.result.payload.data.taxonomy",
+        "proxyPath": "$.data.taxonomy",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

@@ -68,7 +68,7 @@ The current test store had no released `ShopifyFunction` nodes at capture time, 
 
 HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
 
-The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
+The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
 
 Current 2025-01 implemented no-data coverage:
 
@@ -133,8 +133,8 @@ Validation is local and does not append staged-write log entries for rejected br
 - `tests/integration/customer-payment-method-flow.test.ts`
 - `tests/integration/payment-terms-query-shapes.test.ts`
 - `tests/integration/payment-terms-lifecycle-flow.test.ts`
-- `config/parity-specs/finance-risk-no-data-read.json`
-- `config/parity-specs/customer-payment-method-local-staging.json`
+- `config/parity-specs/payments/finance-risk-no-data-read.json`
+- `config/parity-specs/payments/customer-payment-method-local-staging.json`
 - `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

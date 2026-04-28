@@ -12,7 +12,7 @@ import { pickCollectionCaptureSeed } from './collection-conformance-lib.mjs';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const { runGraphql } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,

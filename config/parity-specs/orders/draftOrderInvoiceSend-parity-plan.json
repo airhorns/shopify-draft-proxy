@@ -1,0 +1,54 @@
+{
+  "scenarioId": "draft-order-invoice-send-safety",
+  "operationNames": ["draftOrderInvoiceSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-invoice-send-safety.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-parity-plan.graphql",
+    "variablesCapturePath": "$.validation.unknownDraftOrder.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/integration/draft-order-mutation-family-flow.test.ts"],
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown draft order validation",
+        "capturePath": "$.validation.unknownDraftOrder.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend"
+      },
+      {
+        "name": "open no-recipient validation",
+        "capturePath": "$.recipient.openNoRecipient.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.recipient.openNoRecipient.variables"
+        }
+      },
+      {
+        "name": "deleted draft order validation",
+        "capturePath": "$.lifecycle.deletedDraftOrder.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.lifecycle.deletedDraftOrder.variables"
+        }
+      },
+      {
+        "name": "completed no-recipient validation",
+        "capturePath": "$.lifecycle.completedNoRecipient.mutation.response.data.draftOrderInvoiceSend",
+        "proxyPath": "$.data.draftOrderInvoiceSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderInvoiceSend-parity-plan.graphql",
+          "variablesCapturePath": "$.lifecycle.completedNoRecipient.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 no-email safety evidence is now replayed by the generic parity runner as strict proxy-vs-recording comparison for unknown draft IDs, deleted drafts, open no-recipient drafts, and completed no-recipient drafts. The parity harness seeds only the captured disposable draft-order setup states and never executes a recipient-backed invoice send; the runtime test remains the no-upstream/log-retention guardrail proving local handling never sends customer-visible email and keeps the original raw mutation for explicit commit replay."
+}

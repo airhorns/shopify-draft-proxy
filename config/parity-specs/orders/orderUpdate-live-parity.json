@@ -1,0 +1,99 @@
+{
+  "scenarioId": "order-update-live-parity",
+  "operationNames": ["orderUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderUpdate-live-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/orderUpdate-live-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The live happy-path `orderUpdate` slice is promoted for the locally supported update fields: id/name preservation, note/tags updates, userErrors, and immediate downstream `order(id:)` visibility. `updatedAt` and cost extensions remain outside this contract until timestamp parity and cost metadata are modeled directly.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-order-id",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.id",
+        "proxyPath": "$.data.orderUpdate.order.id"
+      },
+      {
+        "name": "mutation-order-name",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.name",
+        "proxyPath": "$.data.orderUpdate.order.name"
+      },
+      {
+        "name": "mutation-note",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.note",
+        "proxyPath": "$.data.orderUpdate.order.note"
+      },
+      {
+        "name": "mutation-tags",
+        "capturePath": "$.mutation.response.data.orderUpdate.order.tags",
+        "proxyPath": "$.data.orderUpdate.order.tags"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderUpdate.userErrors",
+        "proxyPath": "$.data.orderUpdate.userErrors"
+      },
+      {
+        "name": "downstream-order-id",
+        "capturePath": "$.downstreamRead.response.data.order.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.id"
+      },
+      {
+        "name": "downstream-order-name",
+        "capturePath": "$.downstreamRead.response.data.order.name",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.name"
+      },
+      {
+        "name": "downstream-note",
+        "capturePath": "$.downstreamRead.response.data.order.note",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.note"
+      },
+      {
+        "name": "downstream-tags",
+        "capturePath": "$.downstreamRead.response.data.order.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderUpdate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.tags"
+      }
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "scenarioId": "orderCustomerSet-live-parity",
+  "operationNames": ["orderCustomerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderCustomerSet-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCustomerSet-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 orderCustomerSet conformance slice for HAR-120 local staging.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer",
+        "capturePath": "$.mutation.response.data.orderCustomerSet.order.customer",
+        "proxyPath": "$.data.orderCustomerSet.order.customer"
+      },
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.orderCustomerSet.userErrors",
+        "proxyPath": "$.data.orderCustomerSet.userErrors"
+      }
+    ]
+  }
+}

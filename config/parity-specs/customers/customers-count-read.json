@@ -1,0 +1,29 @@
+{
+  "scenarioId": "customers-count-read",
+  "operationNames": ["customersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-count.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customers-count-read.graphql",
+    "variablesPath": "config/parity-requests/customers/customers-count-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison targets cover the captured customersCount data and `extensions.search[]` warnings for total plus two filtered-looking `customersCount(query:)` slices (`email:` and `state:`). On this host Shopify treated both query fields as invalid/no-op while still returning exact total counts plus warnings, and the local proxy mirrors that conservative captured behavior instead of reusing the richer `customers` search grammar for counts. Shopify cost extensions remain outside this contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customers-count-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "customers-count-search-extensions",
+        "capturePath": "$.extensions.search",
+        "proxyPath": "$.extensions.search"
+      }
+    ]
+  }
+}

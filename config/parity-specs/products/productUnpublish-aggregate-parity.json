@@ -1,0 +1,39 @@
+{
+  "scenarioId": "productUnpublish-aggregate-parity",
+  "operationNames": ["productUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-unpublish-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUnpublish-aggregate-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `productUnpublish` aggregate publication fields now capture successfully after configuring the conformance app channel/publication target on the dev store. This scenario strictly compares the mutation aggregate payload and immediate downstream read after unpublishing the captured DRAFT product.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "aggregate mutation payload",
+        "capturePath": "$.aggregateSelection.response.payload.data.productUnpublish",
+        "proxyPath": "$.data.productUnpublish"
+      },
+      {
+        "name": "downstream aggregate read",
+        "capturePath": "$.downstreamRead.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-publication-aggregate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productUnpublish.product.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

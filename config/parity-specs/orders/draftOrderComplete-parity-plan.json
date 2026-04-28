@@ -1,0 +1,66 @@
+{
+  "scenarioId": "draft-order-complete-live-parity",
+  "operationNames": ["draftOrderComplete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderComplete-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The live capture completes a draft created earlier in the same conformance run, verifies an empty `userErrors` response, and records immediate downstream `draftOrder(id:)` visibility with the linked regular order. The strict comparison seeds the captured draft before replaying local completion; expected differences are limited to Shopify-generated completion/order identity values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.completedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Live Shopify and the local draft proxy complete the draft at independent execution times."
+      },
+      {
+        "path": "$.order.id",
+        "matcher": "shopify-gid:Order",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids when completing the draft."
+      },
+      {
+        "path": "$.order.name",
+        "matcher": "non-empty-string",
+        "reason": "Live Shopify and the local draft proxy allocate independent merchant-facing order names."
+      },
+      {
+        "path": "$.order.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:LineItem",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different line item ids on the completed order."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.userErrors",
+        "proxyPath": "$.data.draftOrderComplete.userErrors"
+      },
+      {
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderComplete.draftOrder",
+        "proxyPath": "$.data.draftOrderComplete.draftOrder"
+      },
+      {
+        "name": "downstream-completed-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderComplete.draftOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.draftOrder"
+      }
+    ]
+  }
+}

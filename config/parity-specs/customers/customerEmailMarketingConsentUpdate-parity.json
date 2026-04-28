@@ -1,0 +1,55 @@
+{
+  "scenarioId": "customer-email-marketing-consent-update-parity",
+  "operationNames": ["customerEmailMarketingConsentUpdate", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-email-marketing-consent-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers local staging for customerEmailMarketingConsentUpdate, downstream customer/customerByIdentifier/customers reads for the selected consent fields, and the captured unknown-customer userErrors branch. The same fixture also records the HAR-287 validation matrix for missing/null payload fields, enum/DateTime coercion, future timestamps, contact-method absence, pending/subscribed/unsubscribed transitions, idempotent repeats, and unsupported input states; targeted integration tests enforce those local branches.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-consent-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerEmailMarketingConsentUpdate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerEmailMarketingConsentUpdate.customer.id"
+              }
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        }
+      },
+      {
+        "name": "unknown-customer-validation-data",
+        "capturePath": "$.validation.unknownCustomer.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "variablesCapturePath": "$.validation.unknownCustomer.variables"
+        }
+      }
+    ]
+  }
+}

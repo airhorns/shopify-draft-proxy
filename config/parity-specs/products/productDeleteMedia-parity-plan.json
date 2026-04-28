@@ -1,0 +1,36 @@
+{
+  "scenarioId": "product-delete-media-live-parity",
+  "operationNames": ["productDeleteMedia"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-media-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productDeleteMedia-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productDeleteMedia-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Live capture covers `productDeleteMedia`, including `deletedMediaIds`, the corresponding `deletedProductImageIds` for image media, and immediate downstream empty `product.media` parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDeleteMedia-downstream-read.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

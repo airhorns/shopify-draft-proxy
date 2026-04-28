@@ -1,0 +1,61 @@
+{
+  "scenarioId": "order-create-live-parity",
+  "operationNames": ["orderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orders/orderCreate-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The direct-order creation slice now exercises the richer locally supported orderCreate surface: options, transactions, tax lines, a fixed discount code, shipping/address/custom-attribute fields, currency/presentment money, one variant-backed line item with inventory bypass, and immediate downstream `order(id:)` visibility. The comparison targets assert the full selected order objects so newly selected order fields are covered automatically; expected differences are limited to Shopify-generated identifiers and order names.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:Order",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different order ids for the staged order."
+      },
+      {
+        "path": "$.name",
+        "matcher": "non-empty-string",
+        "reason": "Live Shopify and the local draft proxy allocate independent merchant-facing order names."
+      },
+      {
+        "path": "$.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:LineItem",
+        "reason": "Live Shopify and the local draft proxy necessarily allocate different line item ids for the staged order."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "mutation-order",
+        "capturePath": "$.mutation.response.data.orderCreate.order",
+        "proxyPath": "$.data.orderCreate.order"
+      },
+      {
+        "name": "downstream-order",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order"
+      }
+    ]
+  }
+}

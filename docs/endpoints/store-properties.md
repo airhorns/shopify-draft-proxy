@@ -60,4 +60,4 @@ Local staged mutations:
 - Fulfillment-service location linkage: `tests/integration/fulfillment-service-flow.test.ts`
 - Business entity and Shopify Payments account reads: `tests/integration/business-entity-query-shapes.test.ts`
 - Generic publishable slices: `tests/integration/product-draft-flow.test.ts`, `tests/integration/collection-draft-flow.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/shop*.json`, `config/parity-specs/location*.json`, `config/parity-specs/locations*.json`, `config/parity-specs/business*.json`, `config/parity-specs/publishable*.json`, and matching files under `config/parity-requests/`
+- Conformance fixtures and requests: `config/parity-specs/store-properties/shop*.json`, `config/parity-specs/store-properties/location*.json`, `config/parity-specs/store-properties/locations*.json`, `config/parity-specs/store-properties/business*.json`, `config/parity-specs/store-properties/publishable*.json`, and matching files under `config/parity-requests/store-properties/`

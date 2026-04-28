@@ -1,0 +1,46 @@
+{
+  "scenarioId": "segments-baseline-read",
+  "operationNames": [
+    "segment",
+    "segments",
+    "segmentsCount",
+    "segmentFilters",
+    "segmentFilterSuggestions",
+    "segmentValueSuggestions",
+    "segmentMigrations"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape",
+    "count-precision",
+    "suggestion-shape",
+    "not-found-null"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segments-baseline-read.graphql",
+    "variablesPath": "config/parity-requests/segments/segments-baseline-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-215 live read baseline for segment catalog/detail/count plus filter, filter suggestion, value suggestion, and migration roots. Search/sort grammar is intentionally limited to the captured arguments.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segments-baseline-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "segments-baseline-errors",
+        "capturePath": "$.errors",
+        "proxyPath": "$.errors"
+      }
+    ]
+  }
+}

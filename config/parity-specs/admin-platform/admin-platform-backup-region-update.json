@@ -1,0 +1,45 @@
+{
+  "scenarioId": "admin-platform-backup-region-update",
+  "operationNames": ["backupRegionUpdate", "backupRegion"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-idempotent.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-374 executable parity for idempotent current-region backupRegionUpdate success, downstream backupRegion read-after-write, and unknown country validation. Broader country mappings remain constrained to captured evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "idempotent-update-data",
+        "capturePath": "$.captures.backupRegionUpdateIdempotent.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "downstream-backup-region-read",
+        "capturePath": "$.captures.backupRegionAfterIdempotentUpdate.result.payload.data.backupRegion",
+        "proxyPath": "$.data.backupRegion",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-read.graphql"
+        }
+      },
+      {
+        "name": "unknown-region-validation",
+        "capturePath": "$.captures.backupRegionUpdateInvalid.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-invalid.graphql"
+        }
+      }
+    ]
+  }
+}

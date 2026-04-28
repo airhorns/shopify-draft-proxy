@@ -28,6 +28,6 @@ Staged mutations in other domains do not yet write into a shared top-level Event
 ### Validation anchors
 
 - Runtime shape coverage: `tests/integration/event-query-shapes.test.ts`
-- Executable parity: `config/parity-specs/event-empty-read.json`
-- Live fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/event-empty-read.json`
-- Root presence evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
+- Executable parity: `config/parity-specs/events/event-empty-read.json`
+- Live fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
+- Root presence evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "productPublish-parity-plan",
+  "operationNames": ["productPublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-publish-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productPublish-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productPublish-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `productPublish` mutation payload capture now executes against the local staged write path with live fixture variables. This ready-for-comparison successful mutation payload slice verifies the minimal product identity plus `userErrors`; aggregate publication fields are covered by `productPublish-aggregate-parity`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

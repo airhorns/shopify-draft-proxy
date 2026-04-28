@@ -14,7 +14,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'store-properties');
 const storePropertiesOutputPath = path.join(outputDir, 'store-properties-baseline.json');
 const locationsCatalogOutputPath = path.join(outputDir, 'locations-catalog.json');
 const businessEntitiesCatalogOutputPath = path.join(outputDir, 'business-entities-catalog.json');

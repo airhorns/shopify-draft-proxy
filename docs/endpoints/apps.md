@@ -45,7 +45,7 @@ Until local staging exists, any live capture work must avoid these mutation root
 
 ### Captured read evidence
 
-HAR-301 captured safe read evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/app-billing-access-read.json` through `corepack pnpm conformance:capture-app-billing`.
+HAR-301 captured safe read evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json` through `corepack pnpm conformance:capture-app-billing`.
 
 The capture records:
 

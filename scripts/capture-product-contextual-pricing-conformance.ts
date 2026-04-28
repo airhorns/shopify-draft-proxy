@@ -406,7 +406,7 @@ try {
     ],
   };
 
-  const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+  const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
   await mkdir(outputDir, { recursive: true });
   const outputPath = path.join(outputDir, 'product-contextual-pricing-price-list-parity.json');
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');

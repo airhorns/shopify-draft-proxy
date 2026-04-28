@@ -1,0 +1,91 @@
+{
+  "scenarioId": "product-options-create-live-parity",
+  "operationNames": ["productOptionsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productOptionsCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productOptionsCreate-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario captures default option replacement into two product options and verifies the immediate downstream product option and variant graph.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productOptionsCreate.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[1].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[1].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.options[1].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[1].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-option-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

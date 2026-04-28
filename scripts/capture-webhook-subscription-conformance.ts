@@ -19,7 +19,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'webhooks');
 const outputPath = path.join(outputDir, 'webhook-subscription-conformance.json');
 
 const requestDir = path.join('config', 'parity-requests');

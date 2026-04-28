@@ -1,0 +1,22 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/999999999999999",
+      "status": "ARCHIVED"
+    },
+    "response": {
+      "data": {
+        "productChangeStatus": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["productId"],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sourceCapture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-parity.json#validation.unknownProduct"
+}

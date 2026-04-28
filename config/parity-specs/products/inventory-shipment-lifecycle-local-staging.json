@@ -1,0 +1,90 @@
+{
+  "scenarioId": "inventory-shipment-lifecycle-local-staging",
+  "operationNames": [
+    "inventoryShipment",
+    "inventoryShipmentCreate",
+    "inventoryShipmentCreateInTransit",
+    "inventoryShipmentAddItems",
+    "inventoryShipmentRemoveItems",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentSetTracking",
+    "inventoryShipmentMarkInTransit",
+    "inventoryShipmentReceive",
+    "inventoryShipmentDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/inventory-shipment-lifecycle-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-shipment-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-shipment-create-in-transit.graphql",
+    "variablesCapturePath": "$.workflow.createInTransit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-in-transit-mutation-data",
+        "capturePath": "$.workflow.createInTransit.response.payload.data.inventoryShipmentCreateInTransit",
+        "proxyPath": "$.data.inventoryShipmentCreateInTransit",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The proxy generates stable session-local synthetic IDs for locally staged inventory shipments; Shopify assigns store IDs when live shipment writes are available."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for locally staged shipment line items; Shopify assigns store IDs when live shipment writes are available."
+          }
+        ]
+      },
+      {
+        "name": "after-create-shipment-detail-read",
+        "capturePath": "$.workflow.afterCreateDetailRead.response.payload.data.inventoryShipment",
+        "proxyPath": "$.data.inventoryShipment",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-detail.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The proxy generates stable session-local synthetic IDs for locally staged inventory shipments; Shopify assigns store IDs when live shipment writes are available."
+          },
+          {
+            "path": "$.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for locally staged shipment line items; Shopify assigns store IDs when live shipment writes are available."
+          }
+        ]
+      },
+      {
+        "name": "after-create-inventory-read",
+        "capturePath": "$.workflow.afterCreateInventoryRead.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterCreateInventoryRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-306 executable parity now runs the product-backed create-in-transit shipment request, immediate shipment detail read, and downstream InventoryItem quantity read against the local proxy harness. Live 2025-01 schema introspection confirmed the shipment roots and fields, but direct Shopify payload capture for read/write shipment roots is currently blocked because the available conformance grant lacks `read_inventory_shipments` / `write_inventory_shipments`; the fixture preserves that blocker while the runtime integration test covers the full add/remove/update/tracking/receive/delete lifecycle, validation guardrails, no upstream writes, and original raw mutation log order."
+}

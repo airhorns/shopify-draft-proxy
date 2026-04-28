@@ -1,0 +1,101 @@
+{
+  "scenarioId": "collections-catalog-read",
+  "operationNames": ["collections"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "pagination-shape",
+    "rich-collection-fields",
+    "catalog-search",
+    "catalog-sort",
+    "empty-connection"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed. The catalog capture selects the rich collection metadata fields modeled by HAR-151 while preserving nested product pagination shape, and replays captured collection catalog search/sort/empty branches locally from the seeded snapshot graph. Publication-status filtering stays coordinated with the collection publication model; saved-search filters remain outside this comparison until saved search state exists.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$[*].cursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify collection cursors are opaque; local snapshot replay uses deterministic synthetic cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "captured read payload",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$"
+      },
+      {
+        "name": "title wildcard edges local replay",
+        "capturePath": "$.data.titleWildcard.edges",
+        "proxyPath": "$.data.titleWildcard.edges",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      },
+      {
+        "name": "custom collection filter edges local replay",
+        "capturePath": "$.data.customCollections.edges",
+        "proxyPath": "$.data.customCollections.edges",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      },
+      {
+        "name": "smart collection filter edges local replay",
+        "capturePath": "$.data.smartCollections.edges",
+        "proxyPath": "$.data.smartCollections.edges",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      },
+      {
+        "name": "updated sort edges local replay",
+        "capturePath": "$.data.updatedNewest.edges",
+        "proxyPath": "$.data.updatedNewest.edges",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      },
+      {
+        "name": "product membership filter edges local replay",
+        "capturePath": "$.data.productMembership.edges",
+        "proxyPath": "$.data.productMembership.edges",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      },
+      {
+        "name": "empty unmatched query local replay",
+        "capturePath": "$.data.emptyUnmatched",
+        "proxyPath": "$.data.emptyUnmatched",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collections-catalog-read.graphql",
+          "variablesPath": "config/parity-requests/products/collections-catalog-read.variables.json"
+        }
+      }
+    ]
+  }
+}

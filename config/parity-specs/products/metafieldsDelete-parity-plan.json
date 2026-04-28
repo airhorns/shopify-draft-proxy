@@ -1,0 +1,52 @@
+{
+  "scenarioId": "metafields-delete-live-parity",
+  "operationNames": ["metafieldsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/metafieldsDelete-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture covers Shopify's current plural `metafieldsDelete` root, including a mixed product-owned batch where an existing metafield returns its identifier, a nonexistent namespace/key returns `null` in the same ordered `deletedMetafields` list, and immediate downstream `product.metafield(...)` / `product.metafields` reads show the existing metafield removed. The same fixture also records non-comparison edge evidence for nonexistent owner, empty input, and missing required key validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and not stable across local replay; the retained metafield node set and pageInfo booleans remain strict."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldsDelete.deletedMetafields[0].ownerId"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,189 @@
+{
+  "scenarioId": "carrier-service-lifecycle",
+  "operationNames": [
+    "carrierService",
+    "carrierServices",
+    "carrierServiceCreate",
+    "carrierServiceUpdate",
+    "carrierServiceDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/carrier-service-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-create.graphql",
+    "variablesCapturePath": "$.interactions[2].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 DeliveryCarrierService evidence covers empty catalog/detail reads, active/id query filters, current-schema delete root presence, create/update/delete lifecycle payloads, blank-name and unknown-id userErrors, and downstream carrierService/carrierServices visibility. This spec now replays the staged lifecycle through the local proxy parity harness with strict comparison targets for create, update, downstream active/detail reads, delete, after-delete absence, and validation branches. The downstream proxy request intentionally compares the captured active-filter/detail behavior and omits Shopify's opaque id-filter cursor branch because the proxy uses synthetic carrier-service IDs during isolated replay.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "carrier-create-payload",
+        "capturePath": "$.interactions[2].response.body.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "carrier-update-payload",
+        "capturePath": "$.interactions[3].response.body.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+              },
+              "name": "Hermes Carrier Updated",
+              "callbackUrl": "https://mock.shop/carrier-service-rates-updated",
+              "supportsServiceDiscovery": false,
+              "active": true
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The update runs against the proxy-created synthetic carrier-service ID."
+          }
+        ]
+      },
+      {
+        "name": "carrier-downstream-detail",
+        "capturePath": "$.interactions[4].response.body.data.carrierService",
+        "proxyPath": "$.data.carrierService",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-downstream.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+            },
+            "first": 5,
+            "activeQuery": "active:true"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The downstream detail read sees the proxy-created synthetic carrier-service ID."
+          }
+        ]
+      },
+      {
+        "name": "carrier-downstream-active-filter",
+        "capturePath": "$.interactions[4].response.body.data.active",
+        "proxyPath": "$.data.active",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-downstream.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+            },
+            "first": 5,
+            "activeQuery": "active:true"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The active-filter read sees the proxy-created synthetic carrier-service ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the proxy uses its local cursor form."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns an opaque cursor while the proxy uses its local cursor form."
+          }
+        ]
+      },
+      {
+        "name": "carrier-delete-payload",
+        "capturePath": "$.interactions[5].response.body.data.carrierServiceDelete",
+        "proxyPath": "$.data.carrierServiceDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The delete returns the proxy-created synthetic carrier-service ID."
+          }
+        ]
+      },
+      {
+        "name": "carrier-after-delete-absence",
+        "capturePath": "$.interactions[6].response.body.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-after-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "carrier-create-blank-name-user-errors",
+        "capturePath": "$.interactions[7].response.body.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-blank-name.graphql",
+          "variablesCapturePath": "$.interactions[7].request.variables"
+        }
+      },
+      {
+        "name": "carrier-update-unknown-user-errors",
+        "capturePath": "$.interactions[8].response.body.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-update-unknown.graphql",
+          "variablesCapturePath": "$.interactions[8].request.variables"
+        }
+      },
+      {
+        "name": "carrier-delete-unknown-user-errors",
+        "capturePath": "$.interactions[9].response.body.data.carrierServiceDelete",
+        "proxyPath": "$.data.carrierServiceDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-lifecycle-delete-unknown.graphql",
+          "variablesCapturePath": "$.interactions[9].request.variables"
+        }
+      }
+    ]
+  }
+}

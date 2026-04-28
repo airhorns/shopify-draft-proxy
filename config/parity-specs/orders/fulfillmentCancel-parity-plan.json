@@ -1,0 +1,52 @@
+{
+  "scenarioId": "fulfillment-cancel-live-parity",
+  "operationNames": ["fulfillmentCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCancel-parity-plan.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured HAR-187 happy-path `fulfillmentCancel` slice after fulfillment access was restored. The fixture records the safe setup fulfillment/tracking update, the cancel mutation payload, and immediate downstream order fulfillment visibility.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.createdAt",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live cancel timestamp, while the proxy uses its deterministic staged timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-fulfillment",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.fulfillment",
+        "proxyPath": "$.data.fulfillmentCancel.fulfillment"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel.userErrors",
+        "proxyPath": "$.data.fulfillmentCancel.userErrors"
+      },
+      {
+        "name": "downstream-cancelled-fulfillment",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0]",
+        "proxyPath": "$.data.order.fulfillments[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  }
+}

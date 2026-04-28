@@ -1,0 +1,32 @@
+{
+  "scenarioId": "draft-order-complete-inline-null-id-argument-error",
+  "operationNames": ["draftOrderComplete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-complete-inline-null-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderComplete-inline-null-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderComplete-inline-null-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `draftOrderComplete` inline null-literal GraphQL validation slice: inline `id: null` fails with `argumentLiteralsIncompatible`, and local parity now mirrors that branch without hitting upstream while the happy-path completion flow remains blocked on live access and mark-as-paid/set-payment-terms permission.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "top-level-error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
+  }
+}

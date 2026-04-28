@@ -1,0 +1,65 @@
+{
+  "scenarioId": "online-store-integrations-local-staging",
+  "operationNames": [
+    "theme",
+    "themes",
+    "scriptTag",
+    "scriptTags",
+    "webPixel",
+    "serverPixel",
+    "mobilePlatformApplication",
+    "mobilePlatformApplications",
+    "themeCreate",
+    "themeUpdate",
+    "themeDelete",
+    "themePublish",
+    "themeFilesCopy",
+    "themeFilesUpsert",
+    "themeFilesDelete",
+    "scriptTagCreate",
+    "scriptTagUpdate",
+    "scriptTagDelete",
+    "webPixelCreate",
+    "webPixelUpdate",
+    "webPixelDelete",
+    "serverPixelCreate",
+    "serverPixelDelete",
+    "eventBridgeServerPixelUpdate",
+    "pubSubServerPixelUpdate",
+    "storefrontAccessTokenCreate",
+    "storefrontAccessTokenDelete",
+    "mobilePlatformApplicationCreate",
+    "mobilePlatformApplicationUpdate",
+    "mobilePlatformApplicationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-introspection",
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "credential-redaction"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/online-store-integrations-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-integrations-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-integrations-local-staging.graphql",
+    "variablesCapturePath": "$.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "primary-local-staging-data",
+        "capturePath": "$.expected.primary",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "HAR-372 covers online-store presentation and integration roots with executable local-runtime parity evidence. The generic parity runner exercises the local proxy request for representative create/update-style side-effect-safe staging, while tests/integration/online-store-integrations-flow.test.ts covers the full local lifecycle matrix, downstream reads, deletion, validation/userErrors, meta log/state, redaction, and no upstream fetch. Live 2026-04 probe evidence confirmed theme and storefront-access-token read shape; missing read scopes for script tags, pixels, and mobile platform applications are documented in docs/endpoints/online-store.md."
+}

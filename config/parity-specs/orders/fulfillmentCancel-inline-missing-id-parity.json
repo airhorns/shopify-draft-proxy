@@ -1,0 +1,32 @@
+{
+  "scenarioId": "fulfillment-cancel-inline-missing-id-argument-error",
+  "operationNames": ["fulfillmentCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-inline-missing-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCancel-inline-missing-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/fulfillmentCancel-inline-missing-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `fulfillmentCancel` inline missing-argument GraphQL validation slice: omitting the inline `id` argument fails with `missingRequiredArguments`, and snapshot/live-hybrid local parity now mirrors that branch without hitting upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
+  }
+}

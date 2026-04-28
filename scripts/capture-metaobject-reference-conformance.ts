@@ -32,7 +32,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metaobjects');
 const outputPath = path.join(outputDir, 'metaobject-reference-lifecycle.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
@@ -40,7 +40,10 @@ const seed: SeedState = {
   parentType: `codex_har_384_ref_parent_${runId}`,
 };
 
-const referenceReadQuery = await readFile('config/parity-requests/metaobject-reference-read.graphql', 'utf8');
+const referenceReadQuery = await readFile(
+  'config/parity-requests/metaobjects/metaobject-reference-read.graphql',
+  'utf8',
+);
 
 const definitionReadFields = `#graphql
   fragment MetaobjectReferenceDefinitionFields on MetaobjectDefinition {
