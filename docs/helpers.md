@@ -7,6 +7,7 @@ This document catalogs shared helper surfaces that future work should reuse befo
 Shared helpers for GraphQL Admin proxy serializers.
 
 - `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
+- `resolveGraphQLValueNode(node, variables)`, `readIdempotencyKey(field, variables)`, and `buildMissingIdempotencyKeyError(field)` support Admin GraphQL directive validation for mutation roots that require `@idempotent(key:)` on newer route versions.
 - `getNodeLocation(node)` and `getVariableDefinitionLocation(document, variableName)` return Shopify-like `{ line, column }` GraphQL validation locations for AST nodes and variable definitions.
 - `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
 - `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.

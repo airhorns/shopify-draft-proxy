@@ -1,0 +1,648 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "schema": {
+    "data": {
+      "inventoryChangeInput": {
+        "inputFields": [
+          {
+            "name": "delta"
+          },
+          {
+            "name": "changeFromQuantity"
+          },
+          {
+            "name": "inventoryItemId"
+          },
+          {
+            "name": "locationId"
+          },
+          {
+            "name": "ledgerDocumentUri"
+          }
+        ]
+      },
+      "inventorySetQuantityInput": {
+        "inputFields": [
+          {
+            "name": "inventoryItemId"
+          },
+          {
+            "name": "locationId"
+          },
+          {
+            "name": "quantity"
+          },
+          {
+            "name": "changeFromQuantity"
+          }
+        ]
+      },
+      "inventorySetQuantitiesInput": {
+        "inputFields": [
+          {
+            "name": "reason"
+          },
+          {
+            "name": "name"
+          },
+          {
+            "name": "referenceDocumentUri"
+          },
+          {
+            "name": "quantities"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 6,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "setup": {
+    "location": {
+      "id": "gid://shopify/Location/106318430514",
+      "name": "Shop location"
+    },
+    "create": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172136718642",
+            "title": "Hermes Inventory Quantity Contracts 2026-04 1777347255873",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105380008242",
+                  "inventoryQuantity": 0,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208220533042",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "track": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10172136718642",
+            "tracksInventory": true,
+            "totalInventory": 0
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51105380008242",
+              "inventoryQuantity": 0,
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208220533042",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "inventoryItemLevel": {
+      "data": {
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53208220533042",
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 0
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 0
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1994,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "product": {
+      "productId": "gid://shopify/Product/10172136718642",
+      "variantId": "gid://shopify/ProductVariant/51105380008242",
+      "inventoryItemId": "gid://shopify/InventoryItem/53208220533042"
+    }
+  },
+  "inventorySetQuantities": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://har-408/set/1777347255873",
+        "quantities": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "quantity": 5,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-set-1777347255873"
+    },
+    "response": {
+      "data": {
+        "inventorySetQuantities": {
+          "inventoryAdjustmentGroup": {
+            "id": "gid://shopify/InventoryAdjustmentGroup/53834338828594",
+            "createdAt": "2026-04-28T03:34:16Z",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://har-408/set/1777347255873",
+            "changes": [
+              {
+                "name": "available",
+                "delta": 5,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53208220533042"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              {
+                "name": "on_hand",
+                "delta": 5,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53208220533042"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingSetIdempotency": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://har-408/set/1777347255873",
+        "quantities": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "quantity": 5,
+            "changeFromQuantity": 0
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-set-1777347255873"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "The @idempotent directive is required for this mutation but was not provided.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "BAD_REQUEST"
+          },
+          "path": ["inventorySetQuantities"]
+        }
+      ],
+      "data": {
+        "inventorySetQuantities": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingSetChangeFromQuantity": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "quantities": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "quantity": 5
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-set-missing-change-from-1777347255873"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "InventoryQuantityInput must include the following argument: changeFromQuantity.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            },
+            {
+              "line": 2,
+              "column": 41
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_FIELD_ARGUMENTS"
+          },
+          "path": ["inventorySetQuantities"]
+        }
+      ],
+      "data": {
+        "inventorySetQuantities": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "legacySetShape": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "ignoreCompareQuantity": true,
+        "quantities": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "quantity": 5
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-set-legacy-1777347255873"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type InventorySetQuantitiesInput! was provided invalid value for ignoreCompareQuantity (Field is not defined on InventorySetQuantitiesInput)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 41
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "name": "available",
+              "reason": "correction",
+              "ignoreCompareQuantity": true,
+              "quantities": [
+                {
+                  "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+                  "locationId": "gid://shopify/Location/106318430514",
+                  "quantity": 5
+                }
+              ]
+            },
+            "problems": [
+              {
+                "path": ["ignoreCompareQuantity"],
+                "explanation": "Field is not defined on InventorySetQuantitiesInput"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "inventoryAdjustQuantities": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://har-408/adjust/1777347255873",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 2,
+            "changeFromQuantity": 5
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-adjust-1777347255873"
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": {
+            "id": "gid://shopify/InventoryAdjustmentGroup/53834338926898",
+            "createdAt": "2026-04-28T03:34:17Z",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://har-408/adjust/1777347255873",
+            "changes": [
+              {
+                "name": "available",
+                "delta": 2,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53208220533042"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              {
+                "name": "on_hand",
+                "delta": 2,
+                "quantityAfterChange": null,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53208220533042"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingAdjustIdempotency": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://har-408/adjust/1777347255873",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 2,
+            "changeFromQuantity": 5
+          }
+        ]
+      },
+      "idempotencyKey": "har-408-adjust-1777347255873"
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "The @idempotent directive is required for this mutation but was not provided.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "BAD_REQUEST"
+          },
+          "path": ["inventoryAdjustQuantities"]
+        }
+      ],
+      "data": {
+        "inventoryAdjustQuantities": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingAdjustChangeFromQuantity": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53208220533042",
+            "locationId": "gid://shopify/Location/106318430514",
+            "delta": 1
+          }
+        ]
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "InventoryChangeInput must include the following argument: changeFromQuantity.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            },
+            {
+              "line": 2,
+              "column": 62
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_FIELD_ARGUMENTS"
+          },
+          "path": ["inventoryAdjustQuantities"]
+        }
+      ],
+      "data": {
+        "inventoryAdjustQuantities": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172136718642",
+        "totalInventory": 0,
+        "tracksInventory": true
+      },
+      "inventoryItem": {
+        "id": "gid://shopify/InventoryItem/53208220533042",
+        "tracked": true,
+        "variant": {
+          "id": "gid://shopify/ProductVariant/51105380008242",
+          "inventoryQuantity": 7,
+          "product": {
+            "id": "gid://shopify/Product/10172136718642",
+            "totalInventory": 0
+          }
+        },
+        "inventoryLevels": {
+          "nodes": [
+            {
+              "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53208220533042",
+              "location": {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 7,
+                  "updatedAt": "2026-04-28T03:34:17Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 7,
+                  "updatedAt": null
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 15,
+        "actualQueryCost": 9,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1987,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "data": {
+      "productDelete": {
+        "deletedProductId": "gid://shopify/Product/10172136718642",
+        "userErrors": []
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 10,
+        "actualQueryCost": 10,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1989,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

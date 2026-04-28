@@ -362,6 +362,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'inventory',
+    packageScript: 'conformance:capture-inventory-quantity-contracts-2026',
+    scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
+    purpose: 'Admin GraphQL 2026-04 inventory quantity mutation request contracts.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
+      'config/parity-specs/inventory-quantity-contracts-2026-04.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     packageScript: 'conformance:capture-markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
