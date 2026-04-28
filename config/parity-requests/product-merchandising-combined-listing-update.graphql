@@ -1,0 +1,12 @@
+mutation CombinedListingUpdate($parentProductId: ID!) {
+  combinedListingUpdate(parentProductId: $parentProductId) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

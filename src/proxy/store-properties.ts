@@ -878,7 +878,7 @@ function serializeLocationMetafield(
   return metafield ? serializeMetafieldSelection(metafield, field, { includeInlineFragments: true }) : null;
 }
 
-function serializeLocation(
+export function serializeLocation(
   location: LocationRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
