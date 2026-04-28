@@ -15,6 +15,13 @@ import {
   handleAdminPlatformMutation,
   handleAdminPlatformQuery,
 } from './admin-platform.js';
+import {
+  APP_MUTATION_ROOTS,
+  APP_QUERY_ROOTS,
+  handleAppMutation,
+  handleAppQuery,
+  hydrateAppsFromUpstreamResponse,
+} from './apps.js';
 import { handleB2BMutation, handleB2BQuery } from './b2b.js';
 import {
   handleBulkOperationMutation,
@@ -107,6 +114,7 @@ const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
+const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['orderCreateManualPayment', 'taxSummaryCreate']);
 const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnCreate',
   'returnRequest',
@@ -605,11 +613,9 @@ const LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS = new Set([
   'orderClose',
   'orderOpen',
   'orderMarkAsPaid',
-  'orderCreateManualPayment',
   'orderCustomerSet',
   'orderCustomerRemove',
   'orderInvoiceSend',
-  'taxSummaryCreate',
   'orderCancel',
   'orderDelete',
   'orderEditBegin',
@@ -815,6 +821,58 @@ function shouldTryLocalOrderMutation(request: ProxyDispatchRequest): boolean {
 
 const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
+    name: 'apps',
+    canHandle: (request) =>
+      request.capability.domain === 'apps' ||
+      (request.primaryRootField !== null &&
+        (APP_QUERY_ROOTS.has(request.primaryRootField) || APP_MUTATION_ROOTS.has(request.primaryRootField))),
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read' && !APP_QUERY_ROOTS.has(request.primaryRootField ?? '')) {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot' || store.hasAppDomainState()) {
+        setGraphQLResponse(request, 200, handleAppQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        hydrateAppsFromUpstreamResponse(upstreamResponse.body);
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          store.hasAppDomainState() ? handleAppQuery(request.body.query, request.variables) : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (
+        request.primaryRootField === null ||
+        !APP_MUTATION_ROOTS.has(request.primaryRootField) ||
+        (request.capability.execution !== 'stage-locally' && request.capability.domain !== 'unknown')
+      ) {
+        return false;
+      }
+
+      const responseBody = handleAppMutation(request.body.query, request.variables, request.config.shopifyAdminOrigin);
+      if (!responseBody) {
+        return false;
+      }
+
+      appendStagedMutationLog(request, {
+        responseBody,
+        notes:
+          'Staged locally in the in-memory app billing/access draft store; no billing, uninstall, scope, or delegated-token side effect was sent to Shopify at runtime.',
+      });
+      setGraphQLResponse(request, 200, responseBody);
+      return true;
+    },
+  },
+  {
     name: 'discounts',
     canHandle: (request) =>
       request.parsed.type === 'mutation' ||
@@ -879,6 +937,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables, {
         readMode: request.config.readMode,
         shopifyAdminOrigin: request.config.shopifyAdminOrigin,
+        apiVersion: request.apiVersion,
       });
       if (!bulkOperationMutation) {
         return false;
@@ -1394,6 +1453,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     canHandle: (request) =>
       request.capability.domain === 'orders' ||
       (request.capability.domain === 'payments' && ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')) ||
+      ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(request.primaryRootField ?? '') ||
       (request.capability.domain === 'shipping-fulfillments' &&
         (isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
           isOrderBackedReverseLogisticsMutation(request.primaryRootField))) ||
@@ -1512,6 +1572,24 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             responseBody,
             notes: 'Staged locally in the in-memory order payment draft store.',
           });
+        }
+
+        setGraphQLResponse(request, 200, responseBody);
+        return true;
+      }
+
+      if (
+        ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(request.primaryRootField ?? '') &&
+        (request.config.readMode === 'snapshot' || request.config.readMode === 'live-hybrid')
+      ) {
+        const responseBody = handleOrderMutation(
+          request.body.query,
+          request.variables,
+          request.config.readMode,
+          request.config.shopifyAdminOrigin,
+        );
+        if (!responseBody) {
+          return false;
         }
 
         setGraphQLResponse(request, 200, responseBody);

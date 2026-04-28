@@ -4,12 +4,7 @@
     "inventoryTransfer",
     "inventoryTransfers",
     "inventoryTransferCreate",
-    "inventoryTransferCreateAsReadyToShip",
-    "inventoryTransferEdit",
-    "inventoryTransferSetItems",
-    "inventoryTransferRemoveItems",
     "inventoryTransferMarkAsReadyToShip",
-    "inventoryTransferDuplicate",
     "inventoryTransferCancel",
     "inventoryTransferDelete"
   ],

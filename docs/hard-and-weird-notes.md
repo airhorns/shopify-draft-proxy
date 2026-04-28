@@ -2555,7 +2555,7 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- already implemented payment-adjacent slice: `orderCreateManualPayment` remains the captured access-denied local staging branch covered by `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
+- payment-adjacent guardrail: `orderCreateManualPayment` remains a captured access-denied branch that the runtime mirrors locally without passthrough, but it is not implemented operation support until Plus/manual-payment success semantics are captured and modeled.
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 

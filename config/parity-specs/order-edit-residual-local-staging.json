@@ -1,19 +1,6 @@
 {
   "scenarioId": "order-edit-residual-local-staging",
-  "operationNames": [
-    "orderEditBegin",
-    "orderEditAddCustomItem",
-    "orderEditAddLineItemDiscount",
-    "orderEditRemoveDiscount",
-    "orderEditAddShippingLine",
-    "orderEditRemoveShippingLine",
-    "orderEditUpdateShippingLine",
-    "orderEditCommit",
-    "orderDelete",
-    "order",
-    "orders",
-    "ordersCount"
-  ],
+  "operationNames": ["order", "orders", "ordersCount"],
   "scenarioStatus": "captured",
   "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
   "liveCaptureFiles": [

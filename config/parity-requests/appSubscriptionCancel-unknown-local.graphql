@@ -1,0 +1,11 @@
+mutation AppSubscriptionCancelUnknownLocal($id: ID!) {
+  appSubscriptionCancel(id: $id, prorate: true) {
+    appSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

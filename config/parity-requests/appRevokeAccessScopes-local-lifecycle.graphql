@@ -1,0 +1,13 @@
+mutation AppRevokeAccessScopesLocalLifecycle {
+  appRevokeAccessScopes(scopes: ["write_products", "write_orders"]) {
+    revoked {
+      handle
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

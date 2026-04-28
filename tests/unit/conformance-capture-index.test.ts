@@ -2,36 +2,37 @@ import { describe, expect, it } from 'vitest';
 
 import {
   conformanceCaptureIndex,
-  loadPackageCaptureScripts,
+  loadConformanceCaptureScriptPaths,
   renderCaptureIndexMarkdown,
-  validateCaptureIndexAgainstPackageScripts,
+  validateCaptureIndexAgainstScriptFiles,
 } from '../../scripts/conformance-capture-index.js';
 
 const repoRoot = new URL('../..', import.meta.url).pathname;
 
 describe('conformance capture index', () => {
-  it('indexes every packaged conformance capture command', () => {
-    const validation = validateCaptureIndexAgainstPackageScripts(
+  it('indexes every conformance capture script', () => {
+    const validation = validateCaptureIndexAgainstScriptFiles(
       conformanceCaptureIndex,
-      loadPackageCaptureScripts(repoRoot),
+      loadConformanceCaptureScriptPaths(repoRoot),
     );
 
     expect(validation).toEqual({
+      duplicateCaptureIds: [],
       missingFromIndex: [],
-      missingFromPackage: [],
-      scriptPathMismatches: [],
+      missingFromDisk: [],
     });
   });
 
   it('keeps entries actionable without opening the capture scripts', () => {
     for (const entry of conformanceCaptureIndex) {
-      expect(entry.domain.length, entry.packageScript).toBeGreaterThan(0);
-      expect(entry.scriptPath, entry.packageScript).toMatch(/^scripts\/.+\.(ts|mts)$/u);
-      expect(entry.purpose.length, entry.packageScript).toBeGreaterThan(0);
-      expect(entry.requiredAuthScopes.length, entry.packageScript).toBeGreaterThan(0);
-      expect(entry.fixtureOutputs.length, entry.packageScript).toBeGreaterThan(0);
-      expect(entry.cleanupBehavior.length, entry.packageScript).toBeGreaterThan(0);
-      expect(entry.expectedStatusChecks.length, entry.packageScript).toBeGreaterThan(0);
+      expect(entry.domain.length, entry.captureId).toBeGreaterThan(0);
+      expect(entry.captureId, entry.scriptPath).toMatch(/^[a-z0-9][a-z0-9-]*$/u);
+      expect(entry.scriptPath, entry.captureId).toMatch(/^scripts\/.+\.(ts|mts)$/u);
+      expect(entry.purpose.length, entry.captureId).toBeGreaterThan(0);
+      expect(entry.requiredAuthScopes.length, entry.captureId).toBeGreaterThan(0);
+      expect(entry.fixtureOutputs.length, entry.captureId).toBeGreaterThan(0);
+      expect(entry.cleanupBehavior.length, entry.captureId).toBeGreaterThan(0);
+      expect(entry.expectedStatusChecks.length, entry.captureId).toBeGreaterThan(0);
     }
   });
 
@@ -39,7 +40,8 @@ describe('conformance capture index', () => {
     const markdown = renderCaptureIndexMarkdown(conformanceCaptureIndex.filter((entry) => entry.domain === 'products'));
 
     expect(markdown).toContain('## products');
-    expect(markdown).toContain('corepack pnpm conformance:capture-product-mutations');
+    expect(markdown).toContain('corepack pnpm conformance:capture -- --run product-mutations');
+    expect(markdown).toContain('corepack pnpm exec tsx ./scripts/capture-product-mutation-conformance.mts');
     expect(markdown).toContain('Required auth/scopes');
     expect(markdown).toContain('Cleanup');
     expect(markdown).not.toContain('## customers');

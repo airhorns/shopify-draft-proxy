@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,10 +20,13 @@ const domainSchema = z.enum([
   'markets',
   'metafields',
   'metaobjects',
+  'online-store',
   'orders',
   'payments',
   'privacy',
   'products',
+  'saved-searches',
+  'segments',
   'shipping-fulfillments',
   'store-properties',
   'webhooks',
@@ -38,7 +42,8 @@ const statusCheckSchema = z.enum([
 
 export const captureIndexEntrySchema = z.strictObject({
   domain: domainSchema,
-  packageScript: z.string().regex(/^conformance:capture-/u),
+  captureId: z.string().regex(/^[a-z0-9][a-z0-9-]*$/u),
+  environment: z.record(z.string(), z.string().min(1)).optional(),
   scriptPath: z.string().regex(/^scripts\/.+\.(?:ts|mts)$/u),
   purpose: z.string().min(1),
   requiredAuthScopes: z.array(z.string().min(1)).min(1),
@@ -49,9 +54,6 @@ export const captureIndexEntrySchema = z.strictObject({
 });
 
 const captureIndexSchema = z.array(captureIndexEntrySchema);
-const packageJsonSchema = z.object({
-  scripts: z.record(z.string(), z.string()),
-});
 
 export type ConformanceCaptureIndexEntry = z.infer<typeof captureIndexEntrySchema>;
 type StatusCheck = z.infer<typeof statusCheckSchema>;
@@ -67,7 +69,7 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'products',
-    packageScript: 'conformance:capture-products',
+    captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
     purpose: 'Product read baselines, search grammar, selected product detail subresources.',
     requiredAuthScopes: ['read_products'],
@@ -77,7 +79,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-mutations',
+    captureId: 'product-mutations',
     scriptPath: 'scripts/capture-product-mutation-conformance.mts',
     purpose: 'productCreate/productUpdate/productDelete success and validation behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -87,7 +89,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-state-mutations',
+    captureId: 'product-state-mutations',
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -97,7 +99,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-publications',
+    captureId: 'product-publications',
     scriptPath: 'scripts/capture-product-publication-conformance.mts',
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
     requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
@@ -107,7 +109,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-media-mutations',
+    captureId: 'product-media-mutations',
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',
     purpose: 'Product media create/update/delete validation and downstream read branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -117,7 +119,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
-    packageScript: 'conformance:capture-file-mutations',
+    captureId: 'file-mutations',
     scriptPath: 'scripts/capture-file-mutation-conformance.mts',
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
@@ -128,7 +130,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
-    packageScript: 'conformance:capture-staged-upload-targets',
+    captureId: 'staged-upload-targets',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
     purpose: 'Representative stagedUploadsCreate target metadata for IMAGE, FILE, VIDEO, and MODEL_3D.',
     requiredAuthScopes: ['write_files'],
@@ -138,7 +141,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
-    packageScript: 'conformance:capture-file-acknowledge-update-failed',
+    captureId: 'file-acknowledge-update-failed',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
     purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
     requiredAuthScopes: ['read_files', 'write_files'],
@@ -152,7 +156,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-option-mutations',
+    captureId: 'product-option-mutations',
     scriptPath: 'scripts/capture-product-option-mutation-conformance.mts',
     purpose: 'productOptionsCreate/productOptionUpdate/productOptionsDelete mutation family.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -162,7 +166,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-option-variant-strategy-edges',
+    captureId: 'product-option-variant-strategy-edges',
     scriptPath: 'scripts/capture-product-option-variant-strategy-edge-conformance.mts',
     purpose: 'product option variantStrategy and productVariantsBulkCreate.strategy edge behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -177,7 +181,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-variant-mutations',
+    captureId: 'product-variant-mutations',
     scriptPath: 'scripts/capture-product-variant-mutation-conformance.mts',
     purpose: 'Product variant create/update/delete mutation family.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -187,7 +191,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-variant-validations',
+    captureId: 'product-variant-validations',
     scriptPath: 'scripts/capture-product-variant-validation-conformance.mts',
     purpose: 'Bulk variant validation atomicity for create/update/delete.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
@@ -200,7 +204,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
-    packageScript: 'conformance:capture-inventory-item-mutations',
+    captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
     purpose: 'inventoryItemUpdate and product-backed inventory item mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory'],
@@ -210,7 +214,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
-    packageScript: 'conformance:capture-inventory-linkage-mutations',
+    captureId: 'inventory-linkage-mutations',
     scriptPath: 'scripts/capture-inventory-linkage-mutation-conformance.mts',
     purpose: 'inventoryActivate/inventoryDeactivate/inventoryBulkToggleActivation linkage behavior.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
@@ -223,7 +227,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
-    packageScript: 'conformance:capture-product-metafield-mutations',
+    captureId: 'product-metafield-mutations',
     scriptPath: 'scripts/capture-product-metafield-mutation-conformance.mts',
     purpose: 'Product-scoped metafieldsSet/metafieldsDelete mutation behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -233,7 +237,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
-    packageScript: 'conformance:capture-metafield-definition-pinning',
+    captureId: 'metafield-definition-pinning',
     scriptPath: 'scripts/capture-metafield-definition-pinning-conformance.mts',
     purpose: 'metafieldDefinitionPin/metafieldDefinitionUnpin behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -243,7 +247,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-graph-mutations',
+    captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
     purpose: 'Product graph mutation branches that span product/options/variants/media.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -253,7 +257,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-duplicate-async',
+    captureId: 'product-duplicate-async',
     scriptPath: 'scripts/capture-product-duplicate-async-conformance.ts',
     purpose: 'Asynchronous productDuplicate operation success and missing-product completion behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -267,7 +271,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
-    packageScript: 'conformance:capture-product-inventory-reads',
+    captureId: 'product-inventory-reads',
     scriptPath: 'scripts/capture-product-inventory-read-conformance.mts',
     purpose: 'Product-adjacent inventory read shapes and linkage baselines.',
     requiredAuthScopes: ['read_products', 'read_inventory', 'read_locations'],
@@ -277,7 +281,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-product-helper-reads',
+    captureId: 'product-helper-reads',
     scriptPath: 'scripts/capture-product-helper-read-conformance.mts',
     purpose: 'Product helper roots and read-only compatibility wrappers.',
     requiredAuthScopes: ['read_products'],
@@ -289,8 +293,35 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'saved-searches',
+    captureId: 'saved-search-resource-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-saved-search-resource-roots-conformance.ts',
+    purpose:
+      'SavedSearch create/read/delete behavior across resource-specific saved-search roots plus customer deprecation.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_draft_orders',
+      'write_draft_orders',
+      'read_files',
+      'write_files',
+      'discount redeem-code saved-search access',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-resource-roots.json`,
+      'config/parity-specs/saved-search-resource-roots.json',
+      'config/parity-requests/saved-search-resource-roots-*.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable saved searches and deletes each successful create during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
-    packageScript: 'conformance:capture-product-relationship-roots',
+    captureId: 'product-relationship-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-relationship-roots-conformance.ts',
     purpose:
       'Product/variant relationship roots for option ordering, collection V2 membership, media attachment, and selling-plan membership.',
@@ -305,7 +336,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
-    packageScript: 'conformance:capture-selling-plan-groups',
+    captureId: 'selling-plan-groups',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-selling-plan-group-conformance.ts',
     purpose: 'Selling-plan group lifecycle, membership mutation payloads, and downstream product/variant reads.',
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
@@ -318,7 +350,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
-    packageScript: 'conformance:capture-metafield-definition-mutations',
+    captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',
     purpose: 'Metafield definition mutation validation branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -328,7 +360,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
-    packageScript: 'conformance:capture-metafield-definition-lifecycle',
+    captureId: 'metafield-definition-lifecycle',
     scriptPath: 'scripts/capture-metafield-definition-lifecycle-conformance.mts',
     purpose: 'Product-owned metafieldDefinitionCreate/update/delete lifecycle.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -341,7 +373,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
-    packageScript: 'conformance:capture-metaobjects',
+    captureId: 'metaobjects',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-read-conformance.mts',
     purpose: 'Metaobject definition/entry reads and minimal disposable seed behavior.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
@@ -351,7 +384,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
-    packageScript: 'conformance:capture-metaobject-schema-change',
+    captureId: 'metaobject-schema-change',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-schema-change-conformance.ts',
     purpose: 'Metaobject definition schema edits plus row add/update/delete behavior before and after the edit.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
@@ -365,7 +399,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
-    packageScript: 'conformance:capture-metaobject-references',
+    captureId: 'metaobject-references',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-reference-conformance.ts',
     purpose: 'Metaobject reference field and reverse referencedBy read behavior.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
@@ -378,7 +413,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
-    packageScript: 'conformance:capture-inventory-adjustments',
+    captureId: 'inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
     purpose: 'Inventory quantity adjustment/move/set mutation behavior.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
@@ -392,7 +427,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'inventory',
-    packageScript: 'conformance:capture-inventory-quantity-contracts-2026',
+    captureId: 'inventory-quantity-contracts-2026',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
     purpose: 'Admin GraphQL 2026-04 inventory quantity mutation request contracts.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
@@ -405,7 +441,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
-    packageScript: 'conformance:capture-markets',
+    captureId: 'markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
     purpose: 'Markets read baselines and localization-adjacent validation probes.',
     requiredAuthScopes: ['read_markets', 'read_products'],
@@ -416,7 +452,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
-    packageScript: 'conformance:capture-product-contextual-pricing',
+    captureId: 'product-contextual-pricing',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
     purpose: 'Product and variant contextual pricing reads tied to Markets price-list fixed prices.',
     requiredAuthScopes: ['read_markets', 'read_products', 'write_products'],
@@ -429,7 +466,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
-    packageScript: 'conformance:capture-marketing',
+    captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',
     purpose: 'Marketing activity/event/engagement roots and mutation branches.',
     requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
@@ -438,8 +475,39 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'segments',
+    captureId: 'segments',
+    scriptPath: 'scripts/capture-segment-conformance.mts',
+    purpose: 'Segment baseline read payloads for the checked-in segment parity request.',
+    requiredAuthScopes: ['read_customers', 'customer segment access'],
+    fixtureOutputs: [`${CAPTURE_ROOT}segments-baseline.json`],
+    cleanupBehavior: 'Read-only capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segment-query-grammar',
+    scriptPath: 'scripts/capture-segment-query-grammar-conformance.ts',
+    purpose: 'Segment query grammar support for `NOT CONTAINS` customer-tag predicates.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [`${CAPTURE_ROOT}segment-query-grammar-not-contains.json`],
+    cleanupBehavior:
+      'Creates one disposable segment, deletes it during cleanup, and leaves only Shopify async query state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-content-search',
+    scriptPath: 'scripts/capture-online-store-content-search-conformance.ts',
+    purpose: 'Online store article, blog, and page search filter behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [`${CAPTURE_ROOT}online-store-content-search-filters.json`],
+    cleanupBehavior: 'Creates disposable article, blog, and page records, then deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
-    packageScript: 'conformance:capture-collections',
+    captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
     purpose: 'Collection read baselines for custom/smart collections and product membership.',
     requiredAuthScopes: ['read_products'],
@@ -449,7 +517,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
-    packageScript: 'conformance:capture-collection-mutations',
+    captureId: 'collection-mutations',
     scriptPath: 'scripts/capture-collection-mutation-conformance.mts',
     purpose: 'collectionCreate/update/delete/addProducts/removeProducts mutation family.',
     requiredAuthScopes: ['read_products', 'write_products'],
@@ -459,7 +527,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
-    packageScript: 'conformance:capture-collection-publications',
+    captureId: 'collection-publications',
     scriptPath: 'scripts/capture-collection-mutation-conformance.mts',
     purpose: 'Collection publication behavior covered by the collection mutation harness when enabled.',
     requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
@@ -469,7 +537,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
-    packageScript: 'conformance:capture-locations',
+    captureId: 'locations',
     scriptPath: 'scripts/capture-location-conformance.mts',
     purpose: 'Location roots and inventory/publication-adjacent store property reads.',
     requiredAuthScopes: ['read_locations'],
@@ -479,7 +547,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
-    packageScript: 'conformance:capture-store-properties',
+    captureId: 'store-properties',
     scriptPath: 'scripts/capture-location-conformance.mts',
     purpose: 'Store property roots sharing the location capture harness.',
     requiredAuthScopes: ['read_locations', 'read_products'],
@@ -489,7 +557,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
-    packageScript: 'conformance:capture-shop-policies',
+    captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
     requiredAuthScopes: ['read_content', 'write_content or policy-management access'],
@@ -499,7 +567,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'privacy',
-    packageScript: 'conformance:capture-privacy',
+    captureId: 'privacy',
     scriptPath: 'scripts/capture-privacy-conformance.ts',
     purpose: 'Privacy/data-sale read and mutation roots.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'privacy API access'],
@@ -509,7 +577,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'privacy',
-    packageScript: 'conformance:capture-data-sale-opt-out',
+    captureId: 'data-sale-opt-out',
     scriptPath: 'scripts/capture-data-sale-opt-out-conformance.ts',
     purpose: 'dataSaleOptOut behavior and downstream customer privacy read effects.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'privacy API access'],
@@ -519,7 +587,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
-    packageScript: 'conformance:capture-root-operations',
+    captureId: 'root-operations',
     scriptPath: 'scripts/capture-admin-graphql-root-operation-introspection.mts',
     purpose: 'Admin GraphQL root operation introspection for coverage-map updates.',
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
@@ -532,7 +600,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
-    packageScript: 'conformance:capture-orders',
+    captureId: 'orders',
     scriptPath: 'scripts/capture-order-conformance.mts',
     purpose: 'Order reads, orderCreate, order-edit, transaction, and downstream order-family behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_products', 'write_products'],
@@ -542,7 +610,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
-    packageScript: 'conformance:capture-fulfillment-detail-events',
+    captureId: 'fulfillment-detail-events',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-detail-events-conformance.ts',
     purpose: 'Fulfillment detail event capture on disposable orders.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
@@ -552,7 +621,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
-    packageScript: 'conformance:capture-draft-order-family',
+    captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',
     purpose: 'Draft order create/update/delete/complete and downstream read behavior.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
@@ -562,7 +631,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
-    packageScript: 'conformance:capture-draft-order-residual-helpers',
+    captureId: 'draft-order-residual-helpers',
     scriptPath: 'scripts/capture-draft-order-residual-helper-conformance.mts',
     purpose: 'Residual draft-order helper roots such as calculate, bulk tags, invoices, and delivery options.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
@@ -575,7 +644,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
-    packageScript: 'conformance:capture-draft-order-invoice-send-safety',
+    captureId: 'draft-order-invoice-send-safety',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',
     purpose: 'Safety probes for draftOrderInvoiceSend side effects and validation branches.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders'],
@@ -585,7 +655,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discounts',
+    captureId: 'discounts',
     scriptPath: 'scripts/capture-discount-conformance.ts',
     purpose: 'Discount read roots and baseline validation branches.',
     requiredAuthScopes: ['read_discounts'],
@@ -595,7 +665,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discount-lifecycle',
+    captureId: 'discount-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-code-basic-lifecycle-conformance.ts',
     purpose: 'Code discount basic create/update/delete lifecycle.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
@@ -605,7 +676,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discount-buyer-context',
+    captureId: 'discount-buyer-context',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
     purpose: 'Code and automatic basic discount customer/segment buyer context lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
@@ -615,7 +687,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discount-bxgy-lifecycle',
+    captureId: 'discount-bxgy-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-bxgy-lifecycle-conformance.ts',
     purpose: 'Buy-X-get-Y code and automatic discount lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
@@ -625,7 +698,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discount-free-shipping-lifecycle',
+    captureId: 'discount-free-shipping-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-free-shipping-lifecycle-conformance.ts',
     purpose: 'Free-shipping discount lifecycle behavior.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
@@ -635,7 +709,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
-    packageScript: 'conformance:capture-discount-validation',
+    captureId: 'discount-validation',
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
     purpose: 'Discount validation guardrails without broad lifecycle side effects.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
@@ -645,7 +719,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'apps',
-    packageScript: 'conformance:capture-app-billing',
+    captureId: 'app-billing',
     scriptPath: 'scripts/capture-app-billing-conformance.ts',
     purpose: 'App billing/access read roots and blocker evidence.',
     requiredAuthScopes: ['app billing access for the installed app'],
@@ -655,7 +729,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
-    packageScript: 'conformance:capture-finance-risk',
+    captureId: 'finance-risk',
     scriptPath: 'scripts/capture-finance-risk-conformance.ts',
     purpose: 'Finance, risk, POS, dispute, and Shop Pay receipt read/access evidence.',
     requiredAuthScopes: ['Shopify Payments, finance, risk, and POS root access for the active Admin token'],
@@ -668,7 +742,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
-    packageScript: 'conformance:capture-payment-terms-lifecycle',
+    captureId: 'payment-terms-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
@@ -679,7 +754,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'admin-platform',
-    packageScript: 'conformance:capture-admin-platform',
+    captureId: 'admin-platform',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-conformance.mts',
     purpose: 'Admin platform utility roots and staff/access blocker evidence.',
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
@@ -692,7 +768,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
-    packageScript: 'conformance:capture-order-refunds',
+    captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
     purpose: 'Order refund calculation/create behavior against disposable orders.',
     requiredAuthScopes: ['read_orders', 'write_orders'],
@@ -702,7 +778,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
-    packageScript: 'conformance:capture-fulfillment-order-lifecycle',
+    captureId: 'fulfillment-order-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-lifecycle-conformance.ts',
     purpose: 'Fulfillment order hold/request/cancel/close lifecycle behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
@@ -712,7 +789,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
-    packageScript: 'conformance:capture-delivery-profiles',
+    captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
@@ -722,7 +799,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
-    packageScript: 'conformance:capture-shipping-settings',
+    captureId: 'shipping-settings',
     scriptPath: 'scripts/capture-shipping-settings-conformance.ts',
     purpose: 'Shipping package, local pickup, carrier availability, and constraint-root blocker evidence.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'read_locations', 'write_locations'],
@@ -735,7 +812,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
-    packageScript: 'conformance:capture-bulk-operations',
+    captureId: 'bulk-operations',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-status-conformance.ts',
     purpose: 'Bulk operation status/catalog/cancel roots.',
     requiredAuthScopes: ['bulk operation access through active Admin token'],
@@ -748,7 +826,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
-    packageScript: 'conformance:capture-webhook-subscriptions',
+    captureId: 'webhook-subscriptions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-conformance.ts',
     purpose: 'Webhook subscription create/read/delete and access-scope observations.',
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
@@ -758,7 +837,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
-    packageScript: 'conformance:capture-gift-cards',
+    captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',
     purpose: 'Gift-card read/configuration/count behavior plus create/update/credit/debit/deactivate lifecycle parity.',
     requiredAuthScopes: [
@@ -774,7 +853,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customers',
+    captureId: 'customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
     purpose: 'Customer read baselines and nested customer subresources.',
     requiredAuthScopes: ['read_customers'],
@@ -784,7 +863,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-mutations',
+    captureId: 'customer-mutations',
     scriptPath: 'scripts/capture-customer-mutation-conformance.mts',
     purpose: 'customerCreate/customerUpdate/customerDelete mutation family.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -794,7 +873,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-validation',
+    captureId: 'customer-input-validation',
     scriptPath: 'scripts/capture-customer-input-validation-conformance.ts',
     purpose: 'Customer input validation, normalization, duplicate identity, and downstream read behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
@@ -808,7 +887,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-input-addresses',
+    captureId: 'customer-input-addresses',
     scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
     purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -823,7 +902,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-account-page-data-erasure',
+    captureId: 'customer-account-page-data-erasure',
     scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
     purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
@@ -837,7 +916,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-store-credit',
+    captureId: 'store-credit',
     scriptPath: 'scripts/capture-store-credit-conformance.ts',
     purpose: 'Store credit account creation setup, account-id credit/debit mutations, and downstream balance reads.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
@@ -851,7 +930,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-set',
+    captureId: 'customer-set',
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -861,7 +940,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-addresses',
+    captureId: 'customer-addresses',
     scriptPath: 'scripts/capture-customer-address-conformance.mts',
     purpose: 'Customer address lifecycle, normalization, defaulting, and validation.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -871,7 +950,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-merge',
+    captureId: 'customer-merge',
     scriptPath: 'scripts/capture-customer-merge-conformance.mts',
     purpose: 'Base two-customer customerMerge behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
@@ -881,7 +960,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-merge-attached-resources',
+    captureId: 'customer-merge-attached-resources',
     scriptPath: 'scripts/capture-customer-merge-attached-resources-conformance.mts',
     purpose: 'customerMerge with attached address/metafield/order resources.',
     requiredAuthScopes: [
@@ -901,7 +980,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-consent',
+    captureId: 'customer-consent',
     scriptPath: 'scripts/capture-customer-consent-conformance.ts',
     purpose: 'Email/SMS marketing consent update behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -914,7 +993,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-tax-exemptions',
+    captureId: 'customer-tax-exemptions',
     scriptPath: 'scripts/capture-customer-tax-exemption-conformance.ts',
     purpose: 'Customer tax exemption update behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
@@ -924,7 +1003,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
-    packageScript: 'conformance:capture-customer-order-summary',
+    captureId: 'customer-order-summary',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-customer-order-summary-conformance.ts',
     purpose: 'Customer order summary reads against order-linked customer state.',
     requiredAuthScopes: ['read_customers', 'read_orders', 'write_orders'],
@@ -932,57 +1012,71 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior: 'Creates disposable order/customer state and records cleanup/cancel result.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
+  {
+    domain: 'customers',
+    captureId: 'customer-outbound-email',
+    scriptPath: 'scripts/capture-customer-outbound-email-conformance.mts',
+    purpose: 'Validation payloads for customer outbound email side-effect roots without sending real email.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [`${CAPTURE_ROOT}customer-outbound-side-effect-validation-parity.json`],
+    cleanupBehavior: 'Validation-only unknown-ID capture; no created Shopify resources to clean up.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
 ]);
 
-export function loadPackageCaptureScripts(repoRoot = process.cwd()): Map<string, string> {
-  const packageJsonPath = path.join(repoRoot, 'package.json');
-  const parsed = packageJsonSchema.parse(JSON.parse(readFileSync(packageJsonPath, 'utf8')) as unknown);
-  return new Map(Object.entries(parsed.scripts).filter(([name]) => name.startsWith('conformance:capture-')));
+export function loadConformanceCaptureScriptPaths(repoRoot = process.cwd()): string[] {
+  return readdirSync(path.join(repoRoot, 'scripts'))
+    .filter((fileName) => /^capture-.*\.(?:ts|mts)$/u.test(fileName))
+    .map((fileName) => `scripts/${fileName}`)
+    .sort();
 }
 
-export function validateCaptureIndexAgainstPackageScripts(
+export function validateCaptureIndexAgainstScriptFiles(
   entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex,
-  packageScripts: Map<string, string> = loadPackageCaptureScripts(),
-): { missingFromIndex: string[]; missingFromPackage: string[]; scriptPathMismatches: string[] } {
-  const indexedScripts = new Set(entries.map((entry) => entry.packageScript));
-  const missingFromIndex = [...packageScripts.keys()].filter((script) => !indexedScripts.has(script)).sort();
-  const missingFromPackage = entries
-    .map((entry) => entry.packageScript)
-    .filter((script) => !packageScripts.has(script))
-    .sort();
-  const scriptPathMismatches = entries
-    .filter((entry) => {
-      const packageCommand = packageScripts.get(entry.packageScript);
-      return typeof packageCommand === 'string' && !packageCommand.includes(entry.scriptPath);
-    })
-    .map((entry) => entry.packageScript)
-    .sort();
+  scriptPaths: string[] = loadConformanceCaptureScriptPaths(),
+): { duplicateCaptureIds: string[]; missingFromIndex: string[]; missingFromDisk: string[] } {
+  const indexedPaths = new Set(entries.map((entry) => entry.scriptPath));
+  const diskPaths = new Set(scriptPaths);
+  const captureIdCounts = new Map<string, number>();
+
+  for (const entry of entries) {
+    captureIdCounts.set(entry.captureId, (captureIdCounts.get(entry.captureId) ?? 0) + 1);
+  }
 
   return {
-    missingFromIndex,
-    missingFromPackage,
-    scriptPathMismatches,
+    duplicateCaptureIds: [...captureIdCounts]
+      .filter(([, count]) => count > 1)
+      .map(([captureId]) => captureId)
+      .sort(),
+    missingFromIndex: scriptPaths.filter((scriptPath) => !indexedPaths.has(scriptPath)).sort(),
+    missingFromDisk: entries
+      .map((entry) => entry.scriptPath)
+      .filter((scriptPath) => !diskPaths.has(scriptPath))
+      .sort(),
   };
 }
 
 export function renderCaptureIndexMarkdown(entries: ConformanceCaptureIndexEntry[] = conformanceCaptureIndex): string {
   const lines = [
-    '# Conformance Capture Command Index',
+    '# Conformance Capture Runner Index',
     '',
-    'Run capture commands with `corepack pnpm <packageScript>` after `corepack pnpm conformance:probe` confirms the active Shopify credential and store.',
+    'Run capture scripts directly with `corepack pnpm exec tsx <scriptPath>`, or run one through the meta runner with `corepack pnpm conformance:capture -- --run <captureId>` after `corepack pnpm conformance:probe` confirms the active Shopify credential and store.',
     '',
   ];
 
   const domains = [...new Set(entries.map((entry) => entry.domain))].sort();
   for (const domain of domains) {
     lines.push(`## ${domain}`, '');
-    lines.push('| Command | Script | Purpose | Required auth/scopes | Outputs | Cleanup | Status checks |');
-    lines.push('| --- | --- | --- | --- | --- | --- | --- |');
+    lines.push(
+      '| Capture ID | Meta runner | Direct script | Purpose | Required auth/scopes | Outputs | Cleanup | Status checks |',
+    );
+    lines.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
 
     for (const entry of entries.filter((candidate) => candidate.domain === domain)) {
       const cells = [
-        `\`corepack pnpm ${entry.packageScript}\``,
-        `\`${entry.scriptPath}\``,
+        `\`${entry.captureId}\``,
+        `\`${renderRunnerCommand(entry)}\``,
+        `\`${renderDirectCommand(entry)}\``,
         escapeTableCell(entry.purpose),
         entry.requiredAuthScopes.map((scope) => `\`${scope}\``).join('<br>'),
         entry.fixtureOutputs.map((output) => `\`${output}\``).join('<br>'),
@@ -1000,6 +1094,22 @@ export function renderCaptureIndexMarkdown(entries: ConformanceCaptureIndexEntry
 
 function escapeTableCell(value: string): string {
   return value.replace(/\|/gu, '\\|').replace(/\n/gu, '<br>');
+}
+
+function renderEnvironmentPrefix(entry: ConformanceCaptureIndexEntry): string {
+  return Object.entries(entry.environment ?? {})
+    .map(([key, value]) => `${key}=${value}`)
+    .join(' ');
+}
+
+function renderDirectCommand(entry: ConformanceCaptureIndexEntry): string {
+  const environmentPrefix = renderEnvironmentPrefix(entry);
+  const command = `corepack pnpm exec tsx ./${entry.scriptPath}`;
+  return environmentPrefix ? `${environmentPrefix} ${command}` : command;
+}
+
+function renderRunnerCommand(entry: ConformanceCaptureIndexEntry): string {
+  return `corepack pnpm conformance:capture -- --run ${entry.captureId}`;
 }
 
 function renderStatusCheck(check: ConformanceCaptureIndexEntry['expectedStatusChecks'][number]): string {
@@ -1026,26 +1136,45 @@ function readFlagValue(args: string[], flag: string): string | null {
 function runCli(): void {
   const args = process.argv.slice(2);
   const domain = readFlagValue(args, '--domain');
-  const packageScript = readFlagValue(args, '--script');
+  const script = readFlagValue(args, '--script');
+  const run = readFlagValue(args, '--run');
   const outputJson = args.includes('--json');
-  const validation = validateCaptureIndexAgainstPackageScripts();
+  const validation = validateCaptureIndexAgainstScriptFiles();
   if (
+    validation.duplicateCaptureIds.length > 0 ||
     validation.missingFromIndex.length > 0 ||
-    validation.missingFromPackage.length > 0 ||
-    validation.scriptPathMismatches.length > 0
+    validation.missingFromDisk.length > 0
   ) {
     throw new Error(`Conformance capture index is out of sync: ${JSON.stringify(validation, null, 2)}`);
+  }
+
+  if (run) {
+    const entry = findEntry(run);
+    if (!entry) {
+      throw new Error(`Unknown conformance capture script: ${run}`);
+    }
+
+    const result = spawnSync('tsx', [`./${entry.scriptPath}`], {
+      env: { ...process.env, ...entry.environment },
+      shell: process.platform === 'win32',
+      stdio: 'inherit',
+    });
+    process.exit(typeof result.status === 'number' ? result.status : 1);
   }
 
   let entries = conformanceCaptureIndex;
   if (domain) {
     entries = entries.filter((entry) => entry.domain === domain);
   }
-  if (packageScript) {
-    entries = entries.filter((entry) => entry.packageScript === packageScript);
+  if (script) {
+    entries = entries.filter((entry) => entry.captureId === script || entry.scriptPath === script);
   }
 
   process.stdout.write(outputJson ? `${JSON.stringify(entries, null, 2)}\n` : renderCaptureIndexMarkdown(entries));
+}
+
+function findEntry(script: string): ConformanceCaptureIndexEntry | undefined {
+  return conformanceCaptureIndex.find((entry) => entry.captureId === script || entry.scriptPath === script);
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;

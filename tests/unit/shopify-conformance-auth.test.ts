@@ -31,6 +31,45 @@ describe('buildAdminAuthHeaders', () => {
 });
 
 describe('getValidConformanceAccessToken', () => {
+  it('probes stored credentials against the default Admin API version', async () => {
+    const dir = await createTempDir('shopify-auth-');
+    const credentialPath = path.join(dir, 'conformance-admin-auth.json');
+    await writeFile(
+      credentialPath,
+      `${JSON.stringify(
+        {
+          shop: 'very-big-test-store.myshopify.com',
+          client_id: 'client-id',
+          access_token: 'shpca_valid_token',
+          refresh_token: 'shprt_valid_refresh',
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { shop: { id: 'gid://shopify/Shop/1' } } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(
+      getValidConformanceAccessToken({
+        adminOrigin: 'https://very-big-test-store.myshopify.com',
+        credentialPath,
+        fetchImpl: fetchMock,
+        appEnvPath: path.join(dir, 'unused.env'),
+      }),
+    ).resolves.toBe('shpca_valid_token');
+
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toBe(
+      'https://very-big-test-store.myshopify.com/admin/api/2026-04/graphql.json',
+    );
+  });
+
   it('returns the stored token when the probe succeeds', async () => {
     const dir = await createTempDir('shopify-auth-');
     const credentialPath = path.join(dir, 'conformance-admin-auth.json');

@@ -29,6 +29,7 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformMutation, handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAppMutation, handleAppQuery, hydrateAppsFromUpstreamResponse } from '../src/proxy/apps.js';
 import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
@@ -94,6 +95,7 @@ import {
   handleWebhookSubscriptionQuery,
   hydrateWebhookSubscriptionsFromUpstreamResponse,
 } from '../src/proxy/webhooks.js';
+import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
 import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
 import { store } from '../src/state/store.js';
 import type {
@@ -220,7 +222,6 @@ export interface ExecutedOperation {
 export interface OperationNameValidationResult {
   declaredMutationOperationNames: string[];
   actualMutationOperationNames: string[];
-  runtimeTestBackedMutationOperationNames: string[];
   missingMutationOperationNames: string[];
   unexpectedMutationOperationNames: string[];
   errors: string[];
@@ -257,6 +258,7 @@ const registeredMutationOperationNames = new Set(
 );
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
+const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['orderCreateManualPayment', 'taxSummaryCreate']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -839,25 +841,13 @@ function uniqueSorted(values: string[]): string[] {
   return [...new Set(values)].sort((left, right) => left.localeCompare(right));
 }
 
-function hasRuntimeTestEvidence(operationName: string, paritySpec: Pick<ParitySpec, 'runtimeTestFiles'>): boolean {
-  const declaredRuntimeTestFiles = new Set(paritySpec.runtimeTestFiles ?? []);
-  if (declaredRuntimeTestFiles.size === 0) {
-    return false;
-  }
-
-  const registryEntry = operationRegistryEntries.find(
-    (entry) => entry.type === 'mutation' && entry.matchNames.includes(operationName),
-  );
-  return registryEntry?.runtimeTests.some((runtimeTestFile) => declaredRuntimeTestFiles.has(runtimeTestFile)) ?? false;
-}
-
 export function validateParityScenarioOperationNames({
   scenario,
   paritySpec,
   executedOperations,
 }: {
   scenario: Scenario;
-  paritySpec: Pick<ParitySpec, 'operationNames' | 'runtimeTestFiles'>;
+  paritySpec: Pick<ParitySpec, 'operationNames'>;
   executedOperations: ExecutedOperation[];
 }): OperationNameValidationResult {
   const actualMutationOperationNames = uniqueSorted(
@@ -871,14 +861,8 @@ export function validateParityScenarioOperationNames({
     ),
   );
   const declaredMutationOperationNameSet = new Set(declaredMutationOperationNames);
-  const runtimeTestBackedMutationOperationNames = declaredMutationOperationNames.filter((operationName) =>
-    hasRuntimeTestEvidence(operationName, paritySpec),
-  );
-  const runtimeTestBackedMutationOperationNameSet = new Set(runtimeTestBackedMutationOperationNames);
   const missingMutationOperationNames = declaredMutationOperationNames.filter(
-    (operationName) =>
-      !actualMutationOperationNameSet.has(operationName) &&
-      !runtimeTestBackedMutationOperationNameSet.has(operationName),
+    (operationName) => !actualMutationOperationNameSet.has(operationName),
   );
   const unexpectedMutationOperationNames = actualMutationOperationNames.filter(
     (operationName) => !declaredMutationOperationNameSet.has(operationName),
@@ -907,7 +891,6 @@ export function validateParityScenarioOperationNames({
   return {
     declaredMutationOperationNames,
     actualMutationOperationNames,
-    runtimeTestBackedMutationOperationNames,
     missingMutationOperationNames,
     unexpectedMutationOperationNames,
     errors,
@@ -931,7 +914,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
-  apiVersion = '2025-01',
+  apiVersion = DEFAULT_ADMIN_API_VERSION,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -950,6 +933,42 @@ async function executeGraphQLAgainstLocalProxy(
         body: discountMutation.response,
       };
     }
+
+    if (parsed.rootFields.some((rootField) => ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(rootField))) {
+      const body = handleOrderMutation(document, variables, 'snapshot');
+      if (!body) {
+        throw new Error(`Order guardrail parity request was not handled locally: ${parsed.rootFields.join(', ')}`);
+      }
+
+      return {
+        status: 200,
+        body,
+      };
+    }
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'apps') {
+    const responseBody = handleAppMutation(document, variables, 'https://conformance.local');
+    if (!responseBody) {
+      throw new Error(`App parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity app billing/access proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: responseBody,
+    };
   }
 
   if (
@@ -1033,7 +1052,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1057,7 +1076,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1089,7 +1108,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1108,7 +1127,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1127,7 +1146,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1146,7 +1165,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1171,7 +1190,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         stagedResourceIds: result.stagedResourceIds ?? [],
@@ -1192,7 +1211,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1211,7 +1230,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1230,7 +1249,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1249,7 +1268,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1277,7 +1296,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       stagedResourceIds: savedSearchMutation.stagedResourceIds,
@@ -1303,7 +1322,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2025-01/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1329,7 +1348,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1357,7 +1376,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1383,7 +1402,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1410,7 +1429,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1431,7 +1450,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1452,7 +1471,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1471,7 +1490,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1493,7 +1512,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1514,7 +1533,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1540,7 +1559,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: shippingCapability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1563,7 +1582,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1593,7 +1612,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1876,6 +1895,20 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (
+    (capability.execution === 'overlay-read' && capability.domain === 'apps') ||
+    (registeredCapability.execution === 'overlay-read' && registeredCapability.domain === 'apps')
+  ) {
+    if (upstreamPayload !== undefined) {
+      hydrateAppsFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleAppQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
     if (upstreamPayload !== undefined) {
       hydrateWebhookSubscriptionsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -1926,6 +1959,10 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.calculatedOrders).length > 0 ||
     Object.keys(stagedState.giftCards).length > 0 ||
     Object.keys(stagedState.deletedGiftCardIds).length > 0 ||
+    Object.keys(stagedState.appSubscriptions).length > 0 ||
+    Object.keys(stagedState.appOneTimePurchases).length > 0 ||
+    Object.keys(stagedState.appUsageRecords).length > 0 ||
+    Object.keys(stagedState.delegatedAccessTokens).length > 0 ||
     Object.keys(stagedState.webhookSubscriptions).length > 0 ||
     Object.keys(stagedState.deletedWebhookSubscriptionIds).length > 0
   );
@@ -1972,6 +2009,15 @@ function readRecordField(
 function readStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
   const fieldValue = value?.[key];
   return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
+}
+
+function readCaptureApiVersion(capture: unknown): string | null {
+  return isPlainObject(capture) ? readStringField(capture, 'apiVersion') : null;
+}
+
+function readApiVersionFromCapturePath(capturePath: string): string | null {
+  const match = /\/(\d{4}-\d{2})\//u.exec(capturePath);
+  return match?.[1] ?? null;
 }
 
 function readNumberField(value: Record<string, unknown> | null | undefined, key: string): number | null {
@@ -2335,6 +2381,7 @@ function seedShopifyFunctionPreconditions(capture: unknown): boolean {
       if (!id) {
         return null;
       }
+      const app = readRecordField(node, 'app');
 
       return {
         id,
@@ -2343,6 +2390,7 @@ function seedShopifyFunctionPreconditions(capture: unknown): boolean {
         apiType: readNullableStringField(node, 'apiType'),
         description: readNullableStringField(node, 'description') ?? undefined,
         appKey: readNullableStringField(node, 'appKey') ?? undefined,
+        ...(app ? { app: app as ShopifyFunctionRecord['app'] } : {}),
       };
     })
     .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
@@ -8044,6 +8092,7 @@ export async function executeParityScenario({
   }
 
   const capture = readJsonFile(repoRoot, capturePath);
+  const captureApiVersion = readCaptureApiVersion(capture) ?? readApiVersionFromCapturePath(capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
   const proxyResponses: Record<string, unknown> = {};
   const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
@@ -8054,7 +8103,7 @@ export async function executeParityScenario({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
-    paritySpec.proxyRequest.apiVersion,
+    paritySpec.proxyRequest.apiVersion ?? captureApiVersion ?? DEFAULT_ADMIN_API_VERSION,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -8087,7 +8136,10 @@ export async function executeParityScenario({
         variables,
         upstreamPayload,
         (operation) => executedOperations.push(operation),
-        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
+        target.proxyRequest.apiVersion ??
+          paritySpec.proxyRequest?.apiVersion ??
+          captureApiVersion ??
+          DEFAULT_ADMIN_API_VERSION,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;

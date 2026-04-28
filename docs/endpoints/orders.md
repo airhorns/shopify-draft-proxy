@@ -28,14 +28,12 @@ Local staged mutations:
 - `orderClose`
 - `orderOpen`
 - `orderMarkAsPaid`
-- `orderCreateManualPayment`
 - `orderCapture`
 - `transactionVoid`
 - `orderCreateMandatePayment`
 - `orderCustomerSet`
 - `orderCustomerRemove`
 - `orderInvoiceSend`
-- `taxSummaryCreate`
 - `orderCancel`
 - `orderDelete`
 - `fulfillmentCreate`
@@ -78,6 +76,8 @@ Local staged mutations:
 ### Declared Gaps
 
 - `orderRiskAssessmentCreate` is a registry-only HAR-316 scaffold. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
+- `orderCreateManualPayment` has captured 2026-04 access-denied parity on the current conformance store, and the runtime mirrors that branch locally without passthrough. It is not marked as implemented operation support because Plus/manual-payment success semantics, local payment state transitions, downstream reads, and commit replay still need conformance-backed modeling.
+- `taxSummaryCreate` has captured 2026-04 access-denied parity on the current conformance store, and the runtime mirrors that branch locally without passthrough. It is not marked as implemented operation support because tax-app enqueue/result semantics and downstream tax summary behavior still need conformance-backed modeling.
 
 ### Behavior notes
 
@@ -114,7 +114,7 @@ Local staged mutations:
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
 - State-specific lifecycle/customer validation is modeled locally for the staged order roots covered by HAR-278. Repeated `orderClose`, repeated `orderOpen`, `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log.
 - `orderCustomerSet` and `orderCustomerRemove` own the order-domain relationship on `OrderRecord.customer`. Customer reads consume that normalized relationship only for the immediate `Customer.orders` connection; captured HAR-288 evidence showed the customer-owned `numberOfOrders`, `amountSpent`, and `lastOrder` fields do not update in the immediate read-after-set/remove slice.
-- HAR-278 order lifecycle/payment guardrails append mutation-log entries only when the handler stages a successful local effect. The scoped validation branches with `userErrors` or top-level GraphQL `errors`, including access-denied branches such as `orderCreateManualPayment` and `taxSummaryCreate`, leave the mutation log unchanged; other established safety handlers such as draft-order invoice send still retain their existing observability log entries.
+- HAR-278 order lifecycle/payment guardrails append mutation-log entries only when the handler stages a successful local effect. The scoped validation branches with `userErrors` or top-level GraphQL `errors`, including access-denied branches such as `orderCreateManualPayment` and `taxSummaryCreate`, leave the mutation log unchanged; those two roots are declared gaps rather than supported staged mutations until their success lifecycles are modeled. Other established safety handlers such as draft-order invoice send still retain their existing observability log entries.
 - Create-time validation coverage now includes executable parity specs for `orderCreate` no-line-items and a grouped `draftOrderCreate` validation matrix. Rejected create requests return captured mutation-scoped `userErrors` locally without staging orders/draft orders or appending staged-write log entries.
 - Captured `draftOrderCreate` validation branches include no line items, unknown variant, missing custom title, zero quantity, payment terms without a template id, payment terms with a template id blocked by merchant permission, negative custom line price, past reserve-inventory timestamp, and invalid email. Fresh 2026-04 probes also showed Shopify accepts variant-backed draft lines even when custom title/originalUnitPrice fields are present, accepts missing custom originalUnitPrice as a zero-price line, and accepts shippingLine without a title; those combinations are intentionally not local validation failures.
 - Broader direct `orderCreate` create-time validation remains partially blocked on this host by Shopify's `Too many attempts. Please try again later.` order-create throttle under 2026-04. Keep the existing no-line-items parity fixture as executable evidence, and do not expand direct-order business validation branches without a fresh successful capture.
@@ -123,7 +123,7 @@ Local staged mutations:
 - `transactionVoid` creates a `VOID` transaction for uncaptured authorization transactions and clears downstream capturable state. Missing, invalid, already-voided, and already-captured authorization requests return local `userErrors` without passthrough, downstream order changes, or mutation-log entries.
 - `orderCreateMandatePayment` creates a completed local `Job`, a stable session-scoped `paymentReferenceId`, and a `MANDATE_PAYMENT` transaction. Reusing the same order/idempotency-key pair returns the original job/reference result and does not duplicate the transaction. Missing idempotency keys and non-positive amounts return local `userErrors` without contacting payment services.
 - The local payment implementation does not contact real payment gateways and intentionally limits itself to local/synthetic orders and transaction branches covered by runtime tests or safe documentation evidence. HAR-353 promotes the local order payment fixture to executable strict parity: `order-payment-transaction-local-staging` replays order creation, over-capture validation, partial/final capture, downstream order reads, void-after-capture validation, and missing mandate idempotency-key validation; sibling specs replay successful `transactionVoid` and idempotent `orderCreateMandatePayment` branches because those require mutually exclusive order payment state. Broader Plus-only and permission-specific mandate/capture branches still require live conformance evidence before they should be expanded.
-- `orderInvoiceSend` is handled locally for existing orders and does not send upstream invoice email. Safe live success recapture is side-effect-heavy and remains blocked unless a no-recipient disposable capture path is available; local runtime coverage verifies no upstream/email call is made. `taxSummaryCreate` mirrors the captured access-denied branch without invoking tax calculation services until tax-app semantics can be safely captured.
+- `orderInvoiceSend` is handled locally for existing orders and does not send upstream invoice email. Safe live success recapture is side-effect-heavy and remains blocked unless a no-recipient disposable capture path is available; local runtime coverage verifies no upstream/email call is made. `taxSummaryCreate` mirrors the captured access-denied branch without invoking tax calculation services, but remains a declared gap rather than implemented support until tax-app semantics can be safely captured.
 
 ## Historical and developer notes
 

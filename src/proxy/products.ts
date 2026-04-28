@@ -11,6 +11,7 @@ import {
   type SearchQueryNode,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
+import { DEFAULT_ADMIN_API_VERSION } from '../shopify/api-version.js';
 import {
   buildMissingIdempotencyKeyError,
   getNodeLocation,
@@ -10447,7 +10448,7 @@ export function handleProductMutation(
   document: string,
   variables: Record<string, unknown>,
   readMode: ReadMode,
-  apiVersion: string | null = '2025-01',
+  apiVersion: string | null = DEFAULT_ADMIN_API_VERSION,
 ): Record<string, unknown> {
   const field = getRootField(document);
   const args = getRootFieldArguments(document, variables);
