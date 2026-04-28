@@ -3755,20 +3755,20 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDelivery", "ReverseDelivery"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires a normalized reverse-delivery graph linked to reverse fulfillment orders, labels/tracking, and return line items before local detail reads can be supported."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse-logistics slice. Resolves reverse deliveries staged from order-backed returns and returns null for missing IDs in snapshot mode; labels/tracking are stored as local metadata and no carrier or label side effects are invoked."
   },
   {
     "name": "reverseFulfillmentOrder",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires reverse fulfillment order lifecycle, status, line items, reverse deliveries, and order linkage parity before local detail reads can be supported."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse-logistics slice. Resolves reverse fulfillment orders staged from returnCreate/returnApproveRequest, including line-item quantities, disposal status, reverse deliveries, return linkage, and order linkage."
   },
   {
     "name": "abandonedCheckouts",
@@ -5045,6 +5045,26 @@
     "supportNotes": "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes."
   },
   {
+    "name": "returnApproveRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnApproveRequest", "ReturnApproveRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return request lifecycle support. Approves REQUESTED local returns to OPEN, creates reverse fulfillment order work, records raw mutation replay metadata, and keeps downstream return/order/reverse-fulfillment reads local."
+  },
+  {
+    "name": "returnDeclineRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnDeclineRequest", "ReturnDeclineRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return request lifecycle support. Declines REQUESTED local returns to DECLINED with captured reason/note metadata and does not send notification side effects or runtime Shopify writes."
+  },
+  {
     "name": "returnCancel",
     "type": "mutation",
     "domain": "orders",
@@ -5079,50 +5099,50 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["removeFromReturn", "RemoveFromReturn"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires captured removal semantics for return and exchange line items, quantity recomputation, validation errors, and downstream Return/Order.returns read effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return-line removal support. Reduces/removes local return line quantities, recomputes totalQuantity and reverse fulfillment line work, and keeps exchange-line removal explicitly unsupported until exchange fixtures exist."
   },
   {
     "name": "returnProcess",
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["returnProcess", "ReturnProcess"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires processing semantics for return/exchange line items, refund duties/shipping, financial transfers, notifications, and downstream refund/return/order effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 bounded return processing support. Updates processed quantities, closes fully processed local returns, and syncs reverse fulfillment quantities; refund duties, shipping, financial transfers, exchange processing, and notifications remain documented side-effect boundaries."
   },
   {
     "name": "reverseDeliveryCreateWithShipping",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires normalized reverse fulfillment orders, reverse delivery line items, tracking/label payload behavior, notifications, and downstream reverseDelivery reads before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items and local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
   },
   {
     "name": "reverseDeliveryShippingUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDeliveryShippingUpdate", "ReverseDeliveryShippingUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires captured reverse-delivery tracking/label update semantics and downstream reverseDelivery read effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse delivery update support. Updates staged tracking/label metadata and downstream reverseDelivery reads without runtime Shopify writes or notification side effects."
   },
   {
     "name": "reverseFulfillmentOrderDispose",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseFulfillmentOrderDispose", "ReverseFulfillmentOrderDispose"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires disposition semantics, inventory/location effects, reverse fulfillment order status updates, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 bounded disposition support. Updates staged reverse fulfillment order line remaining/disposed quantities and closes the reverse fulfillment order when all local work is disposed; inventory/location stock movements remain local metadata only."
   },
   {
     "name": "draftOrder",

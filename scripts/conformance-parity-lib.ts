@@ -1069,6 +1069,38 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'shipping-fulfillments' &&
+    parsed.rootFields.some((rootField) =>
+      ['reverseDeliveryCreateWithShipping', 'reverseDeliveryShippingUpdate', 'reverseFulfillmentOrderDispose'].includes(
+        rootField,
+      ),
+    )
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Reverse-logistics parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
     store.appendLog({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1724,6 +1756,8 @@ async function executeGraphQLAgainstLocalProxy(
           'fulfillmentOrders',
           'assignedFulfillmentOrders',
           'manualHoldsFulfillmentOrders',
+          'reverseDelivery',
+          'reverseFulfillmentOrder',
         ].includes(rootField),
       )
     ) {
