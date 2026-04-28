@@ -1,7 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import type { JsonValue } from '../json-schemas.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import {
   getFieldResponseKey,
   getSelectedChildFields,
@@ -153,6 +153,7 @@ export function mergeMetafieldRecords<T extends MetafieldRecordCore>(existing: T
 }
 
 export function upsertOwnerMetafields<OwnerKey extends string>(
+  runtime: ProxyRuntimeContext,
   ownerKey: OwnerKey,
   ownerId: string,
   inputs: Record<string, unknown>[],
@@ -190,7 +191,7 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
     const type = (options.trimIdentity ? rawType?.trim() : rawType) ?? existing?.type ?? null;
     const value = readOptionalString(input['value']) ?? existing?.value ?? null;
     const nextCore: MetafieldRecordCore = {
-      id: existing?.id ?? makeSyntheticGid('Metafield'),
+      id: existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('Metafield'),
       namespace,
       key,
       type,
@@ -198,11 +199,11 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
     };
 
     if (options.ownerType) {
-      const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+      const createdAt = existing?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
       const updatedAt = existing
         ? value === existing.value && type === existing.type
           ? (existing.updatedAt ?? createdAt)
-          : makeSyntheticTimestamp()
+          : runtime.syntheticIdentity.makeSyntheticTimestamp()
         : createdAt;
 
       nextCore.jsonValue = parseMetafieldJsonValue(type, value);

@@ -1,7 +1,9 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash } from 'node:crypto';
 
 import { type FieldNode } from 'graphql';
 
+import type { JsonValue } from '../json-schemas.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
   applySearchQuery,
@@ -13,8 +15,6 @@ import {
   searchQueryTermValue,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
-import { makeProxySyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   OnlineStoreContentKind,
   OnlineStoreContentRecord,
@@ -31,6 +31,13 @@ import {
   serializeEmptyConnectionPageInfo,
   type FragmentMap,
 } from './graphql-helpers.js';
+import {
+  readMetafieldInputObjects,
+  serializeMetafieldSelection,
+  serializeMetafieldsConnection,
+  upsertOwnerMetafields,
+  type MetafieldRecordCore,
+} from './metafields.js';
 
 type OnlineStoreMutationResult = {
   response: Record<string, unknown>;
@@ -125,6 +132,101 @@ function recordData(record: OnlineStoreContentRecord): Record<string, unknown> {
   return structuredClone(record.data) as Record<string, unknown>;
 }
 
+function readArticleMetafields(record: OnlineStoreContentRecord): MetafieldRecordCore[] {
+  const metafields = record.data['metafields'];
+  if (!Array.isArray(metafields)) {
+    return [];
+  }
+
+  return metafields.flatMap((metafield): MetafieldRecordCore[] => {
+    if (!isPlainObject(metafield)) {
+      return [];
+    }
+    const id = typeof metafield['id'] === 'string' ? metafield['id'] : null;
+    const namespace = typeof metafield['namespace'] === 'string' ? metafield['namespace'] : null;
+    const key = typeof metafield['key'] === 'string' ? metafield['key'] : null;
+    if (!id || !namespace || !key) {
+      return [];
+    }
+    return [
+      {
+        id,
+        namespace,
+        key,
+        type: typeof metafield['type'] === 'string' ? metafield['type'] : null,
+        value: typeof metafield['value'] === 'string' ? metafield['value'] : null,
+        compareDigest: typeof metafield['compareDigest'] === 'string' ? metafield['compareDigest'] : null,
+        jsonValue: metafield['jsonValue'] as MetafieldRecordCore['jsonValue'],
+        createdAt: typeof metafield['createdAt'] === 'string' ? metafield['createdAt'] : null,
+        updatedAt: typeof metafield['updatedAt'] === 'string' ? metafield['updatedAt'] : null,
+        ownerType: typeof metafield['ownerType'] === 'string' ? metafield['ownerType'] : 'ARTICLE',
+      },
+    ];
+  });
+}
+
+function filterArticleMetafields(
+  metafields: MetafieldRecordCore[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): MetafieldRecordCore[] {
+  const args = getFieldArguments(field, variables);
+  const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+  const keys = Array.isArray(args['keys']) ? args['keys'].filter((key): key is string => typeof key === 'string') : [];
+  return metafields.filter(
+    (metafield) =>
+      (namespace === null || metafield.namespace === namespace) && (keys.length === 0 || keys.includes(metafield.key)),
+  );
+}
+
+function readArticleImage(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing: OnlineStoreContentRecord | null,
+): Record<string, JsonValue> | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(input, 'image')) {
+    const image = existing?.data['image'];
+    return isPlainObject(image)
+      ? (structuredClone(image) as Record<string, JsonValue>)
+      : image === null
+        ? null
+        : undefined;
+  }
+
+  const image = input['image'];
+  if (image === null) {
+    return null;
+  }
+  if (!isPlainObject(image)) {
+    return undefined;
+  }
+
+  return {
+    __typename: 'Image',
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('ArticleImage'),
+    altText: readOptionalString(image, 'altText') ?? null,
+    url: readOptionalString(image, 'url') ?? null,
+    width: null,
+    height: null,
+  };
+}
+
+function articleMetafieldsForStorage(metafields: Array<MetafieldRecordCore & { articleId: string }>): JsonValue[] {
+  return metafields.map((metafield) => ({
+    id: metafield.id,
+    namespace: metafield.namespace,
+    key: metafield.key,
+    type: metafield.type,
+    value: metafield.value,
+    compareDigest: metafield.compareDigest ?? null,
+    jsonValue: metafield.jsonValue ?? null,
+    createdAt: metafield.createdAt ?? null,
+    updatedAt: metafield.updatedAt ?? null,
+    ownerType: metafield.ownerType ?? 'ARTICLE',
+    articleId: metafield.articleId,
+  }));
+}
+
 function readIdArgument(field: FieldNode, variables: Record<string, unknown>): string | null {
   const args = getFieldArguments(field, variables);
   return typeof args['id'] === 'string' ? args['id'] : null;
@@ -135,14 +237,14 @@ function recordString(record: OnlineStoreContentRecord, field: string): string |
   return typeof value === 'string' ? value : null;
 }
 
-function recordBlog(record: OnlineStoreContentRecord): OnlineStoreContentRecord | null {
+function recordBlog(runtime: ProxyRuntimeContext, record: OnlineStoreContentRecord): OnlineStoreContentRecord | null {
   const blogId =
     typeof record.parentId === 'string'
       ? record.parentId
       : typeof record.data['blogId'] === 'string'
         ? record.data['blogId']
         : null;
-  return blogId ? store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
+  return blogId ? runtime.store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
 }
 
 function matchesPublishedStatus(record: OnlineStoreContentRecord, term: SearchQueryTerm): boolean {
@@ -163,7 +265,11 @@ function matchesPublishedStatus(record: OnlineStoreContentRecord, term: SearchQu
   return false;
 }
 
-function matchesOnlineStoreSearchTerm(record: OnlineStoreContentRecord, term: SearchQueryTerm): boolean {
+function matchesOnlineStoreSearchTerm(
+  runtime: ProxyRuntimeContext,
+  record: OnlineStoreContentRecord,
+  term: SearchQueryTerm,
+): boolean {
   const field = term.field?.toLowerCase() ?? null;
   const id = String(record.data['id'] ?? record.id);
   const title = recordString(record, 'title');
@@ -173,7 +279,7 @@ function matchesOnlineStoreSearchTerm(record: OnlineStoreContentRecord, term: Se
   const author = record.data['author'];
   const authorName = isPlainObject(author) && typeof author['name'] === 'string' ? author['name'] : null;
   const tags = readStringArray(record.data['tags']);
-  const blog = record.kind === 'article' ? recordBlog(record) : null;
+  const blog = record.kind === 'article' ? recordBlog(runtime, record) : null;
 
   switch (field) {
     case null:
@@ -228,8 +334,14 @@ function matchesOnlineStoreSearchTerm(record: OnlineStoreContentRecord, term: Se
   }
 }
 
-function applyOnlineStoreSearch(records: OnlineStoreContentRecord[], query: unknown): OnlineStoreContentRecord[] {
-  return applySearchQuery(records, query, { recognizeNotKeyword: true }, matchesOnlineStoreSearchTerm);
+function applyOnlineStoreSearch(
+  runtime: ProxyRuntimeContext,
+  records: OnlineStoreContentRecord[],
+  query: unknown,
+): OnlineStoreContentRecord[] {
+  return applySearchQuery(records, query, { recognizeNotKeyword: true }, (record, term) =>
+    matchesOnlineStoreSearchTerm(runtime, record, term),
+  );
 }
 
 function sortRecords(
@@ -271,6 +383,7 @@ function sortRecords(
 }
 
 function listRecords(
+  runtime: ProxyRuntimeContext,
   kind: OnlineStoreContentKind,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -278,7 +391,8 @@ function listRecords(
   const args = getFieldArguments(field, variables);
   return sortRecords(
     applyOnlineStoreSearch(
-      store
+      runtime,
+      runtime.store
         .listEffectiveOnlineStoreContent(kind)
         .filter((record) => kind !== 'article' || record.data['isPublished'] !== false),
       args['query'],
@@ -289,6 +403,7 @@ function listRecords(
 }
 
 function recordsForNestedConnection(
+  runtime: ProxyRuntimeContext,
   kind: OnlineStoreContentKind,
   parentId: string,
   field: FieldNode,
@@ -296,7 +411,8 @@ function recordsForNestedConnection(
 ): OnlineStoreContentRecord[] {
   return sortRecords(
     applyOnlineStoreSearch(
-      store.listEffectiveOnlineStoreContent(kind).filter((record) => record.parentId === parentId),
+      runtime,
+      runtime.store.listEffectiveOnlineStoreContent(kind).filter((record) => record.parentId === parentId),
       getFieldArguments(field, variables)['query'],
     ),
     field,
@@ -305,6 +421,7 @@ function recordsForNestedConnection(
 }
 
 function projectRecord(
+  runtime: ProxyRuntimeContext,
   record: OnlineStoreContentRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -320,8 +437,9 @@ function projectRecord(
         return {
           handled: true,
           value: serializeRecordConnection(
+            runtime,
             selectedField,
-            recordsForNestedConnection('article', record.id, selectedField, variables),
+            recordsForNestedConnection(runtime, 'article', record.id, selectedField, variables),
             variables,
             selectedFragments,
           ),
@@ -332,8 +450,9 @@ function projectRecord(
         return {
           handled: true,
           value: serializeRecordConnection(
+            runtime,
             selectedField,
-            recordsForNestedConnection('comment', record.id, selectedField, variables),
+            recordsForNestedConnection(runtime, 'comment', record.id, selectedField, variables),
             variables,
             selectedFragments,
           ),
@@ -343,14 +462,18 @@ function projectRecord(
       if (fieldName === 'articlesCount' && record.kind === 'blog') {
         return {
           handled: true,
-          value: countPayload(recordsForNestedConnection('article', record.id, selectedField, variables).length),
+          value: countPayload(
+            recordsForNestedConnection(runtime, 'article', record.id, selectedField, variables).length,
+          ),
         };
       }
 
       if (fieldName === 'commentsCount' && record.kind === 'article') {
         return {
           handled: true,
-          value: countPayload(recordsForNestedConnection('comment', record.id, selectedField, variables).length),
+          value: countPayload(
+            recordsForNestedConnection(runtime, 'comment', record.id, selectedField, variables).length,
+          ),
         };
       }
 
@@ -363,21 +486,52 @@ function projectRecord(
               : isPlainObject(record.data['blog']) && typeof record.data['blog']['id'] === 'string'
                 ? record.data['blog']['id']
                 : null;
-        const blog = blogId ? store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
-        return { handled: true, value: blog ? projectRecord(blog, selectedField, variables, selectedFragments) : null };
+        const blog = blogId ? runtime.store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
+        return {
+          handled: true,
+          value: blog ? projectRecord(runtime, blog, selectedField, variables, selectedFragments) : null,
+        };
       }
 
       if (fieldName === 'article' && record.kind === 'comment') {
         const articleId = typeof record.parentId === 'string' ? record.parentId : null;
-        const article = articleId ? store.getEffectiveOnlineStoreContentById('article', articleId) : null;
+        const article = articleId ? runtime.store.getEffectiveOnlineStoreContentById('article', articleId) : null;
         return {
           handled: true,
-          value: article ? projectRecord(article, selectedField, variables, selectedFragments) : null,
+          value: article ? projectRecord(runtime, article, selectedField, variables, selectedFragments) : null,
         };
       }
 
-      if (fieldName === 'events' || fieldName === 'metafields') {
+      if (fieldName === 'events') {
         return { handled: true, value: emptyConnection(selectedField) };
+      }
+
+      if (fieldName === 'metafields' && record.kind === 'article') {
+        return {
+          handled: true,
+          value: serializeMetafieldsConnection(
+            filterArticleMetafields(readArticleMetafields(record), selectedField, variables),
+            selectedField,
+            variables,
+          ),
+        };
+      }
+
+      if (fieldName === 'metafields') {
+        return { handled: true, value: emptyConnection(selectedField) };
+      }
+
+      if (fieldName === 'metafield' && record.kind === 'article') {
+        const args = getFieldArguments(selectedField, variables);
+        const key = typeof args['key'] === 'string' ? args['key'] : null;
+        const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+        const metafield =
+          key === null
+            ? null
+            : (readArticleMetafields(record).find(
+                (candidate) => candidate.key === key && (namespace === null || candidate.namespace === namespace),
+              ) ?? null);
+        return { handled: true, value: metafield ? serializeMetafieldSelection(metafield, selectedField) : null };
       }
 
       if (fieldName === 'metafield') {
@@ -394,6 +548,7 @@ function projectRecord(
 }
 
 function serializeRecordConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   records: OnlineStoreContentRecord[],
   variables: Record<string, unknown>,
@@ -405,17 +560,18 @@ function serializeRecordConnection(
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (record) => record.id,
-    serializeNode: (record, nodeField) => projectRecord(record, nodeField, variables, fragments),
+    serializeNode: (record, nodeField) => projectRecord(runtime, record, nodeField, variables, fragments),
   });
 }
 
 function serializeAuthorConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
   const names = new Set<string>();
-  for (const article of store.listEffectiveOnlineStoreContent('article')) {
+  for (const article of runtime.store.listEffectiveOnlineStoreContent('article')) {
     const author = article.data['author'];
     if (isPlainObject(author) && typeof author['name'] === 'string' && author['name'].length > 0) {
       names.add(author['name']);
@@ -449,6 +605,7 @@ function userError(field: string[], message: string): UserError {
 }
 
 function projectPayload(
+  runtime: ProxyRuntimeContext,
   payload: Record<string, unknown>,
   field: FieldNode,
   fragments: FragmentMap,
@@ -460,7 +617,7 @@ function projectPayload(
         projectFieldValue: ({ field: selectedField, fieldName, fragments: selectedFragments }) => {
           const record = records[fieldName as OnlineStoreContentKind];
           return record
-            ? { handled: true, value: projectRecord(record, selectedField, variables, selectedFragments) }
+            ? { handled: true, value: projectRecord(runtime, record, selectedField, variables, selectedFragments) }
             : { handled: false };
         },
       })
@@ -468,13 +625,14 @@ function projectPayload(
 }
 
 function makeBlog(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreContentRecord | null = null,
 ): OnlineStoreContentRecord {
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const title = readOptionalString(input, 'title') ?? String(existing?.data['title'] ?? '');
   const handle = readOptionalString(input, 'handle') ?? String(existing?.data['handle'] ?? slugify(title));
-  const id = existing?.id ?? makeProxySyntheticGid('Blog');
+  const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Blog');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
   return {
@@ -497,16 +655,17 @@ function makeBlog(
 }
 
 function makePage(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreContentRecord | null = null,
 ): OnlineStoreContentRecord {
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const title = readOptionalString(input, 'title') ?? String(existing?.data['title'] ?? '');
   const body = readOptionalString(input, 'body') ?? String(existing?.data['body'] ?? '');
   const isPublished = readOptionalBoolean(input, 'isPublished') ?? Boolean(existing?.data['isPublished'] ?? false);
   const publishedAt =
     readOptionalString(input, 'publishDate') ?? (isPublished ? (existing?.data['publishedAt'] ?? now) : null);
-  const id = existing?.id ?? makeProxySyntheticGid('Page');
+  const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Page');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
   return {
@@ -531,11 +690,12 @@ function makePage(
 }
 
 function makeArticle(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   blogId: string,
   existing: OnlineStoreContentRecord | null = null,
 ): OnlineStoreContentRecord {
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const title = readOptionalString(input, 'title') ?? String(existing?.data['title'] ?? '');
   const body = readOptionalString(input, 'body') ?? String(existing?.data['body'] ?? '');
   const isPublished = readOptionalBoolean(input, 'isPublished') ?? Boolean(existing?.data['isPublished'] ?? false);
@@ -545,9 +705,25 @@ function makeArticle(
   const existingAuthor = isPlainObject(existing?.data['author']) ? existing?.data['author'] : null;
   const authorName =
     readOptionalString(authorInput ?? {}, 'name') ?? String(existingAuthor?.['name'] ?? 'Shopify Admin');
-  const id = existing?.id ?? makeProxySyntheticGid('Article');
+  const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Article');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
+  const image = readArticleImage(runtime, input, existing);
+  const existingMetafields = readArticleMetafields(
+    existing ?? {
+      id,
+      kind: 'article',
+      data: {},
+    },
+  );
+  const { metafields } = upsertOwnerMetafields(
+    runtime,
+    'articleId',
+    id,
+    readMetafieldInputObjects(input['metafields']),
+    existingMetafields.map((metafield) => ({ ...metafield, articleId: id })),
+    { allowIdLookup: true, trimIdentity: true, ownerType: 'ARTICLE' },
+  );
   return {
     id,
     kind: 'article',
@@ -571,11 +747,14 @@ function makeArticle(
       createdAt,
       updatedAt,
       templateSuffix: readOptionalString(input, 'templateSuffix') ?? existing?.data['templateSuffix'] ?? null,
+      image: image ?? null,
+      metafields: articleMetafieldsForStorage(metafields),
     },
   };
 }
 
 function handleCreate(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -594,34 +773,35 @@ function handleCreate(
   const stagedResourceIds: string[] = [];
   if (errors.length === 0 && input) {
     if (root === 'blogCreate') {
-      record = makeBlog(input);
+      record = makeBlog(runtime, input);
     } else if (root === 'pageCreate') {
-      record = makePage(input);
+      record = makePage(runtime, input);
     } else {
       let blogId = readOptionalString(input, 'blogId') ?? null;
       const blogInput = readInput(args, 'blog');
       if (!blogId && blogInput && typeof blogInput['title'] === 'string') {
-        const blog = makeBlog(blogInput);
-        store.upsertStagedOnlineStoreContent(blog);
+        const blog = makeBlog(runtime, blogInput);
+        runtime.store.upsertStagedOnlineStoreContent(blog);
         blogId = blog.id;
         stagedResourceIds.push(blog.id);
       }
       if (!blogId) {
         errors.push(userError(['article', 'blogId'], 'Blog must exist'));
       } else {
-        record = makeArticle(input, blogId);
+        record = makeArticle(runtime, input, blogId);
       }
     }
   }
 
   if (record) {
-    store.upsertStagedOnlineStoreContent(record);
+    runtime.store.upsertStagedOnlineStoreContent(record);
   }
 
   const payloadKey = inputKey;
   return {
     key: root,
     payload: projectPayload(
+      runtime,
       { [payloadKey]: record ? recordData(record) : null, userErrors: errors },
       field,
       fragments,
@@ -633,6 +813,7 @@ function handleCreate(
 }
 
 function handleUpdate(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -643,7 +824,7 @@ function handleUpdate(
   const kind = inputKey as OnlineStoreContentKind;
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args, inputKey);
-  const existing = id ? store.getEffectiveOnlineStoreContentById(kind, id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreContentById(kind, id) : null;
   const errors: UserError[] = [];
 
   if (!id || !existing) {
@@ -653,19 +834,20 @@ function handleUpdate(
   let record: OnlineStoreContentRecord | null = null;
   if (errors.length === 0 && input && existing) {
     if (kind === 'blog') {
-      record = makeBlog(input, existing);
+      record = makeBlog(runtime, input, existing);
     } else if (kind === 'page') {
-      record = makePage(input, existing);
+      record = makePage(runtime, input, existing);
     } else {
       const blogId = readOptionalString(input, 'blogId') ?? existing.parentId ?? String(existing.data['blogId'] ?? '');
-      record = makeArticle(input, blogId, existing);
+      record = makeArticle(runtime, input, blogId, existing);
     }
-    store.upsertStagedOnlineStoreContent(record);
+    runtime.store.upsertStagedOnlineStoreContent(record);
   }
 
   return {
     key: root,
     payload: projectPayload(
+      runtime,
       { [inputKey]: record ? recordData(record) : null, userErrors: errors },
       field,
       fragments,
@@ -677,6 +859,7 @@ function handleUpdate(
 }
 
 function handleDelete(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -685,16 +868,17 @@ function handleDelete(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const kind = root.replace(/Delete$/u, '') as OnlineStoreContentKind;
-  const existing = id ? store.getEffectiveOnlineStoreContentById(kind, id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreContentById(kind, id) : null;
   const errors = existing ? [] : [userError(['id'], `${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)} does not exist`)];
   if (id && existing) {
-    store.deleteStagedOnlineStoreContent(kind, id);
+    runtime.store.deleteStagedOnlineStoreContent(kind, id);
   }
 
   const deletedKey = `deleted${kind[0]?.toUpperCase() ?? ''}${kind.slice(1)}Id`;
   return {
     key: root,
     payload: projectPayload(
+      runtime,
       { [deletedKey]: errors.length === 0 ? id : null, userErrors: errors },
       field,
       fragments,
@@ -705,6 +889,7 @@ function handleDelete(
 }
 
 function handleCommentModeration(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -712,14 +897,14 @@ function handleCommentModeration(
 ): { key: string; payload: unknown; stagedResourceIds: string[] } {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
-  const existing = id ? store.getEffectiveOnlineStoreContentById('comment', id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreContentById('comment', id) : null;
   const errors = existing ? [] : [userError(['id'], 'Comment does not exist')];
   const statusByRoot: Record<string, string> = {
     commentApprove: 'PUBLISHED',
     commentSpam: 'SPAM',
     commentNotSpam: 'PENDING',
   };
-  const updatedAt = makeSyntheticTimestamp();
+  const updatedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const comment =
     existing && errors.length === 0
       ? {
@@ -735,12 +920,13 @@ function handleCommentModeration(
         }
       : null;
   if (comment) {
-    store.upsertStagedOnlineStoreContent(comment);
+    runtime.store.upsertStagedOnlineStoreContent(comment);
   }
 
   return {
     key: root,
     payload: projectPayload(
+      runtime,
       { comment: comment ? recordData(comment) : null, userErrors: errors },
       field,
       fragments,
@@ -908,12 +1094,13 @@ function projectIntegrationPayload(
 }
 
 function makeIntegrationRecord(
+  runtime: ProxyRuntimeContext,
   kind: OnlineStoreIntegrationKind,
   data: Record<string, unknown>,
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
-  const now = makeSyntheticTimestamp();
-  const id = existing?.id ?? makeProxySyntheticGid(integrationGidType(kind));
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid(integrationGidType(kind));
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
   return {
@@ -948,10 +1135,15 @@ function integrationGidType(kind: OnlineStoreIntegrationKind): string {
   }
 }
 
-function makeThemeRecord(args: Record<string, unknown>, existing: OnlineStoreIntegrationRecord | null = null) {
+function makeThemeRecord(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+  existing: OnlineStoreIntegrationRecord | null = null,
+) {
   const name = readOptionalString(args, 'name') ?? String(existing?.data['name'] ?? 'Draft proxy theme');
   const role = typeof args['role'] === 'string' ? args['role'] : String(existing?.data['role'] ?? 'UNPUBLISHED');
   const record = makeIntegrationRecord(
+    runtime,
     'theme',
     {
       __typename: 'OnlineStoreTheme',
@@ -970,12 +1162,14 @@ function makeThemeRecord(args: Record<string, unknown>, existing: OnlineStoreInt
 }
 
 function makeScriptTagRecord(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
   const src = readOptionalString(input, 'src') ?? String(existing?.data['src'] ?? '');
   const legacyResourceId = existing?.data['legacyResourceId'] ?? numericGidSuffix(existing?.id ?? '') ?? 1;
   return makeIntegrationRecord(
+    runtime,
     'scriptTag',
     {
       __typename: 'ScriptTag',
@@ -989,10 +1183,12 @@ function makeScriptTagRecord(
 }
 
 function makeWebPixelRecord(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
   return makeIntegrationRecord(
+    runtime,
     'webPixel',
     {
       __typename: 'WebPixel',
@@ -1003,10 +1199,12 @@ function makeWebPixelRecord(
 }
 
 function makeServerPixelRecord(
+  runtime: ProxyRuntimeContext,
   data: Record<string, unknown> = {},
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
   return makeIntegrationRecord(
+    runtime,
     'serverPixel',
     {
       __typename: 'ServerPixel',
@@ -1019,11 +1217,13 @@ function makeServerPixelRecord(
 }
 
 function makeStorefrontAccessTokenRecord(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
   const title = readOptionalString(input, 'title') ?? String(existing?.data['title'] ?? '');
   return makeIntegrationRecord(
+    runtime,
     'storefrontAccessToken',
     {
       __typename: 'StorefrontAccessToken',
@@ -1036,6 +1236,7 @@ function makeStorefrontAccessTokenRecord(
 }
 
 function makeMobilePlatformApplicationRecord(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing: OnlineStoreIntegrationRecord | null = null,
 ): OnlineStoreIntegrationRecord {
@@ -1043,6 +1244,7 @@ function makeMobilePlatformApplicationRecord(
   const apple = isPlainObject(input['apple']) ? input['apple'] : null;
   if (android) {
     return makeIntegrationRecord(
+      runtime,
       'mobilePlatformApplication',
       {
         __typename: 'AndroidApplication',
@@ -1058,6 +1260,7 @@ function makeMobilePlatformApplicationRecord(
   }
 
   return makeIntegrationRecord(
+    runtime,
     'mobilePlatformApplication',
     {
       __typename: 'AppleApplication',
@@ -1088,8 +1291,12 @@ function themeFileBodyValue(file: Record<string, unknown> | null): string {
   return '';
 }
 
-function themeFileFromInput(input: Record<string, unknown>, existing: Record<string, unknown> | null = null) {
-  const now = makeSyntheticTimestamp();
+function themeFileFromInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing: Record<string, unknown> | null = null,
+) {
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const filename = String(input['filename'] ?? input['dstFilename'] ?? existing?.['filename'] ?? '');
   const bodyInput = isPlainObject(input['body']) ? input['body'] : null;
   const bodyValue = typeof bodyInput?.['value'] === 'string' ? bodyInput['value'] : themeFileBodyValue(existing);
@@ -1115,18 +1322,19 @@ function themeFileFromInput(input: Record<string, unknown>, existing: Record<str
   };
 }
 
-function fileOperationResult(file: Record<string, unknown>): Record<string, unknown> {
+function fileOperationResult(runtime: ProxyRuntimeContext, file: Record<string, unknown>): Record<string, unknown> {
   return {
     __typename: 'OnlineStoreThemeFileOperationResult',
     filename: file['filename'],
     checksumMd5: file['checksumMd5'] ?? null,
     size: file['size'] ?? 0,
-    createdAt: file['createdAt'] ?? makeSyntheticTimestamp(),
-    updatedAt: file['updatedAt'] ?? makeSyntheticTimestamp(),
+    createdAt: file['createdAt'] ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
+    updatedAt: file['updatedAt'] ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
 function handleThemeMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1135,7 +1343,7 @@ function handleThemeMutation(
   const args = getFieldArguments(field, variables);
   const errors: UserError[] = [];
   const id = typeof args['id'] === 'string' ? args['id'] : typeof args['themeId'] === 'string' ? args['themeId'] : null;
-  const existing = id ? store.getEffectiveOnlineStoreIntegrationById('theme', id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreIntegrationById('theme', id) : null;
 
   if ((root !== 'themeCreate' && !existing) || (root === 'themeCreate' && typeof args['source'] !== 'string')) {
     errors.push(
@@ -1161,7 +1369,7 @@ function handleThemeMutation(
   }
 
   if (root === 'themeDelete' && id) {
-    store.deleteStagedOnlineStoreIntegration('theme', id);
+    runtime.store.deleteStagedOnlineStoreIntegration('theme', id);
     return {
       payload: projectIntegrationPayload({ deletedThemeId: id, userErrors: [] }, field, fragments, variables),
       stagedResourceIds: [],
@@ -1172,17 +1380,17 @@ function handleThemeMutation(
     const files = readFiles(existing);
     const byName = new Map(files.map((file) => [String(file['filename'] ?? ''), file]));
     const upserted = readInputArray(args['files']).map((input) => {
-      const file = themeFileFromInput(input, byName.get(String(input['filename'] ?? '')) ?? null);
+      const file = themeFileFromInput(runtime, input, byName.get(String(input['filename'] ?? '')) ?? null);
       byName.set(String(file['filename']), file);
       return file;
     });
     const next = writeFiles(existing, [...byName.values()]);
-    store.upsertStagedOnlineStoreIntegration(next);
+    runtime.store.upsertStagedOnlineStoreIntegration(next);
     return {
       payload: projectIntegrationPayload(
         {
-          job: { __typename: 'Job', id: makeProxySyntheticGid('Job'), done: true },
-          upsertedThemeFiles: upserted.map(fileOperationResult),
+          job: { __typename: 'Job', id: runtime.syntheticIdentity.makeProxySyntheticGid('Job'), done: true },
+          upsertedThemeFiles: upserted.map((file) => fileOperationResult(runtime, file)),
           userErrors: [],
         },
         field,
@@ -1201,15 +1409,15 @@ function handleThemeMutation(
       if (!source) {
         return [];
       }
-      const file = themeFileFromInput({ ...source, filename: input['dstFilename'] }, source);
+      const file = themeFileFromInput(runtime, { ...source, filename: input['dstFilename'] }, source);
       byName.set(String(file['filename']), file);
       return [file];
     });
     const next = writeFiles(existing, [...byName.values()]);
-    store.upsertStagedOnlineStoreIntegration(next);
+    runtime.store.upsertStagedOnlineStoreIntegration(next);
     return {
       payload: projectIntegrationPayload(
-        { copiedThemeFiles: copied.map(fileOperationResult), userErrors: [] },
+        { copiedThemeFiles: copied.map((file) => fileOperationResult(runtime, file)), userErrors: [] },
         field,
         fragments,
         variables,
@@ -1225,10 +1433,10 @@ function handleThemeMutation(
       existing,
       readFiles(existing).filter((file) => !deleteNames.has(String(file['filename'] ?? ''))),
     );
-    store.upsertStagedOnlineStoreIntegration(next);
+    runtime.store.upsertStagedOnlineStoreIntegration(next);
     return {
       payload: projectIntegrationPayload(
-        { deletedThemeFiles: deleted.map(fileOperationResult), userErrors: [] },
+        { deletedThemeFiles: deleted.map((file) => fileOperationResult(runtime, file)), userErrors: [] },
         field,
         fragments,
         variables,
@@ -1238,16 +1446,16 @@ function handleThemeMutation(
   }
 
   const input = isPlainObject(args['input']) ? args['input'] : args;
-  const theme = root === 'themeCreate' ? makeThemeRecord(args) : makeThemeRecord(input, existing);
+  const theme = root === 'themeCreate' ? makeThemeRecord(runtime, args) : makeThemeRecord(runtime, input, existing);
   if (root === 'themePublish') {
-    for (const current of store.listEffectiveOnlineStoreIntegrations('theme')) {
+    for (const current of runtime.store.listEffectiveOnlineStoreIntegrations('theme')) {
       if (current.id !== theme.id && current.data['role'] === 'MAIN') {
-        store.upsertStagedOnlineStoreIntegration(makeThemeRecord({ role: 'UNPUBLISHED' }, current));
+        runtime.store.upsertStagedOnlineStoreIntegration(makeThemeRecord(runtime, { role: 'UNPUBLISHED' }, current));
       }
     }
     theme.data['role'] = 'MAIN';
   }
-  store.upsertStagedOnlineStoreIntegration(theme);
+  runtime.store.upsertStagedOnlineStoreIntegration(theme);
   return {
     payload: projectIntegrationPayload({ theme: integrationData(theme), userErrors: [] }, field, fragments, variables, {
       theme,
@@ -1257,6 +1465,7 @@ function handleThemeMutation(
 }
 
 function handleScriptTagMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1265,7 +1474,7 @@ function handleScriptTagMutation(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args, 'input');
-  const existing = id ? store.getEffectiveOnlineStoreIntegrationById('scriptTag', id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreIntegrationById('scriptTag', id) : null;
   const errors: UserError[] = [];
 
   if (root === 'scriptTagCreate' && (!input || typeof input['src'] !== 'string' || input['src'].length === 0)) {
@@ -1283,15 +1492,15 @@ function handleScriptTagMutation(
   }
 
   if (root === 'scriptTagDelete' && id) {
-    store.deleteStagedOnlineStoreIntegration('scriptTag', id);
+    runtime.store.deleteStagedOnlineStoreIntegration('scriptTag', id);
     return {
       payload: projectIntegrationPayload({ deletedScriptTagId: id, userErrors: [] }, field, fragments, variables),
       stagedResourceIds: [],
     };
   }
 
-  const scriptTag = makeScriptTagRecord(input ?? {}, existing);
-  store.upsertStagedOnlineStoreIntegration(scriptTag);
+  const scriptTag = makeScriptTagRecord(runtime, input ?? {}, existing);
+  runtime.store.upsertStagedOnlineStoreIntegration(scriptTag);
   return {
     payload: projectIntegrationPayload(
       { scriptTag: integrationData(scriptTag), userErrors: [] },
@@ -1305,6 +1514,7 @@ function handleScriptTagMutation(
 }
 
 function handlePixelMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1316,8 +1526,8 @@ function handlePixelMutation(
     root.startsWith('serverPixel') || root === 'eventBridgeServerPixelUpdate' || root === 'pubSubServerPixelUpdate';
   const kind: OnlineStoreIntegrationKind = isServerPixel ? 'serverPixel' : 'webPixel';
   const existing = id
-    ? store.getEffectiveOnlineStoreIntegrationById(kind, id)
-    : (store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null);
+    ? runtime.store.getEffectiveOnlineStoreIntegrationById(kind, id)
+    : (runtime.store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null);
   const errors: UserError[] = [];
 
   if ((root.endsWith('Update') || root.endsWith('Delete')) && !existing) {
@@ -1336,7 +1546,7 @@ function handlePixelMutation(
   }
 
   if (root.endsWith('Delete') && existing) {
-    store.deleteStagedOnlineStoreIntegration(kind, existing.id);
+    runtime.store.deleteStagedOnlineStoreIntegration(kind, existing.id);
     const deletedKey = isServerPixel ? 'deletedServerPixelId' : 'deletedWebPixelId';
     return {
       payload: projectIntegrationPayload({ [deletedKey]: existing.id, userErrors: [] }, field, fragments, variables),
@@ -1346,6 +1556,7 @@ function handlePixelMutation(
 
   const record = isServerPixel
     ? makeServerPixelRecord(
+        runtime,
         root === 'eventBridgeServerPixelUpdate'
           ? { webhookEndpointAddress: args['arn'] }
           : root === 'pubSubServerPixelUpdate'
@@ -1353,8 +1564,8 @@ function handlePixelMutation(
             : {},
         existing,
       )
-    : makeWebPixelRecord(readInput(args, 'webPixel') ?? {}, existing);
-  store.upsertStagedOnlineStoreIntegration(record);
+    : makeWebPixelRecord(runtime, readInput(args, 'webPixel') ?? {}, existing);
+  runtime.store.upsertStagedOnlineStoreIntegration(record);
   const recordKey = isServerPixel ? 'serverPixel' : 'webPixel';
   return {
     payload: projectIntegrationPayload(
@@ -1371,6 +1582,7 @@ function handlePixelMutation(
 }
 
 function handleStorefrontAccessTokenMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1379,7 +1591,7 @@ function handleStorefrontAccessTokenMutation(
   const args = getFieldArguments(field, variables);
   const input = readInput(args, 'input');
   const id = input && typeof input['id'] === 'string' ? input['id'] : null;
-  const existing = id ? store.getEffectiveOnlineStoreIntegrationById('storefrontAccessToken', id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreIntegrationById('storefrontAccessToken', id) : null;
   const errors: UserError[] = [];
 
   if (
@@ -1400,7 +1612,7 @@ function handleStorefrontAccessTokenMutation(
   }
 
   if (root === 'storefrontAccessTokenDelete' && id) {
-    store.deleteStagedOnlineStoreIntegration('storefrontAccessToken', id);
+    runtime.store.deleteStagedOnlineStoreIntegration('storefrontAccessToken', id);
     return {
       payload: projectIntegrationPayload(
         { deletedStorefrontAccessTokenId: id, userErrors: [] },
@@ -1412,8 +1624,8 @@ function handleStorefrontAccessTokenMutation(
     };
   }
 
-  const token = makeStorefrontAccessTokenRecord(input ?? {});
-  store.upsertStagedOnlineStoreIntegration(token);
+  const token = makeStorefrontAccessTokenRecord(runtime, input ?? {});
+  runtime.store.upsertStagedOnlineStoreIntegration(token);
   return {
     payload: projectIntegrationPayload(
       {
@@ -1431,6 +1643,7 @@ function handleStorefrontAccessTokenMutation(
 }
 
 function handleMobilePlatformApplicationMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1439,7 +1652,7 @@ function handleMobilePlatformApplicationMutation(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args, 'input');
-  const existing = id ? store.getEffectiveOnlineStoreIntegrationById('mobilePlatformApplication', id) : null;
+  const existing = id ? runtime.store.getEffectiveOnlineStoreIntegrationById('mobilePlatformApplication', id) : null;
   const errors: UserError[] = [];
 
   if (root === 'mobilePlatformApplicationCreate' && !input) {
@@ -1457,7 +1670,7 @@ function handleMobilePlatformApplicationMutation(
   }
 
   if (root === 'mobilePlatformApplicationDelete' && id) {
-    store.deleteStagedOnlineStoreIntegration('mobilePlatformApplication', id);
+    runtime.store.deleteStagedOnlineStoreIntegration('mobilePlatformApplication', id);
     return {
       payload: projectIntegrationPayload(
         { deletedMobilePlatformApplicationId: id, userErrors: [] },
@@ -1469,8 +1682,8 @@ function handleMobilePlatformApplicationMutation(
     };
   }
 
-  const app = makeMobilePlatformApplicationRecord(input ?? {}, existing);
-  store.upsertStagedOnlineStoreIntegration(app);
+  const app = makeMobilePlatformApplicationRecord(runtime, input ?? {}, existing);
+  runtime.store.upsertStagedOnlineStoreIntegration(app);
   return {
     payload: projectIntegrationPayload(
       { mobilePlatformApplication: integrationData(app), userErrors: [] },
@@ -1484,16 +1697,17 @@ function handleMobilePlatformApplicationMutation(
 }
 
 function handleIntegrationMutation(
+  runtime: ProxyRuntimeContext,
   root: string,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): { payload: unknown; stagedResourceIds: string[] } | null {
   if (root.startsWith('theme')) {
-    return handleThemeMutation(root, field, variables, fragments);
+    return handleThemeMutation(runtime, root, field, variables, fragments);
   }
   if (root.startsWith('scriptTag')) {
-    return handleScriptTagMutation(root, field, variables, fragments);
+    return handleScriptTagMutation(runtime, root, field, variables, fragments);
   }
   if (
     root.startsWith('webPixel') ||
@@ -1501,18 +1715,19 @@ function handleIntegrationMutation(
     root === 'eventBridgeServerPixelUpdate' ||
     root === 'pubSubServerPixelUpdate'
   ) {
-    return handlePixelMutation(root, field, variables, fragments);
+    return handlePixelMutation(runtime, root, field, variables, fragments);
   }
   if (root.startsWith('storefrontAccessToken')) {
-    return handleStorefrontAccessTokenMutation(root, field, variables, fragments);
+    return handleStorefrontAccessTokenMutation(runtime, root, field, variables, fragments);
   }
   if (root.startsWith('mobilePlatformApplication')) {
-    return handleMobilePlatformApplicationMutation(root, field, variables, fragments);
+    return handleMobilePlatformApplicationMutation(runtime, root, field, variables, fragments);
   }
   return null;
 }
 
 export function handleOnlineStoreMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): OnlineStoreMutationResult | null {
@@ -1525,16 +1740,16 @@ export function handleOnlineStoreMutation(
     const root = field.name.value;
     const result =
       root === 'blogCreate' || root === 'pageCreate' || root === 'articleCreate'
-        ? handleCreate(root, field, variables, fragments)
+        ? handleCreate(runtime, root, field, variables, fragments)
         : root === 'blogUpdate' || root === 'pageUpdate' || root === 'articleUpdate'
-          ? handleUpdate(root, field, variables, fragments)
+          ? handleUpdate(runtime, root, field, variables, fragments)
           : root === 'blogDelete' || root === 'pageDelete' || root === 'articleDelete'
-            ? handleDelete(root, field, variables, fragments)
+            ? handleDelete(runtime, root, field, variables, fragments)
             : root === 'commentDelete'
-              ? handleDelete(root, field, variables, fragments)
+              ? handleDelete(runtime, root, field, variables, fragments)
               : root === 'commentApprove' || root === 'commentSpam' || root === 'commentNotSpam'
-                ? handleCommentModeration(root, field, variables, fragments)
-                : handleIntegrationMutation(root, field, variables, fragments);
+                ? handleCommentModeration(runtime, root, field, variables, fragments)
+                : handleIntegrationMutation(runtime, root, field, variables, fragments);
     if (!result) {
       continue;
     }
@@ -1546,7 +1761,11 @@ export function handleOnlineStoreMutation(
   return handled ? { response: { data }, stagedResourceIds } : null;
 }
 
-export function handleOnlineStoreQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleOnlineStoreQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
   const data: Record<string, unknown> = {};
 
@@ -1555,25 +1774,31 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
     const key = getFieldResponseKey(field);
     if (root === 'article' || root === 'blog' || root === 'page' || root === 'comment') {
       const id = readIdArgument(field, variables);
-      const record = id ? store.getEffectiveOnlineStoreContentById(root, id) : null;
-      data[key] = record ? projectRecord(record, field, variables, fragments) : null;
+      const record = id ? runtime.store.getEffectiveOnlineStoreContentById(root, id) : null;
+      data[key] = record ? projectRecord(runtime, record, field, variables, fragments) : null;
       continue;
     }
 
     if (root === 'articles' || root === 'blogs' || root === 'pages' || root === 'comments') {
       const kind = root.slice(0, -1) as OnlineStoreContentKind;
-      data[key] = serializeRecordConnection(field, listRecords(kind, field, variables), variables, fragments);
+      data[key] = serializeRecordConnection(
+        runtime,
+        field,
+        listRecords(runtime, kind, field, variables),
+        variables,
+        fragments,
+      );
       continue;
     }
 
     if (root === 'articleAuthors') {
-      data[key] = serializeAuthorConnection(field, variables, fragments);
+      data[key] = serializeAuthorConnection(runtime, field, variables, fragments);
       continue;
     }
 
     if (root === 'articleTags') {
       const tags = new Set<string>();
-      for (const article of store.listEffectiveOnlineStoreContent('article')) {
+      for (const article of runtime.store.listEffectiveOnlineStoreContent('article')) {
         for (const tag of readStringArray(article.data['tags'])) {
           tags.add(tag);
         }
@@ -1584,7 +1809,7 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
 
     if (root === 'blogsCount' || root === 'pagesCount') {
       const kind = root === 'blogsCount' ? 'blog' : 'page';
-      const count = listRecords(kind, field, variables).length;
+      const count = listRecords(runtime, kind, field, variables).length;
       data[key] = field.selectionSet
         ? projectGraphqlValue(countPayload(count), field.selectionSet.selections, fragments)
         : countPayload(count);
@@ -1594,7 +1819,7 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
     if (root === 'theme' || root === 'scriptTag' || root === 'mobilePlatformApplication') {
       const kind = INTEGRATION_ROOT_KIND[root];
       const id = readIdArgument(field, variables);
-      const record = id && kind ? store.getEffectiveOnlineStoreIntegrationById(kind, id) : null;
+      const record = id && kind ? runtime.store.getEffectiveOnlineStoreIntegrationById(kind, id) : null;
       data[key] = record ? projectIntegrationRecord(record, field, variables, fragments) : null;
       continue;
     }
@@ -1602,7 +1827,12 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
     if (root === 'themes' || root === 'scriptTags' || root === 'mobilePlatformApplications') {
       const kind = INTEGRATION_ROOT_KIND[root];
       data[key] = kind
-        ? serializeIntegrationConnection(field, store.listEffectiveOnlineStoreIntegrations(kind), variables, fragments)
+        ? serializeIntegrationConnection(
+            field,
+            runtime.store.listEffectiveOnlineStoreIntegrations(kind),
+            variables,
+            fragments,
+          )
         : emptyConnection(field);
       continue;
     }
@@ -1613,8 +1843,8 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
       const id = typeof args['id'] === 'string' ? args['id'] : null;
       const record = kind
         ? id
-          ? store.getEffectiveOnlineStoreIntegrationById(kind, id)
-          : (store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null)
+          ? runtime.store.getEffectiveOnlineStoreIntegrationById(kind, id)
+          : (runtime.store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null)
         : null;
       data[key] = record ? projectIntegrationRecord(record, field, variables, fragments) : null;
     }
@@ -1684,7 +1914,11 @@ function collectIntegrationConnectionRecords(
   });
 }
 
-export function hydrateOnlineStoreFromUpstreamResponse(document: string, upstreamPayload: unknown): void {
+export function hydrateOnlineStoreFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  upstreamPayload: unknown,
+): void {
   if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
     return;
   }
@@ -1734,10 +1968,10 @@ export function hydrateOnlineStoreFromUpstreamResponse(document: string, upstrea
   }
 
   if (records.length > 0) {
-    store.upsertBaseOnlineStoreContent(records);
+    runtime.store.upsertBaseOnlineStoreContent(records);
   }
   if (integrations.length > 0) {
-    store.upsertBaseOnlineStoreIntegrations(integrations);
+    runtime.store.upsertBaseOnlineStoreIntegrations(integrations);
   }
 }
 

@@ -1,9 +1,8 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash } from 'node:crypto';
 import type { FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { store } from '../state/store.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
   AccessScopeRecord,
   AppInstallationRecord,
@@ -82,9 +81,9 @@ function accessScope(handle: string): AccessScopeRecord {
   return { handle, description: null };
 }
 
-function defaultApp(): AppRecord {
+function defaultApp(runtime: ProxyRuntimeContext): AppRecord {
   return {
-    id: makeSyntheticGid('App'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('App'),
     apiKey: 'shopify-draft-proxy-local-app',
     handle: 'shopify-draft-proxy',
     title: 'shopify-draft-proxy',
@@ -95,16 +94,16 @@ function defaultApp(): AppRecord {
   };
 }
 
-function ensureCurrentInstallation(origin: string): AppInstallationRecord {
-  const existing = store.getCurrentAppInstallation();
+function ensureCurrentInstallation(runtime: ProxyRuntimeContext, origin: string): AppInstallationRecord {
+  const existing = runtime.store.getCurrentAppInstallation();
   if (existing) {
     return existing;
   }
 
-  const app = defaultApp();
-  store.stageApp(app);
-  return store.stageAppInstallation({
-    id: makeSyntheticGid('AppInstallation'),
+  const app = defaultApp(runtime);
+  runtime.store.stageApp(app);
+  return runtime.store.stageAppInstallation({
+    id: runtime.syntheticIdentity.makeSyntheticGid('AppInstallation'),
     appId: app.id,
     launchUrl: `${origin}/admin/apps/${app.handle ?? 'shopify-draft-proxy'}`,
     uninstallUrl: null,
@@ -149,8 +148,8 @@ function serializeAccessScope(scope: AccessScopeRecord, field: FieldNode): Recor
   return serializePlainObject(scope, field);
 }
 
-function getAppRecord(appId: string): AppRecord | null {
-  return store.getEffectiveAppById(appId);
+function getAppRecord(runtime: ProxyRuntimeContext, appId: string): AppRecord | null {
+  return runtime.store.getEffectiveAppById(appId);
 }
 
 function serializeApp(app: AppRecord | null, field: FieldNode): unknown {
@@ -175,12 +174,16 @@ function serializeApp(app: AppRecord | null, field: FieldNode): unknown {
   return result;
 }
 
-function serializeAppSubscriptionLineItem(lineItem: AppSubscriptionLineItemRecord, field: FieldNode): unknown {
+function serializeAppSubscriptionLineItem(
+  runtime: ProxyRuntimeContext,
+  lineItem: AppSubscriptionLineItemRecord,
+  field: FieldNode,
+): unknown {
   const source = {
     id: lineItem.id,
     plan: lineItem.plan,
     usageRecords: {
-      nodes: store.listEffectiveAppUsageRecordsForLineItem(lineItem.id),
+      nodes: runtime.store.listEffectiveAppUsageRecordsForLineItem(lineItem.id),
     },
   };
   const result: Record<string, unknown> = {};
@@ -189,7 +192,11 @@ function serializeAppSubscriptionLineItem(lineItem: AppSubscriptionLineItemRecor
     if (child.name.value === '__typename') {
       result[key] = 'AppSubscriptionLineItem';
     } else if (child.name.value === 'usageRecords') {
-      result[key] = serializeUsageRecordConnection(store.listEffectiveAppUsageRecordsForLineItem(lineItem.id), child);
+      result[key] = serializeUsageRecordConnection(
+        runtime,
+        runtime.store.listEffectiveAppUsageRecordsForLineItem(lineItem.id),
+        child,
+      );
     } else {
       result[key] = child.selectionSet
         ? projectGraphqlObject(source, [child], getDocumentFragments('query X { __typename }'))[key]
@@ -199,7 +206,11 @@ function serializeAppSubscriptionLineItem(lineItem: AppSubscriptionLineItemRecor
   return result;
 }
 
-function serializeAppSubscription(subscription: AppSubscriptionRecord | null, field: FieldNode): unknown {
+function serializeAppSubscription(
+  runtime: ProxyRuntimeContext,
+  subscription: AppSubscriptionRecord | null,
+  field: FieldNode,
+): unknown {
   if (!subscription) {
     return null;
   }
@@ -213,9 +224,9 @@ function serializeAppSubscription(subscription: AppSubscriptionRecord | null, fi
         break;
       case 'lineItems':
         result[key] = subscription.lineItemIds
-          .map((lineItemId) => store.getEffectiveAppSubscriptionLineItemById(lineItemId))
+          .map((lineItemId) => runtime.store.getEffectiveAppSubscriptionLineItemById(lineItemId))
           .filter((lineItem): lineItem is AppSubscriptionLineItemRecord => lineItem !== null)
-          .map((lineItem) => serializeAppSubscriptionLineItem(lineItem, child));
+          .map((lineItem) => serializeAppSubscriptionLineItem(runtime, lineItem, child));
         break;
       default:
         result[key] = (subscription as unknown as Record<string, unknown>)[child.name.value] ?? null;
@@ -236,12 +247,12 @@ function serializeOneTimePurchase(purchase: AppOneTimePurchaseRecord | null, fie
   );
 }
 
-function serializeUsageRecord(record: AppUsageRecord | null, field: FieldNode): unknown {
+function serializeUsageRecord(runtime: ProxyRuntimeContext, record: AppUsageRecord | null, field: FieldNode): unknown {
   if (!record) {
     return null;
   }
 
-  const lineItem = store.getEffectiveAppSubscriptionLineItemById(record.subscriptionLineItemId);
+  const lineItem = runtime.store.getEffectiveAppSubscriptionLineItemById(record.subscriptionLineItemId);
   const source = { __typename: 'AppUsageRecord', ...record, subscriptionLineItem: lineItem };
   return projectGraphqlObject(
     source,
@@ -250,7 +261,7 @@ function serializeUsageRecord(record: AppUsageRecord | null, field: FieldNode): 
     {
       projectFieldValue({ field: child, fieldName }) {
         if (fieldName === 'subscriptionLineItem') {
-          return { handled: true, value: lineItem ? serializeAppSubscriptionLineItem(lineItem, child) : null };
+          return { handled: true, value: lineItem ? serializeAppSubscriptionLineItem(runtime, lineItem, child) : null };
         }
         return { handled: false };
       },
@@ -258,12 +269,16 @@ function serializeUsageRecord(record: AppUsageRecord | null, field: FieldNode): 
   );
 }
 
-function serializeSubscriptionConnection(subscriptions: AppSubscriptionRecord[], field: FieldNode): unknown {
+function serializeSubscriptionConnection(
+  runtime: ProxyRuntimeContext,
+  subscriptions: AppSubscriptionRecord[],
+  field: FieldNode,
+): unknown {
   const window = paginateConnectionItems(subscriptions, field, {}, (subscription) => subscription.id);
   return serializeConnection(field, {
     ...window,
     getCursorValue: (subscription) => subscription.id,
-    serializeNode: (subscription, nodeField) => serializeAppSubscription(subscription, nodeField),
+    serializeNode: (subscription, nodeField) => serializeAppSubscription(runtime, subscription, nodeField),
   });
 }
 
@@ -276,16 +291,24 @@ function serializeOneTimePurchaseConnection(purchases: AppOneTimePurchaseRecord[
   });
 }
 
-function serializeUsageRecordConnection(records: AppUsageRecord[], field: FieldNode): unknown {
+function serializeUsageRecordConnection(
+  runtime: ProxyRuntimeContext,
+  records: AppUsageRecord[],
+  field: FieldNode,
+): unknown {
   const window = paginateConnectionItems(records, field, {}, (record) => record.id);
   return serializeConnection(field, {
     ...window,
     getCursorValue: (record) => record.id,
-    serializeNode: (record, nodeField) => serializeUsageRecord(record, nodeField),
+    serializeNode: (record, nodeField) => serializeUsageRecord(runtime, record, nodeField),
   });
 }
 
-function serializeAppInstallation(installation: AppInstallationRecord | null, field: FieldNode): unknown {
+function serializeAppInstallation(
+  runtime: ProxyRuntimeContext,
+  installation: AppInstallationRecord | null,
+  field: FieldNode,
+): unknown {
   if (!installation) {
     return null;
   }
@@ -298,22 +321,23 @@ function serializeAppInstallation(installation: AppInstallationRecord | null, fi
         result[key] = 'AppInstallation';
         break;
       case 'app':
-        result[key] = serializeApp(getAppRecord(installation.appId), child);
+        result[key] = serializeApp(getAppRecord(runtime, installation.appId), child);
         break;
       case 'accessScopes':
         result[key] = installation.accessScopes.map((scope) => serializeAccessScope(scope, child));
         break;
       case 'activeSubscriptions':
         result[key] = installation.activeSubscriptionIds
-          .map((id) => store.getEffectiveAppSubscriptionById(id))
+          .map((id) => runtime.store.getEffectiveAppSubscriptionById(id))
           .filter((subscription): subscription is AppSubscriptionRecord => subscription !== null)
           .filter((subscription) => subscription.status === 'ACTIVE')
-          .map((subscription) => serializeAppSubscription(subscription, child));
+          .map((subscription) => serializeAppSubscription(runtime, subscription, child));
         break;
       case 'allSubscriptions':
         result[key] = serializeSubscriptionConnection(
+          runtime,
           installation.allSubscriptionIds
-            .map((id) => store.getEffectiveAppSubscriptionById(id))
+            .map((id) => runtime.store.getEffectiveAppSubscriptionById(id))
             .filter((subscription): subscription is AppSubscriptionRecord => subscription !== null),
           child,
         );
@@ -321,7 +345,7 @@ function serializeAppInstallation(installation: AppInstallationRecord | null, fi
       case 'oneTimePurchases':
         result[key] = serializeOneTimePurchaseConnection(
           installation.oneTimePurchaseIds
-            .map((id) => store.getEffectiveAppOneTimePurchaseById(id))
+            .map((id) => runtime.store.getEffectiveAppOneTimePurchaseById(id))
             .filter((purchase): purchase is AppOneTimePurchaseRecord => purchase !== null),
           child,
         );
@@ -333,48 +357,57 @@ function serializeAppInstallation(installation: AppInstallationRecord | null, fi
   return result;
 }
 
-function serializeAppInstallationConnection(installations: AppInstallationRecord[], field: FieldNode): unknown {
+function serializeAppInstallationConnection(
+  runtime: ProxyRuntimeContext,
+  installations: AppInstallationRecord[],
+  field: FieldNode,
+): unknown {
   const window = paginateConnectionItems(installations, field, {}, (installation) => installation.id);
   return serializeConnection(field, {
     ...window,
     getCursorValue: (installation) => installation.id,
-    serializeNode: (installation, nodeField) => serializeAppInstallation(installation, nodeField),
+    serializeNode: (installation, nodeField) => serializeAppInstallation(runtime, installation, nodeField),
   });
 }
 
-function rootFieldData(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+function rootFieldData(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const args = getFieldArguments(field, variables);
     switch (field.name.value) {
       case 'currentAppInstallation':
-        data[key] = serializeAppInstallation(store.getCurrentAppInstallation(), field);
+        data[key] = serializeAppInstallation(runtime, runtime.store.getCurrentAppInstallation(), field);
         break;
       case 'appInstallation':
         data[key] = serializeAppInstallation(
-          asString(args['id']) ? store.getEffectiveAppInstallationById(String(args['id'])) : null,
+          runtime,
+          asString(args['id']) ? runtime.store.getEffectiveAppInstallationById(String(args['id'])) : null,
           field,
         );
         break;
       case 'app': {
         const appId = asString(args['id']);
-        data[key] = serializeApp(appId ? store.getEffectiveAppById(appId) : null, field);
+        data[key] = serializeApp(appId ? runtime.store.getEffectiveAppById(appId) : null, field);
         break;
       }
       case 'appByHandle': {
         const handle = asString(args['handle']);
-        data[key] = serializeApp(handle ? store.findEffectiveAppByHandle(handle) : null, field);
+        data[key] = serializeApp(handle ? runtime.store.findEffectiveAppByHandle(handle) : null, field);
         break;
       }
       case 'appByKey': {
         const apiKey = asString(args['apiKey']);
-        data[key] = serializeApp(apiKey ? store.findEffectiveAppByApiKey(apiKey) : null, field);
+        data[key] = serializeApp(apiKey ? runtime.store.findEffectiveAppByApiKey(apiKey) : null, field);
         break;
       }
       case 'appInstallations': {
-        const current = store.getCurrentAppInstallation();
-        data[key] = serializeAppInstallationConnection(current ? [current] : [], field);
+        const current = runtime.store.getCurrentAppInstallation();
+        data[key] = serializeAppInstallationConnection(runtime, current ? [current] : [], field);
         break;
       }
     }
@@ -382,19 +415,28 @@ function rootFieldData(document: string, variables: Record<string, unknown>): Re
   return data;
 }
 
-export function handleAppQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
-  return { data: rootFieldData(document, variables) };
+export function handleAppQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return { data: rootFieldData(runtime, document, variables) };
 }
 
 function subscriptionPayload(
+  runtime: ProxyRuntimeContext,
   subscription: AppSubscriptionRecord | null,
   field: FieldNode,
   errors: UserError[] = [],
 ): unknown {
-  return serializeMutationPayload({ appSubscription: subscription, userErrors: errors }, field);
+  return serializeMutationPayload(runtime, { appSubscription: subscription, userErrors: errors }, field);
 }
 
-function serializeMutationPayload(source: Record<string, unknown>, field: FieldNode): Record<string, unknown> {
+function serializeMutationPayload(
+  runtime: ProxyRuntimeContext,
+  source: Record<string, unknown>,
+  field: FieldNode,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const child of getSelectedChildFields(field, { includeInlineFragments: true })) {
     const key = getFieldResponseKey(child);
@@ -406,10 +448,14 @@ function serializeMutationPayload(source: Record<string, unknown>, field: FieldN
         result[key] = serializeOneTimePurchase(source['appPurchaseOneTime'] as AppOneTimePurchaseRecord | null, child);
         break;
       case 'appSubscription':
-        result[key] = serializeAppSubscription(source['appSubscription'] as AppSubscriptionRecord | null, child);
+        result[key] = serializeAppSubscription(
+          runtime,
+          source['appSubscription'] as AppSubscriptionRecord | null,
+          child,
+        );
         break;
       case 'appUsageRecord':
-        result[key] = serializeUsageRecord(source['appUsageRecord'] as AppUsageRecord | null, child);
+        result[key] = serializeUsageRecord(runtime, source['appUsageRecord'] as AppUsageRecord | null, child);
         break;
       case 'delegateAccessToken':
         result[key] =
@@ -434,6 +480,7 @@ function serializeMutationPayload(source: Record<string, unknown>, field: FieldN
 }
 
 function readLineItemPlan(
+  runtime: ProxyRuntimeContext,
   lineItem: Record<string, unknown>,
   subscriptionId: string,
   index: number,
@@ -457,30 +504,36 @@ function readLineItemPlan(
       };
 
   return {
-    id: `${makeSyntheticGid('AppSubscriptionLineItem')}?v=1&index=${index}`,
+    id: `${runtime.syntheticIdentity.makeSyntheticGid('AppSubscriptionLineItem')}?v=1&index=${index}`,
     subscriptionId,
     plan: { pricingDetails },
   };
 }
 
-function handlePurchaseCreate(field: FieldNode, variables: Record<string, unknown>, origin: string): unknown {
+function handlePurchaseCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  origin: string,
+): unknown {
   const args = getFieldArguments(field, variables);
-  const installation = ensureCurrentInstallation(origin);
+  const installation = ensureCurrentInstallation(runtime, origin);
   const purchase: AppOneTimePurchaseRecord = {
-    id: makeSyntheticGid('AppPurchaseOneTime'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('AppPurchaseOneTime'),
     name: asString(args['name']) ?? '',
     status: 'PENDING',
     test: asBoolean(args['test']),
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     price: readMoneyInput(args['price']),
   };
-  store.stageAppOneTimePurchase(purchase);
-  store.stageAppInstallation({
+  runtime.store.stageAppOneTimePurchase(purchase);
+  runtime.store.stageAppInstallation({
     ...installation,
     oneTimePurchaseIds: [...installation.oneTimePurchaseIds, purchase.id],
   });
 
   return serializeMutationPayload(
+    runtime,
     {
       appPurchaseOneTime: purchase,
       confirmationUrl: confirmationUrl(origin, 'ApplicationCharge', purchase.id),
@@ -490,15 +543,20 @@ function handlePurchaseCreate(field: FieldNode, variables: Record<string, unknow
   );
 }
 
-function handleSubscriptionCreate(field: FieldNode, variables: Record<string, unknown>, origin: string): unknown {
+function handleSubscriptionCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  origin: string,
+): unknown {
   const args = getFieldArguments(field, variables);
-  const installation = ensureCurrentInstallation(origin);
-  const subscriptionId = makeSyntheticGid('AppSubscription');
+  const installation = ensureCurrentInstallation(runtime, origin);
+  const subscriptionId = runtime.syntheticIdentity.makeSyntheticGid('AppSubscription');
   const lineItems = asRecordArray(args['lineItems']).map((lineItem, index) =>
-    readLineItemPlan(lineItem, subscriptionId, index + 1),
+    readLineItemPlan(runtime, lineItem, subscriptionId, index + 1),
   );
   for (const lineItem of lineItems) {
-    store.stageAppSubscriptionLineItem(lineItem);
+    runtime.store.stageAppSubscriptionLineItem(lineItem);
   }
   const subscription: AppSubscriptionRecord = {
     id: subscriptionId,
@@ -507,16 +565,17 @@ function handleSubscriptionCreate(field: FieldNode, variables: Record<string, un
     test: asBoolean(args['test']),
     trialDays: asNumber(args['trialDays']),
     currentPeriodEnd: null,
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     lineItemIds: lineItems.map((lineItem) => lineItem.id),
   };
-  store.stageAppSubscription(subscription);
-  store.stageAppInstallation({
+  runtime.store.stageAppSubscription(subscription);
+  runtime.store.stageAppInstallation({
     ...installation,
     allSubscriptionIds: [...installation.allSubscriptionIds, subscription.id],
   });
 
   return serializeMutationPayload(
+    runtime,
     {
       appSubscription: subscription,
       confirmationUrl: confirmationUrl(origin, 'RecurringApplicationCharge', subscription.id),
@@ -526,32 +585,42 @@ function handleSubscriptionCreate(field: FieldNode, variables: Record<string, un
   );
 }
 
-function handleSubscriptionCancel(field: FieldNode, variables: Record<string, unknown>): unknown {
+function handleSubscriptionCancel(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const subscriptionId = asString(args['id']);
-  const subscription = subscriptionId ? store.getEffectiveAppSubscriptionById(subscriptionId) : null;
+  const subscription = subscriptionId ? runtime.store.getEffectiveAppSubscriptionById(subscriptionId) : null;
   if (!subscription) {
-    return subscriptionPayload(null, field, [userError(['id'], 'Subscription not found')]);
+    return subscriptionPayload(runtime, null, field, [userError(['id'], 'Subscription not found')]);
   }
 
-  const cancelled = store.stageAppSubscription({ ...subscription, status: 'CANCELLED' });
-  const installation = store.getCurrentAppInstallation();
+  const cancelled = runtime.store.stageAppSubscription({ ...subscription, status: 'CANCELLED' });
+  const installation = runtime.store.getCurrentAppInstallation();
   if (installation) {
-    store.stageAppInstallation({
+    runtime.store.stageAppInstallation({
       ...installation,
       activeSubscriptionIds: installation.activeSubscriptionIds.filter((id) => id !== cancelled.id),
     });
   }
-  return subscriptionPayload(cancelled, field);
+  return subscriptionPayload(runtime, cancelled, field);
 }
 
-function handleLineItemUpdate(field: FieldNode, variables: Record<string, unknown>, origin: string): unknown {
+function handleLineItemUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  origin: string,
+): unknown {
   const args = getFieldArguments(field, variables);
   const lineItemId = asString(args['id']);
-  const lineItem = lineItemId ? store.getEffectiveAppSubscriptionLineItemById(lineItemId) : null;
-  const subscription = lineItem ? store.getEffectiveAppSubscriptionById(lineItem.subscriptionId) : null;
+  const lineItem = lineItemId ? runtime.store.getEffectiveAppSubscriptionLineItemById(lineItemId) : null;
+  const subscription = lineItem ? runtime.store.getEffectiveAppSubscriptionById(lineItem.subscriptionId) : null;
   if (!lineItem || !subscription) {
     return serializeMutationPayload(
+      runtime,
       {
         appSubscription: null,
         confirmationUrl: null,
@@ -563,7 +632,7 @@ function handleLineItemUpdate(field: FieldNode, variables: Record<string, unknow
 
   const pricingDetails = isPlainObject(lineItem.plan['pricingDetails']) ? lineItem.plan['pricingDetails'] : {};
   const cappedAmount = readMoneyInput(args['cappedAmount']);
-  store.stageAppSubscriptionLineItem({
+  runtime.store.stageAppSubscriptionLineItem({
     ...lineItem,
     plan: {
       ...lineItem.plan,
@@ -575,6 +644,7 @@ function handleLineItemUpdate(field: FieldNode, variables: Record<string, unknow
   });
 
   return serializeMutationPayload(
+    runtime,
     {
       appSubscription: subscription,
       confirmationUrl: confirmationUrl(origin, 'RecurringApplicationCharge', subscription.id),
@@ -584,47 +654,61 @@ function handleLineItemUpdate(field: FieldNode, variables: Record<string, unknow
   );
 }
 
-function handleTrialExtend(field: FieldNode, variables: Record<string, unknown>): unknown {
+function handleTrialExtend(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const subscriptionId = asString(args['id']);
   const days = asNumber(args['days']) ?? 0;
-  const subscription = subscriptionId ? store.getEffectiveAppSubscriptionById(subscriptionId) : null;
+  const subscription = subscriptionId ? runtime.store.getEffectiveAppSubscriptionById(subscriptionId) : null;
   if (!subscription) {
-    return subscriptionPayload(null, field, [userError(['id'], 'Subscription not found')]);
+    return subscriptionPayload(runtime, null, field, [userError(['id'], 'Subscription not found')]);
   }
 
-  const extended = store.stageAppSubscription({
+  const extended = runtime.store.stageAppSubscription({
     ...subscription,
     trialDays: (subscription.trialDays ?? 0) + days,
   });
-  return subscriptionPayload(extended, field);
+  return subscriptionPayload(runtime, extended, field);
 }
 
-function handleUsageRecordCreate(field: FieldNode, variables: Record<string, unknown>): unknown {
+function handleUsageRecordCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const lineItemId = asString(args['subscriptionLineItemId']);
-  const lineItem = lineItemId ? store.getEffectiveAppSubscriptionLineItemById(lineItemId) : null;
+  const lineItem = lineItemId ? runtime.store.getEffectiveAppSubscriptionLineItemById(lineItemId) : null;
   if (!lineItem) {
     return serializeMutationPayload(
+      runtime,
       { appUsageRecord: null, userErrors: [userError(['subscriptionLineItemId'], 'Subscription line item not found')] },
       field,
     );
   }
 
-  const record = store.stageAppUsageRecord({
-    id: makeSyntheticGid('AppUsageRecord'),
+  const record = runtime.store.stageAppUsageRecord({
+    id: runtime.syntheticIdentity.makeSyntheticGid('AppUsageRecord'),
     subscriptionLineItemId: lineItem.id,
     description: asString(args['description']) ?? '',
     price: readMoneyInput(args['price']),
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     idempotencyKey: asString(args['idempotencyKey']),
   });
-  return serializeMutationPayload({ appUsageRecord: record, userErrors: [] }, field);
+  return serializeMutationPayload(runtime, { appUsageRecord: record, userErrors: [] }, field);
 }
 
-function handleRevokeAccessScopes(field: FieldNode, variables: Record<string, unknown>, origin: string): unknown {
+function handleRevokeAccessScopes(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  origin: string,
+): unknown {
   const args = getFieldArguments(field, variables);
-  const installation = ensureCurrentInstallation(origin);
+  const installation = ensureCurrentInstallation(runtime, origin);
   const requestedScopes = Array.isArray(args['scopes'])
     ? args['scopes'].filter((value): value is string => typeof value === 'string')
     : [];
@@ -633,30 +717,37 @@ function handleRevokeAccessScopes(field: FieldNode, variables: Record<string, un
   const errors = requestedScopes
     .filter((scope) => !currentHandles.has(scope))
     .map((scope) => userError(['scopes'], `Access scope '${scope}' is not granted.`, 'UNKNOWN_SCOPES'));
-  store.stageAppInstallation({
+  runtime.store.stageAppInstallation({
     ...installation,
     accessScopes: installation.accessScopes.filter((scope) => !requestedScopes.includes(scope.handle)),
   });
-  return serializeMutationPayload({ revoked, userErrors: errors }, field);
+  return serializeMutationPayload(runtime, { revoked, userErrors: errors }, field);
 }
 
-function handleAppUninstall(field: FieldNode, origin: string): unknown {
-  const installation = ensureCurrentInstallation(origin);
-  const app = store.getEffectiveAppById(installation.appId);
-  store.stageAppInstallation({ ...installation, uninstalledAt: makeSyntheticTimestamp() });
-  return serializeMutationPayload({ app, userErrors: [] }, field);
+function handleAppUninstall(runtime: ProxyRuntimeContext, field: FieldNode, origin: string): unknown {
+  const installation = ensureCurrentInstallation(runtime, origin);
+  const app = runtime.store.getEffectiveAppById(installation.appId);
+  runtime.store.stageAppInstallation({
+    ...installation,
+    uninstalledAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+  });
+  return serializeMutationPayload(runtime, { app, userErrors: [] }, field);
 }
 
-function handleDelegateCreate(field: FieldNode, variables: Record<string, unknown>): unknown {
+function handleDelegateCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['input']) ? args['input'] : {};
   const accessScopes = Array.isArray(input['accessScopes'])
     ? input['accessScopes'].filter((value): value is string => typeof value === 'string')
     : [];
-  const rawToken = `shpat_delegate_proxy_${makeSyntheticGid('DelegateAccessToken').split('/').at(-1)}`;
-  const createdAt = makeSyntheticTimestamp();
-  store.stageDelegatedAccessToken({
-    id: makeSyntheticGid('DelegateAccessToken'),
+  const rawToken = `shpat_delegate_proxy_${runtime.syntheticIdentity.makeSyntheticGid('DelegateAccessToken').split('/').at(-1)}`;
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  runtime.store.stageDelegatedAccessToken({
+    id: runtime.syntheticIdentity.makeSyntheticGid('DelegateAccessToken'),
     accessTokenSha256: tokenHash(rawToken),
     accessTokenPreview: tokenPreview(rawToken),
     accessScopes,
@@ -666,6 +757,7 @@ function handleDelegateCreate(field: FieldNode, variables: Record<string, unknow
   });
 
   return serializeMutationPayload(
+    runtime,
     {
       delegateAccessToken: {
         __typename: 'DelegateAccessToken',
@@ -681,12 +773,17 @@ function handleDelegateCreate(field: FieldNode, variables: Record<string, unknow
   );
 }
 
-function handleDelegateDestroy(field: FieldNode, variables: Record<string, unknown>): unknown {
+function handleDelegateDestroy(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const accessToken = asString(args['accessToken']);
-  const token = accessToken ? store.findDelegatedAccessTokenByHash(tokenHash(accessToken)) : null;
+  const token = accessToken ? runtime.store.findDelegatedAccessTokenByHash(tokenHash(accessToken)) : null;
   if (!token) {
     return serializeMutationPayload(
+      runtime,
       {
         status: false,
         shop: null,
@@ -696,11 +793,12 @@ function handleDelegateDestroy(field: FieldNode, variables: Record<string, unkno
     );
   }
 
-  store.destroyDelegatedAccessToken(token.id, makeSyntheticTimestamp());
-  return serializeMutationPayload({ status: true, shop: null, userErrors: [] }, field);
+  runtime.store.destroyDelegatedAccessToken(token.id, runtime.syntheticIdentity.makeSyntheticTimestamp());
+  return serializeMutationPayload(runtime, { status: true, shop: null, userErrors: [] }, field);
 }
 
 export function handleAppMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   origin: string,
@@ -714,34 +812,34 @@ export function handleAppMutation(
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'appPurchaseOneTimeCreate':
-        data[key] = handlePurchaseCreate(field, variables, origin);
+        data[key] = handlePurchaseCreate(runtime, field, variables, origin);
         break;
       case 'appSubscriptionCreate':
-        data[key] = handleSubscriptionCreate(field, variables, origin);
+        data[key] = handleSubscriptionCreate(runtime, field, variables, origin);
         break;
       case 'appSubscriptionCancel':
-        data[key] = handleSubscriptionCancel(field, variables);
+        data[key] = handleSubscriptionCancel(runtime, field, variables);
         break;
       case 'appSubscriptionLineItemUpdate':
-        data[key] = handleLineItemUpdate(field, variables, origin);
+        data[key] = handleLineItemUpdate(runtime, field, variables, origin);
         break;
       case 'appSubscriptionTrialExtend':
-        data[key] = handleTrialExtend(field, variables);
+        data[key] = handleTrialExtend(runtime, field, variables);
         break;
       case 'appUsageRecordCreate':
-        data[key] = handleUsageRecordCreate(field, variables);
+        data[key] = handleUsageRecordCreate(runtime, field, variables);
         break;
       case 'appRevokeAccessScopes':
-        data[key] = handleRevokeAccessScopes(field, variables, origin);
+        data[key] = handleRevokeAccessScopes(runtime, field, variables, origin);
         break;
       case 'appUninstall':
-        data[key] = handleAppUninstall(field, origin);
+        data[key] = handleAppUninstall(runtime, field, origin);
         break;
       case 'delegateAccessTokenCreate':
-        data[key] = handleDelegateCreate(field, variables);
+        data[key] = handleDelegateCreate(runtime, field, variables);
         break;
       case 'delegateAccessTokenDestroy':
-        data[key] = handleDelegateDestroy(field, variables);
+        data[key] = handleDelegateDestroy(runtime, field, variables);
         break;
     }
   }
@@ -749,7 +847,7 @@ export function handleAppMutation(
   return { data };
 }
 
-export function hydrateAppsFromUpstreamResponse(upstreamPayload: unknown): void {
+export function hydrateAppsFromUpstreamResponse(runtime: ProxyRuntimeContext, upstreamPayload: unknown): void {
   if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
     return;
   }
@@ -796,6 +894,6 @@ export function hydrateAppsFromUpstreamResponse(upstreamPayload: unknown): void 
       oneTimePurchaseIds: [],
       uninstalledAt: null,
     };
-    store.upsertBaseAppInstallation(installation, app);
+    runtime.store.upsertBaseAppInstallation(installation, app);
   }
 }

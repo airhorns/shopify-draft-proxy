@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -28,8 +29,6 @@ import {
 } from './metafields.js';
 import { serializeOrderNode } from './orders.js';
 import { CUSTOMER_ADDRESS_COUNTRIES } from './customer-address-territories.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   CustomerAddressRecord,
   CustomerAccountPageRecord,
@@ -423,16 +422,17 @@ function normalizeMoney(raw: unknown, fallback: CustomerRecord['amountSpent'] = 
   };
 }
 
-function listOrdersForCustomer(customerId: string): OrderRecord[] {
-  return store.getOrders().filter((order) => order.customer?.id === customerId);
+function listOrdersForCustomer(runtime: ProxyRuntimeContext, customerId: string): OrderRecord[] {
+  return runtime.store.getOrders().filter((order) => order.customer?.id === customerId);
 }
 
 function serializeCustomerOrdersConnection(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const orders = listOrdersForCustomer(customerId);
+  const orders = listOrdersForCustomer(runtime, customerId);
   const window = paginateConnectionItems(orders, field, variables, (order) => order.id);
 
   return serializeConnection(field, {
@@ -440,7 +440,7 @@ function serializeCustomerOrdersConnection(
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (order) => order.id,
-    serializeNode: (order, selection) => serializeOrderNode(selection, order, variables),
+    serializeNode: (order, selection) => serializeOrderNode(runtime, selection, order, variables),
     selectedFieldOptions: { includeInlineFragments: true },
     pageInfoOptions: { includeInlineFragments: true },
   });
@@ -591,6 +591,7 @@ function normalizeDefaultAddress(
 }
 
 function normalizeCustomerAddress(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   raw: unknown,
   options: { fallback?: CustomerAddressRecord | null; cursor?: string | null; position?: number } = {},
@@ -600,7 +601,10 @@ function normalizeCustomerAddress(
   }
 
   const rawId = raw['id'];
-  const id = typeof rawId === 'string' && rawId ? rawId : (options.fallback?.id ?? makeSyntheticGid('CustomerAddress'));
+  const id =
+    typeof rawId === 'string' && rawId
+      ? rawId
+      : (options.fallback?.id ?? runtime.syntheticIdentity.makeSyntheticGid('CustomerAddress'));
   const firstName = normalizeAddressStringField(raw, 'firstName', options.fallback?.firstName ?? null);
   const lastName = normalizeAddressStringField(raw, 'lastName', options.fallback?.lastName ?? null);
   const address1 = normalizeAddressStringField(raw, 'address1', options.fallback?.address1 ?? null);
@@ -670,7 +674,7 @@ function customerAddressToDefaultAddress(address: CustomerAddressRecord): Custom
   };
 }
 
-function normalizeCustomer(raw: unknown): CustomerRecord | null {
+function normalizeCustomer(runtime: ProxyRuntimeContext, raw: unknown): CustomerRecord | null {
   if (!isObject(raw)) {
     return null;
   }
@@ -680,7 +684,7 @@ function normalizeCustomer(raw: unknown): CustomerRecord | null {
     return null;
   }
 
-  const existing = store.getEffectiveCustomerById(id);
+  const existing = runtime.store.getEffectiveCustomerById(id);
   const defaultEmailAddress = normalizeDefaultEmailAddress(
     hasOwnField(raw, 'defaultEmailAddress') ? raw['defaultEmailAddress'] : undefined,
     existing?.defaultEmailAddress ?? null,
@@ -825,11 +829,12 @@ function serializeMoneyV2Selection(field: FieldNode, value: MoneyV2Record): Reco
 }
 
 function serializeStoreCreditOwnerSelection(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const customer = store.getEffectiveCustomerById(customerId);
+  const customer = runtime.store.getEffectiveCustomerById(customerId);
   const result: Record<string, unknown> = {};
   const selections = field.selectionSet?.selections ?? [];
 
@@ -869,7 +874,7 @@ function serializeStoreCreditOwnerSelection(
         result[key] = customer?.lastName ?? null;
         break;
       default:
-        result[key] = customer ? serializeCustomerSelection(customer, field, variables)[key] : null;
+        result[key] = customer ? serializeCustomerSelection(runtime, customer, field, variables)[key] : null;
         break;
     }
   };
@@ -882,6 +887,7 @@ function serializeStoreCreditOwnerSelection(
 }
 
 function serializeStoreCreditTransactionSelection(
+  runtime: ProxyRuntimeContext,
   transaction: StoreCreditAccountTransactionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -891,8 +897,8 @@ function serializeStoreCreditTransactionSelection(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'account': {
-        const account = store.getEffectiveStoreCreditAccountById(transaction.accountId);
-        result[key] = account ? serializeStoreCreditAccountSelection(account, selection, variables) : null;
+        const account = runtime.store.getEffectiveStoreCreditAccountById(transaction.accountId);
+        result[key] = account ? serializeStoreCreditAccountSelection(runtime, account, selection, variables) : null;
         break;
       }
       case 'amount':
@@ -919,12 +925,13 @@ function serializeStoreCreditTransactionSelection(
 }
 
 function serializeStoreCreditTransactionsConnection(
+  runtime: ProxyRuntimeContext,
   accountId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const sortedTransactions = store.listEffectiveStoreCreditAccountTransactions(accountId);
+  const sortedTransactions = runtime.store.listEffectiveStoreCreditAccountTransactions(accountId);
   const transactions = args['reverse'] === true ? [...sortedTransactions].reverse() : sortedTransactions;
   const window = paginateConnectionItems(transactions, field, variables, (transaction) => transaction.id);
 
@@ -934,11 +941,12 @@ function serializeStoreCreditTransactionsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (transaction) => transaction.id,
     serializeNode: (transaction, selection) =>
-      serializeStoreCreditTransactionSelection(transaction, selection, variables),
+      serializeStoreCreditTransactionSelection(runtime, transaction, selection, variables),
   });
 }
 
 function serializeStoreCreditAccountSelection(
+  runtime: ProxyRuntimeContext,
   account: StoreCreditAccountRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -954,10 +962,10 @@ function serializeStoreCreditAccountSelection(
         result[key] = serializeMoneyV2Selection(selection, account.balance);
         break;
       case 'owner':
-        result[key] = serializeStoreCreditOwnerSelection(account.customerId, selection, variables);
+        result[key] = serializeStoreCreditOwnerSelection(runtime, account.customerId, selection, variables);
         break;
       case 'transactions':
-        result[key] = serializeStoreCreditTransactionsConnection(account.id, selection, variables);
+        result[key] = serializeStoreCreditTransactionsConnection(runtime, account.id, selection, variables);
         break;
       default:
         result[key] = null;
@@ -968,11 +976,12 @@ function serializeStoreCreditAccountSelection(
 }
 
 function serializeStoreCreditAccountsConnection(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const accounts = store.listEffectiveStoreCreditAccountsForCustomer(customerId);
+  const accounts = runtime.store.listEffectiveStoreCreditAccountsForCustomer(customerId);
   const window = paginateConnectionItems(accounts, field, variables, (account) => account.cursor ?? account.id);
 
   return serializeConnection(field, {
@@ -980,7 +989,7 @@ function serializeStoreCreditAccountsConnection(
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (account) => account.cursor ?? account.id,
-    serializeNode: (account, selection) => serializeStoreCreditAccountSelection(account, selection, variables),
+    serializeNode: (account, selection) => serializeStoreCreditAccountSelection(runtime, account, selection, variables),
   });
 }
 
@@ -1205,11 +1214,12 @@ function serializeCustomerAddressSelection(field: FieldNode, address: CustomerAd
 }
 
 function serializeCustomerAddressesConnectionSelection(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const addresses = store.listEffectiveCustomerAddresses(customerId);
+  const addresses = runtime.store.listEffectiveCustomerAddresses(customerId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     addresses,
     field,
@@ -1271,10 +1281,11 @@ function serializeCustomerAccountPageSelection(
 }
 
 function serializeCustomerAccountPagesConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const pages = store.listEffectiveCustomerAccountPages();
+  const pages = runtime.store.listEffectiveCustomerAccountPages();
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     pages,
     field,
@@ -1462,6 +1473,7 @@ function serializeCustomerPaymentMethodSubscriptionContractsConnection(
 }
 
 export function serializeCustomerPaymentMethodSelection(
+  runtime: ProxyRuntimeContext,
   paymentMethod: CustomerPaymentMethodRecord,
   field: FieldNode,
   variables: Record<string, unknown> = {},
@@ -1487,8 +1499,8 @@ export function serializeCustomerPaymentMethodSelection(
         result[key] = paymentMethod.revokedReason ?? null;
         break;
       case 'customer': {
-        const customer = store.getEffectiveCustomerById(paymentMethod.customerId);
-        result[key] = customer ? serializeCustomerSelection(customer, selection, variables) : null;
+        const customer = runtime.store.getEffectiveCustomerById(paymentMethod.customerId);
+        result[key] = customer ? serializeCustomerSelection(runtime, customer, selection, variables) : null;
         break;
       }
       case 'subscriptionContracts':
@@ -1508,13 +1520,14 @@ export function serializeCustomerPaymentMethodSelection(
 }
 
 function serializeCustomerPaymentMethodsConnectionSelection(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const window = paginateConnectionItems(
-    store.listEffectiveCustomerPaymentMethods(customerId, {
+    runtime.store.listEffectiveCustomerPaymentMethods(customerId, {
       showRevoked: readBooleanArgument(args, 'showRevoked'),
     }),
     field,
@@ -1528,7 +1541,7 @@ function serializeCustomerPaymentMethodsConnectionSelection(
     switch (selection.name.value) {
       case 'nodes':
         connection[key] = window.items.map((paymentMethod) =>
-          serializeCustomerPaymentMethodSelection(paymentMethod, selection, variables),
+          serializeCustomerPaymentMethodSelection(runtime, paymentMethod, selection, variables),
         );
         break;
       case 'edges':
@@ -1541,7 +1554,12 @@ function serializeCustomerPaymentMethodsConnectionSelection(
                 edge[edgeKey] = buildSyntheticCursor(paymentMethod.cursor ?? paymentMethod.id);
                 break;
               case 'node':
-                edge[edgeKey] = serializeCustomerPaymentMethodSelection(paymentMethod, edgeSelection, variables);
+                edge[edgeKey] = serializeCustomerPaymentMethodSelection(
+                  runtime,
+                  paymentMethod,
+                  edgeSelection,
+                  variables,
+                );
                 break;
               default:
                 edge[edgeKey] = null;
@@ -1570,6 +1588,7 @@ function serializeCustomerPaymentMethodsConnectionSelection(
 }
 
 function serializeCustomerSelection(
+  runtime: ProxyRuntimeContext,
   customer: CustomerRecord,
   field: FieldNode,
   variables: Record<string, unknown> = {},
@@ -1646,7 +1665,7 @@ function serializeCustomerSelection(
         result[key] = serializeDefaultAddressSelection(selection, customer.defaultAddress);
         break;
       case 'addresses':
-        result[key] = store
+        result[key] = runtime.store
           .listEffectiveCustomerAddresses(customer.id)
           .map((address) => serializeCustomerAddressSelection(selection, address));
         break;
@@ -1654,20 +1673,20 @@ function serializeCustomerSelection(
         result[key] = [];
         break;
       case 'addressesV2':
-        result[key] = serializeCustomerAddressesConnectionSelection(customer.id, selection, variables);
+        result[key] = serializeCustomerAddressesConnectionSelection(runtime, customer.id, selection, variables);
         break;
       case 'events':
       case 'subscriptionContracts':
         result[key] = serializeEmptyConnectionSelection(selection);
         break;
       case 'storeCreditAccounts':
-        result[key] = serializeStoreCreditAccountsConnection(customer.id, selection, variables);
+        result[key] = serializeStoreCreditAccountsConnection(runtime, customer.id, selection, variables);
         break;
       case 'orders':
-        result[key] = serializeCustomerOrdersConnection(customer.id, selection, variables);
+        result[key] = serializeCustomerOrdersConnection(runtime, customer.id, selection, variables);
         break;
       case 'paymentMethods':
-        result[key] = serializeCustomerPaymentMethodsConnectionSelection(customer.id, selection, variables);
+        result[key] = serializeCustomerPaymentMethodsConnectionSelection(runtime, customer.id, selection, variables);
         break;
       case 'lastOrder':
         result[key] = null;
@@ -1678,7 +1697,7 @@ function serializeCustomerSelection(
         const metafieldKey = typeof args['key'] === 'string' ? args['key'] : null;
         const metafield =
           namespace && metafieldKey
-            ? store
+            ? runtime.store
                 .getEffectiveMetafieldsByCustomerId(customer.id)
                 .find((candidate) => candidate.namespace === namespace && candidate.key === metafieldKey)
             : null;
@@ -1687,7 +1706,7 @@ function serializeCustomerSelection(
       }
       case 'metafields':
         result[key] = serializeMetafieldsConnection(
-          store.getEffectiveMetafieldsByCustomerId(customer.id),
+          runtime.store.getEffectiveMetafieldsByCustomerId(customer.id),
           selection,
           variables,
         );
@@ -1785,16 +1804,19 @@ function resolveCatalogCustomerCursor(
   return catalogConnection?.cursorByCustomerId[customerId] ?? buildSyntheticCustomerCursor(customerId);
 }
 
-function listCustomersForConnection(catalogConnection: CustomerCatalogConnectionRecord | null): CustomerRecord[] {
+function listCustomersForConnection(
+  runtime: ProxyRuntimeContext,
+  catalogConnection: CustomerCatalogConnectionRecord | null,
+): CustomerRecord[] {
   if (!catalogConnection) {
-    return store.listEffectiveCustomers();
+    return runtime.store.listEffectiveCustomers();
   }
 
   const orderedCustomers = catalogConnection.orderedCustomerIds
-    .map((customerId) => store.getEffectiveCustomerById(customerId))
+    .map((customerId) => runtime.store.getEffectiveCustomerById(customerId))
     .filter((customer): customer is CustomerRecord => customer !== null);
   const seenCustomerIds = new Set(orderedCustomers.map((customer) => customer.id));
-  const extraCustomers = store.listEffectiveCustomers().filter((customer) => !seenCustomerIds.has(customer.id));
+  const extraCustomers = runtime.store.listEffectiveCustomers().filter((customer) => !seenCustomerIds.has(customer.id));
   return [...orderedCustomers, ...extraCustomers];
 }
 
@@ -1806,17 +1828,20 @@ function normalizeCustomerIdentifierValue(value: unknown): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
 
-function findCustomerByIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+function findCustomerByIdentifier(
+  runtime: ProxyRuntimeContext,
+  identifier: Record<string, unknown>,
+): CustomerRecord | null {
   const id = normalizeCustomerIdentifierValue(identifier['id']);
   if (id) {
-    return store.getEffectiveCustomerById(id);
+    return runtime.store.getEffectiveCustomerById(id);
   }
 
   const emailAddress = normalizeCustomerIdentifierValue(identifier['emailAddress']);
   if (emailAddress) {
     const normalizedEmailAddress = emailAddress.toLowerCase();
     return (
-      store
+      runtime.store
         .listEffectiveCustomers()
         .find(
           (customer) =>
@@ -1829,7 +1854,7 @@ function findCustomerByIdentifier(identifier: Record<string, unknown>): Customer
   const phoneNumber = normalizeCustomerIdentifierValue(identifier['phoneNumber']);
   if (phoneNumber) {
     return (
-      store
+      runtime.store
         .listEffectiveCustomers()
         .find((customer) => customer.defaultPhoneNumber?.phoneNumber?.trim() === phoneNumber) ?? null
     );
@@ -1838,33 +1863,36 @@ function findCustomerByIdentifier(identifier: Record<string, unknown>): Customer
   return null;
 }
 
-function findCustomerByCustomerSetIdentifier(identifier: Record<string, unknown>): CustomerRecord | null {
+function findCustomerByCustomerSetIdentifier(
+  runtime: ProxyRuntimeContext,
+  identifier: Record<string, unknown>,
+): CustomerRecord | null {
   const id = normalizeCustomerIdentifierValue(identifier['id']);
   if (id) {
-    return store.getEffectiveCustomerById(id);
+    return runtime.store.getEffectiveCustomerById(id);
   }
 
   const email = normalizeCustomerIdentifierValue(identifier['email']);
   if (email) {
-    return findCustomerByIdentifier({ emailAddress: email });
+    return findCustomerByIdentifier(runtime, { emailAddress: email });
   }
 
   const phone = normalizeCustomerIdentifierValue(identifier['phone']);
   if (phone) {
-    return findCustomerByIdentifier({ phoneNumber: phone });
+    return findCustomerByIdentifier(runtime, { phoneNumber: phone });
   }
 
   return null;
 }
 
-function findCustomerByEmail(email: string): CustomerRecord | null {
+function findCustomerByEmail(runtime: ProxyRuntimeContext, email: string): CustomerRecord | null {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail) {
     return null;
   }
 
   return (
-    store
+    runtime.store
       .listEffectiveCustomers()
       .find(
         (customer) =>
@@ -2142,8 +2170,12 @@ function buildCustomersCountSearchExtension(rawQuery: unknown, path: string[]): 
   };
 }
 
-function serializeCustomersCount(_rawQuery: unknown, selections: readonly SelectionNode[]): Record<string, unknown> {
-  const allCustomers = store.listEffectiveCustomers();
+function serializeCustomersCount(
+  runtime: ProxyRuntimeContext,
+  _rawQuery: unknown,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const allCustomers = runtime.store.listEffectiveCustomers();
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -2168,15 +2200,21 @@ function serializeCustomersCount(_rawQuery: unknown, selections: readonly Select
   return result;
 }
 
-function serializeCustomersConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeCustomersConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const before = typeof args['before'] === 'string' ? args['before'] : null;
   const last =
     typeof args['last'] === 'number' && Number.isFinite(args['last']) ? Math.max(0, Math.floor(args['last'])) : null;
 
-  const catalogConnection = store.getBaseCustomerCatalogConnection();
+  const catalogConnection = runtime.store.getBaseCustomerCatalogConnection();
   const searchConnectionKey = buildCustomerSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
-  const searchConnection = searchConnectionKey ? store.getBaseCustomerSearchConnection(searchConnectionKey) : null;
+  const searchConnection = searchConnectionKey
+    ? runtime.store.getBaseCustomerSearchConnection(searchConnectionKey)
+    : null;
   const activeConnection = searchConnection ?? catalogConnection;
   const preserveBaselinePageInfo =
     ((typeof args['query'] !== 'string' && args['sortKey'] === undefined && args['reverse'] !== true) ||
@@ -2184,7 +2222,7 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     before === null &&
     last === null;
   const allCustomers = sortCustomers(
-    filterCustomersByQuery(listCustomersForConnection(activeConnection), args['query']),
+    filterCustomersByQuery(listCustomersForConnection(runtime, activeConnection), args['query']),
     args['sortKey'],
     args['reverse'],
   );
@@ -2211,7 +2249,7 @@ function serializeCustomersConnection(field: FieldNode, variables: Record<string
     hasNextPage,
     hasPreviousPage,
     getCursorValue: (customer) => resolveCatalogCustomerCursor(customer.id, activeConnection),
-    serializeNode: (customer, selection) => serializeCustomerSelection(customer, selection, variables),
+    serializeNode: (customer, selection) => serializeCustomerSelection(runtime, customer, selection, variables),
     pageInfoOptions: {
       prefixCursors: false,
       fallbackStartCursor: preserveBaselinePageInfo ? (activeConnection?.pageInfo.startCursor ?? null) : null,
@@ -2238,7 +2276,7 @@ function normalizeCustomerCatalogPageInfo(raw: unknown): CustomerCatalogPageInfo
   };
 }
 
-function collectHydratableCustomers(document: string, raw: unknown): CustomerRecord[] {
+function collectHydratableCustomers(runtime: ProxyRuntimeContext, document: string, raw: unknown): CustomerRecord[] {
   if (!isObject(raw)) {
     return [];
   }
@@ -2247,7 +2285,7 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
   for (const field of getRootFields(document)) {
     const responseKey = getFieldResponseKey(field);
     if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
-      const customer = normalizeCustomer(raw[responseKey]);
+      const customer = normalizeCustomer(runtime, raw[responseKey]);
       if (customer) {
         customers.push(customer);
       }
@@ -2267,7 +2305,7 @@ function collectHydratableCustomers(document: string, raw: unknown): CustomerRec
               .map((edge) => edge['node'])
           : []),
       ]
-        .map((candidate) => normalizeCustomer(candidate))
+        .map((candidate) => normalizeCustomer(runtime, candidate))
         .filter((candidate): candidate is CustomerRecord => candidate !== null);
       customers.push(...connectionCustomers);
     }
@@ -2355,7 +2393,10 @@ function collectCustomerAccountPages(document: string, raw: unknown): CustomerAc
   return pages;
 }
 
-function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): CustomerAddressRecord[] {
+function collectCustomerAddressesFromRawCustomer(
+  runtime: ProxyRuntimeContext,
+  rawCustomer: unknown,
+): CustomerAddressRecord[] {
   if (!isObject(rawCustomer) || typeof rawCustomer['id'] !== 'string') {
     return [];
   }
@@ -2369,7 +2410,7 @@ function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): Customer
   const addresses: CustomerAddressRecord[] = [];
   const seenAddressIds = new Set<string>();
   const addAddress = (rawAddress: unknown, cursor: string | null, position: number): void => {
-    const address = normalizeCustomerAddress(customerId, rawAddress, { cursor, position });
+    const address = normalizeCustomerAddress(runtime, customerId, rawAddress, { cursor, position });
     if (!address || seenAddressIds.has(address.id)) {
       return;
     }
@@ -2393,7 +2434,11 @@ function collectCustomerAddressesFromRawCustomer(rawCustomer: unknown): Customer
   return addresses;
 }
 
-function collectCustomerAddresses(document: string, raw: unknown): CustomerAddressRecord[] {
+function collectCustomerAddresses(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  raw: unknown,
+): CustomerAddressRecord[] {
   if (!isObject(raw)) {
     return [];
   }
@@ -2402,7 +2447,7 @@ function collectCustomerAddresses(document: string, raw: unknown): CustomerAddre
   for (const field of getRootFields(document)) {
     const responseKey = getFieldResponseKey(field);
     if (field.name.value === 'customer' || field.name.value === 'customerByIdentifier') {
-      addresses.push(...collectCustomerAddressesFromRawCustomer(raw[responseKey]));
+      addresses.push(...collectCustomerAddressesFromRawCustomer(runtime, raw[responseKey]));
     }
 
     if (field.name.value === 'customers') {
@@ -2411,11 +2456,11 @@ function collectCustomerAddresses(document: string, raw: unknown): CustomerAddre
         continue;
       }
       for (const customer of Array.isArray(customersConnection['nodes']) ? customersConnection['nodes'] : []) {
-        addresses.push(...collectCustomerAddressesFromRawCustomer(customer));
+        addresses.push(...collectCustomerAddressesFromRawCustomer(runtime, customer));
       }
       for (const edge of Array.isArray(customersConnection['edges']) ? customersConnection['edges'] : []) {
         if (isObject(edge)) {
-          addresses.push(...collectCustomerAddressesFromRawCustomer(edge['node']));
+          addresses.push(...collectCustomerAddressesFromRawCustomer(runtime, edge['node']));
         }
       }
     }
@@ -2627,6 +2672,7 @@ function collectCustomerMetafieldsFromSelection(
 }
 
 function collectCustomerMetafields(
+  runtime: ProxyRuntimeContext,
   document: string,
   rawData: Record<string, unknown>,
 ): Record<string, CustomerMetafieldRecord[]> {
@@ -2643,7 +2689,7 @@ function collectCustomerMetafields(
   for (const field of getRootFields(document)) {
     const rootValue = rawData[getFieldResponseKey(field)];
     if (field.name.value === 'customer' && isObject(rootValue)) {
-      const customer = normalizeCustomer(rootValue);
+      const customer = normalizeCustomer(runtime, rootValue);
       if (customer) {
         addMetafields(customer.id, collectCustomerMetafieldsFromSelection(customer.id, rootValue, field));
       }
@@ -2658,7 +2704,7 @@ function collectCustomerMetafields(
       const connectionValue = rootValue[getFieldResponseKey(connectionSelection)];
       if (connectionSelection.name.value === 'nodes' && Array.isArray(connectionValue)) {
         for (const rawCustomer of connectionValue) {
-          const customer = normalizeCustomer(rawCustomer);
+          const customer = normalizeCustomer(runtime, rawCustomer);
           if (customer && isObject(rawCustomer)) {
             addMetafields(
               customer.id,
@@ -2674,7 +2720,7 @@ function collectCustomerMetafields(
             continue;
           }
 
-          const customer = normalizeCustomer(rawEdge['node']);
+          const customer = normalizeCustomer(runtime, rawEdge['node']);
           const nodeSelection = getSelectedChildFields(connectionSelection).find(
             (edgeSelection) => edgeSelection.name.value === 'node',
           );
@@ -2693,6 +2739,7 @@ function collectCustomerMetafields(
 }
 
 function collectCustomerCatalogConnection(
+  runtime: ProxyRuntimeContext,
   raw: unknown,
   responseKey = 'customers',
 ): CustomerCatalogConnectionRecord | null {
@@ -2708,7 +2755,7 @@ function collectCustomerCatalogConnection(
   const orderedCustomerIds: string[] = [];
   const cursorByCustomerId: Record<string, string> = {};
   for (const edge of connectionEdges) {
-    const customer = normalizeCustomer(edge['node']);
+    const customer = normalizeCustomer(runtime, edge['node']);
     const cursor = typeof edge['cursor'] === 'string' ? edge['cursor'] : null;
     if (!customer) {
       continue;
@@ -2732,6 +2779,7 @@ function collectCustomerCatalogConnection(
 }
 
 function collectCustomerSearchConnections(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   rawData: Record<string, unknown>,
@@ -2748,7 +2796,7 @@ function collectCustomerSearchConnections(
       continue;
     }
 
-    const connection = collectCustomerCatalogConnection(rawData, getFieldResponseKey(field));
+    const connection = collectCustomerCatalogConnection(runtime, rawData, getFieldResponseKey(field));
     if (!connection) {
       continue;
     }
@@ -2940,20 +2988,26 @@ function taxExemptionsEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
-function buildCustomerWithTaxExemptions(existing: CustomerRecord, taxExemptions: string[]): CustomerRecord {
+function buildCustomerWithTaxExemptions(
+  runtime: ProxyRuntimeContext,
+  existing: CustomerRecord,
+  taxExemptions: string[],
+): CustomerRecord {
   const current = existing.taxExemptions ?? [];
   return {
     ...existing,
     taxExemptions,
-    updatedAt: taxExemptionsEqual(current, taxExemptions) ? existing.updatedAt : makeSyntheticTimestamp(),
+    updatedAt: taxExemptionsEqual(current, taxExemptions)
+      ? existing.updatedAt
+      : runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function buildCustomerWithDataSaleOptOut(existing: CustomerRecord): CustomerRecord {
+function buildCustomerWithDataSaleOptOut(runtime: ProxyRuntimeContext, existing: CustomerRecord): CustomerRecord {
   return {
     ...existing,
     dataSaleOptOut: true,
-    updatedAt: existing.dataSaleOptOut ? existing.updatedAt : makeSyntheticTimestamp(),
+    updatedAt: existing.dataSaleOptOut ? existing.updatedAt : runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -3059,7 +3113,11 @@ function validateCustomerSetTaxExemptInput(input: Record<string, unknown>): Cust
   ];
 }
 
-function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: string): CustomerMutationUserError[] {
+function validateCustomerMetafieldInputs(
+  runtime: ProxyRuntimeContext,
+  rawMetafields: unknown,
+  customerId: string,
+): CustomerMutationUserError[] {
   if (rawMetafields === undefined) {
     return [];
   }
@@ -3068,7 +3126,7 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
     return [{ field: ['metafields'], message: 'Metafields must be an array' }];
   }
 
-  const existingMetafields = store.getEffectiveMetafieldsByCustomerId(customerId);
+  const existingMetafields = runtime.store.getEffectiveMetafieldsByCustomerId(customerId);
   return rawMetafields.flatMap((rawMetafield, index): CustomerMutationUserError[] => {
     if (!isObject(rawMetafield)) {
       return [{ field: ['metafields', String(index)], message: 'Metafield input must be an object' }];
@@ -3098,12 +3156,17 @@ function validateCustomerMetafieldInputs(rawMetafields: unknown, customerId: str
   });
 }
 
-function upsertMetafieldsForCustomer(customerId: string, inputs: Record<string, unknown>[]): CustomerMetafieldRecord[] {
+function upsertMetafieldsForCustomer(
+  runtime: ProxyRuntimeContext,
+  customerId: string,
+  inputs: Record<string, unknown>[],
+): CustomerMetafieldRecord[] {
   const result = upsertOwnerMetafields(
+    runtime,
     'customerId',
     customerId,
     inputs,
-    store.getEffectiveMetafieldsByCustomerId(customerId),
+    runtime.store.getEffectiveMetafieldsByCustomerId(customerId),
     {
       allowIdLookup: true,
       trimIdentity: true,
@@ -3188,11 +3251,12 @@ function customerAddressesMatch(left: CustomerAddressRecord, right: CustomerAddr
 }
 
 function findDuplicateCustomerAddress(
+  runtime: ProxyRuntimeContext,
   customerId: string,
   candidate: CustomerAddressRecord,
   options: { excludeAddressId?: string | null; within?: CustomerAddressRecord[] } = {},
 ): CustomerAddressRecord | null {
-  const addresses = options.within ?? store.listEffectiveCustomerAddresses(customerId);
+  const addresses = options.within ?? runtime.store.listEffectiveCustomerAddresses(customerId);
   return (
     addresses.find(
       (address) => address.id !== options.excludeAddressId && customerAddressesMatch(address, candidate),
@@ -3200,10 +3264,14 @@ function findDuplicateCustomerAddress(
   );
 }
 
-function buildCreatedCustomerAddress(customer: CustomerRecord, input: Record<string, unknown>): CustomerAddressRecord {
+function buildCreatedCustomerAddress(
+  runtime: ProxyRuntimeContext,
+  customer: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerAddressRecord {
   const position =
-    Math.max(-1, ...store.listEffectiveCustomerAddresses(customer.id).map((address) => address.position)) + 1;
-  const address = normalizeCustomerAddress(customer.id, input, {
+    Math.max(-1, ...runtime.store.listEffectiveCustomerAddresses(customer.id).map((address) => address.position)) + 1;
+  const address = normalizeCustomerAddress(runtime, customer.id, input, {
     position,
     cursor: `customer-address-${customer.id}-${position}`,
   })!;
@@ -3211,10 +3279,11 @@ function buildCreatedCustomerAddress(customer: CustomerRecord, input: Record<str
 }
 
 function buildUpdatedCustomerAddress(
+  runtime: ProxyRuntimeContext,
   existing: CustomerAddressRecord,
   input: Record<string, unknown>,
 ): CustomerAddressRecord {
-  return normalizeCustomerAddress(existing.customerId, input, {
+  return normalizeCustomerAddress(runtime, existing.customerId, input, {
     fallback: existing,
     cursor: existing.cursor ?? `customer-address-${existing.customerId}-${existing.position}`,
     position: existing.position,
@@ -3222,39 +3291,48 @@ function buildUpdatedCustomerAddress(
 }
 
 function buildCustomerWithDefaultAddress(
+  runtime: ProxyRuntimeContext,
   customer: CustomerRecord,
   defaultAddress: CustomerAddressRecord | null,
 ): CustomerRecord {
   return {
     ...customer,
     defaultAddress: defaultAddress ? customerAddressToDefaultAddress(defaultAddress) : null,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unknown): CustomerRecord {
-  for (const address of store.listEffectiveCustomerAddresses(customer.id)) {
-    store.stageDeleteCustomerAddress(address.id);
+function replaceCustomerSetAddresses(
+  runtime: ProxyRuntimeContext,
+  customer: CustomerRecord,
+  rawAddresses: unknown,
+): CustomerRecord {
+  for (const address of runtime.store.listEffectiveCustomerAddresses(customer.id)) {
+    runtime.store.stageDeleteCustomerAddress(address.id);
   }
 
   const addresses: CustomerAddressRecord[] = [];
   for (const addressInput of readCustomerAddressInputs(rawAddresses)) {
-    const address = buildCreatedCustomerAddress(customer, addressInput);
-    if (findDuplicateCustomerAddress(customer.id, address, { within: addresses })) {
+    const address = buildCreatedCustomerAddress(runtime, customer, addressInput);
+    if (findDuplicateCustomerAddress(runtime, customer.id, address, { within: addresses })) {
       continue;
     }
-    addresses.push(store.stageUpsertCustomerAddress(address));
+    addresses.push(runtime.store.stageUpsertCustomerAddress(address));
   }
 
-  return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
+  return runtime.store.stageUpdateCustomer(buildCustomerWithDefaultAddress(runtime, customer, addresses[0] ?? null));
 }
 
-function replaceCustomerInputAddresses(customer: CustomerRecord, input: Record<string, unknown>): CustomerRecord {
+function replaceCustomerInputAddresses(
+  runtime: ProxyRuntimeContext,
+  customer: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
   if (!hasOwnField(input, 'addresses') || input['addresses'] === null) {
     return customer;
   }
 
-  return replaceCustomerSetAddresses(customer, input['addresses']);
+  return replaceCustomerSetAddresses(runtime, customer, input['addresses']);
 }
 
 function buildCustomerAddressOwnershipUserError(): CustomerMutationUserError {
@@ -3279,9 +3357,9 @@ function buildCustomerAddressResourceNotFoundError(field: FieldNode): Record<str
   };
 }
 
-function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
-  const id = makeSyntheticGid('Customer');
-  const timestamp = makeSyntheticTimestamp();
+function buildCreatedCustomer(runtime: ProxyRuntimeContext, input: Record<string, unknown>): CustomerRecord {
+  const id = runtime.syntheticIdentity.makeSyntheticGid('Customer');
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const email = typeof input['email'] === 'string' && input['email'].trim().length > 0 ? input['email'].trim() : null;
   const firstName =
     typeof input['firstName'] === 'string' && input['firstName'].trim().length > 0 ? input['firstName'].trim() : null;
@@ -3351,7 +3429,11 @@ function buildCreatedCustomer(input: Record<string, unknown>): CustomerRecord {
   };
 }
 
-function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, unknown>): CustomerRecord {
+function buildUpdatedCustomer(
+  runtime: ProxyRuntimeContext,
+  existing: CustomerRecord,
+  input: Record<string, unknown>,
+): CustomerRecord {
   const email = hasOwnField(input, 'email')
     ? typeof input['email'] === 'string'
       ? input['email'].trim() || null
@@ -3416,7 +3498,7 @@ function buildUpdatedCustomer(existing: CustomerRecord, input: Record<string, un
       : null,
     emailMarketingConsent: email ? existing.emailMarketingConsent : null,
     smsMarketingConsent: phone ? existing.smsMarketingConsent : null,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -3477,6 +3559,7 @@ function mergeCustomerTags(
 }
 
 function buildMergedCustomer(
+  runtime: ProxyRuntimeContext,
   customerOne: CustomerRecord,
   customerTwo: CustomerRecord,
   overrideFields: Record<string, unknown>,
@@ -3522,7 +3605,8 @@ function buildMergedCustomer(
     smsMarketingConsent: phoneSource.smsMarketingConsent,
     defaultAddress,
     createdAt: customerOne.createdAt,
-    updatedAt: options.updateTimestamp === false ? customerTwo.updatedAt : makeSyntheticTimestamp(),
+    updatedAt:
+      options.updateTimestamp === false ? customerTwo.updatedAt : runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -3537,44 +3621,46 @@ function customerMetafieldStorageKey(metafield: CustomerMetafieldRecord): string
 }
 
 function collectCustomerMergeAttachedResources(
+  runtime: ProxyRuntimeContext,
   customerOne: CustomerRecord,
   customerTwo: CustomerRecord,
 ): CustomerMergeAttachedResources {
-  const resultMetafields = store.getEffectiveMetafieldsByCustomerId(customerTwo.id);
+  const resultMetafields = runtime.store.getEffectiveMetafieldsByCustomerId(customerTwo.id);
   const resultMetafieldKeys = new Set(resultMetafields.map(customerMetafieldStorageKey));
-  const copiedSourceMetafields = store
+  const copiedSourceMetafields = runtime.store
     .getEffectiveMetafieldsByCustomerId(customerOne.id)
     .filter((metafield) => !resultMetafieldKeys.has(customerMetafieldStorageKey(metafield)))
     .map((metafield): CustomerMetafieldRecord => {
       return {
         ...metafield,
-        id: makeSyntheticGid('Metafield'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('Metafield'),
         customerId: customerTwo.id,
       };
     });
 
   return {
-    sourceAddresses: store.listEffectiveCustomerAddresses(customerOne.id),
+    sourceAddresses: runtime.store.listEffectiveCustomerAddresses(customerOne.id),
     mergedMetafields: [...resultMetafields, ...copiedSourceMetafields],
-    sourceOrders: listOrdersForCustomer(customerOne.id),
+    sourceOrders: listOrdersForCustomer(runtime, customerOne.id),
   };
 }
 
 function stageCustomerMergeAttachedResources(
+  runtime: ProxyRuntimeContext,
   resources: CustomerMergeAttachedResources,
   resultingCustomer: CustomerRecord,
 ): void {
   for (const address of resources.sourceAddresses) {
-    store.stageUpsertCustomerAddress({
+    runtime.store.stageUpsertCustomerAddress({
       ...address,
       customerId: resultingCustomer.id,
     });
   }
 
-  store.replaceStagedMetafieldsForCustomer(resultingCustomer.id, resources.mergedMetafields);
+  runtime.store.replaceStagedMetafieldsForCustomer(resultingCustomer.id, resources.mergedMetafields);
 
   for (const order of resources.sourceOrders) {
-    store.updateOrder({
+    runtime.store.updateOrder({
       ...order,
       email: resultingCustomer.email,
       customer: {
@@ -3651,8 +3737,12 @@ function customerPhoneCandidates(customer: CustomerRecord): string[] {
   );
 }
 
-function hasDuplicateCustomerEmail(email: string, currentCustomerId: string | null): boolean {
-  return store
+function hasDuplicateCustomerEmail(
+  runtime: ProxyRuntimeContext,
+  email: string,
+  currentCustomerId: string | null,
+): boolean {
+  return runtime.store
     .listEffectiveCustomers()
     .some(
       (customer) =>
@@ -3661,8 +3751,12 @@ function hasDuplicateCustomerEmail(email: string, currentCustomerId: string | nu
     );
 }
 
-function hasDuplicateCustomerPhone(phone: string, currentCustomerId: string | null): boolean {
-  return store
+function hasDuplicateCustomerPhone(
+  runtime: ProxyRuntimeContext,
+  phone: string,
+  currentCustomerId: string | null,
+): boolean {
+  return runtime.store
     .listEffectiveCustomers()
     .some(
       (customer) =>
@@ -3684,6 +3778,7 @@ function isCapturedValidCustomerLocale(locale: string): boolean {
 }
 
 function validateCustomerInputLongTail(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   currentCustomerId: string | null,
 ): CustomerMutationUserError[] {
@@ -3695,13 +3790,13 @@ function validateCustomerInputLongTail(
 
   if (email && !isCapturedValidCustomerEmail(email)) {
     errors.push({ field: ['email'], message: 'Email is invalid' });
-  } else if (email && hasDuplicateCustomerEmail(email, currentCustomerId)) {
+  } else if (email && hasDuplicateCustomerEmail(runtime, email, currentCustomerId)) {
     errors.push({ field: ['email'], message: 'Email has already been taken' });
   }
 
   if (phone && !isCapturedValidCustomerPhone(phone)) {
     errors.push({ field: ['phone'], message: 'Phone is invalid' });
-  } else if (phone && hasDuplicateCustomerPhone(phone, currentCustomerId)) {
+  } else if (phone && hasDuplicateCustomerPhone(runtime, phone, currentCustomerId)) {
     errors.push({ field: ['phone'], message: 'Phone has already been taken' });
   }
 
@@ -3766,15 +3861,18 @@ function validateSupportedCustomerSetInput(input: Record<string, unknown>): Cust
   ];
 }
 
-function validateCustomerSetCreateIdentityUniqueness(input: Record<string, unknown>): CustomerMutationUserError[] {
+function validateCustomerSetCreateIdentityUniqueness(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): CustomerMutationUserError[] {
   const errors: CustomerMutationUserError[] = [];
   const email = normalizeCustomerIdentifierValue(input['email']);
-  if (email && findCustomerByIdentifier({ emailAddress: email })) {
+  if (email && findCustomerByIdentifier(runtime, { emailAddress: email })) {
     errors.push({ field: ['input', 'email'], message: 'Email has already been taken' });
   }
 
   const phone = normalizeCustomerIdentifierValue(input['phone']);
-  if (phone && findCustomerByIdentifier({ phoneNumber: phone })) {
+  if (phone && findCustomerByIdentifier(runtime, { phoneNumber: phone })) {
     errors.push({ field: ['input', 'phone'], message: 'Phone has already been taken' });
   }
 
@@ -4051,6 +4149,7 @@ function validateConsentResolverInput(
 }
 
 function buildEmailMarketingConsentUpdatedCustomer(
+  runtime: ProxyRuntimeContext,
   existing: CustomerRecord,
   input: Record<string, unknown>,
 ): CustomerRecord {
@@ -4058,7 +4157,7 @@ function buildEmailMarketingConsentUpdatedCustomer(
   const consentUpdatedAt =
     typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
       ? consent['consentUpdatedAt']
-      : makeSyntheticTimestamp();
+      : runtime.syntheticIdentity.makeSyntheticTimestamp();
   const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
   const marketingOptInLevel =
     typeof consent['marketingOptInLevel'] === 'string'
@@ -4084,11 +4183,12 @@ function buildEmailMarketingConsentUpdatedCustomer(
       marketingOptInLevel,
       consentUpdatedAt,
     },
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
 function buildSmsMarketingConsentUpdatedCustomer(
+  runtime: ProxyRuntimeContext,
   existing: CustomerRecord,
   input: Record<string, unknown>,
 ): CustomerRecord {
@@ -4096,7 +4196,7 @@ function buildSmsMarketingConsentUpdatedCustomer(
   const consentUpdatedAt =
     typeof consent['consentUpdatedAt'] === 'string' && consent['consentUpdatedAt'].trim().length > 0
       ? consent['consentUpdatedAt']
-      : makeSyntheticTimestamp();
+      : runtime.syntheticIdentity.makeSyntheticTimestamp();
   const marketingState = typeof consent['marketingState'] === 'string' ? consent['marketingState'] : 'NOT_SUBSCRIBED';
   const marketingOptInLevel =
     typeof consent['marketingOptInLevel'] === 'string'
@@ -4124,21 +4224,22 @@ function buildSmsMarketingConsentUpdatedCustomer(
       consentUpdatedAt,
       consentCollectedFrom: 'OTHER',
     },
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function buildAccountInviteBufferedCustomer(existing: CustomerRecord): CustomerRecord {
+function buildAccountInviteBufferedCustomer(runtime: ProxyRuntimeContext, existing: CustomerRecord): CustomerRecord {
   return {
     ...existing,
     state: existing.state === 'ENABLED' ? existing.state : 'INVITED',
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function buildSyntheticAccountActivationUrl(customerId: string): string {
+function buildSyntheticAccountActivationUrl(runtime: ProxyRuntimeContext, customerId: string): string {
   const customerKey = customerId.split('/').pop() ?? 'customer';
-  const token = makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
+  const token =
+    runtime.syntheticIdentity.makeSyntheticGid('CustomerAccountActivationToken').split('/').pop() ?? 'token';
   return `https://shopify-draft-proxy.local/customer-activation/${encodeURIComponent(customerKey)}?token=${encodeURIComponent(token)}`;
 }
 
@@ -4183,6 +4284,7 @@ function buildStoreCreditExpiresAtPastError(): CustomerMutationUserError {
 }
 
 function stageStoreCreditAdjustment(
+  runtime: ProxyRuntimeContext,
   account: StoreCreditAccountRecord,
   amount: MoneyV2Record,
   direction: 'credit' | 'debit',
@@ -4194,20 +4296,20 @@ function stageStoreCreditAdjustment(
     amount: formatStoreCreditAmount(balanceCents + signedAmountCents),
     currencyCode: account.balance.currencyCode,
   };
-  const stagedAccount = store.stageStoreCreditAccount({
+  const stagedAccount = runtime.store.stageStoreCreditAccount({
     ...account,
     balance: nextBalance,
   });
 
-  return store.stageStoreCreditAccountTransaction({
-    id: makeSyntheticGid('StoreCreditAccountTransaction'),
+  return runtime.store.stageStoreCreditAccountTransaction({
+    id: runtime.syntheticIdentity.makeSyntheticGid('StoreCreditAccountTransaction'),
     accountId: stagedAccount.id,
     amount: {
       amount: formatStoreCreditAmount(signedAmountCents),
       currencyCode: account.balance.currencyCode,
     },
     balanceAfterTransaction: nextBalance,
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     event: 'ADJUSTMENT',
     origin: null,
   });
@@ -4218,6 +4320,7 @@ function isCustomerPaymentMethodGid(value: string): boolean {
 }
 
 function serializeCustomerMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   payload: {
     customer?: CustomerRecord | null;
@@ -4239,7 +4342,9 @@ function serializeCustomerMutationPayload(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'customer':
-        result[key] = payload.customer ? serializeCustomerSelection(payload.customer, selection, variables) : null;
+        result[key] = payload.customer
+          ? serializeCustomerSelection(runtime, payload.customer, selection, variables)
+          : null;
         break;
       case 'customerId':
         result[key] = payload.customerId ?? null;
@@ -4265,7 +4370,12 @@ function serializeCustomerMutationPayload(
         break;
       case 'storeCreditAccountTransaction':
         result[key] = payload.storeCreditAccountTransaction
-          ? serializeStoreCreditTransactionSelection(payload.storeCreditAccountTransaction, selection, variables)
+          ? serializeStoreCreditTransactionSelection(
+              runtime,
+              payload.storeCreditAccountTransaction,
+              selection,
+              variables,
+            )
           : null;
         break;
       case 'job':
@@ -4286,6 +4396,7 @@ function serializeCustomerMutationPayload(
 }
 
 function serializeCustomerMergeFieldSet(
+  runtime: ProxyRuntimeContext,
   customer: CustomerRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -4337,7 +4448,7 @@ function serializeCustomerMergeFieldSet(
         result[key] = 0;
         break;
       default:
-        result[key] = serializeCustomerSelection(customer, selection, variables)[key] ?? null;
+        result[key] = serializeCustomerSelection(runtime, customer, selection, variables)[key] ?? null;
         break;
     }
   }
@@ -4345,15 +4456,18 @@ function serializeCustomerMergeFieldSet(
 }
 
 function serializeCustomerMergePreview(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   customerOne: CustomerRecord,
   customerTwo: CustomerRecord,
   overrideFields: Record<string, unknown>,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const defaultCustomer = buildMergedCustomer(customerOne, customerTwo, {}, { updateTimestamp: false });
-  const alternateCustomer = buildMergedCustomer(customerTwo, customerOne, {}, { updateTimestamp: false });
-  const resultingCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields, { updateTimestamp: false });
+  const defaultCustomer = buildMergedCustomer(runtime, customerOne, customerTwo, {}, { updateTimestamp: false });
+  const alternateCustomer = buildMergedCustomer(runtime, customerTwo, customerOne, {}, { updateTimestamp: false });
+  const resultingCustomer = buildMergedCustomer(runtime, customerOne, customerTwo, overrideFields, {
+    updateTimestamp: false,
+  });
   const result: Record<string, unknown> = {};
 
   for (const selection of getSelectedChildFields(field)) {
@@ -4363,10 +4477,10 @@ function serializeCustomerMergePreview(
         result[key] = customerTwo.id;
         break;
       case 'defaultFields':
-        result[key] = serializeCustomerMergeFieldSet(defaultCustomer, selection, variables);
+        result[key] = serializeCustomerMergeFieldSet(runtime, defaultCustomer, selection, variables);
         break;
       case 'alternateFields':
-        result[key] = serializeCustomerMergeFieldSet(alternateCustomer, selection, variables);
+        result[key] = serializeCustomerMergeFieldSet(runtime, alternateCustomer, selection, variables);
         break;
       case 'blockingFields':
         result[key] = null;
@@ -4375,7 +4489,7 @@ function serializeCustomerMergePreview(
         result[key] = null;
         break;
       default:
-        result[key] = serializeCustomerSelection(resultingCustomer, selection, variables)[key] ?? null;
+        result[key] = serializeCustomerSelection(runtime, resultingCustomer, selection, variables)[key] ?? null;
         break;
     }
   }
@@ -4384,6 +4498,7 @@ function serializeCustomerMergePreview(
 }
 
 export function handleCustomerMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): { data?: Record<string, unknown>; errors?: Array<Record<string, unknown>> } {
@@ -4399,7 +4514,7 @@ export function handleCustomerMutation(
       const inputName = isCredit ? 'creditInput' : 'debitInput';
       const amountInputName = isCredit ? 'creditAmount' : 'debitAmount';
       const accountId = typeof args['id'] === 'string' ? args['id'] : null;
-      const account = accountId ? store.getEffectiveStoreCreditAccountById(accountId) : null;
+      const account = accountId ? runtime.store.getEffectiveStoreCreditAccountById(accountId) : null;
       const input = isObject(args[inputName]) ? args[inputName] : {};
       const amount = normalizeStoreCreditMoney(input[amountInputName]);
       const amountCents = amount ? parseStoreCreditAmountCents(amount.amount) : null;
@@ -4431,6 +4546,7 @@ export function handleCustomerMutation(
 
       if (userErrors.length > 0 || !account || !amount) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             storeCreditAccountTransaction: null,
@@ -4441,8 +4557,9 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const transaction = stageStoreCreditAdjustment(account, amount, isCredit ? 'credit' : 'debit');
+      const transaction = stageStoreCreditAdjustment(runtime, account, amount, isCredit ? 'credit' : 'debit');
       data[key] = serializeCustomerMutationPayload(
+        runtime,
         field,
         {
           storeCreditAccountTransaction: transaction,
@@ -4457,6 +4574,7 @@ export function handleCustomerMutation(
       const email = typeof args['email'] === 'string' ? args['email'].trim() : '';
       if (!isValidDataSaleOptOutEmail(email)) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerId: null,
@@ -4467,22 +4585,28 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const existingCustomer = findCustomerByEmail(email);
+      const existingCustomer = findCustomerByEmail(runtime, email);
       const customer = existingCustomer
-        ? store.stageUpdateCustomer(buildCustomerWithDataSaleOptOut(existingCustomer))
-        : store.stageCreateCustomer({
-            ...buildCreatedCustomer({ email }),
+        ? runtime.store.stageUpdateCustomer(buildCustomerWithDataSaleOptOut(runtime, existingCustomer))
+        : runtime.store.stageCreateCustomer({
+            ...buildCreatedCustomer(runtime, { email }),
             dataSaleOptOut: true,
           });
-      data[key] = serializeCustomerMutationPayload(field, { customerId: customer.id, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(
+        runtime,
+        field,
+        { customerId: customer.id, userErrors: [] },
+        variables,
+      );
       continue;
     }
 
     if (field.name.value === 'customerRequestDataErasure') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerId: null,
@@ -4493,20 +4617,21 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageCustomerDataErasureRequest({
+      runtime.store.stageCustomerDataErasureRequest({
         customerId,
-        requestedAt: makeSyntheticTimestamp(),
+        requestedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         canceledAt: null,
       });
-      data[key] = serializeCustomerMutationPayload(field, { customerId, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customerId, userErrors: [] }, variables);
       continue;
     }
 
     if (field.name.value === 'customerCancelDataErasure') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerId: null,
@@ -4517,12 +4642,13 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const state = store.getState();
+      const state = runtime.store.getState();
       const existingRequest =
         state.stagedState.customerDataErasureRequests[customerId] ??
         state.baseState.customerDataErasureRequests[customerId];
       if (!existingRequest || existingRequest.canceledAt) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerId: null,
@@ -4533,8 +4659,11 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageCustomerDataErasureCancellation(customerId, makeSyntheticTimestamp());
-      data[key] = serializeCustomerMutationPayload(field, { customerId, userErrors: [] }, variables);
+      runtime.store.stageCustomerDataErasureCancellation(
+        customerId,
+        runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      );
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customerId, userErrors: [] }, variables);
       continue;
     }
 
@@ -4543,35 +4672,36 @@ export function handleCustomerMutation(
       const customerIdForValidation = 'gid://shopify/Customer/__pending__';
       const userErrors = [
         ...validateCustomerCreateInput(input),
-        ...validateCustomerInputLongTail(input, null),
+        ...validateCustomerInputLongTail(runtime, input, null),
         ...validateCustomerTaxExemptionInput(input),
         ...validateCustomerInputAddresses(input),
-        ...validateCustomerMetafieldInputs(input['metafields'], customerIdForValidation),
+        ...validateCustomerMetafieldInputs(runtime, input['metafields'], customerIdForValidation),
       ];
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customer: null, userErrors }, variables);
         continue;
       }
 
-      const createdCustomer = store.stageCreateCustomer(buildCreatedCustomer(input));
-      const customer = replaceCustomerInputAddresses(createdCustomer, input);
+      const createdCustomer = runtime.store.stageCreateCustomer(buildCreatedCustomer(runtime, input));
+      const customer = replaceCustomerInputAddresses(runtime, createdCustomer, input);
       const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
-        store.replaceStagedMetafieldsForCustomer(
+        runtime.store.replaceStagedMetafieldsForCustomer(
           customer.id,
-          upsertMetafieldsForCustomer(customer.id, metafieldInputs),
+          upsertMetafieldsForCustomer(runtime, customer.id, metafieldInputs),
         );
       }
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
     if (field.name.value === 'customerUpdate') {
       const input = readCustomerInput(args['input']);
       const customerId = typeof input['id'] === 'string' ? input['id'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4583,26 +4713,26 @@ export function handleCustomerMutation(
       }
 
       const userErrors = [
-        ...validateCustomerInputLongTail(input, existingCustomer.id),
+        ...validateCustomerInputLongTail(runtime, input, existingCustomer.id),
         ...validateCustomerTaxExemptionInput(input),
         ...validateCustomerInputAddresses(input),
-        ...validateCustomerMetafieldInputs(input['metafields'], existingCustomer.id),
+        ...validateCustomerMetafieldInputs(runtime, input['metafields'], existingCustomer.id),
       ];
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customer: null, userErrors }, variables);
         continue;
       }
 
-      const updatedCustomer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
-      const customer = replaceCustomerInputAddresses(updatedCustomer, input);
+      const updatedCustomer = runtime.store.stageUpdateCustomer(buildUpdatedCustomer(runtime, existingCustomer, input));
+      const customer = replaceCustomerInputAddresses(runtime, updatedCustomer, input);
       const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
-        store.replaceStagedMetafieldsForCustomer(
+        runtime.store.replaceStagedMetafieldsForCustomer(
           customer.id,
-          upsertMetafieldsForCustomer(customer.id, metafieldInputs),
+          upsertMetafieldsForCustomer(runtime, customer.id, metafieldInputs),
         );
       }
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -4618,9 +4748,10 @@ export function handleCustomerMutation(
       }
 
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4642,16 +4773,19 @@ export function handleCustomerMutation(
           : field.name.value === 'customerRemoveTaxExemptions'
             ? currentTaxExemptions.filter((value) => !requestedTaxExemptions.includes(value))
             : requestedTaxExemptions;
-      const customer = store.stageUpdateCustomer(buildCustomerWithTaxExemptions(existingCustomer, nextTaxExemptions));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = runtime.store.stageUpdateCustomer(
+        buildCustomerWithTaxExemptions(runtime, existingCustomer, nextTaxExemptions),
+      );
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
     if (field.name.value === 'customerGenerateAccountActivationUrl') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             accountActivationUrl: null,
@@ -4663,9 +4797,10 @@ export function handleCustomerMutation(
       }
 
       data[key] = serializeCustomerMutationPayload(
+        runtime,
         field,
         {
-          accountActivationUrl: buildSyntheticAccountActivationUrl(customerId),
+          accountActivationUrl: buildSyntheticAccountActivationUrl(runtime, customerId),
           userErrors: [],
         },
         variables,
@@ -4675,9 +4810,10 @@ export function handleCustomerMutation(
 
     if (field.name.value === 'customerSendAccountInviteEmail') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4688,8 +4824,8 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customer = store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(existingCustomer));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = runtime.store.stageUpdateCustomer(buildAccountInviteBufferedCustomer(runtime, existingCustomer));
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -4698,10 +4834,11 @@ export function handleCustomerMutation(
         typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
       const paymentMethod =
         customerPaymentMethodId && isCustomerPaymentMethodGid(customerPaymentMethodId)
-          ? store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
+          ? runtime.store.getEffectiveCustomerPaymentMethodById(customerPaymentMethodId)
           : null;
       if (!customerPaymentMethodId || !paymentMethod) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4712,8 +4849,10 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customer = paymentMethod.customerId ? store.getEffectiveCustomerById(paymentMethod.customerId) : null;
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = paymentMethod.customerId
+        ? runtime.store.getEffectiveCustomerById(paymentMethod.customerId)
+        : null;
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -4726,7 +4865,7 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const existingCustomer = findCustomerByCustomerSetIdentifier(identifier);
+      const existingCustomer = findCustomerByCustomerSetIdentifier(runtime, identifier);
       const effectiveInput = input;
       const userErrors = [
         ...validateSupportedCustomerSetInput(effectiveInput),
@@ -4746,6 +4885,7 @@ export function handleCustomerMutation(
       const idIdentifier = normalizeCustomerIdentifierValue(identifier['id']);
       if (idIdentifier && !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4758,21 +4898,21 @@ export function handleCustomerMutation(
 
       if (!existingCustomer) {
         userErrors.push(...validateCustomerSetCreateInput(effectiveInput));
-        userErrors.push(...validateCustomerSetCreateIdentityUniqueness(effectiveInput));
+        userErrors.push(...validateCustomerSetCreateIdentityUniqueness(runtime, effectiveInput));
       }
 
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customer: null, userErrors }, variables);
         continue;
       }
 
       const stagedCustomer = existingCustomer
-        ? store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, effectiveInput))
-        : store.stageCreateCustomer(buildCreatedCustomer(effectiveInput));
+        ? runtime.store.stageUpdateCustomer(buildUpdatedCustomer(runtime, existingCustomer, effectiveInput))
+        : runtime.store.stageCreateCustomer(buildCreatedCustomer(runtime, effectiveInput));
       const customer = Array.isArray(effectiveInput['addresses'])
-        ? replaceCustomerSetAddresses(stagedCustomer, effectiveInput['addresses'])
+        ? replaceCustomerSetAddresses(runtime, stagedCustomer, effectiveInput['addresses'])
         : stagedCustomer;
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -4791,9 +4931,10 @@ export function handleCustomerMutation(
       }
 
       const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4820,12 +4961,19 @@ export function handleCustomerMutation(
             'SINGLE_OPT_IN');
       const userErrors = validateConsentResolverInput(consent, 'emailMarketingConsent', marketingOptInLevel);
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: existingCustomer, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(
+          runtime,
+          field,
+          { customer: existingCustomer, userErrors },
+          variables,
+        );
         continue;
       }
 
-      const customer = store.stageUpdateCustomer(buildEmailMarketingConsentUpdatedCustomer(existingCustomer, input));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = runtime.store.stageUpdateCustomer(
+        buildEmailMarketingConsentUpdatedCustomer(runtime, existingCustomer, input),
+      );
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
@@ -4844,9 +4992,10 @@ export function handleCustomerMutation(
       }
 
       const customerId = typeof input['customerId'] === 'string' ? input['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -4880,20 +5029,23 @@ export function handleCustomerMutation(
         });
       }
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customer: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customer: null, userErrors }, variables);
         continue;
       }
 
-      const customer = store.stageUpdateCustomer(buildSmsMarketingConsentUpdatedCustomer(existingCustomer, input));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = runtime.store.stageUpdateCustomer(
+        buildSmsMarketingConsentUpdatedCustomer(runtime, existingCustomer, input),
+      );
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
     if (field.name.value === 'customerAddressCreate') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerAddress: null,
@@ -4907,13 +5059,14 @@ export function handleCustomerMutation(
       const addressInput = readCustomerAddressInput(args['address']);
       const userErrors = validateCustomerAddressInput(addressInput);
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customerAddress: null, userErrors }, variables);
         continue;
       }
 
-      const address = buildCreatedCustomerAddress(existingCustomer, addressInput);
-      if (findDuplicateCustomerAddress(customerId, address)) {
+      const address = buildCreatedCustomerAddress(runtime, existingCustomer, addressInput);
+      if (findDuplicateCustomerAddress(runtime, customerId, address)) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerAddress: null,
@@ -4924,11 +5077,16 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageUpsertCustomerAddress(address);
+      runtime.store.stageUpsertCustomerAddress(address);
       if (!existingCustomer.defaultAddress || args['setAsDefault'] === true) {
-        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+        runtime.store.stageUpdateCustomer(buildCustomerWithDefaultAddress(runtime, existingCustomer, address));
       }
-      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(
+        runtime,
+        field,
+        { customerAddress: address, userErrors: [] },
+        variables,
+      );
       continue;
     }
 
@@ -4936,10 +5094,11 @@ export function handleCustomerMutation(
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
       const addressId =
         typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? runtime.store.getEffectiveCustomerAddressById(addressId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerAddress: null,
@@ -4956,6 +5115,7 @@ export function handleCustomerMutation(
       }
       if (existingAddress.customerId !== customerId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerAddress: null,
@@ -4969,13 +5129,14 @@ export function handleCustomerMutation(
       const addressInput = readCustomerAddressInput(args['address']);
       const userErrors = validateCustomerAddressInput(addressInput);
       if (userErrors.length > 0) {
-        data[key] = serializeCustomerMutationPayload(field, { customerAddress: null, userErrors }, variables);
+        data[key] = serializeCustomerMutationPayload(runtime, field, { customerAddress: null, userErrors }, variables);
         continue;
       }
 
-      const address = buildUpdatedCustomerAddress(existingAddress, addressInput);
-      if (findDuplicateCustomerAddress(customerId, address, { excludeAddressId: existingAddress.id })) {
+      const address = buildUpdatedCustomerAddress(runtime, existingAddress, addressInput);
+      if (findDuplicateCustomerAddress(runtime, customerId, address, { excludeAddressId: existingAddress.id })) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customerAddress: null,
@@ -4986,11 +5147,16 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageUpsertCustomerAddress(address);
+      runtime.store.stageUpsertCustomerAddress(address);
       if (existingCustomer.defaultAddress?.id === address.id || args['setAsDefault'] === true) {
-        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, address));
+        runtime.store.stageUpdateCustomer(buildCustomerWithDefaultAddress(runtime, existingCustomer, address));
       }
-      data[key] = serializeCustomerMutationPayload(field, { customerAddress: address, userErrors: [] }, variables);
+      data[key] = serializeCustomerMutationPayload(
+        runtime,
+        field,
+        { customerAddress: address, userErrors: [] },
+        variables,
+      );
       continue;
     }
 
@@ -4998,10 +5164,11 @@ export function handleCustomerMutation(
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
       const addressId =
         typeof args['id'] === 'string' ? args['id'] : typeof args['addressId'] === 'string' ? args['addressId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? runtime.store.getEffectiveCustomerAddressById(addressId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             deletedCustomerAddressId: null,
@@ -5018,6 +5185,7 @@ export function handleCustomerMutation(
       }
       if (existingAddress.customerId !== customerId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             deletedCustomerAddressId: null,
@@ -5028,12 +5196,15 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageDeleteCustomerAddress(addressId);
+      runtime.store.stageDeleteCustomerAddress(addressId);
       if (existingCustomer.defaultAddress?.id === addressId) {
-        const nextDefaultAddress = store.listEffectiveCustomerAddresses(customerId)[0] ?? null;
-        store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, nextDefaultAddress));
+        const nextDefaultAddress = runtime.store.listEffectiveCustomerAddresses(customerId)[0] ?? null;
+        runtime.store.stageUpdateCustomer(
+          buildCustomerWithDefaultAddress(runtime, existingCustomer, nextDefaultAddress),
+        );
       }
       data[key] = serializeCustomerMutationPayload(
+        runtime,
         field,
         {
           deletedCustomerAddressId: addressId,
@@ -5047,10 +5218,11 @@ export function handleCustomerMutation(
     if (field.name.value === 'customerUpdateDefaultAddress') {
       const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
       const addressId = typeof args['addressId'] === 'string' ? args['addressId'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      const existingAddress = addressId ? store.getEffectiveCustomerAddressById(addressId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
+      const existingAddress = addressId ? runtime.store.getEffectiveCustomerAddressById(addressId) : null;
       if (!customerId || !existingCustomer) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: null,
@@ -5067,6 +5239,7 @@ export function handleCustomerMutation(
       }
       if (existingAddress.customerId !== customerId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             customer: existingCustomer,
@@ -5077,17 +5250,20 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customer = store.stageUpdateCustomer(buildCustomerWithDefaultAddress(existingCustomer, existingAddress));
-      data[key] = serializeCustomerMutationPayload(field, { customer, userErrors: [] }, variables);
+      const customer = runtime.store.stageUpdateCustomer(
+        buildCustomerWithDefaultAddress(runtime, existingCustomer, existingAddress),
+      );
+      data[key] = serializeCustomerMutationPayload(runtime, field, { customer, userErrors: [] }, variables);
       continue;
     }
 
     if (field.name.value === 'customerDelete') {
       const input = readCustomerInput(args['input']);
       const customerId = typeof input['id'] === 'string' ? input['id'] : null;
-      const existingCustomer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+      const existingCustomer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
       if (!existingCustomer || !customerId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             deletedCustomerId: null,
@@ -5099,8 +5275,9 @@ export function handleCustomerMutation(
         continue;
       }
 
-      store.stageDeleteCustomer(customerId);
+      runtime.store.stageDeleteCustomer(customerId);
       data[key] = serializeCustomerMutationPayload(
+        runtime,
         field,
         {
           deletedCustomerId: customerId,
@@ -5122,6 +5299,7 @@ export function handleCustomerMutation(
       const customerTwoId = typeof args['customerTwoId'] === 'string' ? args['customerTwoId'] : null;
       if (customerOneId && customerTwoId && customerOneId === customerTwoId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             resultingCustomerId: null,
@@ -5139,8 +5317,8 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
-      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      const customerOne = customerOneId ? runtime.store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? runtime.store.getEffectiveCustomerById(customerTwoId) : null;
       const userErrors = [
         ...(customerOneId && !customerOne
           ? [buildCustomerMergeMissingCustomerError('customerOneId', customerOneId)]
@@ -5165,6 +5343,7 @@ export function handleCustomerMutation(
       }
       if (userErrors.length > 0 || !customerOne || !customerTwo || !customerTwoId) {
         data[key] = serializeCustomerMutationPayload(
+          runtime,
           field,
           {
             resultingCustomerId: null,
@@ -5177,17 +5356,18 @@ export function handleCustomerMutation(
       }
 
       const overrideFields = readCustomerMergeOverrideFields(args['overrideFields']);
-      const mergedCustomer = buildMergedCustomer(customerOne, customerTwo, overrideFields);
-      const attachedResources = collectCustomerMergeAttachedResources(customerOne, customerTwo);
-      const jobId = makeSyntheticGid('Job');
-      const customer = store.stageMergeCustomers(customerOne.id, mergedCustomer, {
+      const mergedCustomer = buildMergedCustomer(runtime, customerOne, customerTwo, overrideFields);
+      const attachedResources = collectCustomerMergeAttachedResources(runtime, customerOne, customerTwo);
+      const jobId = runtime.syntheticIdentity.makeSyntheticGid('Job');
+      const customer = runtime.store.stageMergeCustomers(customerOne.id, mergedCustomer, {
         jobId,
         resultingCustomerId: customerTwoId,
         status: 'COMPLETED',
         customerMergeErrors: [],
       });
-      stageCustomerMergeAttachedResources(attachedResources, customer);
+      stageCustomerMergeAttachedResources(runtime, attachedResources, customer);
       data[key] = serializeCustomerMutationPayload(
+        runtime,
         field,
         {
           resultingCustomerId: customer.id,
@@ -5207,6 +5387,7 @@ export function handleCustomerMutation(
 }
 
 export function hydrateCustomersFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   upstreamBody: unknown,
@@ -5215,43 +5396,49 @@ export function hydrateCustomersFromUpstreamResponse(
     return;
   }
 
-  const customers = collectHydratableCustomers(document, upstreamBody['data']);
+  const customers = collectHydratableCustomers(runtime, document, upstreamBody['data']);
   if (customers.length > 0) {
-    store.upsertBaseCustomers(customers);
+    runtime.store.upsertBaseCustomers(customers);
   }
 
   const customerAccountPages = collectCustomerAccountPages(document, upstreamBody['data']);
   if (customerAccountPages.length > 0) {
-    store.upsertBaseCustomerAccountPages(customerAccountPages);
+    runtime.store.upsertBaseCustomerAccountPages(customerAccountPages);
   }
 
-  const customerAddresses = collectCustomerAddresses(document, upstreamBody['data']);
+  const customerAddresses = collectCustomerAddresses(runtime, document, upstreamBody['data']);
   if (customerAddresses.length > 0) {
-    store.upsertBaseCustomerAddresses(customerAddresses);
+    runtime.store.upsertBaseCustomerAddresses(customerAddresses);
   }
 
   const customerPaymentMethods = collectCustomerPaymentMethods(document, upstreamBody['data']);
   if (customerPaymentMethods.length > 0) {
-    store.upsertBaseCustomerPaymentMethods(customerPaymentMethods);
+    runtime.store.upsertBaseCustomerPaymentMethods(customerPaymentMethods);
   }
 
-  const customerMetafields = collectCustomerMetafields(document, upstreamBody['data']);
+  const customerMetafields = collectCustomerMetafields(runtime, document, upstreamBody['data']);
   for (const [customerId, metafields] of Object.entries(customerMetafields)) {
-    store.replaceBaseMetafieldsForCustomer(customerId, metafields);
+    runtime.store.replaceBaseMetafieldsForCustomer(customerId, metafields);
   }
 
-  const customerCatalogConnection = collectCustomerCatalogConnection(upstreamBody['data']);
+  const customerCatalogConnection = collectCustomerCatalogConnection(runtime, upstreamBody['data']);
   if (customerCatalogConnection) {
-    store.setBaseCustomerCatalogConnection(customerCatalogConnection);
+    runtime.store.setBaseCustomerCatalogConnection(customerCatalogConnection);
   }
 
-  const customerSearchConnections = collectCustomerSearchConnections(document, variables, upstreamBody['data']);
+  const customerSearchConnections = collectCustomerSearchConnections(
+    runtime,
+    document,
+    variables,
+    upstreamBody['data'],
+  );
   for (const [key, connection] of Object.entries(customerSearchConnections)) {
-    store.setBaseCustomerSearchConnection(key, connection);
+    runtime.store.setBaseCustomerSearchConnection(key, connection);
   }
 }
 
 export function handleCustomerQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): {
@@ -5270,40 +5457,42 @@ export function handleCustomerQuery(
       const args = getFieldArguments(field, variables);
       const paymentMethodId = typeof args['id'] === 'string' ? args['id'] : null;
       const paymentMethod = paymentMethodId
-        ? store.getEffectiveCustomerPaymentMethodById(paymentMethodId, {
+        ? runtime.store.getEffectiveCustomerPaymentMethodById(paymentMethodId, {
             showRevoked: readBooleanArgument(args, 'showRevoked'),
           })
         : null;
-      data[key] = paymentMethod ? serializeCustomerPaymentMethodSelection(paymentMethod, field, variables) : null;
+      data[key] = paymentMethod
+        ? serializeCustomerPaymentMethodSelection(runtime, paymentMethod, field, variables)
+        : null;
       continue;
     }
 
     if (field.name.value === 'customerAccountPage') {
       const args = getFieldArguments(field, variables);
       const pageId = typeof args['id'] === 'string' ? args['id'] : null;
-      const page = pageId ? store.getEffectiveCustomerAccountPageById(pageId) : null;
+      const page = pageId ? runtime.store.getEffectiveCustomerAccountPageById(pageId) : null;
       data[key] = page ? serializeCustomerAccountPageSelection(page, field) : null;
       continue;
     }
 
     if (field.name.value === 'customerAccountPages') {
-      data[key] = serializeCustomerAccountPagesConnection(field, variables);
+      data[key] = serializeCustomerAccountPagesConnection(runtime, field, variables);
       continue;
     }
 
     if (field.name.value === 'storeCreditAccount') {
       const args = getFieldArguments(field, variables);
       const accountId = typeof args['id'] === 'string' ? args['id'] : null;
-      const account = accountId ? store.getEffectiveStoreCreditAccountById(accountId) : null;
-      data[key] = account ? serializeStoreCreditAccountSelection(account, field, variables) : null;
+      const account = accountId ? runtime.store.getEffectiveStoreCreditAccountById(accountId) : null;
+      data[key] = account ? serializeStoreCreditAccountSelection(runtime, account, field, variables) : null;
       continue;
     }
 
     if (field.name.value === 'customer') {
       const args = getFieldArguments(field, variables);
       const customerId = typeof args['id'] === 'string' ? args['id'] : null;
-      const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
-      data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
+      const customer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
+      data[key] = customer ? serializeCustomerSelection(runtime, customer, field, variables) : null;
       continue;
     }
 
@@ -5332,8 +5521,8 @@ export function handleCustomerQuery(
         continue;
       }
 
-      const customer = findCustomerByIdentifier(identifier);
-      data[key] = customer ? serializeCustomerSelection(customer, field, variables) : null;
+      const customer = findCustomerByIdentifier(runtime, identifier);
+      data[key] = customer ? serializeCustomerSelection(runtime, customer, field, variables) : null;
       continue;
     }
 
@@ -5357,8 +5546,8 @@ export function handleCustomerQuery(
         continue;
       }
 
-      const customerOne = customerOneId ? store.getEffectiveCustomerById(customerOneId) : null;
-      const customerTwo = customerTwoId ? store.getEffectiveCustomerById(customerTwoId) : null;
+      const customerOne = customerOneId ? runtime.store.getEffectiveCustomerById(customerOneId) : null;
+      const customerTwo = customerTwoId ? runtime.store.getEffectiveCustomerById(customerTwoId) : null;
       if (!customerOne || !customerTwo) {
         data[key] = null;
         const missingCustomerId = customerOne ? customerTwoId : customerOneId;
@@ -5371,6 +5560,7 @@ export function handleCustomerQuery(
       }
 
       data[key] = serializeCustomerMergePreview(
+        runtime,
         field,
         customerOne,
         customerTwo,
@@ -5383,19 +5573,19 @@ export function handleCustomerQuery(
     if (field.name.value === 'customerMergeJobStatus') {
       const args = getFieldArguments(field, variables);
       const jobId = typeof args['jobId'] === 'string' ? args['jobId'] : null;
-      const request = jobId ? store.getCustomerMergeRequest(jobId) : null;
+      const request = jobId ? runtime.store.getCustomerMergeRequest(jobId) : null;
       data[key] = request ? serializeCustomerMergeRequestSelection(request, field) : null;
       continue;
     }
 
     if (field.name.value === 'customers') {
-      data[key] = serializeCustomersConnection(field, variables);
+      data[key] = serializeCustomersConnection(runtime, field, variables);
       continue;
     }
 
     if (field.name.value === 'customersCount') {
       const args = getFieldArguments(field, variables);
-      data[key] = serializeCustomersCount(args['query'], field.selectionSet?.selections ?? []);
+      data[key] = serializeCustomersCount(runtime, args['query'], field.selectionSet?.selections ?? []);
       const searchExtension = buildCustomersCountSearchExtension(args['query'], [key]);
       if (searchExtension) {
         searchExtensions.push(searchExtension);

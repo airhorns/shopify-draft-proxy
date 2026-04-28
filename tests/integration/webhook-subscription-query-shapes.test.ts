@@ -5,10 +5,10 @@ import path from 'node:path';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import { store } from '../../src/state/store.js';
+import { resetSyntheticIdentity } from '../support/runtime.js';
+import { store } from '../support/runtime.js';
 import type { WebhookSubscriptionRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
