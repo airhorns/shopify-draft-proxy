@@ -224,7 +224,7 @@
     "implemented": true,
     "matchNames": ["backupRegion", "BackupRegion"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode utility read support is fixture-backed by HAR-315 2026-04 capture for the current conformance shop's MarketRegionCountry. Broader shop-country region mapping remains a follow-up gap."
+    "supportNotes": "Snapshot-mode utility read support returns staged/snapshot backupRegion first, then derives a MarketRegionCountry from effective shop myshopifyDomain + shopAddress.countryCodeV2 for conformance-backed domain/country pairs. Captured MarketRegionCountry ids are treated as shop-domain-scoped evidence, not platform-global country ids. HAR-315 backs harry-test-heelo.myshopify.com CA, market baseline captures add harry-test-heelo.myshopify.com AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX and very-big-test-store.myshopify.com CA/US. Effective shops outside that backed map return null instead of the captured Canada fixture; no-shop parity requests preserve the HAR-315 Canada fallback."
   },
   {
     "name": "backupRegionUpdate",
@@ -234,7 +234,7 @@
     "implemented": true,
     "matchNames": ["backupRegionUpdate", "BackupRegionUpdate"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "HAR-374 stages captured backup-region updates locally without mutating Shopify at runtime. Conformance covers current-region idempotent success and REGION_NOT_FOUND validation; broader country mapping should be expanded only with captured evidence."
+    "supportNotes": "HAR-374 stages captured backup-region updates locally without mutating Shopify at runtime. Conformance covers current-region CA idempotent success and REGION_NOT_FOUND validation; mutation support remains CA-only until additional backupRegionUpdate success captures exist."
   },
   {
     "name": "staffMember",

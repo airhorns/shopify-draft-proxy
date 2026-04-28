@@ -122,6 +122,33 @@ describe('payment customization query shapes', () => {
         shopPayPaymentRequestReceipts: emptyConnection,
       },
     });
+
+    const nodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query FinanceRiskNodeNoData($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              id
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/CashTrackingSession/0',
+            'gid://shopify/PointOfSaleDevice/0',
+            'gid://shopify/ShopifyPaymentsDispute/0',
+          ],
+        },
+      });
+
+    expect(nodeResponse.status).toBe(200);
+    expect(nodeResponse.body).toEqual({
+      data: {
+        nodes: [null, null, null],
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

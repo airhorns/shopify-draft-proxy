@@ -20,14 +20,15 @@ import {
   type FragmentMap,
 } from './graphql-helpers.js';
 import { handleMarketingQuery } from './marketing.js';
-import { handleMarketsQuery } from './markets.js';
+import { handleMarketsQuery, serializeMarketWebPresenceNodeById } from './markets.js';
 import { serializeFileNodeById } from './media.js';
 import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { serializeMetafieldSelectionSet, type MetafieldRecordCore } from './metafields.js';
 import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
 import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
-import { handleProductQuery } from './products.js';
+import { handleProductQuery, serializeProductOptionNodeById, serializeProductOptionValueNodeById } from './products.js';
 import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
 import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
@@ -86,7 +87,95 @@ const CAPTURED_BACKUP_REGION = {
   code: 'CA',
 } as const;
 
-const BACKUP_REGION_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
+// MarketRegionCountry GIDs are treated as shop-domain-scoped conformance evidence.
+// Do not reuse a country mapping for another shop unless that shop/country pair was captured.
+const BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE: Record<string, Record<string, BackupRegionRecord>> = {
+  'harry-test-heelo.myshopify.com': {
+    CA: CAPTURED_BACKUP_REGION,
+    AE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110482738',
+      name: 'United Arab Emirates',
+      code: 'AE',
+    },
+    AT: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110515506',
+      name: 'Austria',
+      code: 'AT',
+    },
+    AU: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110548274',
+      name: 'Australia',
+      code: 'AU',
+    },
+    BE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110581042',
+      name: 'Belgium',
+      code: 'BE',
+    },
+    CH: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110613810',
+      name: 'Switzerland',
+      code: 'CH',
+    },
+    CZ: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110646578',
+      name: 'Czechia',
+      code: 'CZ',
+    },
+    DE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110679346',
+      name: 'Germany',
+      code: 'DE',
+    },
+    DK: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110712114',
+      name: 'Denmark',
+      code: 'DK',
+    },
+    ES: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110744882',
+      name: 'Spain',
+      code: 'ES',
+    },
+    FI: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110777650',
+      name: 'Finland',
+      code: 'FI',
+    },
+    MX: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062111334706',
+      name: 'Mexico',
+      code: 'MX',
+    },
+  },
+  'very-big-test-store.myshopify.com': {
+    CA: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454909493481',
+      name: 'Canada',
+      code: 'CA',
+    },
+    US: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454910378217',
+      name: 'United States',
+      code: 'US',
+    },
+  },
+};
+
+const BACKUP_REGION_UPDATE_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
   CA: CAPTURED_BACKUP_REGION,
 };
 
@@ -292,6 +381,53 @@ function serializeDomainRoot(
   return serializeDomain(primaryDomain, field.selectionSet?.selections ?? []);
 }
 
+function serializeMarketRegionCountryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const effectiveRegion = runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION;
+  return effectiveRegion.id === id
+    ? serializePlainObject(effectiveRegion, selectedFields, 'MarketRegionCountry')
+    : null;
+}
+
+function collectEffectiveMetafields(runtime: ProxyRuntimeContext): MetafieldRecordCore[] {
+  const metafields = new Map<string, MetafieldRecordCore>();
+  const addMetafields = (items: readonly MetafieldRecordCore[]) => {
+    for (const metafield of items) {
+      metafields.set(metafield.id, metafield);
+    }
+  };
+
+  for (const product of runtime.store.listEffectiveProducts()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(product.id));
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(variant.id));
+    }
+  }
+  for (const collection of runtime.store.listEffectiveCollections()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(collection.id));
+  }
+  for (const customer of runtime.store.listEffectiveCustomers()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByCustomerId(customer.id));
+  }
+  for (const discount of runtime.store.listEffectiveDiscounts()) {
+    addMetafields(discount.metafields ?? []);
+  }
+
+  return [...metafields.values()];
+}
+
+function serializeMetafieldNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const metafield = collectEffectiveMetafields(runtime).find((candidate) => candidate.id === id) ?? null;
+  return metafield ? serializeMetafieldSelectionSet(metafield, selectedFields) : null;
+}
+
 function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
   return category.cursor ?? category.id;
 }
@@ -476,6 +612,18 @@ const handleProductNodeQuery: LocalNodeQueryHandler = (runtime, document, variab
 const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Product: { rootField: 'product', typename: 'Product', handler: handleProductNodeQuery },
   ProductVariant: { rootField: 'productVariant', typename: 'ProductVariant', handler: handleProductNodeQuery },
+  ProductOption: {
+    typename: 'ProductOption',
+    serialize: (runtime, id, selectedFields) => serializeProductOptionNodeById(runtime, id, selectedFields),
+  },
+  ProductOptionValue: {
+    typename: 'ProductOptionValue',
+    serialize: (runtime, id, selectedFields) => serializeProductOptionValueNodeById(runtime, id, selectedFields),
+  },
+  Metafield: {
+    typename: 'Metafield',
+    serialize: (runtime, id, selectedFields) => serializeMetafieldNodeById(runtime, id, selectedFields),
+  },
   InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
   InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
   InventoryShipment: { rootField: 'inventoryShipment', typename: 'InventoryShipment', handler: handleProductNodeQuery },
@@ -529,9 +677,30 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     handler: handleStorePropertiesQuery,
   },
 
+  MarketRegionCountry: {
+    typename: 'MarketRegionCountry',
+    typeConditions: ['MarketRegion'],
+    serialize: (runtime, id, selectedFields) => serializeMarketRegionCountryNodeById(runtime, id, selectedFields),
+  },
+
   PaymentCustomization: {
     rootField: 'paymentCustomization',
     typename: 'PaymentCustomization',
+    handler: handlePaymentQuery,
+  },
+  CashTrackingSession: {
+    rootField: 'cashTrackingSession',
+    typename: 'CashTrackingSession',
+    handler: handlePaymentQuery,
+  },
+  PointOfSaleDevice: {
+    rootField: 'pointOfSaleDevice',
+    typename: 'PointOfSaleDevice',
+    handler: handlePaymentQuery,
+  },
+  ShopifyPaymentsDispute: {
+    rootField: 'dispute',
+    typename: 'ShopifyPaymentsDispute',
     handler: handlePaymentQuery,
   },
   PaymentTermsTemplate: {
@@ -593,6 +762,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   },
 
   Market: { rootField: 'market', typename: 'Market', handler: handleMarketsQuery },
+  MarketWebPresence: {
+    typename: 'MarketWebPresence',
+    serialize: (runtime, id, selectedFields, variables, fragments) =>
+      serializeMarketWebPresenceNodeById(runtime, id, syntheticNodeField(selectedFields), variables, fragments),
+  },
   MarketCatalog: {
     rootField: 'catalog',
     typename: 'MarketCatalog',
@@ -1018,6 +1192,30 @@ function serializeBackupRegionUpdatePayload(
   return result;
 }
 
+function normalizeCountryCode(countryCode: string | null | undefined): string | null {
+  const normalized = countryCode?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{2}$/u.test(normalized) ? normalized : null;
+}
+
+function resolveBackupRegion(runtime: ProxyRuntimeContext): BackupRegionRecord | null {
+  const stagedOrBaseRegion = runtime.store.getEffectiveBackupRegion();
+  if (stagedOrBaseRegion) {
+    return stagedOrBaseRegion;
+  }
+
+  const shop = runtime.store.getEffectiveShop();
+  if (!shop) {
+    return CAPTURED_BACKUP_REGION;
+  }
+
+  const countryCode = normalizeCountryCode(shop.shopAddress.countryCodeV2);
+  if (!countryCode) {
+    return null;
+  }
+
+  return BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE[shop.myshopifyDomain]?.[countryCode] ?? null;
+}
+
 export interface AdminPlatformMutationResult {
   response: Record<string, unknown>;
   stagedResourceIds?: string[];
@@ -1057,13 +1255,13 @@ export function handleAdminPlatformQuery(
       case 'domain':
         data[key] = serializeDomainRoot(runtime, field, variables);
         break;
-      case 'backupRegion':
-        data[key] = serializePlainObject(
-          runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
-          field.selectionSet?.selections ?? [],
-          'MarketRegionCountry',
-        );
+      case 'backupRegion': {
+        const region = resolveBackupRegion(runtime);
+        data[key] = region
+          ? serializePlainObject(region, field.selectionSet?.selections ?? [], region.__typename)
+          : null;
         break;
+      }
       case 'taxonomy':
         data[key] = serializeTaxonomy(runtime, field.selectionSet?.selections ?? [], variables);
         break;
@@ -1162,7 +1360,8 @@ export function handleAdminPlatformMutation(
           rawRegion && typeof rawRegion === 'object' && !Array.isArray(rawRegion)
             ? (rawRegion as Record<string, unknown>)['countryCode']
             : null;
-        const region = typeof countryCode === 'string' ? (BACKUP_REGION_BY_COUNTRY_CODE[countryCode] ?? null) : null;
+        const region =
+          typeof countryCode === 'string' ? (BACKUP_REGION_UPDATE_BY_COUNTRY_CODE[countryCode] ?? null) : null;
         if (!region) {
           data[key] = serializeBackupRegionUpdatePayload(field, null, [
             { field: ['region'], message: 'Region not found.', code: 'REGION_NOT_FOUND' },

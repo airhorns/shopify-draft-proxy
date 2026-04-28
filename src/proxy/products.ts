@@ -95,6 +95,7 @@ import type {
   MetafieldDefinitionRecord,
   ProductMetafieldRecord,
   ProductOptionRecord,
+  ProductOptionValueRecord,
   ProductOperationRecord,
   ProductRecord,
   SellingPlanGroupRecord,
@@ -7016,6 +7017,9 @@ function serializeOptionSelectionSet(
 
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductOption';
+        break;
       case 'id':
         result[key] = option.id;
         break;
@@ -7031,30 +7035,9 @@ function serializeOptionSelectionSet(
           .map((optionValue) => optionValue.name);
         break;
       case 'optionValues':
-        result[key] = option.optionValues.map((optionValue) => {
-          const optionValueResult: Record<string, unknown> = {};
-          for (const optionValueSelection of selection.selectionSet?.selections ?? []) {
-            if (optionValueSelection.kind !== Kind.FIELD) {
-              continue;
-            }
-
-            const optionValueKey = optionValueSelection.alias?.value ?? optionValueSelection.name.value;
-            switch (optionValueSelection.name.value) {
-              case 'id':
-                optionValueResult[optionValueKey] = optionValue.id;
-                break;
-              case 'name':
-                optionValueResult[optionValueKey] = optionValue.name;
-                break;
-              case 'hasVariants':
-                optionValueResult[optionValueKey] = optionValue.hasVariants;
-                break;
-              default:
-                optionValueResult[optionValueKey] = null;
-            }
-          }
-          return optionValueResult;
-        });
+        result[key] = option.optionValues.map((optionValue) =>
+          serializeOptionValueSelectionSet(optionValue, selection.selectionSet?.selections ?? []),
+        );
         break;
       default:
         result[key] = null;
@@ -7062,6 +7045,71 @@ function serializeOptionSelectionSet(
   }
 
   return result;
+}
+
+function serializeOptionValueSelectionSet(
+  optionValue: ProductOptionValueRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = selection.alias?.value ?? selection.name.value;
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'ProductOptionValue';
+        break;
+      case 'id':
+        result[key] = optionValue.id;
+        break;
+      case 'name':
+        result[key] = optionValue.name;
+        break;
+      case 'hasVariants':
+        result[key] = optionValue.hasVariants;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+export function serializeProductOptionNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    const option = runtime.store.getEffectiveOptionsByProductId(product.id).find((candidate) => candidate.id === id);
+    if (option) {
+      return serializeOptionSelectionSet(option, selectedFields);
+    }
+  }
+
+  return null;
+}
+
+export function serializeProductOptionValueNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    for (const option of runtime.store.getEffectiveOptionsByProductId(product.id)) {
+      const optionValue = option.optionValues.find((candidate) => candidate.id === id);
+      if (optionValue) {
+        return serializeOptionValueSelectionSet(optionValue, selectedFields);
+      }
+    }
+  }
+
+  return null;
 }
 
 function serializeVariantsConnection(

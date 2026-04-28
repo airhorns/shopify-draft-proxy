@@ -11,7 +11,7 @@
     "variablesPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.variables.json"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-315 executable parity coverage for safe Admin platform utility reads: captured public API version shape, generic Node no-data behavior, arbitrary completed Job lookup, unknown Domain nullability, backupRegion shape, and unmatched taxonomy search empty connection behavior. HAR-400 adds runtime coverage for local Product and primary Domain dispatch through node/nodes. HAR-414 adds captured taxonomy category catalog/search slices with hierarchy fields and cursor/pageInfo parity. Broader generic Node resource dispatch, exhaustive taxonomy catalog coverage beyond captured slices, and broader backup-region country mapping remain explicit gaps.",
+  "notes": "HAR-315 executable parity coverage for safe Admin platform utility reads: captured public API version shape, generic Node no-data behavior, arbitrary completed Job lookup, unknown Domain nullability, backupRegion shape, and unmatched taxonomy search empty connection behavior. HAR-400 adds runtime coverage for local Product and primary Domain dispatch through node/nodes. HAR-414 adds captured taxonomy category catalog/search slices with hierarchy fields and cursor/pageInfo parity. HAR-415 keeps no-shop parity on the captured Canada backupRegion while effective shop state now uses the documented conformance-backed domain/country map or returns null for unbacked shops. Broader generic Node resource dispatch and exhaustive taxonomy catalog coverage beyond captured slices remain explicit gaps.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

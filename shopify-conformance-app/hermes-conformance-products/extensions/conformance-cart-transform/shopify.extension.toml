@@ -1,0 +1,22 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "t:name"
+handle = "conformance-cart-transform"
+type = "function"
+uid = "f2768941-1eaf-3dfa-b529-07e55060e143b4d315bf"
+description = "t:description"
+
+[[extensions.targeting]]
+target = "cart.transform.run"
+input_query = "src/cart_transform_run.graphql"
+export = "cart_transform_run"
+
+[extensions.build]
+command = "cargo build --target=wasm32-unknown-unknown --release"
+path = "target/wasm32-unknown-unknown/release/conformance-cart-transform.wasm"
+watch = ["src/**/*.rs"]
+
+[extensions.ui.paths]
+create = "/"
+details = "/"
