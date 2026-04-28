@@ -2,7 +2,9 @@
 
 This endpoint group is a coverage map for Admin GraphQL shipping, fulfillment, fulfillment-order, carrier-service, fulfillment-service, and delivery-profile behavior. Keep implementation details for locally staged order fulfillment slices in `docs/endpoints/orders.md`; use this file for broader boundaries and gaps.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Local staged mutations currently live under the orders group because they operate on order-scoped fulfillment records and downstream `order(id:)` reads:
 
@@ -160,7 +162,7 @@ Shipping package mutations stage against normalized local package records. `ship
 
 HAR-320 fulfillment-constraint evidence is blocker-only. The current conformance credential receives `ACCESS_DENIED` for `fulfillmentConstraintRules` without `read_fulfillment_constraint_rules` and for `fulfillmentConstraintRuleCreate`, `fulfillmentConstraintRuleUpdate`, and `fulfillmentConstraintRuleDelete` without `write_fulfillment_constraint_rules`. These roots are registry-only until a scoped test app can capture Shopify Function ownership, metafield behavior, success payloads, and downstream rule reads.
 
-## Registry-only coverage map
+### Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
 
@@ -205,7 +207,7 @@ Shipping-line order-edit roots:
 - `orderEditRemoveShippingLine`
 - `orderEditUpdateShippingLine`
 
-## Behavior boundaries
+### Behavior boundaries
 
 - The proxy must not treat any registry-only root above as supported runtime behavior. Until a root has local state modeling and executable tests, unsupported mutations remain on the generic unsupported path and must stay visible in observability.
 - Top-level `fulfillment(id:)` now has missing-id, tracking-info, line-item, detail, and event-history shape evidence for records already present on the local order graph. Broader access-scope behavior still needs separate captures before expansion.
@@ -222,7 +224,9 @@ Shipping-line order-edit roots:
 - Shipping package support is a local staging slice for known package records. Package discovery, carrier package compatibility, checkout rate calculation, and full package validation remain future work because the captured schema has no direct package read root.
 - Shipping lines and delivery methods are nested under orders, draft orders, calculated orders, fulfillment orders, and delivery profiles. A root-level registry entry can only cover the mutation/query root; nested field fidelity still needs scenario-specific fixtures and downstream read assertions.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
 - Implemented top-level fulfillment reads: `tests/integration/order-query-shapes.test.ts`

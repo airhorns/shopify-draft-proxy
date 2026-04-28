@@ -4,7 +4,9 @@ The media group covers the Admin Files API roots that can be modeled without
 performing external upload/storage side effects. Product-specific media roots
 remain documented with products because they stage product-owned media records.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Snapshot/local reads:
 
@@ -22,7 +24,7 @@ Explicitly unsupported:
 
 - `fileAcknowledgeUpdateFailed`
 
-## Behavior notes
+### Behavior notes
 
 - `files` reads serialize normalized `FileRecord` state in snapshot mode and
   after local file mutations. The local connection uses shared cursor/pageInfo
@@ -44,7 +46,9 @@ Explicitly unsupported:
   passthrough escape hatch and are logged as proxied with registry metadata.
 - Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
 
-## Conformance notes
+## Historical and developer notes
+
+### Conformance notes
 
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
@@ -54,7 +58,7 @@ Explicitly unsupported:
   needed before the inert metadata is tightened to exact Shopify upload
   parameter parity.
 
-## Validation anchors
+### Validation anchors
 
 - Runtime flow: `tests/integration/media-draft-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/file*.json` and matching files under `config/parity-requests/`

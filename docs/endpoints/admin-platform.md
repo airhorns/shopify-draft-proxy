@@ -7,7 +7,9 @@ This endpoint group covers Admin GraphQL platform/utility roots that do not belo
 
 HAR-315 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.
 
-## Snapshot Read Behavior
+## Current support and limitations
+
+### Snapshot Read Behavior
 
 The local snapshot handler is intentionally conservative and only models shapes backed by the HAR-315 capture:
 
@@ -20,6 +22,10 @@ The local snapshot handler is intentionally conservative and only models shapes 
 - `taxonomy.categories(...)` returns an empty connection shape for the captured unmatched search/no-data branch. The global non-empty taxonomy catalog is not modeled.
 - `staffMember` and `staffMembers` return the captured field-level `ACCESS_DENIED` blocker locally. Authorized staff identity/catalog reads require an eligible app/store and a separate local staff model before support can broaden.
 
-## Mutation Safety
+### Mutation Safety
 
 `flowGenerateSignature` and `flowTriggerReceive` remain unsupported side-effect utility mutations. Runtime requests still use the unsupported-mutation passthrough escape hatch, but the operation registry and logs mark them as known unsafe Flow utility gaps. Do not mark either root supported until local signing/trigger delivery behavior and raw commit replay semantics exist.
+
+## Historical and developer notes
+
+- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.

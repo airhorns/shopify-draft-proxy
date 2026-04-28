@@ -4,7 +4,9 @@ The segments group has an implemented read baseline for segment catalog, detail,
 Segment lifecycle mutations are staged locally. Customer segment member query jobs and member reads have a narrow
 HAR-217 implementation for captured customer targeting flows.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Overlay reads:
 
@@ -26,7 +28,7 @@ Staged mutations:
 - `segmentUpdate`
 - `segmentDelete`
 
-## Behavior notes
+### Behavior notes
 
 - Segment read support is capture-driven and intentionally narrow.
 - `segment(id:)`, `segments`, and `segmentsCount` use normalized segment records for the selected catalog/detail/count fields captured in HAR-215.
@@ -55,7 +57,9 @@ Staged mutations:
   the supported query grammar. Broader Shopify segment grammar is not claimed.
 - Segment search, sort, and uncaptured member-query grammar are not inferred beyond the captured request arguments.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Segment reads: `tests/integration/segment-query-shapes.test.ts`
 - Segment lifecycle: `tests/integration/segment-lifecycle-flow.test.ts`

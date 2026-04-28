@@ -18,7 +18,9 @@ HAR-308 adds local support for the selling-plan group roots that product subscri
 
 Selling-plan group state is normalized in memory with group scalar fields, nested selling-plan payload data, product membership IDs, and product-variant membership IDs. Supported mutations stage locally and are retained in the mutation log with the original raw GraphQL request for commit replay; they do not write to Shopify at runtime.
 
-## Runtime behavior
+## Current support and limitations
+
+### Runtime behavior
 
 `sellingPlanGroupCreate` creates a synthetic `SellingPlanGroup` and synthetic nested `SellingPlan` IDs. `resources.productIds` and `resources.productVariantIds` seed the initial memberships. `sellingPlanGroupUpdate` updates group scalar fields, stages nested selling-plan create/update/delete inputs, and returns `deletedSellingPlanIds` for locally known removed plans. Delete marks the group absent from subsequent detail, catalog, product, and variant reads.
 
@@ -28,7 +30,9 @@ HAR-299 also supports Shopify's product-centric membership roots. `productJoinSe
 
 Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch.
 
-## Conformance
+## Historical and developer notes
+
+### Conformance
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/selling-plan-group-lifecycle.json` captures the live 2026-04 lifecycle against a disposable product and selling-plan group, including cleanup. The capture records create/update/delete payloads, product and variant membership add/remove payloads, unknown-id userErrors, and downstream read-after-write effects.
 

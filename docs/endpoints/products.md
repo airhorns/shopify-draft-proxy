@@ -2,7 +2,9 @@
 
 The products group is product-first and deep, with registry entries for supported local behavior and explicit unsupported gaps. It covers product roots plus directly related inventory, metafield, collection, publication, tag, helper, feedback, and product-media roots that are modeled as product-owned behavior.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Overlay reads:
 
@@ -123,7 +125,7 @@ Local staged mutations:
 - `publicationUpdate`
 - `publicationDelete`
 
-## Registered product helper and merchandising gaps
+### Registered product helper and merchandising gaps
 
 These product-adjacent roots are registered in the operation registry as product-domain gaps, but are not local mutation support yet. They still proxy as unsupported mutations at runtime and must not be treated as supported until success-path staging and downstream read-after-write behavior are modeled:
 
@@ -137,7 +139,7 @@ These product-adjacent roots are registered in the operation registry as product
 - `productVariantRelationshipBulkUpdate`
 - `combinedListingUpdate`
 
-## Behavior notes
+### Behavior notes
 
 - Product feed reads currently support Shopify-like no-data behavior in snapshot mode. Captured 2025-01 `harry-test-heelo` evidence returns `productFeed(id:)` as `null` for an absent feed id and `productFeeds(first:)` as an empty connection with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors. Live-hybrid `productFeed` / `productFeeds` requests continue to proxy upstream because staged product mutations do not currently model feed-channel membership.
 - Product feed mutations remain unsupported. The 2025-01 `harry-test-heelo` probe for `productFeedCreate(country: US, language: EN)` returned a top-level `NOT_FOUND` error, `Unable to find channel for product feed`; `productFeedDelete` and `productFullSync` unknown feed ids returned payload userErrors with `field: ["id"]` and `ProductFeed does not exist`. Local staging needs channel-backed success evidence and downstream feed read effects before these roots can become supported.
@@ -192,7 +194,9 @@ These product-adjacent roots are registered in the operation registry as product
 - Remaining bulk variant validation gaps: local responses currently model the captured `field` and `message` user error surface used by app runtime tests, but not every Shopify `code` value is selected/serialized across product-domain mutation payloads. GraphQL variable-shape errors for missing non-null fields in `inventoryQuantities` are still left to the GraphQL input contract rather than hand-built by the proxy.
 - Product media validation follows the captured Shopify branches in `product-media-validation-branches`, which is replayed by `pnpm conformance:parity` against the local proxy. Unknown product IDs return `Product does not exist` media errors with null media/delete payload slots; invalid image `originalSource` values return indexed `media.<index>.originalSource` errors; invalid `CreateMediaInput.mediaContentType` enum values return top-level `INVALID_VARIABLE` errors. Empty media/update/delete lists are accepted as empty successes. Mixed create batches stage valid media and report invalid entries, while mixed update/delete batches with unknown media IDs are rejected atomically and leave staged media unchanged.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Runtime flows: `tests/integration/product-draft-flow.test.ts`
 - Inventory quantity roots: `tests/integration/inventory-quantity-roots.test.ts`

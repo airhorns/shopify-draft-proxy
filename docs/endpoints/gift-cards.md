@@ -2,7 +2,9 @@
 
 HAR-310 adds local gift-card read and lifecycle staging for the Admin GraphQL gift-card roots. The implementation is intentionally local-first: supported gift-card mutations update normalized in-memory state and retain the original raw request for commit replay, without sending writes or notification side effects to Shopify during normal runtime handling.
 
-## Implemented Roots
+## Current support and limitations
+
+### Implemented Roots
 
 Overlay reads:
 
@@ -21,7 +23,7 @@ Local staged mutations:
 - `giftCardSendNotificationToCustomer(id:)`
 - `giftCardSendNotificationToRecipient(id:)`
 
-## Local Read Behavior
+### Local Read Behavior
 
 - Gift-card reads are backed by normalized `giftCards` state plus `giftCardOrder`.
 - Snapshot mode returns `null` for unknown `giftCard(id:)`, an empty `giftCards` connection, and `{ count: 0, precision: "EXACT" }` for `giftCardsCount` when no records are present.
@@ -29,7 +31,7 @@ Local staged mutations:
 - Local query filtering covers `id` terms. Live evidence shows Shopify accepts `id:<numeric>` for gift-card search; fields such as `enabled`, `active`, and `last_characters` are invalid search fields and leave Shopify results unfiltered with warnings.
 - `giftCardConfiguration` exposes `issueLimit` and `purchaseLimit` money objects from normalized snapshot state. When no configuration fixture is present, snapshot mode returns zero-value CAD limits as a safe local placeholder.
 
-## Local Mutation Behavior
+### Local Mutation Behavior
 
 - `giftCardCreate(input:)` stages a new normalized gift card with a proxy-synthetic `GiftCard` GID, masked/last-character code metadata, initial value and balance, optional note/expiry/template/customer/recipient metadata, and stable timestamps.
 - `giftCardUpdate(id:, input:)` stages note, expiry, template suffix, customer, and recipient metadata changes against base or staged gift cards.
@@ -37,7 +39,9 @@ Local staged mutations:
 - `giftCardDeactivate(id:)` stages `enabled: false` plus a synthetic `deactivatedAt` timestamp and keeps downstream reads visible.
 - Notification roots return local payloads for existing gift cards and append mutation-log entries, but do not send customer-visible notifications at runtime. The original raw notification mutations are still retained for explicit commit replay.
 
-## Captured Evidence
+## Historical and developer notes
+
+### Captured Evidence
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-card-lifecycle.json` records:
 
@@ -54,7 +58,7 @@ The fixture shows the current conformance credential can read gift cards, perfor
 
 `config/parity-specs/gift-card-lifecycle.json` now runs as captured-vs-proxy parity. The parity request seeds the live-created gift card and configuration from the capture, replays update/credit/debit/deactivate against the local proxy, and strictly compares stable payload, filtered empty read, transaction read-after-write, and filtered non-empty downstream read fields. Runtime integration coverage still verifies synthetic ID/timestamp behavior, meta logging, raw mutation retention, and notification short-circuiting.
 
-## Validation
+### Validation
 
 - `corepack pnpm vitest run tests/integration/gift-card-flow.test.ts`
 - `corepack pnpm conformance:check`
