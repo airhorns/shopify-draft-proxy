@@ -61,7 +61,93 @@ const CAPTURED_BACKUP_REGION = {
   code: 'CA',
 } as const;
 
-const BACKUP_REGION_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
+const BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE: Record<string, Record<string, BackupRegionRecord>> = {
+  'harry-test-heelo.myshopify.com': {
+    CA: CAPTURED_BACKUP_REGION,
+    AE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110482738',
+      name: 'United Arab Emirates',
+      code: 'AE',
+    },
+    AT: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110515506',
+      name: 'Austria',
+      code: 'AT',
+    },
+    AU: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110548274',
+      name: 'Australia',
+      code: 'AU',
+    },
+    BE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110581042',
+      name: 'Belgium',
+      code: 'BE',
+    },
+    CH: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110613810',
+      name: 'Switzerland',
+      code: 'CH',
+    },
+    CZ: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110646578',
+      name: 'Czechia',
+      code: 'CZ',
+    },
+    DE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110679346',
+      name: 'Germany',
+      code: 'DE',
+    },
+    DK: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110712114',
+      name: 'Denmark',
+      code: 'DK',
+    },
+    ES: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110744882',
+      name: 'Spain',
+      code: 'ES',
+    },
+    FI: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110777650',
+      name: 'Finland',
+      code: 'FI',
+    },
+    MX: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062111334706',
+      name: 'Mexico',
+      code: 'MX',
+    },
+  },
+  'very-big-test-store.myshopify.com': {
+    CA: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454909493481',
+      name: 'Canada',
+      code: 'CA',
+    },
+    US: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454910378217',
+      name: 'United States',
+      code: 'US',
+    },
+  },
+};
+
+const BACKUP_REGION_UPDATE_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
   CA: CAPTURED_BACKUP_REGION,
 };
 
@@ -520,6 +606,30 @@ function serializeBackupRegionUpdatePayload(
   return result;
 }
 
+function normalizeCountryCode(countryCode: string | null | undefined): string | null {
+  const normalized = countryCode?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{2}$/u.test(normalized) ? normalized : null;
+}
+
+function resolveBackupRegion(): BackupRegionRecord | null {
+  const stagedOrBaseRegion = store.getEffectiveBackupRegion();
+  if (stagedOrBaseRegion) {
+    return stagedOrBaseRegion;
+  }
+
+  const shop = store.getEffectiveShop();
+  if (!shop) {
+    return CAPTURED_BACKUP_REGION;
+  }
+
+  const countryCode = normalizeCountryCode(shop.shopAddress.countryCodeV2);
+  if (!countryCode) {
+    return null;
+  }
+
+  return BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE[shop.myshopifyDomain]?.[countryCode] ?? null;
+}
+
 export interface AdminPlatformMutationResult {
   response: Record<string, unknown>;
   stagedResourceIds?: string[];
@@ -557,13 +667,13 @@ export function handleAdminPlatformQuery(
       case 'domain':
         data[key] = serializeDomainRoot(field, variables);
         break;
-      case 'backupRegion':
-        data[key] = serializePlainObject(
-          store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
-          field.selectionSet?.selections ?? [],
-          'MarketRegionCountry',
-        );
+      case 'backupRegion': {
+        const region = resolveBackupRegion();
+        data[key] = region
+          ? serializePlainObject(region, field.selectionSet?.selections ?? [], region.__typename)
+          : null;
         break;
+      }
       case 'taxonomy':
         data[key] = serializeTaxonomy(field.selectionSet?.selections ?? []);
         break;
@@ -661,7 +771,8 @@ export function handleAdminPlatformMutation(
           rawRegion && typeof rawRegion === 'object' && !Array.isArray(rawRegion)
             ? (rawRegion as Record<string, unknown>)['countryCode']
             : null;
-        const region = typeof countryCode === 'string' ? (BACKUP_REGION_BY_COUNTRY_CODE[countryCode] ?? null) : null;
+        const region =
+          typeof countryCode === 'string' ? (BACKUP_REGION_UPDATE_BY_COUNTRY_CODE[countryCode] ?? null) : null;
         if (!region) {
           data[key] = serializeBackupRegionUpdatePayload(field, null, [
             { field: ['region'], message: 'Region not found.', code: 'REGION_NOT_FOUND' },
