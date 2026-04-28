@@ -2,7 +2,9 @@
 
 The store-properties group has implemented local slices, but the whole registry domain is not complete yet. Keep shop, location, business-entity, policy, and generic publishable minutia here instead of in `docs/architecture.md`.
 
-## Implemented roots
+## Current support and limitations
+
+### Implemented roots
 
 Overlay reads:
 
@@ -26,11 +28,11 @@ Local staged mutations:
 - `publishableUnpublishToCurrentChannel`
 - `shopPolicyUpdate`
 
-## Unsupported roots still tracked by the registry
+### Unsupported roots still tracked by the registry
 
 - `cashManagementLocationSummary`
 
-## Behavior notes
+### Behavior notes
 
 - `baseState` includes a nullable normalized `shop` slice. Snapshot mode returns `shop: null` when no shop slice is present instead of inventing store identity; live-hybrid can serve a locally staged shop overlay when one exists.
 - `shop.fulfillmentServices` is serialized from the normalized fulfillment-service graph owned by `docs/endpoints/shipping-fulfillments.md`; the field returns an empty list when no services are staged or snapshotted.
@@ -47,7 +49,9 @@ Local staged mutations:
 - Shopify Payments fields that can reveal balances, bank accounts, statement descriptors, payout schedules, or other account-specific financial data remain unavailable unless captured and modeled explicitly; snapshot reads return `null` for those selections with `UNSUPPORTED_FIELD` diagnostics.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Shop reads: `tests/integration/shop-query-shapes.test.ts`
 - Shop policy mutation flow: `tests/integration/shop-policy-update-flow.test.ts`

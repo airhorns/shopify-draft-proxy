@@ -297,6 +297,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    packageScript: 'conformance:capture-metaobject-schema-change',
+    scriptPath: 'scripts/capture-metaobject-schema-change-conformance.ts',
+    purpose: 'Metaobject definition schema edits plus row add/update/delete behavior before and after the edit.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-schema-change-lifecycle.json`,
+      'config/parity-specs/metaobject-schema-change-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Deletes remaining seeded metaobject rows and definition after the schema-change lifecycle capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     packageScript: 'conformance:capture-inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
@@ -548,6 +562,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/finance-risk-no-data-read.json',
     ],
     cleanupBehavior: 'Read/access capture only; do not create or invent sensitive financial records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    packageScript: 'conformance:capture-payment-terms-lifecycle',
+    scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
+    purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
+    cleanupBehavior:
+      'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

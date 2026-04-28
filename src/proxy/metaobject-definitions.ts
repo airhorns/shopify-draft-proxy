@@ -380,6 +380,62 @@ function buildMetaobjectFieldDefinitionReference(
   };
 }
 
+function projectMetaobjectFieldsThroughDefinition(
+  metaobject: MetaobjectRecord,
+  definition: MetaobjectDefinitionRecord | null,
+): MetaobjectFieldRecord[] {
+  if (!definition || definition.fieldDefinitions.length === 0) {
+    return structuredClone(metaobject.fields);
+  }
+
+  const fieldsByKey = new Map(metaobject.fields.map((field) => [field.key, field]));
+  return definition.fieldDefinitions.flatMap((fieldDefinition) => {
+    const field = fieldsByKey.get(fieldDefinition.key);
+    if (!field) {
+      return [
+        {
+          key: fieldDefinition.key,
+          type: fieldDefinition.type.name,
+          value: null,
+          jsonValue: null,
+          definition: buildMetaobjectFieldDefinitionReference(fieldDefinition),
+        },
+      ];
+    }
+
+    return [
+      {
+        ...structuredClone(field),
+        type: fieldDefinition.type.name,
+        jsonValue: readMetaobjectJsonValue(fieldDefinition.type.name, field.value),
+        definition: buildMetaobjectFieldDefinitionReference(fieldDefinition),
+      },
+    ];
+  });
+}
+
+function projectMetaobjectThroughDefinition(metaobject: MetaobjectRecord): MetaobjectRecord {
+  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  const fields = projectMetaobjectFieldsThroughDefinition(metaobject, definition);
+
+  return {
+    ...structuredClone(metaobject),
+    displayName:
+      definition && definition.fieldDefinitions.length > 0
+        ? metaobjectDisplayName(definition, fields, metaobject.handle)
+        : metaobject.displayName,
+    fields,
+  };
+}
+
+function metaobjectHandleDisplayName(handle: string): string {
+  return handle
+    .split(/[-_\s]+/u)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
 function readMetaobjectJsonValue(typeName: string | null, value: string | null): MetaobjectFieldRecord['jsonValue'] {
   if (value === null) {
     return null;
@@ -414,7 +470,7 @@ function buildMetaobjectFieldsFromInput(
   input: Record<string, unknown>,
   definition: MetaobjectDefinitionRecord,
   existingFields: MetaobjectFieldRecord[] = [],
-  options: { requireRequiredFields?: boolean } = {},
+  options: { includeMissingFieldDefinitions?: boolean; requireRequiredFields?: boolean } = {},
 ): { fields: MetaobjectFieldRecord[]; userErrors: MetaobjectUserError[] } {
   const userErrors: MetaobjectUserError[] = [];
   const fieldsByKey = new Map(existingFields.map((field) => [field.key, structuredClone(field)]));
@@ -437,11 +493,11 @@ function buildMetaobjectFieldsFromInput(
     const fieldDefinition = definitionsByKey.get(key);
     if (!fieldDefinition) {
       userErrors.push({
-        field: ['metaobject', 'fields', String(index), 'key'],
-        message: 'Field definition not found.',
-        code: 'NOT_FOUND',
+        field: ['metaobject', 'fields', String(index)],
+        message: `Field definition "${key}" does not exist`,
+        code: 'UNDEFINED_OBJECT_FIELD',
         elementKey: key,
-        elementIndex: index,
+        elementIndex: null,
       });
       continue;
     }
@@ -453,10 +509,11 @@ function buildMetaobjectFieldsFromInput(
     for (const fieldDefinition of definition.fieldDefinitions) {
       if (fieldDefinition.required === true && !fieldsByKey.has(fieldDefinition.key)) {
         userErrors.push({
-          field: ['metaobject', 'fields', fieldDefinition.key],
+          field: ['metaobject'],
           message: `${fieldDefinition.name ?? fieldDefinition.key} can't be blank`,
-          code: 'BLANK',
+          code: 'OBJECT_FIELD_REQUIRED',
           elementKey: fieldDefinition.key,
+          elementIndex: null,
         });
       }
     }
@@ -464,19 +521,41 @@ function buildMetaobjectFieldsFromInput(
 
   const fields = definition.fieldDefinitions.flatMap((fieldDefinition) => {
     const field = fieldsByKey.get(fieldDefinition.key);
-    return field ? [field] : [];
+    if (field) {
+      return [field];
+    }
+
+    if (options.includeMissingFieldDefinitions === true) {
+      return [
+        {
+          key: fieldDefinition.key,
+          type: fieldDefinition.type.name,
+          value: null,
+          jsonValue: null,
+          definition: buildMetaobjectFieldDefinitionReference(fieldDefinition),
+        },
+      ];
+    }
+
+    return [];
   });
 
   return { fields, userErrors };
 }
 
-function metaobjectDisplayName(definition: MetaobjectDefinitionRecord, fields: MetaobjectFieldRecord[]): string | null {
+function metaobjectDisplayName(
+  definition: MetaobjectDefinitionRecord,
+  fields: MetaobjectFieldRecord[],
+  handle?: string,
+): string | null {
   const displayNameKey = definition.displayNameKey;
   if (!displayNameKey) {
     return null;
   }
 
-  return fields.find((field) => field.key === displayNameKey)?.value ?? null;
+  return (
+    fields.find((field) => field.key === displayNameKey)?.value ?? (handle ? metaobjectHandleDisplayName(handle) : null)
+  );
 }
 
 function normalizeMetaobjectHandle(value: string): string {
@@ -538,7 +617,7 @@ function buildMetaobjectCapabilitiesFromInput(
   if (publishableStatus) {
     result.publishable = { status: publishableStatus };
   } else if (!existing && definition.capabilities.publishable?.enabled === true) {
-    result.publishable = { status: 'ACTIVE' };
+    result.publishable = { status: 'DRAFT' };
   }
 
   if (onlineStore !== undefined) {
@@ -604,7 +683,10 @@ function buildMetaobjectFromCreateInput(
   input: Record<string, unknown>,
   definition: MetaobjectDefinitionRecord,
 ): { metaobject: MetaobjectRecord | null; userErrors: MetaobjectUserError[] } {
-  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, [], { requireRequiredFields: true });
+  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, [], {
+    includeMissingFieldDefinitions: true,
+    requireRequiredFields: true,
+  });
   if (fieldResult.userErrors.length > 0) {
     return { metaobject: null, userErrors: fieldResult.userErrors };
   }
@@ -662,7 +744,9 @@ function applyMetaobjectUpdateInput(
     };
   }
 
-  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, existing.fields);
+  const fieldResult = buildMetaobjectFieldsFromInput(input, definition, existing.fields, {
+    requireRequiredFields: true,
+  });
   if (fieldResult.userErrors.length > 0) {
     return { metaobject: null, userErrors: fieldResult.userErrors };
   }
@@ -672,7 +756,7 @@ function applyMetaobjectUpdateInput(
     metaobject: {
       ...existing,
       handle: requestedHandle,
-      displayName: metaobjectDisplayName(definition, fields),
+      displayName: metaobjectDisplayName(definition, fields, requestedHandle),
       fields,
       capabilities: buildMetaobjectCapabilitiesFromInput(input, definition, existing.capabilities),
       updatedAt: makeSyntheticTimestamp(),
@@ -1044,21 +1128,30 @@ function buildSerializableMetaobjectField(field: MetaobjectFieldRecord): Record<
 }
 
 function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<string, unknown> {
-  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
+  const definition = store.findEffectiveMetaobjectDefinitionByType(projectedMetaobject.type);
+  const publishable =
+    definition?.capabilities.publishable?.enabled === false
+      ? null
+      : (projectedMetaobject.capabilities.publishable ?? null);
+  const onlineStore =
+    definition?.capabilities.onlineStore?.enabled === false
+      ? null
+      : (projectedMetaobject.capabilities.onlineStore ?? null);
   return {
     __typename: 'Metaobject',
-    id: metaobject.id,
-    handle: metaobject.handle,
-    type: metaobject.type,
-    displayName: metaobject.displayName,
-    createdAt: metaobject.createdAt ?? null,
-    updatedAt: metaobject.updatedAt ?? null,
+    id: projectedMetaobject.id,
+    handle: projectedMetaobject.handle,
+    type: projectedMetaobject.type,
+    displayName: projectedMetaobject.displayName,
+    createdAt: projectedMetaobject.createdAt ?? null,
+    updatedAt: projectedMetaobject.updatedAt ?? null,
     capabilities: {
-      publishable: metaobject.capabilities.publishable ?? null,
-      onlineStore: metaobject.capabilities.onlineStore ?? null,
+      publishable,
+      onlineStore,
     },
     definition: definition ? buildSerializableDefinition(definition) : null,
-    fields: metaobject.fields.map(buildSerializableMetaobjectField),
+    fields: projectedMetaobject.fields.map(buildSerializableMetaobjectField),
   };
 }
 
@@ -1087,8 +1180,9 @@ function serializeMetaobjectSelection(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
+  const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
 
-  return projectGraphqlObject(buildSerializableMetaobject(metaobject), selections, fragments, {
+  return projectGraphqlObject(buildSerializableMetaobject(projectedMetaobject), selections, fragments, {
     projectFieldValue: ({ source, field, fieldName }) => {
       if (source['__typename'] !== 'Metaobject') {
         return { handled: false };
@@ -1096,7 +1190,7 @@ function serializeMetaobjectSelection(
 
       if (fieldName === 'field') {
         const key = readStringValue(getFieldArguments(field, variables)['key']);
-        const selectedField = key ? metaobject.fields.find((candidate) => candidate.key === key) : null;
+        const selectedField = key ? projectedMetaobject.fields.find((candidate) => candidate.key === key) : null;
         return {
           handled: true,
           value: selectedField
@@ -1263,6 +1357,38 @@ function applyMetaobjectQuery(metaobjects: MetaobjectRecord[], rawQuery: unknown
   return metaobjects.filter((metaobject) => matchesMetaobjectQueryNode(metaobject, parsedQuery));
 }
 
+function metaobjectHasRequiredFieldValues(
+  metaobject: MetaobjectRecord,
+  definition: MetaobjectDefinitionRecord,
+): boolean {
+  const fieldsByKey = new Map(metaobject.fields.map((field) => [field.key, field]));
+  return definition.fieldDefinitions.every((fieldDefinition) => {
+    if (fieldDefinition.required !== true) {
+      return true;
+    }
+
+    const field = fieldsByKey.get(fieldDefinition.key);
+    return typeof field?.value === 'string' && field.value.length > 0;
+  });
+}
+
+function isMetaobjectVisibleInCatalog(metaobject: MetaobjectRecord): boolean {
+  const definition = store.findEffectiveMetaobjectDefinitionByType(metaobject.type);
+  if (!definition) {
+    return true;
+  }
+
+  if (!metaobjectHasRequiredFieldValues(metaobject, definition)) {
+    return false;
+  }
+
+  if (definition.capabilities.publishable?.enabled === false && !metaobject.capabilities.publishable) {
+    return false;
+  }
+
+  return true;
+}
+
 function serializeMetaobjectDefinitionsConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1295,7 +1421,10 @@ function serializeMetaobjectsConnection(
   const args = getFieldArguments(field, variables);
   const type = readStringValue(args['type']);
   const metaobjects = sortMetaobjects(
-    applyMetaobjectQuery(type ? store.listEffectiveMetaobjectsByType(type) : [], args['query']),
+    applyMetaobjectQuery(
+      type ? store.listEffectiveMetaobjectsByType(type).filter(isMetaobjectVisibleInCatalog) : [],
+      args['query'],
+    ),
     args['sortKey'],
     args['reverse'],
   );

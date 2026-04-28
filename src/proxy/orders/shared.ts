@@ -30,6 +30,8 @@ import type {
 import { getFieldResponseKey, getSelectedChildFields as getGraphQLSelectedChildFields } from '../graphql-helpers.js';
 import { readMetafieldInputObjects, upsertOwnerMetafields } from '../metafields.js';
 
+export type MutationUserError = { field: string[] | null; message: string; code?: string | null };
+
 export function getSelectedChildFields(field: FieldNode): FieldNode[] {
   return getGraphQLSelectedChildFields(field, { includeInlineFragments: true });
 }
@@ -1958,7 +1960,7 @@ export function orderCustomerFromCustomer(customer: CustomerRecord): OrderCustom
 
 export function serializeSelectedUserErrors(
   field: FieldNode,
-  userErrors: Array<{ field: string[] | null; message: string }>,
+  userErrors: MutationUserError[],
 ): Array<Record<string, unknown>> {
   return userErrors.map((userError) => {
     const result: Record<string, unknown> = {};
@@ -1970,6 +1972,9 @@ export function serializeSelectedUserErrors(
           break;
         case 'message':
           result[key] = userError.message;
+          break;
+        case 'code':
+          result[key] = userError.code ?? null;
           break;
         default:
           result[key] = null;

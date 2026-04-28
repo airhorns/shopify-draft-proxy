@@ -2,7 +2,9 @@
 
 The orders group is broadly implemented in the operation registry, with explicit blockers documented for roots that still lack enough Shopify evidence. It covers orders, draft orders, order lifecycle mutations, fulfillment slices, refunds, and order editing.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Overlay reads:
 
@@ -69,11 +71,11 @@ Local staged mutations:
 - `orderEditSetQuantity`
 - `orderEditCommit`
 
-## Declared Gaps
+### Declared Gaps
 
 - `orderRiskAssessmentCreate` is a registry-only HAR-316 scaffold. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
 
-## Behavior notes
+### Behavior notes
 
 - Order and draft-order reads use the shared Shopify-style search parser for catalog, count, invalid-query, and pagination slices covered by parity fixtures.
 - Order fulfillment mutations stage locally in snapshot mode. `fulfillmentCreate` covers validation slices plus order-backed creation from local fulfillment orders, while `fulfillmentEventCreate`, `fulfillmentTrackingInfoUpdate`, and `fulfillmentCancel` update seeded or staged fulfillment records locally. Fulfillment-order request/cancellation roots stage against order-backed fulfillment orders: submit can split partial quantities into submitted/unsubmitted fulfillment orders, accept/reject fulfillment requests update request status, and cancellation submit/accept/reject preserves merchant request history. HAR-234 fulfillment-order lifecycle support stages held, released, moved, progress-reported, reopened, and cancelled fulfillment orders from the same order-owned fulfillment-order graph and keeps downstream nested/top-level reads consistent without upstream writes.
@@ -93,7 +95,7 @@ Local staged mutations:
 - `draftOrderTag` remains an explicit blocker rather than implemented support. HAR-318 live probing showed raw tag strings fail ID validation and guessed `gid://shopify/DraftOrderTag/<tag>` IDs return `null`; no exposed catalog in the current evidence produced a valid `DraftOrderTag` ID. The runtime can synthesize local staged tag IDs for internal helper reads, but the registry keeps the root unimplemented until a valid-ID capture exists.
 - `draftOrder(id:)` returns `null` for absent IDs. The `draft-order-by-id-not-found-read` parity scenario captures this missing-id behavior without relying on live upstream passthrough.
 - Draft-order detail parity now compares the captured `draftOrder(id:)` payload as a strict object for the selected phone, timestamp, subtotal/total, line-item unit-price, SKU/nullability, address, shipping-line, custom-attribute, discount, tax-exemption, and payment-terms fields. The current live detail capture returns `paymentTerms: null` for the merchant-realistic draft without terms and preserves empty line-item structures such as `customAttributes: []`, `appliedDiscount: null`, and variant-backed SKU/title nullability.
-- Local `Order.paymentTerms` and `DraftOrder.paymentTerms` reads preserve `null` for orders/drafts without terms. When normalized payment terms are present in the local graph, the serializer exposes selected scalar fields plus the nested `paymentSchedules` connection with shared cursor/window/pageInfo handling and schedule money fields (`amount`, `balanceDue`, `totalBalance`). The current runtime tests seed that normalized graph directly because live set-payment-terms success remains blocked by merchant permission on the conformance shop.
+- Local `Order.paymentTerms` and `DraftOrder.paymentTerms` reads preserve `null` for orders/drafts without terms. When normalized payment terms are present in the local graph, the serializer exposes selected scalar fields plus the nested `paymentSchedules` connection with shared cursor/window/pageInfo handling and schedule money fields (`amount`, `balanceDue`, `totalBalance`). The standalone `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` roots now stage against this same order/draft-order graph, so downstream reads observe creates, updates, and deletes immediately without runtime Shopify writes. The executable 2026-04 parity fixture uses a disposable draft order and confirms NET `dueAt` derivation, replacement schedule IDs on update, and null downstream terms after delete.
 - Shopify normalizes draft-order shipping lines created with `priceWithCurrency` to `code: "custom"`, `custom: true`, and matching `originalPriceSet` / `discountedPriceSet` shop-money amounts. The local serializer mirrors that shape and uses `null` for absent shipping lines after duplicate/create-from-order flows.
 - The captured DraftOrder detail read surface does not select `note`; local mutation payloads and downstream local reads still preserve staged note values, but live detail parity keeps note out of the strict object contract until Shopify exposes a selectable note field for this surface.
 - Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The order-edit conformance anchors are the captured existing-order workflow specs plus executable single-root begin/add/set/commit parity slices backed by those same workflow fixtures, so stale access-scope-only plans should not be reintroduced as blockers.
@@ -118,7 +120,9 @@ Local staged mutations:
 - The local payment implementation does not contact real payment gateways and intentionally limits itself to local/synthetic orders and transaction branches covered by runtime tests or safe documentation evidence. HAR-353 promotes the local order payment fixture to executable strict parity: `order-payment-transaction-local-staging` replays order creation, over-capture validation, partial/final capture, downstream order reads, void-after-capture validation, and missing mandate idempotency-key validation; sibling specs replay successful `transactionVoid` and idempotent `orderCreateMandatePayment` branches because those require mutually exclusive order payment state. Broader Plus-only and permission-specific mandate/capture branches still require live conformance evidence before they should be expanded.
 - `orderInvoiceSend` is handled locally for existing orders and does not send upstream invoice email. Safe live success recapture is side-effect-heavy and remains blocked unless a no-recipient disposable capture path is available; local runtime coverage verifies no upstream/email call is made. `taxSummaryCreate` mirrors the captured access-denied branch without invoking tax calculation services until tax-app semantics can be safely captured.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Order reads: `tests/integration/order-query-shapes.test.ts`
 - Abandoned checkouts and abandonments: `tests/integration/abandoned-checkout-query-shapes.test.ts`

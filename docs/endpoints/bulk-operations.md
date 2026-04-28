@@ -4,7 +4,9 @@ The Bulk Operations group covers Shopify Admin GraphQL's root-level asynchronous
 
 HAR-263 adds the shared in-memory `BulkOperation` job model plus local read/list/current/cancel handling. HAR-264 adds local `bulkOperationRunQuery` export staging with generated JSONL result records. HAR-265 adds the first mutation-import execution slice backed by the proxy's local staged upload handoff.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Local overlay reads:
 
@@ -22,7 +24,7 @@ Unsupported execution posture:
 
 - There is no intentional passthrough posture for this root group in the checked-in registry slice. Every known Bulk Operations root is intercepted locally, but support is bounded by the behavior below. Unsupported query export shapes and unsafe mutation import roots fail locally with explicit `userErrors`; they must not be normalized as permanent passthrough support or described as broad Shopify import/export support.
 
-## Current 2026-04 behavior and local coverage
+### Current 2026-04 behavior and local coverage
 
 `BulkOperation` represents an asynchronous query export or mutation import job. Current documented fields are `id`, `completedAt`, `createdAt`, `errorCode`, `fileSize`, `objectCount`, `partialDataUrl`, `query`, `rootObjectCount`, `status`, `type`, and `url`. Current Shopify bulk-operation docs also note that API versions `2026-01` and higher can run up to five bulk query operations at a time per shop; older versions allowed one query and one mutation operation at a time.
 
@@ -41,7 +43,7 @@ Current root behavior:
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated.
 - `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, staged non-terminal jobs transition to `CANCELING`; terminal and unknown jobs return captured userErrors without upstream access.
 
-## Local mutation import support
+### Local mutation import support
 
 `bulkOperationRunMutation` is local-only for inner mutation roots that already have a local bulk-import executor. A successful local import requires all of the following:
 
@@ -71,13 +73,13 @@ The scenario compares whole selected BulkOperation payload slices for empty read
 
 Path-scoped expected differences are limited to local infrastructure differences for staged query exports: synthetic BulkOperation IDs, local timestamps, local result URLs, and generated JSONL byte-size reporting. Those differences are not accepted at the scenario level and are checked per target.
 
-## Version drift
+### Version drift
 
 The checked-in 2025-01 root introspection fixture contains `bulkOperationRunQuery`, `bulkOperationRunMutation`, and `bulkOperationCancel` under `mutationRoot`. It does not contain the current documented read roots `bulkOperation`, `bulkOperations`, or deprecated `currentBulkOperation`.
 
 Future fixture refresh should confirm whether those reads were added after the captured 2025-01 schema, were unavailable to that conformance app/token, or were omitted for another version/scoping reason. Until then, HAR-261 records the query roots from 2026-04 docs and the mutation roots from both docs and the checked-in fixture.
 
-## Coverage boundaries
+### Coverage boundaries
 
 - Do not model these roots through product variant bulk operations. `productVariantsBulkCreate`, `productVariantsBulkUpdate`, and `productVariantsBulkDelete` are product-domain staging roots with immediate product read-after-write expectations.
 - Do not model these roots through inventory bulk toggles. `inventoryBulkToggleActivation` changes inventory activation state, not Admin API export/import jobs.
@@ -85,7 +87,7 @@ Future fixture refresh should confirm whether those reads were added after the c
 - Do not model these roots through `metaobjectBulkDelete`. Metaobject bulk delete is custom-data deletion behavior, not the generic `BulkOperation` job controller.
 - Do not add planned-only parity specs or parity request placeholders for this group. Add parity specs only after captured Shopify interactions can run as executable evidence with strict comparison targets.
 
-## Local state and behavior
+### Local state and behavior
 
 The normalized job model stores `id`, `status`, `type`, `errorCode`, `createdAt`, `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, `partialDataUrl`, `query`, and optional cursor metadata in base and staged state. Snapshot loading can seed base jobs, direct staging can add local jobs, and `POST /__meta/reset` restores the startup base snapshot while clearing staged jobs and logs.
 
@@ -134,7 +136,9 @@ BulkOperation jobs are inspectable through the standard meta surfaces:
 - `POST /__meta/reset` restores the startup snapshot and clears staged BulkOperation jobs, generated result records, staged uploads, and mutation logs.
 - `POST /__meta/commit` replays only staged mutation-log entries. For mutation imports, that means the inner mutation entries are sent upstream in JSONL line order; the outer `bulkOperationRunMutation` request is not replayed because it is stored as audit metadata for commit review.
 
-## Conformance evidence still needed
+## Historical and developer notes
+
+### Conformance evidence still needed
 
 - Validation/userErrors for malformed export queries, unsupported connections, nesting limits, overlapping active jobs, missing staged upload paths, and invalid mutation documents.
 - Full status transition behavior across `CREATED`, `RUNNING`, `CANCELING`, `CANCELED`, `COMPLETED`, `EXPIRED`, and `FAILED`, including result URL/partial-data URL expiry, counters, file sizes, and error codes.
@@ -142,7 +146,7 @@ BulkOperation jobs are inspectable through the standard meta surfaces:
 - Shopify's exact `bulkOperationRunMutation` result JSONL schema and partial-failure status/counter semantics for product import validation and malformed-line branches.
 - `bulkOperationRunQuery` parity for non-product roots, grouped output, active-job limits, failure/partial-data branches, and exact Shopify result URL expiry semantics.
 
-## Captured 2026-04 evidence
+### Captured 2026-04 evidence
 
 HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operation-status-catalog-cancel.json`. HAR-346 promotes the local read/cancel slice from fixture-only evidence to `captured-vs-proxy-request` parity: the generic `pnpm conformance:parity` runner seeds captured `BulkOperation` jobs into the local harness and strictly compares unknown-id reads, empty running-query/running-mutation lists, empty `currentBulkOperation(type: MUTATION)`, unknown/terminal cancel userErrors, staged local cancel, and read-after-local-cancel. HAR-264 extends that same fixture with downloaded product-export JSONL records, seeds those records into the local parity harness, replays `bulkOperationRunQuery`, and compares the completed local job plus downstream `bulkOperation(id:)` read to the captured Shopify terminal job with only synthetic IDs/timestamps/result URLs/file-size infrastructure differences allowed.
 
@@ -162,7 +166,7 @@ The fixture also captures two safe no-write product export lifecycles:
 - The completed query export fixture includes the downloaded JSONL records for `products { edges { node { id title } } }`; integration coverage replays those exact records through the local result URL.
 - A second query export was canceled immediately, returning `CANCELING` from `bulkOperationCancel` and later `CANCELED` from `bulkOperation(id:)`; its counters and result URL behavior are fixture-backed and should not be guessed from the completed branch.
 
-## Validation anchors
+### Validation anchors
 
 - Registry and schema checks: `tests/unit/operation-registry.test.ts`, `tests/unit/json-file-schemas.test.ts`
 - Root inventory discovery: `tests/unit/graphql-operation-coverage.test.ts`

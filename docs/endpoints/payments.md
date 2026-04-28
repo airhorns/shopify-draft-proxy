@@ -4,7 +4,9 @@ This endpoint group tracks Admin GraphQL payment-area roots whose behavior is se
 
 Order payment transaction mutations such as `orderCapture`, `transactionVoid`, and `orderCreateMandatePayment` are modeled with the order graph because their downstream reads are `Order` financial and transaction fields. Their local validation and payment-service safety notes live in `docs/endpoints/orders.md`.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 - `paymentCustomization(id:)`
 - `paymentCustomizations(...)`
@@ -13,10 +15,13 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 - `paymentCustomizationDelete`
 - `paymentCustomizationActivation`
 - `paymentTermsTemplates(paymentTermsType:)`
+- `paymentTermsCreate`
+- `paymentTermsUpdate`
+- `paymentTermsDelete`
 
 Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
-## Payment customizations
+### Payment customizations
 
 Payment customization records live in normalized state as `PaymentCustomizationRecord` rows keyed by Admin GID. Snapshot-mode reads return:
 
@@ -43,13 +48,13 @@ Lifecycle mutations stage against the same normalized records:
 
 Captured validation branches are modeled locally for missing create fields, missing Function id `gid://shopify/ShopifyFunction/0`, unknown update/delete ids, unknown activation ids, and empty activation id lists. The latest 2026-04 docs also expose `functionHandle`, `MULTIPLE_FUNCTION_IDENTIFIERS`, `FUNCTION_NOT_FOUND`, and `INVALID_METAFIELDS`; the local model accepts Function handles, rejects the captured invalid handle sentinels, rejects requests that provide both `functionId` and `functionHandle`, and rejects structurally invalid owner metafields. The current local model does not maintain a full Shopify Function catalog; successful create/update paths preserve the provided Function identifier and return `shopifyFunction` only if that field was present in normalized state.
 
-## Access Scopes And Capture Notes
+### Access Scopes And Capture Notes
 
 HAR-219 recorded that the refreshed 2026-04-25 conformance app can safely read payment customization empty/null behavior with `read_payment_customizations`, and HAR-223 captured that current empty/null slice in `payment-customization-empty-read`. The same conformance credential has `write_payment_customizations`; HAR-223 captured validation/error branches for missing Function ownership and unknown ids in `payment-customization-validation`.
 
 The current test store had no released `ShopifyFunction` nodes at capture time, so non-empty live happy-path create/update/delete/activation remains local-runtime evidence rather than a live Shopify parity contract. HAR-223 added and deployed the repo-local `conformance-payment-customization` Function extension to the conformance app, but the existing store install still returned an empty `shopifyFunctions` catalog afterward; a future live happy-path capture likely needs a refreshed app install/grant that can see the released Function. Non-empty detail, Function ownership, and error-history behavior should be promoted into fixtures/parity specs only after real interactions exist and the comparison contract is ready.
 
-## Finance, Risk, Disputes, And POS Cash
+### Finance, Risk, Disputes, And POS Cash
 
 HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
 
@@ -73,7 +78,7 @@ The `finance-risk-no-data-read` parity scenario enforces the implemented empty/n
 
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 
-## Payment terms templates
+### Payment terms templates
 
 `paymentTermsTemplates(paymentTermsType:)` is modeled as a read-only local catalog in snapshot and live-hybrid modes. The normalized default catalog is based on the 2025-01 `harry-test-heelo.myshopify.com` capture from 2026-04-27 and preserves Shopify's order and scalar values for:
 
@@ -82,12 +87,23 @@ Do not add planned-only parity specs for payment roots. Keep unsupported payment
 - `Net 7`, `Net 15`, `Net 30`, `Net 45`, `Net 60`, and `Net 90` (`NET`)
 - `Fixed` (`FIXED`, `dueInDays: null`)
 
-The optional `paymentTermsType` argument filters by exact enum value. Selected template fields currently include `id`, `name`, `description`, `dueInDays`, `paymentTermsType`, `translatedName`, and `__typename`. Payment terms lifecycle mutations (`paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete`) remain unsupported and may only pass through as unknown/unsupported operations; they are not registered as local capabilities.
+The optional `paymentTermsType` argument filters by exact enum value. Selected template fields currently include `id`, `name`, `description`, `dueInDays`, `paymentTermsType`, `translatedName`, and `__typename`.
 
-## Validation
+### Payment terms lifecycle
+
+`paymentTermsCreate(referenceId:, paymentTermsAttributes:)`, `paymentTermsUpdate(input:)`, and `paymentTermsDelete(input:)` are modeled as local-only order/draft-order graph updates. The payment root owns the Admin API entrypoint, but the staged state lives on `Order.paymentTerms` and `DraftOrder.paymentTerms` so immediate downstream reads observe the same normalized payment terms graph and payment schedule connection serializers used by order reads.
+
+Create supports eligible local `Order` and `DraftOrder` IDs as `referenceId`, builds a stable local `PaymentTerms` GID, and creates schedule GIDs for supplied schedules. Update locates existing local terms by `paymentTermsId`, preserves the terms ID and same-index schedule IDs, and reprojects template name/type/due-day fields from the local `paymentTermsTemplates` catalog. Delete locates terms by `paymentTermsId`, clears the owning order/draft-order field, and returns `deletedId`.
+
+Validation is local and does not append staged-write log entries for rejected branches. Captured evidence currently covers the draft-order create-time missing-template branch (`Payment terms template id can not be empty.`) and merchant permission blocker (`The user must have access to set payment terms.`). The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, missing or unknown template IDs, invalid NET/FIXED schedule requirements, missing update IDs, and duplicate deletes. Full live happy-path parity remains future work because these mutations alter real payment schedules.
+
+## Historical and developer notes
+
+### Validation
 
 - `tests/integration/payment-customization-query-shapes.test.ts`
 - `tests/integration/payment-terms-query-shapes.test.ts`
+- `tests/integration/payment-terms-lifecycle-flow.test.ts`
 - `config/parity-specs/finance-risk-no-data-read.json`
 - `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`

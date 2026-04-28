@@ -1,0 +1,431 @@
+{
+  "scenarioId": "metaobject-schema-change-lifecycle",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectDefinitionUpdate",
+    "metaobjectCreate",
+    "metaobjectUpdate",
+    "metaobjectDelete",
+    "metaobjectDefinitionByType",
+    "metaobject",
+    "metaobjectByHandle",
+    "metaobjects"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-schema-change-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/metaobject-schema-change-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobject-schema-change-definition-create.graphql",
+    "variablesCapturePath": "$.setup[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-payload",
+        "capturePath": "$.setup[0].response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "create-pre-schema-entry-payload",
+        "capturePath": "$.setup[1].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-create.graphql",
+          "variablesCapturePath": "$.setup[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "create-before-delete-entry-payload",
+        "capturePath": "$.setup[2].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-create.graphql",
+          "variablesCapturePath": "$.setup[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "delete-before-schema-payload",
+        "capturePath": "$.setup[3].response.data.metaobjectDelete",
+        "proxyPath": "$.data.metaobjectDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy deletes the synthetic staged ID while Shopify deleted the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "pre-schema-read",
+        "capturePath": "$.preSchemaReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-pre-schema-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.preSchemaReads[0].request.variables.handle"
+            },
+            "deletedId": {
+              "fromProxyResponse": "create-before-delete-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.detail.id",
+          "$.detail.updatedAt",
+          "$.byHandle.id",
+          "$.byHandle.updatedAt",
+          "$.catalog",
+          "$.definition.id"
+        ]
+      },
+      {
+        "name": "update-definition-payload",
+        "capturePath": "$.schemaChanges[0].response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-definition-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.schemaChanges[0].request.variables.definition"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "post-definition-update-read-existing-entry",
+        "capturePath": "$.finalReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-pre-schema-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.finalReads[0].request.variables.handle"
+            },
+            "deletedId": {
+              "fromProxyResponse": "create-before-delete-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.detail.id",
+          "$.detail.updatedAt",
+          "$.byHandle.id",
+          "$.byHandle.updatedAt",
+          "$.definition.id"
+        ]
+      },
+      {
+        "name": "post-schema-create-missing-required-summary",
+        "capturePath": "$.postSchemaValidation[0].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-create.graphql",
+          "variablesCapturePath": "$.postSchemaValidation[0].request.variables"
+        }
+      },
+      {
+        "name": "post-schema-update-removed-legacy-field",
+        "capturePath": "$.postSchemaValidation[1].response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-pre-schema-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.postSchemaValidation[1].request.variables.metaobject"
+            }
+          }
+        }
+      },
+      {
+        "name": "post-schema-update-existing-entry",
+        "capturePath": "$.postSchemaMutations[0].response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-pre-schema-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.postSchemaMutations[0].request.variables.metaobject"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy updates a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "post-schema-entry-create",
+        "capturePath": "$.postSchemaMutations[1].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-create.graphql",
+          "variablesCapturePath": "$.postSchemaMutations[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "post-schema-entry-update",
+        "capturePath": "$.postSchemaMutations[2].response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "post-schema-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.postSchemaMutations[2].request.variables.metaobject"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy updates a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "post-schema-delete-entry-create",
+        "capturePath": "$.postSchemaMutations[3].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-create.graphql",
+          "variablesCapturePath": "$.postSchemaMutations[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "post-schema-delete-entry-delete",
+        "capturePath": "$.postSchemaMutations[4].response.data.metaobjectDelete",
+        "proxyPath": "$.data.metaobjectDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-entry-delete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "post-schema-delete-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy deletes the synthetic staged ID while Shopify deleted the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "final-read-existing-entry",
+        "capturePath": "$.finalReads[1].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-pre-schema-entry-payload",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.finalReads[1].request.variables.handle"
+            },
+            "deletedId": {
+              "fromProxyResponse": "post-schema-delete-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.detail.id",
+          "$.detail.updatedAt",
+          "$.byHandle.id",
+          "$.byHandle.updatedAt",
+          "$.catalog.edges[*].cursor",
+          "$.catalog.edges[*].node.id",
+          "$.catalog.edges[*].node.updatedAt",
+          "$.catalog.nodes[*].id",
+          "$.catalog.nodes[*].updatedAt",
+          "$.catalog.pageInfo.startCursor",
+          "$.catalog.pageInfo.endCursor",
+          "$.definition.id"
+        ]
+      },
+      {
+        "name": "final-read-post-entry",
+        "capturePath": "$.finalReads[2].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobject-schema-change-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "post-schema-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "handle": {
+              "fromCapturePath": "$.finalReads[2].request.variables.handle"
+            },
+            "deletedId": {
+              "fromProxyResponse": "post-schema-delete-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.detail.id",
+          "$.detail.updatedAt",
+          "$.byHandle.id",
+          "$.byHandle.updatedAt",
+          "$.catalog.edges[*].cursor",
+          "$.catalog.edges[*].node.id",
+          "$.catalog.edges[*].node.updatedAt",
+          "$.catalog.nodes[*].id",
+          "$.catalog.nodes[*].updatedAt",
+          "$.catalog.pageInfo.startCursor",
+          "$.catalog.pageInfo.endCursor",
+          "$.definition.id"
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-245 records the live Shopify 2026-04 metaobject schema-change lifecycle: definition create, row create/update/delete before schema update, definition update with added required field, removed field, field order reset, displayNameKey change, validation change, and publishable capability disable, then row validation/add/update/delete after the schema edit. Captured behavior shows `resetFieldOrder` is an update-input field, not a top-level mutation argument; `MetaobjectFieldDefinitionUpdateInput` does not expose `type`; omitted publishable status defaults to DRAFT while the capability is enabled; pre-existing rows read the new required display field as null and fall back to a handle-derived displayName until updated; rows missing a required display field are omitted from immediate catalog reads. The pre-schema catalog branch is excluded from strict comparison because the live Admin search index had not materialized the newly active row immediately, while local staging intentionally exposes supported writes immediately."
+}
