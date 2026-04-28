@@ -26,8 +26,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "deliverySettingUpdate",
     "disputeEvidenceUpdate",
     "eventBridgeServerPixelUpdate",
-    "flowGenerateSignature",
-    "flowTriggerReceive",
     "fulfillmentConstraintRuleCreate",
     "fulfillmentConstraintRuleDelete",
     "fulfillmentConstraintRuleUpdate",
@@ -88,10 +86,8 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "webPixelCreate",
     "webPixelDelete",
     "webPixelUpdate",
-    "webPresenceDelete",
   ],
   "unregistered": [
-    "backupRegionUpdate",
     "orderDelete",
     "orderEditAddCustomItem",
     "orderEditAddLineItemDiscount",
@@ -146,7 +142,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "appSubscriptionTrialExtend",
   "appUninstall",
   "appUsageRecordCreate",
-  "backupRegionUpdate",
   "bulkProductResourceFeedbackCreate",
   "combinedListingUpdate",
   "companyContactSendWelcomeEmail",
@@ -162,8 +157,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "deliverySettingUpdate",
   "disputeEvidenceUpdate",
   "eventBridgeServerPixelUpdate",
-  "flowGenerateSignature",
-  "flowTriggerReceive",
   "fulfillmentConstraintRuleCreate",
   "fulfillmentConstraintRuleDelete",
   "fulfillmentConstraintRuleUpdate",
@@ -264,6 +257,5 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "webPixelCreate",
   "webPixelDelete",
   "webPixelUpdate",
-  "webPresenceDelete",
 ]
 `;

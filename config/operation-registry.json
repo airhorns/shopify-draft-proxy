@@ -227,6 +227,16 @@
     "supportNotes": "Snapshot-mode utility read support is fixture-backed by HAR-315 2026-04 capture for the current conformance shop's MarketRegionCountry. Broader shop-country region mapping remains a follow-up gap."
   },
   {
+    "name": "backupRegionUpdate",
+    "type": "mutation",
+    "domain": "admin-platform",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["backupRegionUpdate", "BackupRegionUpdate"],
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "HAR-374 stages captured backup-region updates locally without mutating Shopify at runtime. Conformance covers current-region idempotent success and REGION_NOT_FOUND validation; broader country mapping should be expanded only with captured evidence."
+  },
+  {
     "name": "staffMember",
     "type": "query",
     "domain": "admin-platform",
@@ -251,20 +261,20 @@
     "type": "mutation",
     "domain": "admin-platform",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["flowGenerateSignature", "FlowGenerateSignature"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local signature generation semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "HAR-374 generates deterministic proxy-local Flow signatures for local Flow trigger IDs, records only payload/signature hashes in meta state, preserves the raw mutation for commit replay, and mirrors captured RESOURCE_NOT_FOUND behavior for unknown FlowTrigger IDs."
   },
   {
     "name": "flowTriggerReceive",
     "type": "mutation",
     "domain": "admin-platform",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["flowTriggerReceive", "FlowTriggerReceive"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-315 side-effect utility gap. Do not support until local trigger receive semantics, downstream Flow behavior, and raw commit replay are modeled without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
+    "supportNotes": "HAR-374 records local Flow trigger receipts for explicit local handles without external delivery, preserves raw mutations for commit replay, and mirrors captured invalid-handle and 50000-byte payload validation branches."
   },
   {
     "name": "app",
@@ -5958,7 +5968,7 @@
     "implemented": true,
     "matchNames": ["customerSegmentMembers", "CustomerSegmentMembers"],
     "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
-    "supportNotes": "HAR-217 captured member connection behavior for query, queryId, and segmentId reads. Local support is intentionally limited to number_of_orders numeric comparisons and customer_tags CONTAINS string matches over effective customer state; unsupported segment grammar is not claimed."
+    "supportNotes": "HAR-217 captured member connection behavior for query, queryId, and segmentId reads. Local support is intentionally limited to number_of_orders numeric comparisons plus customer_tags CONTAINS / NOT CONTAINS string matches over effective customer state; unsupported segment grammar is not claimed."
   },
   {
     "name": "customerSegmentMembersQuery",
@@ -5988,7 +5998,7 @@
     "implemented": true,
     "matchNames": ["customerSegmentMembersQueryCreate", "CustomerSegmentMembersQueryCreate"],
     "runtimeTests": ["tests/integration/customer-segment-member-flow.test.ts"],
-    "supportNotes": "HAR-217 locally stages query jobs and retains the original raw mutation for commit replay. Creation returns Shopify-like pending job fields while the stored local job is immediately available for downstream lookup/member reads."
+    "supportNotes": "HAR-217 locally stages query jobs and retains the original raw mutation for commit replay. Creation returns Shopify-like pending job fields while the stored local job is immediately available for downstream lookup/member reads; HAR-395 adds live-backed NOT CONTAINS tag grammar coverage."
   },
   {
     "name": "segmentCreate",
@@ -5998,7 +6008,7 @@
     "implemented": true,
     "matchNames": ["segmentCreate", "SegmentCreate"],
     "runtimeTests": ["tests/integration/segment-lifecycle-flow.test.ts"],
-    "supportNotes": "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads."
+    "supportNotes": "HAR-216 stages segment creation locally with synthetic IDs/timestamps, captured blank/invalid-query validation, Shopify-like duplicate-name suffixing, and downstream segment catalog/count/detail reads; HAR-395 adds live-backed NOT CONTAINS tag grammar coverage."
   },
   {
     "name": "segmentUpdate",
@@ -6347,9 +6357,9 @@
     "type": "mutation",
     "domain": "markets",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["webPresenceDelete", "WebPresenceDelete"],
-    "runtimeTests": []
+    "runtimeTests": ["tests/integration/markets-lifecycle-flow.test.ts"]
   },
   {
     "name": "marketLocalizationsRegister",
