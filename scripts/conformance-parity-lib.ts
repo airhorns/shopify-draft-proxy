@@ -1955,12 +1955,19 @@ function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | nul
   const initialValue = readMoneyRecord(readRecordField(source, 'initialValue'));
   const balance = readMoneyRecord(readRecordField(source, 'balance') ?? readRecordField(source, 'initialValue'));
   const transactionNodes = readArrayField(readRecordField(source, 'transactions'), 'nodes').filter(isPlainObject);
+  const recipientAttributesSource = readRecordField(source, 'recipientAttributes');
+  const recipientSource = readRecordField(recipientAttributesSource, 'recipient');
+  const recipientId =
+    readNullableStringField(recipientSource, 'id') ??
+    readNullableStringField(readRecordField(source, 'recipient'), 'id');
 
   return {
     id,
     legacyResourceId: readNullableStringField(source, 'legacyResourceId') ?? giftCardTail(id),
     lastCharacters,
-    maskedCode: readStringField(source, 'maskedCode') ?? `**** **** **** ${lastCharacters}`,
+    maskedCode:
+      readStringField(source, 'maskedCode') ??
+      `\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ${lastCharacters}`,
     enabled: readBooleanField(source, 'enabled') ?? true,
     deactivatedAt: readNullableStringField(source, 'deactivatedAt'),
     expiresOn: readNullableStringField(source, 'expiresOn'),
@@ -1971,7 +1978,15 @@ function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | nul
     initialValue,
     balance,
     customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
-    recipientId: readNullableStringField(readRecordField(source, 'recipient'), 'id'),
+    recipientId,
+    recipientAttributes: recipientAttributesSource
+      ? {
+          id: recipientId,
+          message: readNullableStringField(recipientAttributesSource, 'message'),
+          preferredName: readNullableStringField(recipientAttributesSource, 'preferredName'),
+          sendNotificationAt: readNullableStringField(recipientAttributesSource, 'sendNotificationAt'),
+        }
+      : null,
     transactions: transactionNodes.map((transaction) => {
       const amount = readMoneyRecord(readRecordField(transaction, 'amount'));
       return {
