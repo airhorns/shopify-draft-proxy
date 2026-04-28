@@ -556,6 +556,15 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
   return result;
 }
 
+export function serializeFileNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  const file = getEffectiveFileLikeRecord(runtime, id);
+  return file ? serializeFileSelectionSet(file, selections) : null;
+}
+
 function serializeFilesConnection(
   runtime: ProxyRuntimeContext,
   field: FieldNode,

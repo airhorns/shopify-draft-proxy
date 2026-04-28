@@ -7245,11 +7245,61 @@ function seedBulkOperationPreconditions(runtime: ProxyRuntimeContext, capture: u
   return baseOperations.size > 0 || stagedImmediateCancelOperation !== null || seededBulkResultProducts > 0;
 }
 
+function seedAdminPlatformNodePreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
+  const nodeSeeds = readRecordField(capture as Record<string, unknown>, 'nodeSeeds');
+  if (!nodeSeeds) {
+    return;
+  }
+
+  const products = readArrayField(nodeSeeds, 'products')
+    .filter(isPlainObject)
+    .map((product) => {
+      const id = readStringField(product, 'id');
+      return id?.startsWith('gid://shopify/Product/') ? makeSeedProduct(id, product) : null;
+    })
+    .filter((product): product is ProductRecord => product !== null);
+  if (products.length > 0) {
+    runtime.store.upsertBaseProducts(products);
+  }
+
+  const collections = readArrayField(nodeSeeds, 'collections')
+    .filter(isPlainObject)
+    .map((collection) => {
+      const id = readStringField(collection, 'id');
+      return id?.startsWith('gid://shopify/Collection/') ? makeSeedCollection(id, collection) : null;
+    })
+    .filter((collection): collection is CollectionRecord => collection !== null);
+  if (collections.length > 0) {
+    runtime.store.upsertBaseCollections(collections);
+  }
+
+  const customers = readArrayField(nodeSeeds, 'customers')
+    .filter(isPlainObject)
+    .map((customer) => {
+      const id = readStringField(customer, 'id');
+      return id?.startsWith('gid://shopify/Customer/') ? makeSeedCustomer(id, customer) : null;
+    })
+    .filter((customer): customer is CustomerRecord => customer !== null);
+  if (customers.length > 0) {
+    runtime.store.upsertBaseCustomers(customers);
+  }
+
+  const locations = readArrayField(nodeSeeds, 'locations')
+    .filter(isPlainObject)
+    .map((location) => readLocationRecord(location))
+    .filter((location): location is LocationRecord => location !== null);
+  if (locations.length > 0) {
+    runtime.store.upsertBaseLocations(locations);
+  }
+}
+
 function seedPreconditionsFromCapture(
   runtime: ProxyRuntimeContext,
   capture: unknown,
   variables: Record<string, unknown>,
 ): void {
+  seedAdminPlatformNodePreconditions(runtime, capture);
+
   if (seedBulkVariantValidationAtomicityPreconditions(runtime, capture)) {
     return;
   }

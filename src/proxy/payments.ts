@@ -374,6 +374,15 @@ function serializePaymentTermsTemplate(
   return result;
 }
 
+export function serializePaymentTermsTemplateNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  const template = runtime.store.getEffectivePaymentTermsTemplateById(id);
+  return template ? serializePaymentTermsTemplate(template, field) : null;
+}
+
 function serializeEmptyConnectionSelection(field: FieldNode): Record<string, unknown> {
   const connection: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {

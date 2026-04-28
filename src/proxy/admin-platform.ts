@@ -1,11 +1,30 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash, createHmac } from 'node:crypto';
-import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { BackupRegionRecord, ShopDomainRecord } from '../state/types.js';
-import { serializeConnection } from './graphql-helpers.js';
-import { serializeProductBulkSelection } from './products.js';
+import { handleB2BQuery } from './b2b.js';
+import { handleBulkOperationQuery } from './bulk-operations.js';
+import { handleCustomerQuery } from './customers.js';
+import { handleDeliveryProfileQuery } from './delivery-profiles.js';
+import { handleDiscountQuery } from './discounts.js';
+import { handleFunctionQuery } from './functions.js';
+import { handleGiftCardQuery } from './gift-cards.js';
+import { getDocumentFragments, isPlainObject, serializeConnection, type FragmentMap } from './graphql-helpers.js';
+import { handleMarketingQuery } from './marketing.js';
+import { handleMarketsQuery } from './markets.js';
+import { serializeFileNodeById } from './media.js';
+import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
+import { handleOnlineStoreQuery } from './online-store.js';
+import { handleOrderQuery } from './orders/query.js';
+import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
+import { handleProductQuery } from './products.js';
+import { serializeSavedSearchNodeById } from './saved-searches.js';
+import { handleSegmentsQuery } from './segments.js';
+import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
+import { handleWebhookSubscriptionQuery } from './webhooks.js';
 
 interface GraphQLResponseError {
   message: string;
@@ -307,36 +326,344 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
   return result;
 }
 
+type LocalNodeQueryHandler = (
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+) => unknown;
+
+interface LocalNodeResolver {
+  rootField: string;
+  typename: string;
+  handler: LocalNodeQueryHandler;
+  typeConditions?: readonly string[];
+}
+
+type DirectLocalNodeResolver = Omit<LocalNodeResolver, 'handler' | 'rootField'> & {
+  rootField?: undefined;
+  serialize: (
+    runtime: ProxyRuntimeContext,
+    id: string,
+    selectedFields: readonly FieldNode[],
+    variables: Record<string, unknown>,
+    fragments: FragmentMap,
+  ) => Record<string, unknown> | null;
+};
+
+type AdminPlatformNodeResolver = LocalNodeResolver | DirectLocalNodeResolver;
+
+const PROXY_NODE_RESPONSE_KEY = 'proxyNode';
+const PROXY_NODE_ID_VARIABLE = 'proxyNodeId';
+const handleProductNodeQuery: LocalNodeQueryHandler = (runtime, document, variables) =>
+  handleProductQuery(runtime, document, variables, 'snapshot');
+
+const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
+  Product: { rootField: 'product', typename: 'Product', handler: handleProductNodeQuery },
+  ProductVariant: { rootField: 'productVariant', typename: 'ProductVariant', handler: handleProductNodeQuery },
+  InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
+  InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
+  InventoryShipment: { rootField: 'inventoryShipment', typename: 'InventoryShipment', handler: handleProductNodeQuery },
+  InventoryTransfer: { rootField: 'inventoryTransfer', typename: 'InventoryTransfer', handler: handleProductNodeQuery },
+  Collection: { rootField: 'collection', typename: 'Collection', handler: handleProductNodeQuery },
+  Channel: { rootField: 'channel', typename: 'Channel', handler: handleProductNodeQuery },
+  Publication: { rootField: 'publication', typename: 'Publication', handler: handleProductNodeQuery },
+  ProductFeed: { rootField: 'productFeed', typename: 'ProductFeed', handler: handleProductNodeQuery },
+  ProductBundleOperation: {
+    rootField: 'productOperation',
+    typename: 'ProductBundleOperation',
+    handler: handleProductNodeQuery,
+    typeConditions: ['ProductOperation'],
+  },
+  ProductDuplicateOperation: {
+    rootField: 'productOperation',
+    typename: 'ProductDuplicateOperation',
+    handler: handleProductNodeQuery,
+    typeConditions: ['ProductOperation'],
+  },
+  ProductSetOperation: {
+    rootField: 'productOperation',
+    typename: 'ProductSetOperation',
+    handler: handleProductNodeQuery,
+    typeConditions: ['ProductOperation'],
+  },
+  SellingPlanGroup: { rootField: 'sellingPlanGroup', typename: 'SellingPlanGroup', handler: handleProductNodeQuery },
+
+  Customer: { rootField: 'customer', typename: 'Customer', handler: handleCustomerQuery },
+  CustomerPaymentMethod: {
+    rootField: 'customerPaymentMethod',
+    typename: 'CustomerPaymentMethod',
+    handler: handleCustomerQuery,
+  },
+  StoreCreditAccount: { rootField: 'storeCreditAccount', typename: 'StoreCreditAccount', handler: handleCustomerQuery },
+
+  Company: { rootField: 'company', typename: 'Company', handler: handleB2BQuery },
+  CompanyContact: { rootField: 'companyContact', typename: 'CompanyContact', handler: handleB2BQuery },
+  CompanyContactRole: { rootField: 'companyContactRole', typename: 'CompanyContactRole', handler: handleB2BQuery },
+  CompanyLocation: { rootField: 'companyLocation', typename: 'CompanyLocation', handler: handleB2BQuery },
+
+  BusinessEntity: { rootField: 'businessEntity', typename: 'BusinessEntity', handler: handleStorePropertiesQuery },
+  Location: { rootField: 'location', typename: 'Location', handler: handleStorePropertiesQuery },
+  Shop: {
+    typename: 'Shop',
+    serialize: (runtime, id, selectedFields) => serializeShopNodeById(runtime, id, selectedFields),
+  },
+  DeliveryCarrierService: {
+    rootField: 'carrierService',
+    typename: 'DeliveryCarrierService',
+    handler: handleStorePropertiesQuery,
+  },
+
+  PaymentCustomization: {
+    rootField: 'paymentCustomization',
+    typename: 'PaymentCustomization',
+    handler: handlePaymentQuery,
+  },
+  PaymentTermsTemplate: {
+    typename: 'PaymentTermsTemplate',
+    serialize: (runtime, id, selectedFields) =>
+      serializePaymentTermsTemplateNodeById(runtime, id, syntheticNodeField(selectedFields)),
+  },
+  Validation: { rootField: 'validation', typename: 'Validation', handler: handleFunctionQuery },
+
+  BulkOperation: { rootField: 'bulkOperation', typename: 'BulkOperation', handler: handleBulkOperationQuery },
+  MetafieldDefinition: {
+    rootField: 'metafieldDefinition',
+    typename: 'MetafieldDefinition',
+    handler: handleMetafieldDefinitionQuery,
+  },
+  Metaobject: { rootField: 'metaobject', typename: 'Metaobject', handler: handleMetaobjectDefinitionQuery },
+  MetaobjectDefinition: {
+    rootField: 'metaobjectDefinition',
+    typename: 'MetaobjectDefinition',
+    handler: handleMetaobjectDefinitionQuery,
+  },
+
+  Order: { rootField: 'order', typename: 'Order', handler: handleOrderQuery },
+  Return: { rootField: 'return', typename: 'Return', handler: handleOrderQuery },
+  Fulfillment: { rootField: 'fulfillment', typename: 'Fulfillment', handler: handleOrderQuery },
+  FulfillmentOrder: { rootField: 'fulfillmentOrder', typename: 'FulfillmentOrder', handler: handleOrderQuery },
+  ReverseDelivery: { rootField: 'reverseDelivery', typename: 'ReverseDelivery', handler: handleOrderQuery },
+  ReverseFulfillmentOrder: {
+    rootField: 'reverseFulfillmentOrder',
+    typename: 'ReverseFulfillmentOrder',
+    handler: handleOrderQuery,
+  },
+  DraftOrder: { rootField: 'draftOrder', typename: 'DraftOrder', handler: handleOrderQuery },
+  Abandonment: { rootField: 'abandonment', typename: 'Abandonment', handler: handleOrderQuery },
+
+  GiftCard: { rootField: 'giftCard', typename: 'GiftCard', handler: handleGiftCardQuery },
+  DeliveryProfile: { rootField: 'deliveryProfile', typename: 'DeliveryProfile', handler: handleDeliveryProfileQuery },
+
+  DiscountCodeNode: { rootField: 'codeDiscountNode', typename: 'DiscountCodeNode', handler: handleDiscountQuery },
+  DiscountAutomaticNode: {
+    rootField: 'automaticDiscountNode',
+    typename: 'DiscountAutomaticNode',
+    handler: handleDiscountQuery,
+  },
+
+  MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
+  MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
+  WebhookSubscription: {
+    rootField: 'webhookSubscription',
+    typename: 'WebhookSubscription',
+    handler: handleWebhookSubscriptionQuery,
+  },
+  Segment: { rootField: 'segment', typename: 'Segment', handler: handleSegmentsQuery },
+  CustomerSegmentMembersQuery: {
+    rootField: 'customerSegmentMembersQuery',
+    typename: 'CustomerSegmentMembersQuery',
+    handler: handleSegmentsQuery,
+  },
+
+  Market: { rootField: 'market', typename: 'Market', handler: handleMarketsQuery },
+  MarketCatalog: {
+    rootField: 'catalog',
+    typename: 'MarketCatalog',
+    handler: handleMarketsQuery,
+    typeConditions: ['Catalog'],
+  },
+  PriceList: { rootField: 'priceList', typename: 'PriceList', handler: handleMarketsQuery },
+
+  Article: { rootField: 'article', typename: 'Article', handler: handleOnlineStoreQuery },
+  Blog: { rootField: 'blog', typename: 'Blog', handler: handleOnlineStoreQuery },
+  Page: { rootField: 'page', typename: 'Page', handler: handleOnlineStoreQuery },
+  Comment: { rootField: 'comment', typename: 'Comment', handler: handleOnlineStoreQuery },
+  OnlineStoreTheme: { rootField: 'theme', typename: 'OnlineStoreTheme', handler: handleOnlineStoreQuery },
+  ScriptTag: { rootField: 'scriptTag', typename: 'ScriptTag', handler: handleOnlineStoreQuery },
+  WebPixel: { rootField: 'webPixel', typename: 'WebPixel', handler: handleOnlineStoreQuery },
+  ServerPixel: { rootField: 'serverPixel', typename: 'ServerPixel', handler: handleOnlineStoreQuery },
+
+  GenericFile: {
+    typename: 'GenericFile',
+    typeConditions: ['File'],
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
+  },
+  MediaImage: {
+    typename: 'MediaImage',
+    typeConditions: ['File'],
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
+  },
+  Video: {
+    typename: 'Video',
+    typeConditions: ['File'],
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
+  },
+  ExternalVideo: {
+    typename: 'ExternalVideo',
+    typeConditions: ['File'],
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
+  },
+  Model3d: {
+    typename: 'Model3d',
+    typeConditions: ['File'],
+    serialize: (runtime, id, selectedFields) => serializeFileNodeById(runtime, id, selectedFields),
+  },
+  SavedSearch: {
+    typename: 'SavedSearch',
+    serialize: (runtime, id, selectedFields, _variables, fragments) =>
+      serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
+  },
+};
+
+function syntheticNodeField(selectedFields: readonly FieldNode[]): FieldNode {
+  return {
+    kind: Kind.FIELD,
+    name: {
+      kind: Kind.NAME,
+      value: PROXY_NODE_RESPONSE_KEY,
+    },
+    selectionSet: {
+      kind: Kind.SELECTION_SET,
+      selections: [...selectedFields],
+    },
+  };
+}
+
+export function listSupportedAdminPlatformNodeTypes(): string[] {
+  return ['Domain', ...Object.values(LOCAL_NODE_RESOLVERS).map((resolver) => resolver.typename)].sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+export function listAdminPlatformNodeResolverEntries(): Array<{
+  gidType: string;
+  nodeType: string;
+  rootField: string | null;
+}> {
+  return Object.entries(LOCAL_NODE_RESOLVERS)
+    .map(([gidType, resolver]) => ({
+      gidType,
+      nodeType: resolver.typename,
+      rootField: resolver.rootField ?? null,
+    }))
+    .concat({ gidType: 'Domain', nodeType: 'Domain', rootField: 'domain' })
+    .sort((left, right) => left.nodeType.localeCompare(right.nodeType));
+}
+
+function readShopifyGidType(id: string): string | null {
+  const match = /^gid:\/\/shopify\/([^/?#]+)\/[^?#]+(?:[?#].*)?$/u.exec(id);
+  return match?.[1] ?? null;
+}
+
+function nodeTypeConditionApplies(typeCondition: string | undefined, resolver: AdminPlatformNodeResolver): boolean {
+  if (!typeCondition || typeCondition === 'Node' || typeCondition === resolver.typename) {
+    return true;
+  }
+
+  return resolver.typeConditions?.includes(typeCondition) ?? false;
+}
+
+function collectApplicableNodeFields(
+  selections: readonly SelectionNode[],
+  resolver: AdminPlatformNodeResolver,
+  fragments: FragmentMap,
+): FieldNode[] {
+  return selections.flatMap((selection): FieldNode[] => {
+    if (selection.kind === Kind.FIELD) {
+      return [selection];
+    }
+
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return nodeTypeConditionApplies(selection.typeCondition?.name.value, resolver)
+        ? collectApplicableNodeFields(selection.selectionSet.selections, resolver, fragments)
+        : [];
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      return fragment && nodeTypeConditionApplies(fragment.typeCondition.name.value, resolver)
+        ? collectApplicableNodeFields(fragment.selectionSet.selections, resolver, fragments)
+        : [];
+    }
+
+    return [];
+  });
+}
+
+function applySelectedTypename(
+  payload: Record<string, unknown>,
+  fields: readonly FieldNode[],
+  typename: string,
+): Record<string, unknown> {
+  for (const field of fields) {
+    if (field.name.value === '__typename') {
+      payload[responseKey(field)] = typename;
+    }
+  }
+  return payload;
+}
+
 function serializeLocalNodeById(
   runtime: ProxyRuntimeContext,
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
+  fragments: FragmentMap,
 ): Record<string, unknown> | null {
-  if (id.startsWith('gid://shopify/Product/')) {
-    const product = runtime.store.getEffectiveProductById(id);
-    return product ? serializeProductBulkSelection(runtime, product, selections, variables) : null;
-  }
-
   if (id.startsWith('gid://shopify/Domain/')) {
     const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
     return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
   }
 
-  return null;
+  const gidType = readShopifyGidType(id);
+  const resolver = gidType ? LOCAL_NODE_RESOLVERS[gidType] : undefined;
+  if (!resolver) {
+    return null;
+  }
+
+  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
+  if (selectedFields.length === 0) {
+    return {};
+  }
+
+  if ('serialize' in resolver) {
+    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
+  }
+
+  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
+  const response = resolver.handler(runtime, syntheticDocument, {
+    ...variables,
+    [PROXY_NODE_ID_VARIABLE]: id,
+  });
+  const payload =
+    isPlainObject(response) && isPlainObject(response['data'])
+      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+      : null;
+  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
 }
 
 function serializeNode(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
+  fragments: FragmentMap,
 ): Record<string, unknown> | null {
   const id = readIdArgument(field, variables);
   if (!id) {
     return null;
   }
 
-  return serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables);
+  return serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments);
 }
 
 function fieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
@@ -541,6 +868,7 @@ export function handleAdminPlatformQuery(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const fields = getRootFields(document);
+  const fragments = getDocumentFragments(document);
   const context: SerializationContext = { errors: [] };
   const data: Record<string, unknown> = {};
 
@@ -553,11 +881,11 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'node':
-        data[key] = serializeNode(runtime, field, variables);
+        data[key] = serializeNode(runtime, field, variables, fragments);
         break;
       case 'nodes':
         data[key] = readIdListArgument(field, variables).map((id) =>
-          serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables),
+          serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables, fragments),
         );
         break;
       case 'job':
