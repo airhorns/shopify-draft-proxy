@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-28T02:37:10.821Z",
+  "capturedAt": "2026-04-28T10:41:03.116Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "introspection": {
@@ -307,6 +307,36 @@
       ]
     }
   },
+  "nodeSeeds": {
+    "products": [
+      {
+        "id": "gid://shopify/Product/9801098789170",
+        "title": "The Inventory Not Tracked Snowboard",
+        "handle": "the-inventory-not-tracked-snowboard"
+      }
+    ],
+    "collections": [
+      {
+        "id": "gid://shopify/Collection/494967390514",
+        "title": "Home page",
+        "handle": "frontpage"
+      }
+    ],
+    "customers": [
+      {
+        "id": "gid://shopify/Customer/9522206933298",
+        "displayName": "Karine Ruby",
+        "email": "karine.ruby@example.com"
+      }
+    ],
+    "locations": [
+      {
+        "id": "gid://shopify/Location/106318463282",
+        "name": "My Custom Location",
+        "isActive": true
+      }
+    ]
+  },
   "captures": {
     "publicApiVersions": {
       "query": "#graphql\n  query PublicApiVersionsRead {\n    publicApiVersions {\n      handle\n      displayName\n      supported\n    }\n  }\n",
@@ -353,7 +383,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1995,
+                "currentlyAvailable": 1997,
                 "restoreRate": 100
               }
             }
@@ -473,6 +503,118 @@
               "throttleStatus": {
                 "maximumAvailable": 2000,
                 "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "supportedNodeSeeds": {
+      "query": "#graphql\n  query SupportedNodeSeedRead {\n    products(first: 1) {\n      nodes {\n        id\n        title\n        handle\n      }\n    }\n    collections(first: 1) {\n      nodes {\n        id\n        title\n        handle\n      }\n    }\n    customers(first: 1) {\n      nodes {\n        id\n        displayName\n        email\n      }\n    }\n    locations(first: 1) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "handle": "the-inventory-not-tracked-snowboard"
+                }
+              ]
+            },
+            "collections": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Collection/494967390514",
+                  "title": "Home page",
+                  "handle": "frontpage"
+                }
+              ]
+            },
+            "customers": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Customer/9522206933298",
+                  "displayName": "Karine Ruby",
+                  "email": "karine.ruby@example.com"
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "supportedNodes": {
+      "query": "#graphql\n  query SupportedNodeRead($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      ... on Node {\n        id\n      }\n      ... on Product {\n        title\n        handle\n      }\n      ... on Collection {\n        title\n        handle\n      }\n      ... on Customer {\n        displayName\n        email\n      }\n      ... on Location {\n        name\n        isActive\n      }\n    }\n  }\n",
+      "variables": {
+        "ids": [
+          "gid://shopify/Product/9801098789170",
+          "gid://shopify/Collection/494967390514",
+          "gid://shopify/Customer/9522206933298",
+          "gid://shopify/Location/106318463282"
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard",
+                "handle": "the-inventory-not-tracked-snowboard"
+              },
+              {
+                "__typename": "Collection",
+                "id": "gid://shopify/Collection/494967390514",
+                "title": "Home page",
+                "handle": "frontpage"
+              },
+              {
+                "__typename": "Customer",
+                "id": "gid://shopify/Customer/9522206933298",
+                "displayName": "Karine Ruby",
+                "email": "karine.ruby@example.com"
+              },
+              {
+                "__typename": "Location",
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location",
+                "isActive": true
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
                 "restoreRate": 100
               }
             }
@@ -656,7 +798,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1989,
                 "restoreRate": 100
               }
             }

@@ -5,7 +5,13 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
-import type { ProductRecord, ShopRecord } from '../../src/state/types.js';
+import type {
+  B2BCompanyRecord,
+  BulkOperationRecord,
+  CustomerRecord,
+  ProductRecord,
+  ShopRecord,
+} from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -42,6 +48,67 @@ function makeProduct(id: string, title: string): ProductRecord {
       description: null,
     },
     category: null,
+  };
+}
+
+function makeCustomer(id: string, email: string): CustomerRecord {
+  return {
+    id,
+    firstName: 'Relay',
+    lastName: 'Customer',
+    displayName: 'Relay Customer',
+    email,
+    legacyResourceId: id.split('/').at(-1) ?? null,
+    locale: 'en',
+    note: null,
+    canDelete: true,
+    verifiedEmail: true,
+    taxExempt: false,
+    state: 'DISABLED',
+    tags: [],
+    numberOfOrders: 0,
+    amountSpent: { amount: '0.00', currencyCode: 'USD' },
+    defaultEmailAddress: { emailAddress: email },
+    defaultPhoneNumber: null,
+    defaultAddress: null,
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+  };
+}
+
+function makeCompany(id: string): B2BCompanyRecord {
+  return {
+    id,
+    contactIds: [],
+    locationIds: [],
+    contactRoleIds: [],
+    data: {
+      id,
+      name: 'Relay Company',
+      note: 'B2B account',
+      externalId: 'relay-company',
+      createdAt: '2025-03-26T19:51:37Z',
+      updatedAt: '2025-03-26T19:51:38Z',
+      contactsCount: { count: 0 },
+      locationsCount: { count: 0 },
+    },
+  };
+}
+
+function makeBulkOperation(id: string): BulkOperationRecord {
+  return {
+    id,
+    status: 'COMPLETED',
+    type: 'QUERY',
+    errorCode: null,
+    createdAt: '2026-04-27T00:00:00Z',
+    completedAt: '2026-04-27T00:01:00Z',
+    objectCount: '2',
+    rootObjectCount: '1',
+    fileSize: '200',
+    url: 'https://example.com/bulk-result.jsonl',
+    partialDataUrl: null,
+    query: '{ products { edges { node { id title } } } }',
   };
 }
 
@@ -384,6 +451,77 @@ describe('admin platform utility query shapes', () => {
             sslEnabled: true,
           },
           null,
+          null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves supported resource GIDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported admin platform node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseCustomers([makeCustomer('gid://shopify/Customer/8801', 'relay-customer@example.com')]);
+    store.upsertBaseB2BCompanies([makeCompany('gid://shopify/Company/200')]);
+    store.upsertBaseBulkOperations([makeBulkOperation('gid://shopify/BulkOperation/101')]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query SupportedNodeResolution($customerId: ID!, $ids: [ID!]!) {
+          customerNode: node(id: $customerId) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Customer {
+              email
+              displayName
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Company {
+              name
+            }
+            ... on BulkOperation {
+              status
+              type
+            }
+          }
+        }`,
+        variables: {
+          customerId: 'gid://shopify/Customer/8801',
+          ids: ['gid://shopify/Company/200', 'gid://shopify/BulkOperation/101', 'gid://shopify/InventoryItem/404'],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        customerNode: {
+          __typename: 'Customer',
+          nodeId: 'gid://shopify/Customer/8801',
+          email: 'relay-customer@example.com',
+          displayName: 'Relay Customer',
+        },
+        nodes: [
+          {
+            __typename: 'Company',
+            nodeId: 'gid://shopify/Company/200',
+            name: 'Relay Company',
+          },
+          {
+            __typename: 'BulkOperation',
+            nodeId: 'gid://shopify/BulkOperation/101',
+            status: 'COMPLETED',
+            type: 'QUERY',
+          },
           null,
         ],
       },

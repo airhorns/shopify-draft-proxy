@@ -180,6 +180,66 @@ const taxonomyEmptySearchQuery = `#graphql
   }
 `;
 
+const supportedNodeSeedQuery = `#graphql
+  query SupportedNodeSeedRead {
+    products(first: 1) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    collections(first: 1) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    customers(first: 1) {
+      nodes {
+        id
+        displayName
+        email
+      }
+    }
+    locations(first: 1) {
+      nodes {
+        id
+        name
+        isActive
+      }
+    }
+  }
+`;
+
+const supportedNodesQuery = `#graphql
+  query SupportedNodeRead($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      ... on Node {
+        id
+      }
+      ... on Product {
+        title
+        handle
+      }
+      ... on Collection {
+        title
+        handle
+      }
+      ... on Customer {
+        displayName
+        email
+      }
+      ... on Location {
+        name
+        isActive
+      }
+    }
+  }
+`;
+
 const staffAccessBlockerQuery = `#graphql
   query StaffUtilityRead {
     staffMember {
@@ -309,6 +369,18 @@ const rootTypes = {
     introspection.payload.data?.mutationRoot?.fields?.filter((field) => utilityRootNames.has(field.name)) ?? [],
 };
 
+const supportedNodeSeed = {
+  query: supportedNodeSeedQuery,
+  result: await runGraphqlCapture(supportedNodeSeedQuery),
+};
+const supportedNodeSeedData = supportedNodeSeed.result.payload.data ?? {};
+const supportedNodeIds = [
+  supportedNodeSeedData.products?.nodes?.[0]?.id,
+  supportedNodeSeedData.collections?.nodes?.[0]?.id,
+  supportedNodeSeedData.customers?.nodes?.[0]?.id,
+  supportedNodeSeedData.locations?.nodes?.[0]?.id,
+].filter((id) => typeof id === 'string');
+
 const captures = {
   publicApiVersions: {
     query: publicApiVersionsQuery,
@@ -341,6 +413,16 @@ const captures = {
   taxonomyEmptySearch: {
     query: taxonomyEmptySearchQuery,
     result: await runGraphqlCapture(taxonomyEmptySearchQuery),
+  },
+  supportedNodeSeeds: supportedNodeSeed,
+  supportedNodes: {
+    query: supportedNodesQuery,
+    variables: {
+      ids: supportedNodeIds,
+    },
+    result: await runGraphqlCapture(supportedNodesQuery, {
+      ids: supportedNodeIds,
+    }),
   },
   staffAccessBlocker: {
     query: staffAccessBlockerQuery,
@@ -388,6 +470,12 @@ await writeFile(
       introspection: {
         status: introspection.status,
         rootTypes,
+      },
+      nodeSeeds: {
+        products: supportedNodeSeedData.products?.nodes ?? [],
+        collections: supportedNodeSeedData.collections?.nodes ?? [],
+        customers: supportedNodeSeedData.customers?.nodes ?? [],
+        locations: supportedNodeSeedData.locations?.nodes ?? [],
       },
       captures,
     },

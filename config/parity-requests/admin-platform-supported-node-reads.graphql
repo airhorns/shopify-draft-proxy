@@ -1,0 +1,24 @@
+query SupportedNodeRead($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Node {
+      id
+    }
+    ... on Product {
+      title
+      handle
+    }
+    ... on Collection {
+      title
+      handle
+    }
+    ... on Customer {
+      displayName
+      email
+    }
+    ... on Location {
+      name
+      isActive
+    }
+  }
+}
