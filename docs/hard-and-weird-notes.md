@@ -2781,6 +2781,13 @@ Practical rule:
 
 - it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.
 
+HAR-392 review notes:
+
+- Shopify's public translation guide requires `translationsRegister` inputs to use a digest from `translatableContent`, and `TranslationInput.locale` is valid only for locales returned by `shopLocales`.
+- Shopify's `TranslatableResourceType.PRODUCT` docs list `meta_title` and `meta_description` as product fields; model those keys on the product resource when local SEO values exist instead of treating SEO as standalone metafields.
+- Real integration examples register product metafield translations against the metafield GID with the key `value`, so the current local product-metafield boundary should stay owner-scoped and narrow.
+- Locale validation and stale digest validation are separate guardrails: an unavailable shop locale should surface `INVALID_LOCALE_FOR_SHOP`, and a stale digest for a valid key should surface `INVALID_TRANSLATABLE_CONTENT`.
+
 ## 69. Unknown comment detail can error while comment moderation validates cleanly
 
 HAR-303 captured online-store content roots on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
