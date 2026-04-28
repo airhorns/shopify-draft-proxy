@@ -747,7 +747,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/functions/functions-live-owner-metadata-read.json',
     ],
     cleanupBehavior:
-      'Read-only Function catalog capture when the stored grant lacks mutation authority; no Shopify Function execution or tax callbacks are invoked.',
+      'Creates validation/cart-transform probe resources only after validation branches are captured, then deletes HAR-416 validations and cart transforms for the captured Function; no Shopify Function execution or tax callbacks are invoked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

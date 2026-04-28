@@ -198,6 +198,102 @@ const taxAppConfigureDocument = `#graphql
   }
 `;
 
+const functionResourceInventoryDocument = `#graphql
+  query ReadFunctionResourceInventory {
+    validations(first: 50) {
+      nodes {
+        id
+        title
+        shopifyFunction {
+          id
+          handle
+          apiType
+        }
+      }
+    }
+    cartTransforms(first: 50) {
+      nodes {
+        id
+        functionId
+        blockOnFailure
+      }
+    }
+  }
+`;
+
+const validationDeleteDocument = `#graphql
+  mutation DeleteFunctionValidationProbe($id: ID!) {
+    validationDelete(id: $id) {
+      deletedId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const cartTransformDeleteDocument = `#graphql
+  mutation DeleteFunctionCartTransformProbe($id: ID!) {
+    cartTransformDelete(id: $id) {
+      deletedId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+function inventoryValidations(captureResult: Capture): Record<string, unknown>[] {
+  const data = readRecord(captureResult.response.payload.data);
+  const validations = readRecord(data?.['validations']);
+  return readArray(validations?.['nodes']).flatMap((node) => {
+    const record = readRecord(node);
+    return record ? [record] : [];
+  });
+}
+
+function inventoryCartTransforms(captureResult: Capture): Record<string, unknown>[] {
+  const data = readRecord(captureResult.response.payload.data);
+  const cartTransforms = readRecord(data?.['cartTransforms']);
+  return readArray(cartTransforms?.['nodes']).flatMap((node) => {
+    const record = readRecord(node);
+    return record ? [record] : [];
+  });
+}
+
+async function cleanupFunctionProbeResources(cartFunctionId: string): Promise<{
+  inventory: Capture;
+  validationDeletes: Capture[];
+  cartTransformDeletes: Capture[];
+}> {
+  const inventory = await capture(functionResourceInventoryDocument);
+  const validationDeletes: Capture[] = [];
+  const cartTransformDeletes: Capture[] = [];
+
+  for (const validation of inventoryValidations(inventory)) {
+    const id = readString(validation['id']);
+    const title = readString(validation['title']);
+    if (!id || !title?.startsWith('HAR-416 ')) {
+      continue;
+    }
+    validationDeletes.push(await capture(validationDeleteDocument, { id }));
+  }
+
+  for (const cartTransform of inventoryCartTransforms(inventory)) {
+    const id = readString(cartTransform['id']);
+    if (!id || cartTransform['functionId'] !== cartFunctionId) {
+      continue;
+    }
+    cartTransformDeletes.push(await capture(cartTransformDeleteDocument, { id }));
+  }
+
+  return { inventory, validationDeletes, cartTransformDeletes };
+}
+
 const initialFunctionRead = await capture(functionOwnerReadDocument, {
   validationFunctionId: 'pending-validation-function-id',
   cartFunctionId: 'pending-cart-function-id',
@@ -211,6 +307,7 @@ if (!validationFunctionId || !cartFunctionId) {
   throw new Error('Expected validation and cart-transform Function ids in live shopifyFunctions response.');
 }
 
+const cleanupBefore = await cleanupFunctionProbeResources(cartFunctionId);
 const functionOwnershipRead = await capture(functionOwnerReadDocument, {
   validationFunctionId,
   cartFunctionId,
@@ -228,14 +325,14 @@ const mutationAuthorityProbes = {
     functionHandle: readString(validationFunction['handle']),
     blockOnFailure: false,
   }),
-  duplicateValidationConstraintProbe: await capture(validationCreateDocument, {
+  validationUnknownFunctionReferenceProbe: await capture(validationCreateDocument, {
     validation: {
-      functionHandle: readString(validationFunction['handle']),
-      title: 'HAR-416 duplicate validation probe',
+      functionHandle: 'har-416-unowned-validation-function',
+      title: 'HAR-416 unowned validation function probe',
     },
   }),
-  duplicateCartTransformConstraintProbe: await capture(cartTransformCreateDocument, {
-    functionHandle: readString(cartFunction['handle']),
+  cartTransformUnknownFunctionReferenceProbe: await capture(cartTransformCreateDocument, {
+    functionHandle: 'har-416-unowned-cart-function',
     blockOnFailure: false,
   }),
   validationMetafieldValidationProbe: await capture(validationCreateDocument, {
@@ -264,10 +361,34 @@ const mutationAuthorityProbes = {
       },
     ],
   }),
-  taxAppReadinessAuthorityProbe: await capture(taxAppConfigureDocument, {
-    ready: true,
+};
+
+const setupAndDuplicateProbes = {
+  validationCreateSetup: await capture(validationCreateDocument, {
+    validation: {
+      functionHandle: readString(validationFunction['handle']),
+      title: 'HAR-416 validation duplicate setup',
+    },
+  }),
+  duplicateValidationConstraintProbe: await capture(validationCreateDocument, {
+    validation: {
+      functionHandle: readString(validationFunction['handle']),
+      title: 'HAR-416 validation duplicate follow-up',
+    },
+  }),
+  cartTransformCreateSetup: await capture(cartTransformCreateDocument, {
+    functionHandle: readString(cartFunction['handle']),
+    blockOnFailure: false,
+  }),
+  duplicateCartTransformConstraintProbe: await capture(cartTransformCreateDocument, {
+    functionHandle: readString(cartFunction['handle']),
+    blockOnFailure: false,
   }),
 };
+const cleanupAfter = await cleanupFunctionProbeResources(cartFunctionId);
+const taxAppReadinessAuthorityProbe = await capture(taxAppConfigureDocument, {
+  ready: true,
+});
 
 const fixture = {
   scenarioId: 'functions-live-owner-metadata-read',
@@ -284,18 +405,26 @@ const fixture = {
       'hermes-conformance-products-37 HAR-416-function-conformance',
       'hermes-conformance-products-38 HAR-416-function-conformance-scopes',
       'hermes-conformance-products-39 HAR-416-noop-validation-function',
+      'HAR-416-rework-functions HAR-416-rework-function-scope-retry',
     ],
     releasedFunctionHandles: ['conformance-validation', 'conformance-cart-transform'],
   },
   seedShopifyFunctions: readFunctionNodes(functionOwnershipRead),
   functionOwnershipRead,
   mutationAuthorityProbes,
+  setupAndDuplicateProbes,
+  cleanup: {
+    before: cleanupBefore,
+    after: cleanupAfter,
+  },
+  taxAppReadinessAuthorityProbe,
   blockers: {
-    validationAndCartTransformUserErrors:
-      'The app configuration now declares read/write validation and cart-transform scopes, but the stored OAuth grant could not be regranted unattended. validationCreate/cartTransformCreate probes therefore stop at ACCESS_DENIED before wrong API type, duplicate constraint, cross-app, or metafield userErrors are reachable.',
+    crossAppFunctionReferences:
+      'The unattended conformance setup has one installed app with released Function extensions. The fixture records unknown/unowned handle userErrors as the reachable authority boundary, but true cross-app Function references require a second installed app and are not available in this shop setup.',
+    duplicateValidationConstraint:
+      'Shopify allowed multiple validationCreate calls for the same validation Function in this live shop. The fixture records that success behavior and cleans up both created validations; no duplicate-validation userError was observed to enforce.',
     taxAppReadiness:
-      'taxAppConfigure is authority-gated by write_taxes and tax calculations app status; the live probe records Shopify ACCESS_DENIED authority evidence.',
-    storedGrantMissingScopes: ['write_validations', 'write_cart_transforms', 'write_taxes'],
+      'taxAppConfigure is authority-gated by write_taxes and tax calculations app status. The current grant still records Shopify ACCESS_DENIED because the caller must also be a tax calculations app.',
   },
 };
 

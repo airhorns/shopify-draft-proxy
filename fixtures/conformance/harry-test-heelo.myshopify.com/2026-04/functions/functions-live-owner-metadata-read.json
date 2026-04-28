@@ -1,6 +1,6 @@
 {
   "scenarioId": "functions-live-owner-metadata-read",
-  "capturedAt": "2026-04-28T13:39:54.373Z",
+  "capturedAt": "2026-04-28T22:33:02.196Z",
   "source": "live-shopify",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
@@ -11,7 +11,8 @@
     "deployedVersionEvidence": [
       "hermes-conformance-products-37 HAR-416-function-conformance",
       "hermes-conformance-products-38 HAR-416-function-conformance-scopes",
-      "hermes-conformance-products-39 HAR-416-noop-validation-function"
+      "hermes-conformance-products-39 HAR-416-noop-validation-function",
+      "HAR-416-rework-functions HAR-416-rework-function-scope-retry"
     ],
     "releasedFunctionHandles": ["conformance-validation", "conformance-cart-transform"]
   },
@@ -184,25 +185,17 @@
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for validationCreate field. Required access: `write_validations` access scope.",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_validations` access scope."
-              },
-              "path": ["validationCreate"]
-            }
-          ],
           "data": {
-            "validationCreate": null
+            "validationCreate": {
+              "validation": null,
+              "userErrors": [
+                {
+                  "field": ["validation", "functionHandle"],
+                  "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
+                  "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -227,25 +220,17 @@
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for cartTransformCreate field. Required access: `write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n",
-              "locations": [
-                {
-                  "line": 7,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n"
-              },
-              "path": ["cartTransformCreate"]
-            }
-          ],
           "data": {
-            "cartTransformCreate": null
+            "cartTransformCreate": {
+              "cartTransform": null,
+              "userErrors": [
+                {
+                  "field": ["functionHandle"],
+                  "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+                  "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -261,36 +246,28 @@
         }
       }
     },
-    "duplicateValidationConstraintProbe": {
+    "validationUnknownFunctionReferenceProbe": {
       "query": "#graphql\n  mutation FunctionValidationProbe($validation: ValidationCreateInput!) {\n    validationCreate(validation: $validation) {\n      validation {\n        id\n        title\n        enabled\n        blockOnFailure\n        shopifyFunction {\n          id\n          handle\n          apiType\n          appKey\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "validation": {
-          "functionHandle": "conformance-validation",
-          "title": "HAR-416 duplicate validation probe"
+          "functionHandle": "har-416-unowned-validation-function",
+          "title": "HAR-416 unowned validation function probe"
         }
       },
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for validationCreate field. Required access: `write_validations` access scope.",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_validations` access scope."
-              },
-              "path": ["validationCreate"]
-            }
-          ],
           "data": {
-            "validationCreate": null
+            "validationCreate": {
+              "validation": null,
+              "userErrors": [
+                {
+                  "field": ["validation", "functionHandle"],
+                  "message": "Extension not found.",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -298,7 +275,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -306,34 +283,26 @@
         }
       }
     },
-    "duplicateCartTransformConstraintProbe": {
+    "cartTransformUnknownFunctionReferenceProbe": {
       "query": "#graphql\n  mutation FunctionCartTransformProbe(\n    $functionHandle: String!\n    $blockOnFailure: Boolean\n    $metafields: [MetafieldInput!]\n  ) {\n    cartTransformCreate(\n      functionHandle: $functionHandle\n      blockOnFailure: $blockOnFailure\n      metafields: $metafields\n    ) {\n      cartTransform {\n        id\n        functionId\n        blockOnFailure\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "functionHandle": "conformance-cart-transform",
+        "functionHandle": "har-416-unowned-cart-function",
         "blockOnFailure": false
       },
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for cartTransformCreate field. Required access: `write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n",
-              "locations": [
-                {
-                  "line": 7,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n"
-              },
-              "path": ["cartTransformCreate"]
-            }
-          ],
           "data": {
-            "cartTransformCreate": null
+            "cartTransformCreate": {
+              "cartTransform": null,
+              "userErrors": [
+                {
+                  "field": ["functionHandle"],
+                  "message": "Could not find function with handle: har-416-unowned-cart-function.",
+                  "code": "FUNCTION_NOT_FOUND"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -341,7 +310,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -368,25 +337,17 @@
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for validationCreate field. Required access: `write_validations` access scope.",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_validations` access scope."
-              },
-              "path": ["validationCreate"]
-            }
-          ],
           "data": {
-            "validationCreate": null
+            "validationCreate": {
+              "validation": null,
+              "userErrors": [
+                {
+                  "field": ["validation", "metafields", "0"],
+                  "message": "The value is invalid.",
+                  "code": "INVALID_VALUE"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -394,7 +355,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -419,25 +380,136 @@
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for cartTransformCreate field. Required access: `write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n",
-              "locations": [
-                {
-                  "line": 7,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_cart_transforms` access scope. Also: The shop must have\n[upgraded to Checkout Extensibility](https://help.shopify.com/manual/checkout-settings/checkout-extensibility/checkout-upgrade)\nand the user must have\n[products and preferences permission](https://help.shopify.com/manual/your-account/staff-accounts/staff-permissions)\nto create a cart transform function.\n"
-              },
-              "path": ["cartTransformCreate"]
-            }
-          ],
           "data": {
-            "cartTransformCreate": null
+            "cartTransformCreate": {
+              "cartTransform": null,
+              "userErrors": [
+                {
+                  "field": ["metafields", "0", "value"],
+                  "message": "is invalid JSON: unexpected token 'not-json' at line 1 column 1.",
+                  "code": "INVALID_METAFIELDS"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "setupAndDuplicateProbes": {
+    "validationCreateSetup": {
+      "query": "#graphql\n  mutation FunctionValidationProbe($validation: ValidationCreateInput!) {\n    validationCreate(validation: $validation) {\n      validation {\n        id\n        title\n        enabled\n        blockOnFailure\n        shopifyFunction {\n          id\n          handle\n          apiType\n          appKey\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "validation": {
+          "functionHandle": "conformance-validation",
+          "title": "HAR-416 validation duplicate setup"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/82837810",
+                "title": "HAR-416 validation duplicate setup",
+                "enabled": false,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "duplicateValidationConstraintProbe": {
+      "query": "#graphql\n  mutation FunctionValidationProbe($validation: ValidationCreateInput!) {\n    validationCreate(validation: $validation) {\n      validation {\n        id\n        title\n        enabled\n        blockOnFailure\n        shopifyFunction {\n          id\n          handle\n          apiType\n          appKey\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "validation": {
+          "functionHandle": "conformance-validation",
+          "title": "HAR-416 validation duplicate follow-up"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "validationCreate": {
+              "validation": {
+                "id": "gid://shopify/Validation/82870578",
+                "title": "HAR-416 validation duplicate follow-up",
+                "enabled": false,
+                "blockOnFailure": false,
+                "shopifyFunction": {
+                  "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                  "handle": "conformance-validation",
+                  "apiType": "cart_checkout_validation",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cartTransformCreateSetup": {
+      "query": "#graphql\n  mutation FunctionCartTransformProbe(\n    $functionHandle: String!\n    $blockOnFailure: Boolean\n    $metafields: [MetafieldInput!]\n  ) {\n    cartTransformCreate(\n      functionHandle: $functionHandle\n      blockOnFailure: $blockOnFailure\n      metafields: $metafields\n    ) {\n      cartTransform {\n        id\n        functionId\n        blockOnFailure\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "functionHandle": "conformance-cart-transform",
+        "blockOnFailure": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "cartTransformCreate": {
+              "cartTransform": {
+                "id": "gid://shopify/CartTransform/112918834",
+                "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "blockOnFailure": false
+              },
+              "userErrors": []
+            }
           },
           "extensions": {
             "cost": {
@@ -453,33 +525,26 @@
         }
       }
     },
-    "taxAppReadinessAuthorityProbe": {
-      "query": "#graphql\n  mutation FunctionTaxAppAuthorityProbe($ready: Boolean!) {\n    taxAppConfigure(ready: $ready) {\n      taxAppConfiguration {\n        state\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "duplicateCartTransformConstraintProbe": {
+      "query": "#graphql\n  mutation FunctionCartTransformProbe(\n    $functionHandle: String!\n    $blockOnFailure: Boolean\n    $metafields: [MetafieldInput!]\n  ) {\n    cartTransformCreate(\n      functionHandle: $functionHandle\n      blockOnFailure: $blockOnFailure\n      metafields: $metafields\n    ) {\n      cartTransform {\n        id\n        functionId\n        blockOnFailure\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "ready": true
+        "functionHandle": "conformance-cart-transform",
+        "blockOnFailure": false
       },
       "response": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Access denied for taxAppConfigure field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app.",
-              "locations": [
-                {
-                  "line": 3,
-                  "column": 5
-                }
-              ],
-              "extensions": {
-                "code": "ACCESS_DENIED",
-                "documentation": "https://shopify.dev/api/usage/access-scopes",
-                "requiredAccess": "`write_taxes` access scope. Also: The caller must be a tax calculations app."
-              },
-              "path": ["taxAppConfigure"]
-            }
-          ],
           "data": {
-            "taxAppConfigure": null
+            "cartTransformCreate": {
+              "cartTransform": null,
+              "userErrors": [
+                {
+                  "field": ["functionHandle"],
+                  "message": "Could not enable cart transform because it is already registered",
+                  "code": "FUNCTION_ALREADY_REGISTERED"
+                }
+              ]
+            }
           },
           "extensions": {
             "cost": {
@@ -487,7 +552,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }
@@ -496,9 +561,339 @@
       }
     }
   },
+  "cleanup": {
+    "before": {
+      "inventory": {
+        "query": "#graphql\n  query ReadFunctionResourceInventory {\n    validations(first: 50) {\n      nodes {\n        id\n        title\n        shopifyFunction {\n          id\n          handle\n          apiType\n        }\n      }\n    }\n    cartTransforms(first: 50) {\n      nodes {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n  }\n",
+        "variables": {},
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "validations": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Validation/82706738",
+                    "title": "HAR-416 duplicate validation probe",
+                    "shopifyFunction": {
+                      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                      "handle": "conformance-validation",
+                      "apiType": "cart_checkout_validation"
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/Validation/82772274",
+                    "title": "HAR-416 duplicate validation probe",
+                    "shopifyFunction": {
+                      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                      "handle": "conformance-validation",
+                      "apiType": "cart_checkout_validation"
+                    }
+                  }
+                ]
+              },
+              "cartTransforms": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CartTransform/112853298",
+                    "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                    "blockOnFailure": false
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 25,
+                "actualQueryCost": 5,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1995,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "validationDeletes": [
+        {
+          "query": "#graphql\n  mutation DeleteFunctionValidationProbe($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/Validation/82706738"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "validationDelete": {
+                  "deletedId": "gid://shopify/Validation/82706738",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  mutation DeleteFunctionValidationProbe($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/Validation/82772274"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "validationDelete": {
+                  "deletedId": "gid://shopify/Validation/82772274",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "cartTransformDeletes": [
+        {
+          "query": "#graphql\n  mutation DeleteFunctionCartTransformProbe($id: ID!) {\n    cartTransformDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/CartTransform/112853298"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "cartTransformDelete": {
+                  "deletedId": "gid://shopify/CartTransform/112853298",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "after": {
+      "inventory": {
+        "query": "#graphql\n  query ReadFunctionResourceInventory {\n    validations(first: 50) {\n      nodes {\n        id\n        title\n        shopifyFunction {\n          id\n          handle\n          apiType\n        }\n      }\n    }\n    cartTransforms(first: 50) {\n      nodes {\n        id\n        functionId\n        blockOnFailure\n      }\n    }\n  }\n",
+        "variables": {},
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "validations": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Validation/82837810",
+                    "title": "HAR-416 validation duplicate setup",
+                    "shopifyFunction": {
+                      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                      "handle": "conformance-validation",
+                      "apiType": "cart_checkout_validation"
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/Validation/82870578",
+                    "title": "HAR-416 validation duplicate follow-up",
+                    "shopifyFunction": {
+                      "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                      "handle": "conformance-validation",
+                      "apiType": "cart_checkout_validation"
+                    }
+                  }
+                ]
+              },
+              "cartTransforms": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CartTransform/112918834",
+                    "functionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                    "blockOnFailure": false
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 25,
+                "actualQueryCost": 5,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1995,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "validationDeletes": [
+        {
+          "query": "#graphql\n  mutation DeleteFunctionValidationProbe($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/Validation/82837810"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "validationDelete": {
+                  "deletedId": "gid://shopify/Validation/82837810",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  mutation DeleteFunctionValidationProbe($id: ID!) {\n    validationDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/Validation/82870578"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "validationDelete": {
+                  "deletedId": "gid://shopify/Validation/82870578",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "cartTransformDeletes": [
+        {
+          "query": "#graphql\n  mutation DeleteFunctionCartTransformProbe($id: ID!) {\n    cartTransformDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "id": "gid://shopify/CartTransform/112918834"
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "data": {
+                "cartTransformDelete": {
+                  "deletedId": "gid://shopify/CartTransform/112918834",
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 10,
+                  "actualQueryCost": 10,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1990,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "taxAppReadinessAuthorityProbe": {
+    "query": "#graphql\n  mutation FunctionTaxAppAuthorityProbe($ready: Boolean!) {\n    taxAppConfigure(ready: $ready) {\n      taxAppConfiguration {\n        state\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "ready": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "errors": [
+          {
+            "message": "Access denied for taxAppConfigure field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`write_taxes` access scope. Also: The caller must be a tax calculations app."
+            },
+            "path": ["taxAppConfigure"]
+          }
+        ],
+        "data": {
+          "taxAppConfigure": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "blockers": {
-    "validationAndCartTransformUserErrors": "The app configuration now declares read/write validation and cart-transform scopes, but the stored OAuth grant could not be regranted unattended. validationCreate/cartTransformCreate probes therefore stop at ACCESS_DENIED before wrong API type, duplicate constraint, cross-app, or metafield userErrors are reachable.",
-    "taxAppReadiness": "taxAppConfigure is authority-gated by write_taxes and tax calculations app status; the live probe records Shopify ACCESS_DENIED authority evidence.",
-    "storedGrantMissingScopes": ["write_validations", "write_cart_transforms", "write_taxes"]
+    "crossAppFunctionReferences": "The unattended conformance setup has one installed app with released Function extensions. The fixture records unknown/unowned handle userErrors as the reachable authority boundary, but true cross-app Function references require a second installed app and are not available in this shop setup.",
+    "duplicateValidationConstraint": "Shopify allowed multiple validationCreate calls for the same validation Function in this live shop. The fixture records that success behavior and cleans up both created validations; no duplicate-validation userError was observed to enforce.",
+    "taxAppReadiness": "taxAppConfigure is authority-gated by write_taxes and tax calculations app status. The current grant still records Shopify ACCESS_DENIED because the caller must also be a tax calculations app."
   }
 }
