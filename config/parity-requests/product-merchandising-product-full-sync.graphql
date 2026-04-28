@@ -1,0 +1,10 @@
+mutation ProductFullSync($id: ID!) {
+  productFullSync(id: $id) {
+    id
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

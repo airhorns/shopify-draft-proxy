@@ -917,7 +917,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const upstreamResponse = await proxyUpstreamGraphQL(request);
 
-      if (request.primaryRootField && PRODUCT_FEED_QUERY_ROOTS.has(request.primaryRootField)) {
+      if (
+        request.primaryRootField &&
+        PRODUCT_FEED_QUERY_ROOTS.has(request.primaryRootField) &&
+        !store.hasStagedProducts()
+      ) {
         setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
         return true;
       }
