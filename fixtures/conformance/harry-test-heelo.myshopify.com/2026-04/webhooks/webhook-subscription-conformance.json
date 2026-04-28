@@ -1,0 +1,1761 @@
+{
+  "capturedAt": "2026-04-25T21:46:45.665Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "HAR-267 captures Admin GraphQL API-created webhook subscription roots only.",
+    "The script registers, updates, and deletes a temporary SHOP_UPDATE HTTP subscription and does not mutate shop/resource data to trigger webhook delivery.",
+    "App TOML webhooks are out of scope for this evidence because webhookSubscriptions only lists API-created subscriptions."
+  ],
+  "deliveryPolicy": {
+    "deliveriesTriggeredByScript": false,
+    "topicUsedForLifecycle": "SHOP_UPDATE",
+    "endpointHost": "example.com"
+  },
+  "schemaAndAccess": {
+    "request": {
+      "description": "Documents accessible input fields, endpoint union variants, topic enum values, and active app scopes."
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "currentAppInstallation": {
+            "accessScopes": [
+              {
+                "handle": "read_assigned_fulfillment_orders"
+              },
+              {
+                "handle": "read_cash_tracking"
+              },
+              {
+                "handle": "read_content"
+              },
+              {
+                "handle": "read_customer_merge"
+              },
+              {
+                "handle": "read_customers"
+              },
+              {
+                "handle": "read_discounts"
+              },
+              {
+                "handle": "read_draft_orders"
+              },
+              {
+                "handle": "read_files"
+              },
+              {
+                "handle": "read_fulfillments"
+              },
+              {
+                "handle": "read_inventory"
+              },
+              {
+                "handle": "read_legal_policies"
+              },
+              {
+                "handle": "read_locales"
+              },
+              {
+                "handle": "read_locations"
+              },
+              {
+                "handle": "read_marketing_events"
+              },
+              {
+                "handle": "read_markets"
+              },
+              {
+                "handle": "read_merchant_managed_fulfillment_orders"
+              },
+              {
+                "handle": "read_metaobject_definitions"
+              },
+              {
+                "handle": "read_metaobjects"
+              },
+              {
+                "handle": "read_order_edits"
+              },
+              {
+                "handle": "read_orders"
+              },
+              {
+                "handle": "read_payment_customizations"
+              },
+              {
+                "handle": "read_payment_terms"
+              },
+              {
+                "handle": "read_product_listings"
+              },
+              {
+                "handle": "read_products"
+              },
+              {
+                "handle": "read_publications"
+              },
+              {
+                "handle": "read_returns"
+              },
+              {
+                "handle": "read_shipping"
+              },
+              {
+                "handle": "read_shopify_payments_disputes"
+              },
+              {
+                "handle": "read_shopify_payments_payouts"
+              },
+              {
+                "handle": "read_store_credit_account_transactions"
+              },
+              {
+                "handle": "read_store_credit_accounts"
+              },
+              {
+                "handle": "read_themes"
+              },
+              {
+                "handle": "read_third_party_fulfillment_orders"
+              },
+              {
+                "handle": "read_translations"
+              },
+              {
+                "handle": "write_assigned_fulfillment_orders"
+              },
+              {
+                "handle": "write_content"
+              },
+              {
+                "handle": "write_customer_merge"
+              },
+              {
+                "handle": "write_customers"
+              },
+              {
+                "handle": "write_discounts"
+              },
+              {
+                "handle": "write_draft_orders"
+              },
+              {
+                "handle": "write_files"
+              },
+              {
+                "handle": "write_fulfillments"
+              },
+              {
+                "handle": "write_inventory"
+              },
+              {
+                "handle": "write_legal_policies"
+              },
+              {
+                "handle": "write_locales"
+              },
+              {
+                "handle": "write_locations"
+              },
+              {
+                "handle": "write_markets"
+              },
+              {
+                "handle": "write_merchant_managed_fulfillment_orders"
+              },
+              {
+                "handle": "write_metaobject_definitions"
+              },
+              {
+                "handle": "write_metaobjects"
+              },
+              {
+                "handle": "write_order_edits"
+              },
+              {
+                "handle": "write_orders"
+              },
+              {
+                "handle": "write_payment_customizations"
+              },
+              {
+                "handle": "write_payment_terms"
+              },
+              {
+                "handle": "write_products"
+              },
+              {
+                "handle": "write_publications"
+              },
+              {
+                "handle": "write_returns"
+              },
+              {
+                "handle": "write_shipping"
+              },
+              {
+                "handle": "write_store_credit_account_transactions"
+              },
+              {
+                "handle": "write_third_party_fulfillment_orders"
+              },
+              {
+                "handle": "write_translations"
+              }
+            ]
+          },
+          "webhookSubscriptionInput": {
+            "inputFields": [
+              {
+                "name": "format",
+                "type": {
+                  "kind": "ENUM",
+                  "name": "WebhookSubscriptionFormat",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "includeFields",
+                "type": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "filter",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "metafieldNamespaces",
+                "type": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "SCALAR",
+                      "name": "String"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "metafields",
+                "type": {
+                  "kind": "LIST",
+                  "name": null,
+                  "ofType": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "INPUT_OBJECT",
+                      "name": "HasMetafieldsMetafieldIdentifierInput"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "name",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "uri",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              }
+            ]
+          },
+          "webhookSubscriptionTopic": {
+            "enumValues": [
+              {
+                "name": "TAX_SUMMARIES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "APP_UNINSTALLED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "APP_SCOPES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CARTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CARTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CHANNELS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CHECKOUTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CHECKOUTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CHECKOUTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_PAYMENT_METHODS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_PAYMENT_METHODS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_PAYMENT_METHODS_REVOKE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_LISTINGS_ADD",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_LISTINGS_REMOVE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_LISTINGS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_PUBLICATIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_PUBLICATIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTION_PUBLICATIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COLLECTIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_GROUPS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_GROUPS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_GROUPS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_DISABLE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_ENABLE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_PURCHASING_SUMMARY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_MARKETING_CONSENT_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_TAGS_ADDED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_TAGS_REMOVED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_EMAIL_MARKETING_CONSENT_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISPUTES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISPUTES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DRAFT_ORDERS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DRAFT_ORDERS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DRAFT_ORDERS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_EVENTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_EVENTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ATTRIBUTED_SESSIONS_FIRST",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ATTRIBUTED_SESSIONS_LAST",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDER_TRANSACTIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_CANCELLED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_EDITED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_FULFILLED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_PAID",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_PARTIALLY_FULFILLED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_UPDATED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_LINK_REQUESTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_MOVED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_HOLD_RELEASED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_SCHEDULED_FULFILLMENT_ORDER_READY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_HOLDS_RELEASED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_ORDER_ROUTING_COMPLETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_CANCELLED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_FULFILLMENT_SERVICE_FAILED_TO_COMPLETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_REJECTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_CANCELLATION_REQUEST_SUBMITTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_CANCELLATION_REQUEST_ACCEPTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_CANCELLATION_REQUEST_REJECTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_SUBMITTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_ACCEPTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_HOLDS_ADDED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_LOCAL_DELIVERY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_PLACED_ON_HOLD",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_MERGED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_SPLIT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_PROGRESS_REPORTED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_MANUALLY_REPORTED_PROGRESS_STOPPED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_LISTINGS_ADD",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_LISTINGS_REMOVE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_LISTINGS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SCHEDULED_PRODUCT_LISTINGS_ADD",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SCHEDULED_PRODUCT_LISTINGS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SCHEDULED_PRODUCT_LISTINGS_REMOVE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_PUBLICATIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_PUBLICATIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_PUBLICATIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "REFUNDS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SEGMENTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SEGMENTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SEGMENTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SHIPPING_ADDRESSES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SHIPPING_ADDRESSES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SHOP_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "TAX_PARTNERS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "TAX_SERVICES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "TAX_SERVICES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "THEMES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "THEMES_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "THEMES_PUBLISH",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "THEMES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "VARIANTS_IN_STOCK",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "VARIANTS_OUT_OF_STOCK",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_LEVELS_CONNECT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_LEVELS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_LEVELS_DISCONNECT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_ITEMS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_ITEMS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_ITEMS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCATIONS_ACTIVATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCATIONS_DEACTIVATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCATIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCATIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCATIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "TENDER_TRANSACTIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "APP_PURCHASES_ONE_TIME_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "APP_SUBSCRIPTIONS_APPROACHING_CAPPED_AMOUNT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "APP_SUBSCRIPTIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCALES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCALES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "LOCALES_DESTROY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DOMAINS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DOMAINS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DOMAINS_DESTROY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_CYCLE_EDITS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_CYCLE_EDITS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_CYCLE_EDITS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PROFILES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PROFILES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PROFILES_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_ATTEMPTS_SUCCESS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_CANCEL",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_CLOSE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_REOPEN",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_REQUEST",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_APPROVE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_PROCESS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "RETURNS_DECLINE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "REVERSE_DELIVERIES_ATTACH_DELIVERABLE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "REVERSE_FULFILLMENT_ORDERS_DISPOSE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PAYMENT_TERMS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PAYMENT_TERMS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PAYMENT_TERMS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PAYMENT_SCHEDULES_DUE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SELLING_PLAN_GROUPS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SELLING_PLAN_GROUPS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SELLING_PLAN_GROUPS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "BULK_OPERATIONS_FINISH",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_FEEDS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_FEEDS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_FEEDS_INCREMENTAL_SYNC",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_FEEDS_FULL_SYNC",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PRODUCT_FEEDS_FULL_SYNC_FINISH",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "MARKETS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "MARKETS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "MARKETS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_RISK_ASSESSMENT_CHANGED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "ORDERS_SHOPIFY_PROTECT_ELIGIBILITY_CHANGED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FINANCE_KYC_INFORMATION_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_RESCHEDULED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "PUBLICATIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "AUDIT_EVENTS_ADMIN_API_ACTIVITY",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_PICKUP",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANIES_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANIES_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANIES_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_LOCATIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_LOCATIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_LOCATIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_CONTACTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_CONTACTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_CONTACTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMERS_MERGE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_ADD_ITEMS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_UPDATE_ITEM_QUANTITIES",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_REMOVE_ITEMS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_READY_TO_SHIP",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_CANCEL",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_TRANSFERS_COMPLETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_MARK_IN_TRANSIT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_UPDATE_TRACKING",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_ADD_ITEMS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_UPDATE_ITEM_QUANTITIES",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_REMOVE_ITEMS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "INVENTORY_SHIPMENTS_RECEIVE_ITEMS",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_ACCOUNT_SETTINGS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_JOINED_SEGMENT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CUSTOMER_LEFT_SEGMENT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_CONTACT_ROLES_ASSIGN",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "COMPANY_CONTACT_ROLES_REVOKE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_ACTIVATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_PAUSE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_CANCEL",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_FAIL",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_CONTRACTS_EXPIRE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_CYCLES_SKIP",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "SUBSCRIPTION_BILLING_CYCLES_UNSKIP",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAOBJECTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAOBJECTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAOBJECTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FINANCE_APP_STAFF_MEMBER_GRANT",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FINANCE_APP_STAFF_MEMBER_REVOKE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FINANCE_APP_STAFF_MEMBER_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "FINANCE_APP_STAFF_MEMBER_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISCOUNTS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISCOUNTS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISCOUNTS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISCOUNTS_REDEEMCODE_ADDED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DISCOUNTS_REDEEMCODE_REMOVED",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAFIELD_DEFINITIONS_CREATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAFIELD_DEFINITIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "METAFIELD_DEFINITIONS_DELETE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "DELIVERY_PROMISE_SETTINGS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "MARKETS_BACKUP_REGION_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              },
+              {
+                "name": "CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE",
+                "isDeprecated": false,
+                "deprecationReason": null
+              }
+            ]
+          },
+          "webhookSubscriptionEndpoint": {
+            "possibleTypes": [
+              {
+                "name": "WebhookEventBridgeEndpoint"
+              },
+              {
+                "name": "WebhookHttpEndpoint"
+              },
+              {
+                "name": "WebhookPubSubEndpoint"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "catalog": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql",
+    "variables": {
+      "first": 5,
+      "missingQuery": "id:999999999999",
+      "unknownId": "gid://shopify/WebhookSubscription/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptions": {
+            "nodes": [],
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "webhookSubscriptionsCount": {
+            "count": 0,
+            "precision": "EXACT"
+          },
+          "filteredCount": {
+            "count": 0,
+            "precision": "EXACT"
+          },
+          "unknown": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 29,
+            "actualQueryCost": 26,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1974,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "lifecycle": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "filter": "",
+          "format": "JSON",
+          "includeFields": ["id", "name"],
+          "metafieldNamespaces": ["custom"],
+          "uri": "https://example.com/hermes-webhook-conformance-1777153604166"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1922148041010",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": ["id", "name"],
+                "metafieldNamespaces": ["custom"],
+                "filter": "",
+                "createdAt": "2026-04-25T21:46:44Z",
+                "updatedAt": "2026-04-25T21:46:44Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-conformance-1777153604166"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterCreate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1922148041010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1922148041010",
+              "topic": "SHOP_UPDATE",
+              "format": "JSON",
+              "includeFields": ["id", "name"],
+              "metafieldNamespaces": ["custom"],
+              "filter": "",
+              "createdAt": "2026-04-25T21:46:44Z",
+              "updatedAt": "2026-04-25T21:46:44Z",
+              "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://example.com/hermes-webhook-conformance-1777153604166"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1922148041010",
+        "webhookSubscription": {
+          "filter": "",
+          "format": "JSON",
+          "includeFields": ["id"],
+          "metafieldNamespaces": [],
+          "uri": "https://example.com/hermes-webhook-conformance-1777153604166-updated"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1922148041010",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": ["id"],
+                "metafieldNamespaces": [],
+                "filter": "",
+                "createdAt": "2026-04-25T21:46:44Z",
+                "updatedAt": "2026-04-25T21:46:44Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-conformance-1777153604166-updated"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "detailAfterUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1922148041010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1922148041010",
+              "topic": "SHOP_UPDATE",
+              "format": "JSON",
+              "includeFields": ["id"],
+              "metafieldNamespaces": [],
+              "filter": "",
+              "createdAt": "2026-04-25T21:46:44Z",
+              "updatedAt": "2026-04-25T21:46:44Z",
+              "endpoint": {
+                "__typename": "WebhookHttpEndpoint",
+                "callbackUrl": "https://example.com/hermes-webhook-conformance-1777153604166-updated"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1922148041010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1922148041010",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "postDeleteDetail": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1922148041010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-validation-branches.graphql",
+    "variables": {
+      "unknownId": "gid://shopify/WebhookSubscription/999999999999",
+      "unknownUpdateInput": {
+        "format": "JSON",
+        "uri": "https://example.com/hermes-webhook-conformance-unknown"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "updateUnknown": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Webhook subscription does not exist"
+              }
+            ]
+          },
+          "deleteUnknown": {
+            "deletedWebhookSubscriptionId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Webhook subscription does not exist"
+              }
+            ]
+          },
+          "createMissingUri": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address can't be blank"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 30,
+            "actualQueryCost": 30,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1955,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": null
+}

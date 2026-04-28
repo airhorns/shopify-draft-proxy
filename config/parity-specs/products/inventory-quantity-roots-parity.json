@@ -1,0 +1,319 @@
+{
+  "scenarioId": "inventory-quantity-roots-parity",
+  "operationNames": ["inventoryItems", "inventoryProperties", "inventorySetQuantities", "inventoryMoveQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "null-empty-behavior", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-quantity-roots-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-quantity-roots.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-quantity-set.graphql",
+    "variablesCapturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-305 live evidence covers Admin GraphQL 2025-01 schema for inventoryItems/inventoryProperties/inventorySetQuantities/inventoryMoveQuantities, empty inventoryItems no-data behavior, captured inventoryProperties quantity names, successful available set behavior, successful same-location available-to-damaged move behavior, and visible blocked branches. The parity runner seeds the captured disposable product/inventory linkage from fixture metadata, replays the captured set and move mutations locally, and compares the mutation payloads plus downstream inventory read effects without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-mutation-payload",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities"
+      },
+      {
+        "name": "inventory-items-empty-read",
+        "capturePath": "$.safeReadEvidence.inventoryItemsEmptyByImpossibleId.data.inventoryItems",
+        "proxyPath": "$.data.inventoryItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-items-empty-read.graphql"
+        }
+      },
+      {
+        "name": "inventory-properties-read",
+        "capturePath": "$.safeReadEvidence.inventoryProperties.data.inventoryProperties",
+        "proxyPath": "$.data.inventoryProperties",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-properties-read.graphql"
+        }
+      },
+      {
+        "name": "set-downstream-variant-inventory-quantity",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.inventoryQuantity",
+        "proxyPath": "$.data.inventoryItem.variant.inventoryQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-product-total-inventory",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.productTotalInventory",
+        "proxyPath": "$.data.inventoryItem.variant.product.totalInventory",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-0",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[0].locationId",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].location.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-0-available",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[0].available",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[0].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-0-on-hand",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[0].on_hand",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[1].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-0-damaged",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[0].damaged",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[2].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-1",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[1].locationId",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].location.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-1-available",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[1].available",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[0].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-1-on-hand",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[1].on_hand",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[1].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "set-downstream-location-1-damaged",
+        "capturePath": "$.mutationEvidence.inventorySetQuantitiesAvailable.downstreamRead.levels[1].damaged",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[2].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-mutation-payload",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.response.data.inventoryMoveQuantities",
+        "proxyPath": "$.data.inventoryMoveQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-move.graphql",
+          "variablesCapturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.variables"
+        }
+      },
+      {
+        "name": "move-downstream-variant-inventory-quantity",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.inventoryQuantity",
+        "proxyPath": "$.data.inventoryItem.variant.inventoryQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-product-total-inventory",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.productTotalInventory",
+        "proxyPath": "$.data.inventoryItem.variant.product.totalInventory",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-0-available",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[0].available",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[0].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-0-on-hand",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[0].on_hand",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[1].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-0-damaged",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[0].damaged",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[0].quantities[2].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-1-available",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[1].available",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[0].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-1-on-hand",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[1].on_hand",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[1].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "move-downstream-location-1-damaged",
+        "capturePath": "$.mutationEvidence.inventoryMoveQuantitiesAvailableToDamaged.downstreamRead.levels[1].damaged",
+        "proxyPath": "$.data.inventoryItem.inventoryLevels.nodes[1].quantities[2].quantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+            "productId": "gid://shopify/Product/10171266400562"
+          }
+        }
+      },
+      {
+        "name": "blocked-set-without-compare-or-ignore",
+        "capturePath": "$.mutationEvidence.blockedBranches.setWithoutCompareOrIgnore.userErrors",
+        "proxyPath": "$.data.inventorySetQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-set.graphql",
+          "variables": {
+            "input": {
+              "name": "available",
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-305/set/blocked",
+              "quantities": [
+                {
+                  "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+                  "locationId": "gid://shopify/Location/106318430514",
+                  "quantity": 7
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "blocked-move-between-different-locations",
+        "capturePath": "$.mutationEvidence.blockedBranches.moveBetweenDifferentLocations.userErrors",
+        "proxyPath": "$.data.inventoryMoveQuantities.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-move.graphql",
+          "variables": {
+            "input": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-305/move/blocked",
+              "changes": [
+                {
+                  "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
+                  "quantity": 1,
+                  "from": {
+                    "locationId": "gid://shopify/Location/106318430514",
+                    "name": "available"
+                  },
+                  "to": {
+                    "locationId": "gid://shopify/Location/106318463282",
+                    "name": "damaged",
+                    "ledgerDocumentUri": "ledger://har-305/move/blocked"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

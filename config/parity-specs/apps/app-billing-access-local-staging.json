@@ -1,0 +1,311 @@
+{
+  "scenarioId": "app-billing-access-local-staging",
+  "operationNames": [
+    "appPurchaseOneTimeCreate",
+    "appSubscriptionCreate",
+    "appSubscriptionCancel",
+    "appSubscriptionLineItemUpdate",
+    "appSubscriptionTrialExtend",
+    "appUsageRecordCreate",
+    "appRevokeAccessScopes",
+    "appUninstall",
+    "delegateAccessTokenCreate",
+    "delegateAccessTokenDestroy"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "mutation-log-replay",
+    "no-upstream-passthrough",
+    "secret-redaction"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/app-billing-access-flow.test.ts"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+    "variables": {
+      "lineItems": [
+        {
+          "plan": {
+            "appUsagePricingDetails": {
+              "cappedAmount": {
+                "amount": 100,
+                "currencyCode": "USD"
+              },
+              "terms": "usage terms"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-payload",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy generates stable session-local subscription IDs."
+          },
+          {
+            "path": "$.appSubscription.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy generates stable session-local subscription line-item IDs."
+          }
+        ]
+      },
+      {
+        "name": "one-time-purchase-create-payload",
+        "capturePath": "$.evidence.parity.expected.oneTimeCreate.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-local-lifecycle.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appPurchaseOneTime.id",
+            "matcher": "shopify-gid:AppPurchaseOneTime",
+            "reason": "The proxy generates stable session-local one-time purchase IDs."
+          }
+        ]
+      },
+      {
+        "name": "line-item-update-payload",
+        "capturePath": "$.evidence.parity.expected.lineItemUpdate.data.appSubscriptionLineItemUpdate",
+        "proxyPath": "$.data.appSubscriptionLineItemUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionLineItemUpdate-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy keeps the locally staged subscription ID stable."
+          },
+          {
+            "path": "$.appSubscription.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy keeps the locally staged subscription line-item ID stable."
+          }
+        ]
+      },
+      {
+        "name": "usage-record-create-payload",
+        "capturePath": "$.evidence.parity.expected.usageCreate.data.appUsageRecordCreate",
+        "proxyPath": "$.data.appUsageRecordCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.appUsageRecord.id",
+            "matcher": "shopify-gid:AppUsageRecord",
+            "reason": "The proxy generates stable session-local usage record IDs."
+          },
+          {
+            "path": "$.appUsageRecord.subscriptionLineItem.id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy links usage records to the locally staged subscription line item."
+          }
+        ]
+      },
+      {
+        "name": "trial-extend-payload",
+        "capturePath": "$.evidence.parity.expected.trialExtend.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy keeps the locally staged subscription ID stable."
+          }
+        ]
+      },
+      {
+        "name": "subscription-cancel-payload",
+        "capturePath": "$.evidence.parity.expected.cancel.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy keeps the locally staged subscription ID stable."
+          }
+        ]
+      },
+      {
+        "name": "billing-read-after-write",
+        "capturePath": "$.evidence.parity.expected.billingRead.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-local-read.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:AppInstallation",
+            "reason": "The proxy generates stable session-local app installation IDs."
+          },
+          {
+            "path": "$.allSubscriptions.nodes[*].id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy reads back the locally staged subscription ID."
+          },
+          {
+            "path": "$.allSubscriptions.nodes[*].lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy reads back the locally staged subscription line-item ID."
+          }
+        ]
+      },
+      {
+        "name": "access-scope-revoke-payload",
+        "capturePath": "$.evidence.parity.expected.revoke.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-local-lifecycle.graphql"
+        }
+      },
+      {
+        "name": "access-scope-read-after-revoke",
+        "capturePath": "$.evidence.parity.expected.accessRead.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-access-scopes-local-read.graphql"
+        }
+      },
+      {
+        "name": "delegated-token-create-payload",
+        "capturePath": "$.evidence.parity.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-local-lifecycle.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The raw delegated token is a synthetic secret returned once by the local proxy."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      },
+      {
+        "name": "delegated-token-destroy-payload",
+        "capturePath": "$.evidence.parity.expected.delegateDestroy.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-local-lifecycle.graphql",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "delegated-token-create-payload",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        }
+      },
+      {
+        "name": "delegated-token-destroy-repeat-user-error",
+        "capturePath": "$.evidence.parity.expected.delegateDestroyRepeat.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-local-lifecycle.graphql",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "delegated-token-create-payload",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-subscription-cancel-user-error",
+        "capturePath": "$.evidence.unknownCancel.expected.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-unknown-local.graphql",
+          "variablesCapturePath": "$.evidence.unknownCancel.variables"
+        }
+      },
+      {
+        "name": "app-uninstall-payload",
+        "capturePath": "$.evidence.parity.expected.uninstall.data.appUninstall",
+        "proxyPath": "$.data.appUninstall",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUninstall-local-lifecycle.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.app.id",
+            "matcher": "shopify-gid:App",
+            "reason": "The proxy generates stable session-local app IDs for the synthetic installation."
+          }
+        ]
+      },
+      {
+        "name": "app-installation-read-after-uninstall",
+        "capturePath": "$.evidence.parity.expected.afterUninstallRead.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-installation-id-local-read.graphql"
+        }
+      }
+    ]
+  },
+  "notes": "The generic parity request sequence now executes every mutation root listed in operationNames against the local app-domain proxy harness, including strict payload comparisons and downstream reads. Live success-path captures for real billing approval, uninstall, access-scope revocation, and delegated-token side effects remain blocked without an explicitly disposable app/store credential, so this local-runtime fixture documents those blockers while the executable proxy request sequence enforces no-upstream local staging and secret-safe delegated-token behavior."
+}

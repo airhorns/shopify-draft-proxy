@@ -1,0 +1,80 @@
+{
+  "scenarioId": "product-merchandising-mutation-guardrails",
+  "operationNames": [
+    "productFeedDelete",
+    "productFullSync",
+    "productBundleCreate",
+    "productBundleUpdate",
+    "combinedListingUpdate",
+    "productVariantRelationshipBulkUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-merchandising-mutation-probes.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-feedback-mutation-access-blockers.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-merchandising-product-feed-delete.graphql",
+    "variablesCapturePath": "$.probes[1].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-feed-delete-unknown-id",
+        "capturePath": "$.probes[1].response.data.productFeedDelete",
+        "proxyPath": "$.data.productFeedDelete"
+      },
+      {
+        "name": "product-full-sync-unknown-id",
+        "capturePath": "$.probes[2].response.data.productFullSync",
+        "proxyPath": "$.data.productFullSync",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-product-full-sync.graphql",
+          "variablesCapturePath": "$.probes[2].variables"
+        }
+      },
+      {
+        "name": "product-bundle-create-empty-components",
+        "capturePath": "$.probes[3].response.data.productBundleCreate",
+        "proxyPath": "$.data.productBundleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-product-bundle-create.graphql",
+          "variablesCapturePath": "$.probes[3].variables"
+        }
+      },
+      {
+        "name": "product-bundle-update-unknown-product",
+        "capturePath": "$.probes[4].response.data.productBundleUpdate",
+        "proxyPath": "$.data.productBundleUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-product-bundle-update.graphql",
+          "variablesCapturePath": "$.probes[4].variables"
+        }
+      },
+      {
+        "name": "combined-listing-update-unknown-parent",
+        "capturePath": "$.probes[5].response.data.combinedListingUpdate",
+        "proxyPath": "$.data.combinedListingUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-combined-listing-update.graphql",
+          "variablesCapturePath": "$.probes[5].variables"
+        }
+      },
+      {
+        "name": "product-variant-relationship-unknown-variants",
+        "capturePath": "$.probes[6].response.data.productVariantRelationshipBulkUpdate",
+        "proxyPath": "$.data.productVariantRelationshipBulkUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-merchandising-variant-relationship-bulk-update.graphql",
+          "variablesCapturePath": "$.probes[6].variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable HAR-362 guardrail parity for product-adjacent merchandising roots whose validation branches can be replayed without live Shopify writes. Success-path local staging is covered by runtime tests; the current disposable store still blocks productFeedCreate success with channel lookup and feedback success with write_resource_feedbacks/sales-channel access requirements."
+}

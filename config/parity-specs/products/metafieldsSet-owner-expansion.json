@@ -1,0 +1,136 @@
+{
+  "scenarioId": "metafields-set-owner-expansion",
+  "operationNames": ["metafieldsSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-owner-expansion.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live owner expansion evidence for one product-variant-owned metafield and one collection-owned metafield. The comparison covers the shared `metafieldsSet` mutation payload plus immediate downstream `product.variants.metafield(s)`, `productVariant.metafield(s)`, and `collection.metafield(s)` reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldsSet.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.variants.nodes[0].care.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.variants.nodes[0].care.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.variants.nodes[0].metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.variants.nodes[0].metafields.nodes[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.variants.nodes[0].metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.product.variants.nodes[0].metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.productVariant.care.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariant.care.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.productVariant.metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productVariant.metafields.nodes[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.productVariant.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.productVariant.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.collection.season.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.collection.season.compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.collection.metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.collection.metafields.nodes[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.collection.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.collection.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -40,7 +40,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'bulk-operations');
 const outputPath = path.join(outputDir, 'bulk-operation-status-catalog-cancel.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({

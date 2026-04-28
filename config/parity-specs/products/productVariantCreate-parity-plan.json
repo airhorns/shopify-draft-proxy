@@ -1,0 +1,99 @@
+{
+  "scenarioId": "product-variant-create-compatibility-evidence",
+  "operationNames": ["productVariantCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productVariantCreate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable compatibility parity for `productVariantCreate`: the generic parity runner compares the checked-in single-variant proxy request against the equivalent live-supported `productVariantsBulkCreate` capture with explicit strict-json targets for payload shape, user errors, inventory summary, and downstream product reads. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; this spec is no longer capture-only or pending Markdown evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The proxy allocates a stable synthetic product variant GID for the staged compatibility wrapper; Shopify returns the dev-store variant GID from the bulk-create capture."
+      },
+      {
+        "path": "$.inventoryItem.id",
+        "matcher": "shopify-gid:InventoryItem",
+        "reason": "The proxy allocates a stable synthetic inventory item GID for the staged compatibility wrapper; Shopify returns the dev-store inventory item GID from the bulk-create capture."
+      }
+    ],
+    "targets": [
+      {
+        "name": "variant-payload",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.productVariants[0]",
+        "proxyPath": "$.data.productVariantCreate.productVariant"
+      },
+      {
+        "name": "product-id",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.id",
+        "proxyPath": "$.data.productVariantCreate.product.id"
+      },
+      {
+        "name": "product-totalInventory",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.totalInventory",
+        "proxyPath": "$.data.productVariantCreate.product.totalInventory"
+      },
+      {
+        "name": "product-tracksInventory",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.tracksInventory",
+        "proxyPath": "$.data.productVariantCreate.product.tracksInventory"
+      },
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantCreate.userErrors"
+      },
+      {
+        "name": "downstream-product-id",
+        "capturePath": "$.downstreamRead.data.product.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+            }
+          }
+        },
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyPath": "$.data.product.id"
+      },
+      {
+        "name": "downstream-product-totalInventory",
+        "capturePath": "$.downstreamRead.data.product.totalInventory",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+            }
+          }
+        },
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyPath": "$.data.product.totalInventory"
+      },
+      {
+        "name": "downstream-product-tracksInventory",
+        "capturePath": "$.downstreamRead.data.product.tracksInventory",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+            }
+          }
+        },
+        "upstreamCapturePath": "$.downstreamRead",
+        "proxyPath": "$.data.product.tracksInventory"
+      }
+    ]
+  }
+}

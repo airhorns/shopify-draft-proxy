@@ -1,0 +1,32 @@
+{
+  "scenarioId": "collection-detail-read",
+  "operationNames": ["collection"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "nested-products-connection",
+    "custom-vs-smart-collection-fields"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collection-detail-read.graphql",
+    "variablesPath": "config/parity-requests/products/collection-detail-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against a local proxy harness with the captured Shopify payload supplied as the upstream read response; no live Shopify writes are performed. The detail capture includes one custom collection and one smart collection so rich metadata, blank description values, sortOrder, and ruleSet behavior are grounded in Shopify.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "captured read payload",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$"
+      }
+    ]
+  }
+}

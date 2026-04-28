@@ -1,0 +1,66 @@
+{
+  "scenarioId": "order-edit-commit-live-parity",
+  "operationNames": ["orderEditBegin", "orderEditAddVariant", "orderEditCommit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable replacement for the old single-root `orderEditCommit` access-scope plan. It stages the captured add-variant edit, commits it locally, and compares the stable commit success message plus downstream current quantity without sending the supported mutation upstream.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "commit-setup-add-variant",
+        "capturePath": "$.addVariant.response.data.orderEditAddVariant.calculatedLineItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "variantId": "gid://shopify/ProductVariant/46789254021353",
+            "quantity": 1,
+            "locationId": "gid://shopify/Location/68509171945",
+            "allowDuplicates": false
+          }
+        },
+        "proxyPath": "$.data.orderEditAddVariant.calculatedLineItem"
+      },
+      {
+        "name": "commit-success-messages",
+        "capturePath": "$.commitAdd.response.data.orderEditCommit.successMessages",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-commit-status.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "notifyCustomer": false,
+            "staffNote": "HAR-115 order edit add capture"
+          }
+        },
+        "proxyPath": "$.data.orderEditCommit.successMessages"
+      },
+      {
+        "name": "downstream-added-line-current-quantity",
+        "capturePath": "$.commitAdd.response.data.orderEditCommit.order.lineItems.nodes[2].currentQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.originalOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.order.lineItems.nodes[2].currentQuantity"
+      }
+    ]
+  }
+}

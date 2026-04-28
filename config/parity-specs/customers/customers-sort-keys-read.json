@@ -1,0 +1,26 @@
+{
+  "scenarioId": "customers-sort-keys-read",
+  "operationNames": ["customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "sort-order-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-sort-keys.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customers-sort-keys-read.graphql",
+    "variablesPath": "config/parity-requests/customers/customers-sort-keys-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison target covers the captured deterministic Shopify customer sort keys `NAME`, `ID`, and `LOCATION` against the merchant-facing customer card slice used by the overlay serializer. `RELEVANCE` remains separate because it depends on query-scored ranking rather than deterministic field ordering; Shopify cost extensions remain outside this contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customers-sort-keys-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

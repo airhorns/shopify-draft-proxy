@@ -59,8 +59,8 @@ export type ConformanceCaptureIndexEntry = z.infer<typeof captureIndexEntrySchem
 type StatusCheck = z.infer<typeof statusCheckSchema>;
 
 const DEFAULT_STATUS_CHECKS: StatusCheck[] = ['conformance:status', 'conformance:check', 'conformance:parity'];
-const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/';
-const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/';
+const CAPTURE_ROOT = 'fixtures/conformance/<store>/<api-version>/<domain-folder>/';
+const LOCAL_RUNTIME_ROOT = 'fixtures/conformance/local-runtime/<api-version>/<domain-folder>/';
 
 function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchema>>): ConformanceCaptureIndexEntry[] {
   return captureIndexSchema.parse(entries);
@@ -113,7 +113,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-product-media-mutation-conformance.mts',
     purpose: 'Product media create/update/delete validation and downstream read branches.',
     requiredAuthScopes: ['read_products', 'write_products'],
-    fixtureOutputs: [`${CAPTURE_ROOT}product-media-*.json`, 'config/parity-specs/product-media-*.json'],
+    fixtureOutputs: [`${CAPTURE_ROOT}product-media-*.json`, 'config/parity-specs/products/product-media-*.json'],
     cleanupBehavior: 'Creates disposable product/media records and deletes the product during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -149,7 +149,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
       `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
-      'config/parity-specs/fileAcknowledgeUpdateFailed-local-staging.json',
+      'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
     ],
     cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -173,8 +173,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-options-create-variant-strategy-*.json`,
       `${CAPTURE_ROOT}productVariantsBulkCreate-strategy-*.json`,
-      'config/parity-specs/productOptionsCreate-variant-strategy-*.json',
-      'config/parity-specs/productVariantsBulkCreate-strategy-*.json',
+      'config/parity-specs/products/productOptionsCreate-variant-strategy-*.json',
+      'config/parity-specs/products/productVariantsBulkCreate-strategy-*.json',
     ],
     cleanupBehavior: 'Creates disposable products/options/variants and deletes products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -197,7 +197,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-variants-bulk-validation-atomicity.json`,
-      'config/parity-specs/product-variants-bulk-validation-atomicity.json',
+      'config/parity-specs/products/product-variants-bulk-validation-atomicity.json',
     ],
     cleanupBehavior: 'Creates disposable products and removes them after validation probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -264,7 +264,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-duplicate-async-success.json`,
       `${CAPTURE_ROOT}product-duplicate-async-missing.json`,
-      'config/parity-specs/productDuplicate-async-*.json',
+      'config/parity-specs/products/productDuplicate-async-*.json',
     ],
     cleanupBehavior: 'Creates disposable source/duplicate products and deletes both after operation completion.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -287,7 +287,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-helper-roots-read.json`,
-      'config/parity-specs/product-helper-roots-read.json',
+      'config/parity-specs/products/product-helper-roots-read.json',
     ],
     cleanupBehavior: 'Read-only capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -312,8 +312,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}saved-search-resource-roots.json`,
-      'config/parity-specs/saved-search-resource-roots.json',
-      'config/parity-requests/saved-search-resource-roots-*.graphql',
+      'config/parity-specs/saved-searches/saved-search-resource-roots.json',
+      'config/parity-requests/saved-searches/saved-search-resource-roots-*.graphql',
     ],
     cleanupBehavior: 'Creates disposable saved searches and deletes each successful create during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -328,7 +328,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-relationship-roots.json`,
-      'config/parity-specs/product-relationship-roots-live-parity.json',
+      'config/parity-specs/products/product-relationship-roots-live-parity.json',
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
@@ -343,7 +343,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}selling-plan-group-lifecycle.json`,
-      'config/parity-specs/selling-plan-group-lifecycle.json',
+      'config/parity-specs/products/selling-plan-group-lifecycle.json',
     ],
     cleanupBehavior: 'Creates a disposable product and selling-plan group, then deletes both during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -366,7 +366,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-lifecycle-mutations.json`,
-      'config/parity-specs/metafield-definition-lifecycle-mutations.json',
+      'config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json',
     ],
     cleanupBehavior: 'Deletes created definitions and disposable product with captured cleanup steps.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -378,7 +378,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-metaobject-read-conformance.mts',
     purpose: 'Metaobject definition/entry reads and minimal disposable seed behavior.',
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
-    fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects-read.json'],
+    fixtureOutputs: [`${CAPTURE_ROOT}metaobjects-read.json`, 'config/parity-specs/metaobjects/metaobjects-read.json'],
     cleanupBehavior: 'Deletes seeded metaobject entries/definitions after read capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -391,7 +391,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-schema-change-lifecycle.json`,
-      'config/parity-specs/metaobject-schema-change-lifecycle.json',
+      'config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json',
     ],
     cleanupBehavior:
       'Deletes remaining seeded metaobject rows and definition after the schema-change lifecycle capture.',
@@ -406,7 +406,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-reference-lifecycle.json`,
-      'config/parity-specs/metaobject-reference-lifecycle.json',
+      'config/parity-specs/metaobjects/metaobject-reference-lifecycle.json',
     ],
     cleanupBehavior: 'Deletes seeded parent/target metaobjects and definitions after reference capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -419,7 +419,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-roots-parity.json`,
-      'config/parity-specs/inventory-quantity-roots-parity.json',
+      'config/parity-specs/products/inventory-quantity-roots-parity.json',
     ],
     cleanupBehavior:
       'Uses disposable products/inventory levels where possible; review store topology before success captures.',
@@ -434,7 +434,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
-      'config/parity-specs/inventory-quantity-contracts-2026-04.json',
+      'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -459,7 +459,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_markets', 'read_products', 'write_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-contextual-pricing-price-list-parity.json`,
-      'config/parity-specs/product-contextual-pricing-price-list-read.json',
+      'config/parity-specs/products/product-contextual-pricing-price-list-read.json',
     ],
     cleanupBehavior: 'Adds a disposable product fixed price to the Mexico price list, then deletes it after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -637,7 +637,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}draft-order-residual-helper-roots.json`,
-      'config/parity-specs/draft-order-residual-helper-roots.json',
+      'config/parity-specs/orders/draft-order-residual-helper-roots.json',
     ],
     cleanupBehavior: 'Creates disposable draft orders/products and removes them after helper probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -735,7 +735,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['Shopify Payments, finance, risk, and POS root access for the active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}finance-risk-access-read.json`,
-      'config/parity-specs/finance-risk-no-data-read.json',
+      'config/parity-specs/payments/finance-risk-no-data-read.json',
     ],
     cleanupBehavior: 'Read/access capture only; do not create or invent sensitive financial records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -761,7 +761,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
-      'config/parity-specs/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
     ],
     cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -793,7 +793,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'delivery profile management access'],
-    fixtureOutputs: [`${CAPTURE_ROOT}delivery-profile-*.json`, 'config/parity-specs/delivery-profile-*.json'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delivery-profile-*.json`,
+      'config/parity-specs/shipping-fulfillments/delivery-profile-*.json',
+    ],
     cleanupBehavior: 'Removes or restores created delivery profile artifacts; review default-profile protections.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
@@ -805,7 +808,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_shipping', 'write_shipping', 'read_locations', 'write_locations'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}shipping-settings-package-pickup-constraints.json`,
-      'config/parity-specs/shipping-settings-package-pickup-constraints.json',
+      'config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json',
     ],
     cleanupBehavior: 'Enables and disables local pickup on an active location to restore the pre-capture setting.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -819,7 +822,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['bulk operation access through active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-status-catalog-cancel.json`,
-      'config/parity-specs/bulk-operation-status-catalog-cancel.json',
+      'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json',
     ],
     cleanupBehavior: 'Starts/cancels safe bulk operations where the harness allows it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -846,7 +849,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'read_gift_card_transactions',
       'write_gift_card_transactions',
     ],
-    fixtureOutputs: [`${CAPTURE_ROOT}gift-card-lifecycle.json`, 'config/parity-specs/gift-card-lifecycle.json'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-lifecycle.json`,
+      'config/parity-specs/gift-cards/gift-card-lifecycle.json',
+    ],
     cleanupBehavior:
       'Creates a disposable gift card, records transaction lifecycle behavior, and deactivates it; notification roots are not executed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -879,8 +885,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-validation-parity.json`,
-      'config/parity-specs/customerInputValidation-parity.json',
-      'config/parity-requests/customerInputValidation-*.graphql',
+      'config/parity-specs/customers/customerInputValidation-parity.json',
+      'config/parity-requests/customers/customerInputValidation-*.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -893,8 +899,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-input-addresses-parity.json`,
-      'config/parity-specs/customerInputAddresses-parity.json',
-      'config/parity-requests/customer-input-addresses-*.graphql',
+      'config/parity-specs/customers/customerInputAddresses-parity.json',
+      'config/parity-requests/customers/customer-input-addresses-*.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable customer, records address-list create/update/read behavior, then deletes it.',
@@ -908,7 +914,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers', 'write_customer_data_erasure'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-account-page-data-erasure.json`,
-      'config/parity-specs/customer-account-page-data-erasure.json',
+      'config/parity-specs/customers/customer-account-page-data-erasure.json',
     ],
     cleanupBehavior:
       'Creates a disposable customer, requests and cancels data erasure, then cancels again and deletes the customer in cleanup.',
@@ -922,7 +928,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_customers', 'write_customers', 'store credit account access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}store-credit-account-parity.json`,
-      'config/parity-specs/store-credit-account-local-staging.json',
+      'config/parity-specs/customers/store-credit-account-local-staging.json',
     ],
     cleanupBehavior:
       'Creates a disposable customer, credits/debits a real store credit account, debits the remaining balance back to zero, then deletes the customer.',
@@ -954,7 +960,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-customer-merge-conformance.mts',
     purpose: 'Base two-customer customerMerge behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
-    fixtureOutputs: [`${CAPTURE_ROOT}customer-merge-parity.json`, 'config/parity-specs/customerMerge-parity.json'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-merge-parity.json`,
+      'config/parity-specs/customers/customerMerge-parity.json',
+    ],
     cleanupBehavior: 'Creates disposable customers; merge consumes source records and cleanup removes leftovers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -972,7 +981,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-merge-attached-resources-parity.json`,
-      'config/parity-specs/customerMerge-attached-resources-parity.json',
+      'config/parity-specs/customers/customerMerge-attached-resources-parity.json',
     ],
     cleanupBehavior:
       'Creates disposable customer graph; merge consumes source and cleanup removes remaining artifacts.',

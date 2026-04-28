@@ -13,7 +13,7 @@ import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-m
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-media-mutation-conformance-scope-blocker.md');
 const { runGraphql } = createAdminGraphqlClient({

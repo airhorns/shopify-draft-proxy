@@ -1,0 +1,267 @@
+{
+  "scenarioId": "saved-search-resource-roots",
+  "operationNames": [
+    "productSavedSearches",
+    "collectionSavedSearches",
+    "customerSavedSearches",
+    "orderSavedSearches",
+    "draftOrderSavedSearches",
+    "fileSavedSearches",
+    "codeDiscountSavedSearches",
+    "automaticDiscountSavedSearches",
+    "discountRedeemCodeSavedSearches",
+    "savedSearchCreate",
+    "savedSearchDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "null-empty-behavior",
+    "pagination-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/saved-searches/saved-search-resource-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/saved-search-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-resource-roots-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-402 live capture for saved-search resource-specific roots. PRODUCT, COLLECTION, ORDER, DRAFT_ORDER, FILE, and DISCOUNT_REDEEM_CODE creates succeed and are visible through matching roots; CUSTOMER create returns Shopify's deprecation userError with field null. PRICE_RULE creation is excluded from this live fixture because the current conformance token returns ACCESS_DENIED for savedSearchCreate with that resource type, so code/automatic discount PRICE_RULE routing remains runtime-test-backed. Shopify 2026-04 rejects query: on most saved-search connection roots, so this scenario uses valid first-only root reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "resource-saved-search-create-payloads",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.product.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local Product SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.product.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the Product legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.collection.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local Collection SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.collection.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the Collection legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.order.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local Order SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.order.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the Order legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.draftOrder.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local DraftOrder SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.draftOrder.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the DraftOrder legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.file.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local File SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.file.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the File legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          },
+          {
+            "path": "$.discountRedeemCode.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local DiscountRedeemCode SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.discountRedeemCode.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the DiscountRedeemCode legacy id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "resource-saved-search-read-after-create",
+        "capturePath": "$.readAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-resource-roots-read.graphql",
+          "variablesCapturePath": "$.readAfterCreate.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.products.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream Product root returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.products.nodes[0].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream Product root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          },
+          {
+            "path": "$.collections.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream Collection root returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.collections.nodes[0].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream Collection root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          },
+          {
+            "path": "$.orders.nodes[4].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream Order root appends the deterministic local SavedSearch after captured default order saved searches."
+          },
+          {
+            "path": "$.orders.nodes[4].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream Order root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          },
+          {
+            "path": "$.draftOrders.nodes[5].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream DraftOrder root appends the deterministic local SavedSearch after captured default draft-order saved searches."
+          },
+          {
+            "path": "$.draftOrders.nodes[5].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream DraftOrder root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          },
+          {
+            "path": "$.files.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream File root returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.files.nodes[0].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream File root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          },
+          {
+            "path": "$.redeemCodes.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream DiscountRedeemCode root returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.redeemCodes.nodes[0].legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The downstream DiscountRedeemCode root returns the deterministic local legacy id instead of Shopify's live legacy id."
+          }
+        ]
+      },
+      {
+        "name": "resource-saved-search-cleanup-delete",
+        "capturePath": "$.cleanupDelete.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-resource-roots-delete.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.product.savedSearch.id"
+              }
+            },
+            "collection": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.collection.savedSearch.id"
+              }
+            },
+            "order": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.order.savedSearch.id"
+              }
+            },
+            "draftOrder": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.draftOrder.savedSearch.id"
+              }
+            },
+            "file": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.file.savedSearch.id"
+              }
+            },
+            "discountRedeemCode": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.discountRedeemCode.savedSearch.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local Product SavedSearch id while Shopify deleted the live store id."
+          },
+          {
+            "path": "$.collection.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local Collection SavedSearch id while Shopify deleted the live store id."
+          },
+          {
+            "path": "$.order.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local Order SavedSearch id while Shopify deleted the live store id."
+          },
+          {
+            "path": "$.draftOrder.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local DraftOrder SavedSearch id while Shopify deleted the live store id."
+          },
+          {
+            "path": "$.file.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local File SavedSearch id while Shopify deleted the live store id."
+          },
+          {
+            "path": "$.discountRedeemCode.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local DiscountRedeemCode SavedSearch id while Shopify deleted the live store id."
+          }
+        ]
+      },
+      {
+        "name": "resource-saved-search-read-after-delete",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-resource-roots-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

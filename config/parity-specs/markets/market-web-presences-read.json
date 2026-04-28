@@ -1,0 +1,27 @@
+{
+  "scenarioId": "market-web-presences-read",
+  "operationNames": ["webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "market-web-presence-roots"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/market-web-presences.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-web-presences-read.graphql",
+    "variablesPath": "config/parity-requests/markets/market-web-presences-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `webPresences` capture for Admin GraphQL 2026-04. The refreshed credential exposes `MarketWebPresence.defaultLocale` and `alternateLocales`, so strict comparison includes locale object fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-web-presences-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

@@ -52,7 +52,10 @@ describe('pickProductMutationSeed', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const catalogFixture = JSON.parse(
       readFileSync(
-        resolve(repoRoot, 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products-catalog-page.json'),
+        resolve(
+          repoRoot,
+          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json',
+        ),
         'utf8',
       ),
     ) as {

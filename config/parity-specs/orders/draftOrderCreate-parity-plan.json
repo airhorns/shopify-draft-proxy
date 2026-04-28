@@ -1,0 +1,66 @@
+{
+  "scenarioId": "draft-order-create-live-parity",
+  "operationNames": ["draftOrderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderCreate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderCreate-parity-plan.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "The checked-in live capture uses a merchant-realistic draftOrderCreate request with customer linkage, custom and variant line items, shipping line, discounts, tax/reserve fields, custom attributes, and paymentTerms selected; with the refreshed read_payment_terms grant Shopify now returns the field as a readable null because the draft has no payment terms set. The scenario replays captured variables and compares the complete selected DraftOrder payload. Shopify-generated IDs, draft order names, and invoice URLs are path-scoped expected differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.id",
+        "matcher": "shopify-gid:DraftOrder",
+        "reason": "The proxy creates a stable synthetic draft order ID while the capture contains the live Shopify draft order ID."
+      },
+      {
+        "path": "$.name",
+        "matcher": "non-empty-string",
+        "reason": "Shopify allocates draft order names from store state; local staging uses a deterministic synthetic sequence."
+      },
+      {
+        "path": "$.invoiceUrl",
+        "matcher": "non-empty-string",
+        "reason": "Invoice URLs are generated per draft order by Shopify and locally synthesized by the proxy."
+      },
+      {
+        "path": "$.lineItems.nodes[*].id",
+        "matcher": "shopify-gid:DraftOrderLineItem",
+        "reason": "The proxy creates stable synthetic draft order line item IDs while the capture contains live Shopify IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.draftOrderCreate.userErrors",
+        "proxyPath": "$.data.draftOrderCreate.userErrors"
+      },
+      {
+        "name": "mutation-draft-order",
+        "capturePath": "$.mutation.response.data.draftOrderCreate.draftOrder",
+        "proxyPath": "$.data.draftOrderCreate.draftOrder"
+      },
+      {
+        "name": "downstream-draft-order",
+        "capturePath": "$.downstreamRead.response.data.draftOrder",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderCreate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.draftOrderCreate.draftOrder.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.draftOrder"
+      }
+    ]
+  }
+}

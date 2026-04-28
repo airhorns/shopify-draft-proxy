@@ -1,0 +1,26 @@
+{
+  "scenarioId": "productUnpublish-parity-plan",
+  "operationNames": ["productUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-unpublish-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUnpublish-parity-plan.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Minimal live `productUnpublish` mutation payload capture now succeeds against a real publication id on this host, so this parity spec executes the ready-for-comparison minimal live payload slice (`userErrors` + successful mutation execution). Aggregate publication fields are covered by `productUnpublish-aggregate-parity`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "minimal mutation payload",
+        "capturePath": "$.mutation.response.data.productUnpublish",
+        "proxyPath": "$.data.productUnpublish"
+      }
+    ]
+  }
+}

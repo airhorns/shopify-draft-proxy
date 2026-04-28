@@ -1,0 +1,41 @@
+{
+  "scenarioId": "taxSummaryCreate-access-denied-parity",
+  "operationNames": ["taxSummaryCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "access-denied-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/taxSummaryCreate-access-denied-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/taxSummaryCreate-access-denied-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 taxSummaryCreate access-denied branch on the current conformance store; the local proxy mirrors this safe branch without passthrough until tax-app semantics can be captured.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "data-null",
+        "capturePath": "$.mutation.response.data.taxSummaryCreate",
+        "proxyPath": "$.data.taxSummaryCreate"
+      },
+      {
+        "name": "error-code",
+        "capturePath": "$.mutation.response.errors[0].extensions.code",
+        "proxyPath": "$.errors[0].extensions.code"
+      },
+      {
+        "name": "error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "error-path",
+        "capturePath": "$.mutation.response.errors[0].path",
+        "proxyPath": "$.errors[0].path"
+      }
+    ]
+  }
+}

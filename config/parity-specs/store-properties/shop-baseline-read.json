@@ -1,0 +1,26 @@
+{
+  "scenarioId": "shop-baseline-read",
+  "operationNames": ["shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "empty-list-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/store-properties-baseline.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/shop-baseline-read.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict data comparison covers the baseline Shop identity, domain, contact, currency, timezone, tax, address, plan, resource limits, feature, payment settings, and shop policy fields captured through the Store properties baseline. Fields requiring additional access scopes, such as ShopFeatures.usingShopifyBalance, remain outside this baseline until captured evidence exists.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-baseline-data",
+        "capturePath": "$.readOnlyBaselines.shop.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

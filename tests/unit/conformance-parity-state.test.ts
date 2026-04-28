@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,7 @@ import {
   validateComparisonContract,
   validateParityScenarioInventoryEntry,
 } from '../../scripts/conformance-parity-lib.js';
+import { listConformanceParitySpecPaths } from '../../scripts/conformance-scenario-registry.js';
 
 describe('classifyParityScenarioState', () => {
   it('marks captured scenarios invalid until they have a strict comparison contract and proxy request', () => {
@@ -20,8 +21,8 @@ describe('classifyParityScenarioState', () => {
         { status: 'captured' },
         {
           proxyRequest: {
-            documentPath: 'config/parity-requests/productCreate.graphql',
-            variablesPath: 'config/parity-requests/productCreate.json',
+            documentPath: 'config/parity-requests/products/productCreate.graphql',
+            variablesPath: 'config/parity-requests/products/productCreate.json',
           },
         },
       ),
@@ -45,8 +46,8 @@ describe('classifyParityScenarioState', () => {
       { status: 'captured' },
       {
         proxyRequest: {
-          documentPath: 'config/parity-requests/productCreate.graphql',
-          variablesPath: 'config/parity-requests/productCreate.json',
+          documentPath: 'config/parity-requests/products/productCreate.graphql',
+          variablesPath: 'config/parity-requests/products/productCreate.json',
         },
         comparison: {
           mode: 'strict-json',
@@ -71,8 +72,8 @@ describe('classifyParityScenarioState', () => {
         { status: 'captured' },
         {
           proxyRequest: {
-            documentPath: 'config/parity-requests/productCreate.graphql',
-            variablesPath: 'config/parity-requests/productCreate.json',
+            documentPath: 'config/parity-requests/products/productCreate.graphql',
+            variablesPath: 'config/parity-requests/products/productCreate.json',
           },
           comparison: {
             mode: 'strict-json',
@@ -87,8 +88,8 @@ describe('classifyParityScenarioState', () => {
         { status: 'captured' },
         {
           proxyRequest: {
-            documentPath: 'config/parity-requests/productCreate.graphql',
-            variablesPath: 'config/parity-requests/productCreate.json',
+            documentPath: 'config/parity-requests/products/productCreate.graphql',
+            variablesPath: 'config/parity-requests/products/productCreate.json',
           },
           comparison: {
             mode: 'strict-json',
@@ -122,8 +123,8 @@ describe('classifyParityScenarioState', () => {
       { status: 'planned' },
       {
         proxyRequest: {
-          documentPath: 'config/parity-requests/productCreate.graphql',
-          variablesPath: 'config/parity-requests/productCreate.json',
+          documentPath: 'config/parity-requests/products/productCreate.graphql',
+          variablesPath: 'config/parity-requests/products/productCreate.json',
         },
       },
     );
@@ -166,7 +167,7 @@ describe('validateParityScenarioInventoryEntry', () => {
         {
           comparisonMode: 'captured-vs-proxy-request',
           proxyRequest: {
-            documentPath: 'config/parity-requests/example.graphql',
+            documentPath: 'config/parity-requests/products/example.graphql',
           },
           comparison: {
             mode: 'strict-json',
@@ -314,13 +315,10 @@ describe('validateComparisonContract', () => {
 
   it('requires every repository ignore rule to be explicitly regrettable', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const paritySpecRoot = resolve(repoRoot, 'config/parity-specs');
     const unmarkedIgnores: string[] = [];
 
-    for (const fileName of readdirSync(paritySpecRoot)
-      .filter((name) => name.endsWith('.json'))
-      .sort()) {
-      const spec = JSON.parse(readFileSync(resolve(paritySpecRoot, fileName), 'utf8')) as {
+    for (const paritySpecPath of listConformanceParitySpecPaths(repoRoot)) {
+      const spec = JSON.parse(readFileSync(resolve(repoRoot, paritySpecPath), 'utf8')) as {
         comparison?: {
           expectedDifferences?: Array<{
             path?: string;
@@ -332,7 +330,7 @@ describe('validateComparisonContract', () => {
 
       for (const difference of spec.comparison?.expectedDifferences ?? []) {
         if (difference.ignore === true && difference.regrettable !== true) {
-          unmarkedIgnores.push(`${fileName}:${difference.path ?? '<missing path>'}`);
+          unmarkedIgnores.push(`${paritySpecPath}:${difference.path ?? '<missing path>'}`);
         }
       }
     }
@@ -597,12 +595,12 @@ describe('executeParityScenario', () => {
       scenario: {
         id: 'product-detail-read',
         status: 'captured',
-        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/product-detail.json'],
+        captureFiles: ['fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-detail.json'],
       },
       paritySpec: {
         proxyRequest: {
-          documentPath: 'config/parity-requests/product-detail-read.graphql',
-          variablesPath: 'config/parity-requests/product-detail-read.variables.json',
+          documentPath: 'config/parity-requests/products/product-detail-read.graphql',
+          variablesPath: 'config/parity-requests/products/product-detail-read.variables.json',
         },
         comparison: {
           mode: 'strict-json',
