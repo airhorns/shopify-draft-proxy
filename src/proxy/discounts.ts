@@ -2486,6 +2486,7 @@ function serializeResourceNode(
   const variant = resourceType === 'variant' ? store.getEffectiveVariantById(id) : null;
   const collection = resourceType === 'collection' ? store.getEffectiveCollectionById(id) : null;
   const customer = resourceType === 'customer' ? store.getEffectiveCustomerById(id) : null;
+  const segment = resourceType === 'segment' ? store.getEffectiveSegmentById(id) : null;
 
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -2500,7 +2501,7 @@ function serializeResourceNode(
         result[key] = customer?.displayName ?? null;
         break;
       case 'name':
-        result[key] = null;
+        result[key] = segment?.name ?? null;
         break;
       case '__typename':
         result[key] =
