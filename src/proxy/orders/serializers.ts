@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments } from '../../graphql/root-field.js';
@@ -10,8 +11,6 @@ import {
   stripSearchQueryValueQuotes,
   type SearchQueryTerm,
 } from '../../search-query-parser.js';
-import { store } from '../../state/store.js';
-import { makeSyntheticTimestamp } from '../../state/synthetic-identity.js';
 import type {
   AbandonedCheckoutRecord,
   AbandonmentRecord,
@@ -80,6 +79,7 @@ import {
 } from './shared.js';
 
 export function serializeOrderManagementPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   order: OrderRecord | null,
   userErrors: Array<{ field: string[] | null; message: string }>,
@@ -89,7 +89,7 @@ export function serializeOrderManagementPayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'order':
-        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        payload[selectionKey] = order ? serializeOrderNode(runtime, selection, order) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
@@ -110,6 +110,7 @@ function serializeSelectedTransactionUserErrors(
 }
 
 export function serializeOrderCapturePayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   transaction: OrderTransactionRecord | null,
   order: OrderRecord | null,
@@ -120,10 +121,10 @@ export function serializeOrderCapturePayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'transaction':
-        payload[selectionKey] = transaction ? serializeOrderTransaction(selection, transaction) : null;
+        payload[selectionKey] = transaction ? serializeOrderTransaction(runtime, selection, transaction) : null;
         break;
       case 'order':
-        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        payload[selectionKey] = order ? serializeOrderNode(runtime, selection, order) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedTransactionUserErrors(selection, userErrors);
@@ -137,6 +138,7 @@ export function serializeOrderCapturePayload(
 }
 
 export function serializeTransactionVoidPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   transaction: OrderTransactionRecord | null,
   userErrors: Array<{ field: string[] | null; message: string }>,
@@ -146,7 +148,7 @@ export function serializeTransactionVoidPayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'transaction':
-        payload[selectionKey] = transaction ? serializeOrderTransaction(selection, transaction) : null;
+        payload[selectionKey] = transaction ? serializeOrderTransaction(runtime, selection, transaction) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedTransactionUserErrors(selection, userErrors);
@@ -274,8 +276,11 @@ export function serializeDraftOrderAvailableDeliveryOptions(field: FieldNode): R
   return result;
 }
 
-export function findDraftOrderTagById(id: string): { id: string; handle: string; title: string } | null {
-  for (const draftOrder of store.getDraftOrders()) {
+export function findDraftOrderTagById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+): { id: string; handle: string; title: string } | null {
+  for (const draftOrder of runtime.store.getDraftOrders()) {
     const tag = draftOrder.tags.find((candidate) => buildDraftOrderTagId(candidate) === id);
     if (tag) {
       return {
@@ -314,6 +319,7 @@ export function serializeDraftOrderTag(
 }
 
 export function serializeOrderCreateMandatePaymentPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   mandatePayment: OrderMandatePaymentRecord | null,
   order: OrderRecord | null,
@@ -330,7 +336,7 @@ export function serializeOrderCreateMandatePaymentPayload(
         payload[selectionKey] = mandatePayment?.paymentReferenceId ?? null;
         break;
       case 'order':
-        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        payload[selectionKey] = order ? serializeOrderNode(runtime, selection, order) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = serializeSelectedTransactionUserErrors(selection, userErrors);
@@ -378,6 +384,7 @@ export function buildAccessDeniedError(operationName: string, requiredAccess: st
 }
 
 export function serializeRefundCreatePayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   refund: OrderRefundRecord | null,
   order: OrderRecord | null,
@@ -388,10 +395,10 @@ export function serializeRefundCreatePayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'refund':
-        payload[selectionKey] = refund ? serializeOrderRefund(selection, refund) : null;
+        payload[selectionKey] = refund ? serializeOrderRefund(runtime, selection, refund) : null;
         break;
       case 'order':
-        payload[selectionKey] = order ? serializeOrderNode(selection, order) : null;
+        payload[selectionKey] = order ? serializeOrderNode(runtime, selection, order) : null;
         break;
       case 'userErrors':
         payload[selectionKey] = userErrors;
@@ -1057,7 +1064,11 @@ export function serializeCalculatedDraftOrder(field: FieldNode, draftOrder: Draf
   return result;
 }
 
-export function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrderRecord): Record<string, unknown> {
+export function serializeDraftOrderNode(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  draftOrder: DraftOrderRecord,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -1069,8 +1080,8 @@ export function serializeDraftOrderNode(field: FieldNode, draftOrder: DraftOrder
         result[key] = draftOrder.name;
         break;
       case 'order': {
-        const order = draftOrder.orderId ? store.getOrderById(draftOrder.orderId) : null;
-        result[key] = order ? serializeOrderNode(selection, order) : null;
+        const order = draftOrder.orderId ? runtime.store.getOrderById(draftOrder.orderId) : null;
+        result[key] = order ? serializeOrderNode(runtime, selection, order) : null;
         break;
       }
       case 'invoiceUrl':
@@ -1482,6 +1493,7 @@ function applySyntheticCursorWindow<T extends { id: string }>(
 }
 
 export function serializeDraftOrdersConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   draftOrders: DraftOrderRecord[],
   variables: Record<string, unknown>,
@@ -1502,7 +1514,7 @@ export function serializeDraftOrdersConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: (draftOrder) => buildSyntheticCursor(draftOrder.id),
-    serializeNode: (draftOrder, selection) => serializeDraftOrderNode(selection, draftOrder),
+    serializeNode: (draftOrder, selection) => serializeDraftOrderNode(runtime, selection, draftOrder),
     selectedFieldOptions: { includeInlineFragments: true },
     pageInfoOptions: { prefixCursors: false, includeInlineFragments: true },
   });
@@ -2565,7 +2577,11 @@ export function prepareTopLevelFulfillmentOrders(
   );
 }
 
-function serializeOrderTransaction(field: FieldNode, transaction: OrderTransactionRecord): Record<string, unknown> {
+function serializeOrderTransaction(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  transaction: OrderTransactionRecord,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -2587,9 +2603,9 @@ function serializeOrderTransaction(field: FieldNode, transaction: OrderTransacti
         break;
       case 'parentTransaction': {
         const parentTransaction = transaction.parentTransactionId
-          ? findOrderTransactionById(transaction.parentTransactionId)
+          ? findOrderTransactionById(runtime, transaction.parentTransactionId)
           : null;
-        result[key] = parentTransaction ? serializeOrderTransaction(selection, parentTransaction) : null;
+        result[key] = parentTransaction ? serializeOrderTransaction(runtime, selection, parentTransaction) : null;
         break;
       }
       case 'paymentId':
@@ -2610,6 +2626,7 @@ function serializeOrderTransaction(field: FieldNode, transaction: OrderTransacti
 }
 
 function serializeOrderTransactionsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   transactions: OrderTransactionRecord[],
 ): Record<string, unknown> {
@@ -2618,7 +2635,7 @@ function serializeOrderTransactionsConnection(
     hasNextPage: false,
     hasPreviousPage: false,
     getCursorValue: (transaction) => transaction.id,
-    serializeNode: (transaction, selection) => serializeOrderTransaction(selection, transaction),
+    serializeNode: (transaction, selection) => serializeOrderTransaction(runtime, selection, transaction),
     pageInfoOptions: {
       includeCursors: false,
     },
@@ -2684,7 +2701,11 @@ function serializeRefundLineItemsConnection(
   });
 }
 
-function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Record<string, unknown> {
+function serializeOrderRefund(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  refund: OrderRefundRecord,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
@@ -2708,7 +2729,7 @@ function serializeOrderRefund(field: FieldNode, refund: OrderRefundRecord): Reco
         result[key] = serializeRefundLineItemsConnection(selection, refund.refundLineItems);
         break;
       case 'transactions':
-        result[key] = serializeOrderTransactionsConnection(selection, refund.transactions);
+        result[key] = serializeOrderTransactionsConnection(runtime, selection, refund.transactions);
         break;
       default:
         result[key] = null;
@@ -2980,6 +3001,7 @@ function serializeReverseDeliveryLineItemsConnection(
 }
 
 export function serializeOrderReverseDelivery(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   reverseDelivery: OrderReverseDeliveryRecord,
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
@@ -2996,6 +3018,7 @@ export function serializeOrderReverseDelivery(
         break;
       case 'reverseFulfillmentOrder':
         result[key] = serializeOrderReverseFulfillmentOrder(
+          runtime,
           selection,
           reverseFulfillmentOrder,
           orderReturn,
@@ -3023,6 +3046,7 @@ export function serializeOrderReverseDelivery(
 }
 
 function serializeReverseDeliveriesConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
   orderReturn: OrderReturnRecord,
@@ -3035,7 +3059,15 @@ function serializeReverseDeliveriesConnection(
     hasPreviousPage: false,
     getCursorValue: (reverseDelivery) => reverseDelivery.id,
     serializeNode: (reverseDelivery, selection) =>
-      serializeOrderReverseDelivery(selection, reverseDelivery, reverseFulfillmentOrder, orderReturn, order, variables),
+      serializeOrderReverseDelivery(
+        runtime,
+        selection,
+        reverseDelivery,
+        reverseFulfillmentOrder,
+        orderReturn,
+        order,
+        variables,
+      ),
     pageInfoOptions: {
       includeCursors: false,
     },
@@ -3043,6 +3075,7 @@ function serializeReverseDeliveriesConnection(
 }
 
 export function serializeOrderReverseFulfillmentOrder(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
   orderReturn: OrderReturnRecord,
@@ -3060,10 +3093,10 @@ export function serializeOrderReverseFulfillmentOrder(
         result[key] = reverseFulfillmentOrder.status;
         break;
       case 'return':
-        result[key] = serializeOrderReturn(selection, orderReturn, variables, order);
+        result[key] = serializeOrderReturn(runtime, selection, orderReturn, variables, order);
         break;
       case 'order':
-        result[key] = serializeOrderNode(selection, order, variables);
+        result[key] = serializeOrderNode(runtime, selection, order, variables);
         break;
       case 'lineItems':
       case 'reverseFulfillmentOrderLineItems':
@@ -3075,6 +3108,7 @@ export function serializeOrderReverseFulfillmentOrder(
         break;
       case 'reverseDeliveries':
         result[key] = serializeReverseDeliveriesConnection(
+          runtime,
           selection,
           reverseFulfillmentOrder,
           orderReturn,
@@ -3091,6 +3125,7 @@ export function serializeOrderReverseFulfillmentOrder(
 }
 
 function serializeReverseFulfillmentOrdersConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   reverseFulfillmentOrders: OrderReverseFulfillmentOrderRecord[],
   orderReturn: OrderReturnRecord,
@@ -3103,7 +3138,7 @@ function serializeReverseFulfillmentOrdersConnection(
     hasPreviousPage: false,
     getCursorValue: (reverseFulfillmentOrder) => reverseFulfillmentOrder.id,
     serializeNode: (reverseFulfillmentOrder, selection) =>
-      serializeOrderReverseFulfillmentOrder(selection, reverseFulfillmentOrder, orderReturn, order, variables),
+      serializeOrderReverseFulfillmentOrder(runtime, selection, reverseFulfillmentOrder, orderReturn, order, variables),
     pageInfoOptions: {
       includeCursors: false,
     },
@@ -3124,6 +3159,7 @@ function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
 }
 
 export function serializeOrderReturn(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   orderReturn: OrderReturnRecord,
   variables: Record<string, unknown> = {},
@@ -3143,7 +3179,7 @@ export function serializeOrderReturn(
         result[key] = orderReturn.status;
         break;
       case 'createdAt':
-        result[key] = orderReturn.createdAt ?? order?.createdAt ?? makeSyntheticTimestamp();
+        result[key] = orderReturn.createdAt ?? order?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
         break;
       case 'closedAt':
         result[key] = orderReturn.closedAt ?? null;
@@ -3154,7 +3190,7 @@ export function serializeOrderReturn(
           (orderReturn.returnLineItems ?? []).reduce((total, lineItem) => total + lineItem.quantity, 0);
         break;
       case 'order':
-        result[key] = order ? serializeOrderNode(selection, order, variables) : null;
+        result[key] = order ? serializeOrderNode(runtime, selection, order, variables) : null;
         break;
       case 'returnLineItems':
         result[key] = serializeReturnLineItemsConnection(selection, orderReturn.returnLineItems ?? []);
@@ -3166,6 +3202,7 @@ export function serializeOrderReturn(
       case 'reverseFulfillmentOrders':
         result[key] = order
           ? serializeReverseFulfillmentOrdersConnection(
+              runtime,
               selection,
               orderReturn.reverseFulfillmentOrders ?? [],
               orderReturn,
@@ -3207,6 +3244,7 @@ export function serializeOrderReturn(
 }
 
 function serializeOrderReturnsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   returns: OrderReturnRecord[],
   variables: Record<string, unknown> = {},
@@ -3217,7 +3255,7 @@ function serializeOrderReturnsConnection(
     hasNextPage: false,
     hasPreviousPage: false,
     getCursorValue: (orderReturn) => orderReturn.id,
-    serializeNode: (orderReturn, selection) => serializeOrderReturn(selection, orderReturn, variables, order),
+    serializeNode: (orderReturn, selection) => serializeOrderReturn(runtime, selection, orderReturn, variables, order),
     pageInfoOptions: {
       includeCursors: false,
     },
@@ -3280,6 +3318,7 @@ function deriveOrderNetPaymentSet(order: OrderRecord): { shopMoney: MoneyV2Recor
 }
 
 export function serializeOrderNode(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   order: OrderRecord,
   variables: Record<string, unknown> = {},
@@ -3472,13 +3511,15 @@ export function serializeOrderNode(
         result[key] = serializeOrderFulfillmentOrdersConnection(selection, order.fulfillmentOrders ?? []);
         break;
       case 'transactions':
-        result[key] = order.transactions.map((transaction) => serializeOrderTransaction(selection, transaction));
+        result[key] = order.transactions.map((transaction) =>
+          serializeOrderTransaction(runtime, selection, transaction),
+        );
         break;
       case 'refunds':
-        result[key] = order.refunds.map((refund) => serializeOrderRefund(selection, refund));
+        result[key] = order.refunds.map((refund) => serializeOrderRefund(runtime, selection, refund));
         break;
       case 'returns':
-        result[key] = serializeOrderReturnsConnection(selection, order.returns, variables, order);
+        result[key] = serializeOrderReturnsConnection(runtime, selection, order.returns, variables, order);
         break;
       default:
         result[key] = null;
@@ -3489,17 +3530,18 @@ export function serializeOrderNode(
 }
 
 export function serializeCalculatedOrder(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   calculatedOrder: CalculatedOrderRecord,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  const originalOrder = store.getOrderById(calculatedOrder.originalOrderId);
+  const originalOrder = runtime.store.getOrderById(calculatedOrder.originalOrderId);
 
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'originalOrder':
-        result[key] = originalOrder ? serializeOrderNode(selection, originalOrder) : null;
+        result[key] = originalOrder ? serializeOrderNode(runtime, selection, originalOrder) : null;
         break;
       case 'addedLineItems':
         result[key] = serializeOrderLineItemsConnection(
@@ -3526,6 +3568,7 @@ export function serializeCalculatedOrder(
         break;
       default:
         result[key] = serializeOrderNode(
+          runtime,
           {
             ...field,
             selectionSet: {
@@ -3639,13 +3682,13 @@ function normalizedAbandonedCheckoutEnum(value: string | null): string | null {
   return value?.replace(/-/gu, '_').toLowerCase() ?? null;
 }
 
-function abandonedCheckoutEmailState(checkout: AbandonedCheckoutRecord): string | null {
+function abandonedCheckoutEmailState(runtime: ProxyRuntimeContext, checkout: AbandonedCheckoutRecord): string | null {
   const checkoutEmailState = readAbandonedCheckoutString(checkout, 'emailState');
   if (checkoutEmailState) {
     return checkoutEmailState;
   }
 
-  const abandonment = store.getAbandonmentByAbandonedCheckoutId(checkout.id);
+  const abandonment = runtime.store.getAbandonmentByAbandonedCheckoutId(checkout.id);
   const abandonmentEmailState = abandonment ? readNestedString(abandonment.data, 'emailState') : null;
   return abandonmentEmailState;
 }
@@ -3682,7 +3725,11 @@ function matchesAbandonedCheckoutDefaultTerm(checkout: AbandonedCheckoutRecord, 
   );
 }
 
-function matchesAbandonedCheckoutSearchTerm(checkout: AbandonedCheckoutRecord, term: SearchQueryTerm): boolean {
+function matchesAbandonedCheckoutSearchTerm(
+  runtime: ProxyRuntimeContext,
+  checkout: AbandonedCheckoutRecord,
+  term: SearchQueryTerm,
+): boolean {
   if (term.field === null || term.field === '') {
     return matchesAbandonedCheckoutDefaultTerm(checkout, term.value);
   }
@@ -3705,7 +3752,10 @@ function matchesAbandonedCheckoutSearchTerm(checkout: AbandonedCheckoutRecord, t
     case 'recovery_state':
       return matchesAbandonedCheckoutRecoveryState(checkout, value);
     case 'email_state':
-      return matchesSearchQueryString(normalizedAbandonedCheckoutEnum(abandonedCheckoutEmailState(checkout)), value);
+      return matchesSearchQueryString(
+        normalizedAbandonedCheckoutEnum(abandonedCheckoutEmailState(runtime, checkout)),
+        value,
+      );
     case 'title':
       return abandonedCheckoutLineItems(checkout).some((lineItem) =>
         matchesStringValueIncludingContains(readNestedString(lineItem, 'title'), value),
@@ -3716,13 +3766,17 @@ function matchesAbandonedCheckoutSearchTerm(checkout: AbandonedCheckoutRecord, t
 }
 
 function applyAbandonedCheckoutsQuery(
+  runtime: ProxyRuntimeContext,
   checkouts: AbandonedCheckoutRecord[],
   rawQuery: unknown,
 ): AbandonedCheckoutRecord[] {
-  return applySearchQuery(checkouts, rawQuery, { recognizeNotKeyword: true }, matchesAbandonedCheckoutSearchTerm);
+  return applySearchQuery(checkouts, rawQuery, { recognizeNotKeyword: true }, (checkout, term) =>
+    matchesAbandonedCheckoutSearchTerm(runtime, checkout, term),
+  );
 }
 
 function prepareAbandonedCheckoutsForRead(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   checkouts: AbandonedCheckoutRecord[],
   variables: Record<string, unknown>,
@@ -3732,17 +3786,18 @@ function prepareAbandonedCheckoutsForRead(
     return [];
   }
 
-  return applyAbandonedCheckoutsQuery(checkouts, args['query']);
+  return applyAbandonedCheckoutsQuery(runtime, checkouts, args['query']);
 }
 
 export function serializeAbandonedCheckoutsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   checkouts: AbandonedCheckoutRecord[],
   variables: Record<string, unknown>,
   fragments: ReturnType<typeof getDocumentFragments>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const filteredCheckouts = prepareAbandonedCheckoutsForRead(field, checkouts, variables);
+  const filteredCheckouts = prepareAbandonedCheckoutsForRead(runtime, field, checkouts, variables);
   const orderedCheckouts = args['reverse'] === false ? [...filteredCheckouts].reverse() : filteredCheckouts;
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     orderedCheckouts,
@@ -3766,12 +3821,13 @@ export function serializeAbandonedCheckoutsConnection(
 }
 
 export function serializeAbandonedCheckoutsCount(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   checkouts: AbandonedCheckoutRecord[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const filteredCheckouts = prepareAbandonedCheckoutsForRead(field, checkouts, variables);
+  const filteredCheckouts = prepareAbandonedCheckoutsForRead(runtime, field, checkouts, variables);
   const rawLimit = args['limit'];
   const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
   const count = limit === null ? filteredCheckouts.length : Math.min(filteredCheckouts.length, limit);
@@ -3780,6 +3836,7 @@ export function serializeAbandonedCheckoutsCount(
 }
 
 export function serializeAbandonmentNode(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   abandonment: AbandonmentRecord,
   variables: Record<string, unknown>,
@@ -3792,7 +3849,7 @@ export function serializeAbandonmentNode(
           typeof source[fieldName] === 'object' && source[fieldName] !== null
             ? ((source[fieldName] as Record<string, unknown>)['id'] as unknown)
             : abandonment.abandonedCheckoutId;
-        const checkout = typeof checkoutId === 'string' ? store.getAbandonedCheckoutById(checkoutId) : null;
+        const checkout = typeof checkoutId === 'string' ? runtime.store.getAbandonedCheckoutById(checkoutId) : null;
         return {
           handled: true,
           value: checkout ? serializeAbandonedCheckoutNode(selection, checkout, variables, fragments) : null,
@@ -3836,6 +3893,7 @@ function serializeOrderCount(field: FieldNode, count = 0, precision = 'EXACT'): 
 }
 
 export function serializeOrdersConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   orders: OrderRecord[],
   variables: Record<string, unknown>,
@@ -3852,7 +3910,7 @@ export function serializeOrdersConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: (order) => buildSyntheticCursor(order.id),
-    serializeNode: (order, selection) => serializeOrderNode(selection, order),
+    serializeNode: (order, selection) => serializeOrderNode(runtime, selection, order),
     selectedFieldOptions: { includeInlineFragments: true },
     pageInfoOptions: { prefixCursors: false, includeInlineFragments: true },
   });

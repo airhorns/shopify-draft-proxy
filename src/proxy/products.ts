@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -81,8 +82,6 @@ import {
   serializeMetafieldSelectionSet,
   upsertOwnerMetafields,
 } from './metafields.js';
-import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   CollectionImageRecord,
   CollectionRecord,
@@ -143,8 +142,11 @@ function readProductIdentifierCustomId(identifier: Record<string, unknown>): Pro
   return { namespace, key, value };
 }
 
-function getProductCustomIdDefinition(customId: ProductIdentifierCustomId): MetafieldDefinitionRecord | null {
-  const definition = store.findEffectiveMetafieldDefinition({
+function getProductCustomIdDefinition(
+  runtime: ProxyRuntimeContext,
+  customId: ProductIdentifierCustomId,
+): MetafieldDefinitionRecord | null {
+  const definition = runtime.store.findEffectiveMetafieldDefinition({
     ownerType: 'PRODUCT',
     namespace: customId.namespace,
     key: customId.key,
@@ -153,12 +155,15 @@ function getProductCustomIdDefinition(customId: ProductIdentifierCustomId): Meta
   return definition?.type.name === 'id' ? definition : null;
 }
 
-function findEffectiveProductByCustomId(customId: ProductIdentifierCustomId): ProductRecord | null {
+function findEffectiveProductByCustomId(
+  runtime: ProxyRuntimeContext,
+  customId: ProductIdentifierCustomId,
+): ProductRecord | null {
   return (
-    store
+    runtime.store
       .listEffectiveProducts()
       .find((product) =>
-        store
+        runtime.store
           .getEffectiveMetafieldsByProductId(product.id)
           .some(
             (metafield) =>
@@ -171,20 +176,23 @@ function findEffectiveProductByCustomId(customId: ProductIdentifierCustomId): Pr
   );
 }
 
-function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
+function findEffectiveProductByIdentifier(
+  runtime: ProxyRuntimeContext,
+  identifier: Record<string, unknown>,
+): ProductRecord | null {
   const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
   if (id) {
-    return store.getEffectiveProductById(id);
+    return runtime.store.getEffectiveProductById(id);
   }
 
   const handle = typeof identifier['handle'] === 'string' ? identifier['handle'] : null;
   if (handle) {
-    return findEffectiveProductByHandle(handle);
+    return findEffectiveProductByHandle(runtime, handle);
   }
 
   const customId = readProductIdentifierCustomId(identifier);
-  if (customId && getProductCustomIdDefinition(customId)) {
-    return findEffectiveProductByCustomId(customId);
+  if (customId && getProductCustomIdDefinition(runtime, customId)) {
+    return findEffectiveProductByCustomId(runtime, customId);
   }
 
   return null;
@@ -201,55 +209,61 @@ function buildProductCustomIdDefinitionMissingError(field: FieldNode): Record<st
   };
 }
 
-function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
+function findEffectiveVariantByIdentifier(
+  runtime: ProxyRuntimeContext,
+  identifier: Record<string, unknown>,
+): ProductVariantRecord | null {
   const id = typeof identifier['id'] === 'string' ? identifier['id'] : null;
-  return id ? store.getEffectiveVariantById(id) : null;
+  return id ? runtime.store.getEffectiveVariantById(id) : null;
 }
 
-function findEffectiveCollectionById(collectionId: string): CollectionRecord | null {
-  return store.getEffectiveCollectionById(collectionId);
+function findEffectiveCollectionById(runtime: ProxyRuntimeContext, collectionId: string): CollectionRecord | null {
+  return runtime.store.getEffectiveCollectionById(collectionId);
 }
 
-function findEffectiveCollectionByHandle(handle: string): CollectionRecord | null {
-  return listEffectiveCollections().find((collection) => collection.handle === handle) ?? null;
+function findEffectiveCollectionByHandle(runtime: ProxyRuntimeContext, handle: string): CollectionRecord | null {
+  return listEffectiveCollections(runtime).find((collection) => collection.handle === handle) ?? null;
 }
 
-function findEffectiveCollectionByIdentifier(identifier: Record<string, unknown>): CollectionRecord | null {
+function findEffectiveCollectionByIdentifier(
+  runtime: ProxyRuntimeContext,
+  identifier: Record<string, unknown>,
+): CollectionRecord | null {
   const rawId = identifier['id'];
   if (typeof rawId === 'string') {
-    return findEffectiveCollectionById(rawId);
+    return findEffectiveCollectionById(runtime, rawId);
   }
 
   const rawHandle = identifier['handle'];
   if (typeof rawHandle === 'string') {
-    return findEffectiveCollectionByHandle(rawHandle);
+    return findEffectiveCollectionByHandle(runtime, rawHandle);
   }
 
   return null;
 }
 
-function listEffectiveCollections(): CollectionRecord[] {
-  return store.listEffectiveCollections();
+function listEffectiveCollections(runtime: ProxyRuntimeContext): CollectionRecord[] {
+  return runtime.store.listEffectiveCollections();
 }
 
-function listEffectiveLocations(): LocationRecord[] {
-  const locations: LocationRecord[] = store.listEffectiveLocations();
+function listEffectiveLocations(runtime: ProxyRuntimeContext): LocationRecord[] {
+  const locations: LocationRecord[] = runtime.store.listEffectiveLocations();
   const seenLocationIds = new Set<string>();
 
   for (const location of locations) {
     seenLocationIds.add(location.id);
   }
 
-  for (const product of store.listEffectiveProducts()) {
-    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
-      for (const level of getEffectiveInventoryLevels(variant)) {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      for (const level of getEffectiveInventoryLevels(runtime, variant)) {
         const locationId = level.location?.id;
         if (!locationId || seenLocationIds.has(locationId)) {
           continue;
         }
 
         seenLocationIds.add(locationId);
-        const effectiveLocation = store.getEffectiveLocationById(locationId);
+        const effectiveLocation = runtime.store.getEffectiveLocationById(locationId);
         locations.push({
           ...effectiveLocation,
           id: locationId,
@@ -263,31 +277,33 @@ function listEffectiveLocations(): LocationRecord[] {
 }
 
 function readEffectiveInventoryLevelLocation(
+  runtime: ProxyRuntimeContext,
   location: NonNullable<InventoryLevelRecord['location']>,
 ): NonNullable<InventoryLevelRecord['location']> {
-  const effectiveLocation = store.getEffectiveLocationById(location.id);
+  const effectiveLocation = runtime.store.getEffectiveLocationById(location.id);
   return {
     id: location.id,
     name: effectiveLocation?.name ?? location.name,
   };
 }
 
-function listEffectivePublications(): PublicationRecord[] {
-  return store.listEffectivePublications();
+function listEffectivePublications(runtime: ProxyRuntimeContext): PublicationRecord[] {
+  return runtime.store.listEffectivePublications();
 }
 
-function listEffectiveChannels(): ChannelRecord[] {
-  return store.listEffectiveChannels();
+function listEffectiveChannels(runtime: ProxyRuntimeContext): ChannelRecord[] {
+  return runtime.store.listEffectiveChannels();
 }
 
-function listEffectiveProductsForCollection(collectionId: string): ProductRecord[] {
-  return store
+function listEffectiveProductsForCollection(runtime: ProxyRuntimeContext, collectionId: string): ProductRecord[] {
+  return runtime.store
     .listEffectiveProducts()
     .map((product) => ({
       product,
       membership:
-        store.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId) ??
-        null,
+        runtime.store
+          .getEffectiveCollectionsByProductId(product.id)
+          .find((collection) => collection.id === collectionId) ?? null,
     }))
     .filter(
       (entry): entry is { product: ProductRecord; membership: ProductCollectionRecord } => entry.membership !== null,
@@ -342,14 +358,18 @@ interface ProductVariantPosition {
   position: number;
 }
 
-function listEffectiveCollectionMembershipEntries(collectionId: string): CollectionMembershipEntry[] {
-  return store
+function listEffectiveCollectionMembershipEntries(
+  runtime: ProxyRuntimeContext,
+  collectionId: string,
+): CollectionMembershipEntry[] {
+  return runtime.store
     .listEffectiveProducts()
     .map((product) => ({
       product,
       membership:
-        store.getEffectiveCollectionsByProductId(product.id).find((collection) => collection.id === collectionId) ??
-        null,
+        runtime.store
+          .getEffectiveCollectionsByProductId(product.id)
+          .find((collection) => collection.id === collectionId) ?? null,
     }))
     .filter((entry): entry is CollectionMembershipEntry => entry.membership !== null)
     .sort((left, right) => {
@@ -476,6 +496,7 @@ function applySequentialReorder<T>(
 }
 
 function reorderCollectionProducts(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord,
   rawMoves: unknown,
 ): { job: { id: string; done: boolean } | null; userErrors: CollectionReorderUserError[] } {
@@ -490,11 +511,11 @@ function reorderCollectionProducts(
   }
 
   const { moves, userErrors } = readCollectionProductMoves(rawMoves);
-  const orderedEntries = listEffectiveCollectionMembershipEntries(collection.id);
+  const orderedEntries = listEffectiveCollectionMembershipEntries(runtime, collection.id);
   const productIdsInCollection = new Set(orderedEntries.map((entry) => entry.product.id));
 
   for (const [index, move] of moves.entries()) {
-    if (!store.getEffectiveProductById(move.id)) {
+    if (!runtime.store.getEffectiveProductById(move.id)) {
       userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist' });
     } else if (!productIdsInCollection.has(move.id)) {
       userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product is not in the collection' });
@@ -513,7 +534,7 @@ function reorderCollectionProducts(
   orderedEntries.splice(0, orderedEntries.length, ...reorderedEntries);
 
   for (const [position, entry] of orderedEntries.entries()) {
-    const nextCollections = store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
+    const nextCollections = runtime.store.getEffectiveCollectionsByProductId(entry.product.id).map((membership) =>
       membership.id === collection.id
         ? {
             ...membership,
@@ -521,21 +542,22 @@ function reorderCollectionProducts(
           }
         : membership,
     );
-    store.replaceStagedCollectionsForProduct(entry.product.id, nextCollections);
+    runtime.store.replaceStagedCollectionsForProduct(entry.product.id, nextCollections);
   }
 
   return {
-    job: { id: makeSyntheticGid('Job'), done: false },
+    job: { id: runtime.syntheticIdentity.makeSyntheticGid('Job'), done: false },
     userErrors: [],
   };
 }
 
 function reorderProductMedia(
+  runtime: ProxyRuntimeContext,
   productId: string,
   rawMoves: unknown,
 ): { job: { id: string; done: boolean } | null; userErrors: ProductReorderUserError[] } {
   const { moves, userErrors } = readCollectionProductMoves(rawMoves);
-  const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+  const effectiveMedia = runtime.store.getEffectiveMediaByProductId(productId);
   const mediaIds = new Set(
     effectiveMedia
       .map((mediaRecord) => mediaRecord.id)
@@ -560,20 +582,21 @@ function reorderProductMedia(
     ...mediaRecord,
     position,
   }));
-  store.replaceStagedMediaForProduct(productId, nextMedia);
+  runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
 
   return {
-    job: { id: makeSyntheticGid('Job'), done: false },
+    job: { id: runtime.syntheticIdentity.makeSyntheticGid('Job'), done: false },
     userErrors: [],
   };
 }
 
 function reorderProductVariants(
+  runtime: ProxyRuntimeContext,
   productId: string,
   rawPositions: unknown,
 ): { product: ProductRecord | null; userErrors: ProductReorderUserError[] } {
   const { positions, userErrors } = readProductVariantPositions(rawPositions);
-  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
   const variantIds = new Set(effectiveVariants.map((variant) => variant.id));
 
   for (const [index, position] of positions.entries()) {
@@ -587,15 +610,16 @@ function reorderProductVariants(
   }
 
   const nextVariants = applySequentialReorder(effectiveVariants, positions, (variant) => variant.id);
-  store.replaceStagedVariantsForProduct(productId, nextVariants);
+  runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
 
   return {
-    product: syncProductInventorySummary(productId),
+    product: syncProductInventorySummary(runtime, productId),
     userErrors: [],
   };
 }
 
 function addProductsToCollection(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord,
   productIds: string[],
   options: { placement?: 'append' | 'prepend-reverse' } = {},
@@ -616,7 +640,7 @@ function addProductsToCollection(
   }
 
   const duplicateMembership = normalizedProductIds.find((productId) =>
-    store.getEffectiveCollectionsByProductId(productId).some((candidate) => candidate.id === collection.id),
+    runtime.store.getEffectiveCollectionsByProductId(productId).some((candidate) => candidate.id === collection.id),
   );
   if (duplicateMembership) {
     return {
@@ -625,7 +649,9 @@ function addProductsToCollection(
     };
   }
 
-  const existingProductIds = normalizedProductIds.filter((productId) => store.getEffectiveProductById(productId));
+  const existingProductIds = normalizedProductIds.filter((productId) =>
+    runtime.store.getEffectiveProductById(productId),
+  );
   if (existingProductIds.length === 0) {
     return {
       collection,
@@ -633,9 +659,9 @@ function addProductsToCollection(
     };
   }
 
-  const existingPositions = store
+  const existingPositions = runtime.store
     .listEffectiveProducts()
-    .flatMap((product) => store.getEffectiveCollectionsByProductId(product.id))
+    .flatMap((product) => runtime.store.getEffectiveCollectionsByProductId(product.id))
     .filter((candidate) => candidate.id === collection.id)
     .map((candidate) => candidate.position)
     .filter((position): position is number => typeof position === 'number' && Number.isFinite(position));
@@ -652,10 +678,10 @@ function addProductsToCollection(
 
   for (const [index, productId] of positionedProductIds.entries()) {
     const nextCollections = [
-      ...store.getEffectiveCollectionsByProductId(productId),
+      ...runtime.store.getEffectiveCollectionsByProductId(productId),
       makeProductCollectionRecord(productId, collection, firstPosition + index),
     ];
-    store.replaceStagedCollectionsForProduct(productId, nextCollections);
+    runtime.store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
 
   return {
@@ -670,19 +696,23 @@ function readCollectionProductIds(rawProductIds: unknown): string[] {
     : [];
 }
 
-function removeProductsFromCollection(collection: CollectionRecord, productIds: string[]): void {
+function removeProductsFromCollection(
+  runtime: ProxyRuntimeContext,
+  collection: CollectionRecord,
+  productIds: string[],
+): void {
   const normalizedProductIds = productIds.filter((productId, index) => productIds.indexOf(productId) === index);
 
   for (const productId of normalizedProductIds) {
-    const existingProduct = store.getEffectiveProductById(productId);
+    const existingProduct = runtime.store.getEffectiveProductById(productId);
     if (!existingProduct) {
       continue;
     }
 
-    const nextCollections = store
+    const nextCollections = runtime.store
       .getEffectiveCollectionsByProductId(productId)
       .filter((candidate) => candidate.id !== collection.id);
-    store.replaceStagedCollectionsForProduct(productId, nextCollections);
+    runtime.store.replaceStagedCollectionsForProduct(productId, nextCollections);
   }
 }
 
@@ -918,11 +948,12 @@ function removePublicationTargets(existing: string[], removals: string[]): strin
   return next;
 }
 
-function removePublicationFromPublishables(publicationId: string): void {
-  for (const product of store.listEffectiveProducts()) {
+function removePublicationFromPublishables(runtime: ProxyRuntimeContext, publicationId: string): void {
+  for (const product of runtime.store.listEffectiveProducts()) {
     if (product.publicationIds.includes(publicationId)) {
-      store.stageUpdateProduct(
+      runtime.store.stageUpdateProduct(
         makeProductRecord(
+          runtime,
           {
             id: product.id,
             publicationIds: removePublicationTargets(product.publicationIds, [publicationId]),
@@ -933,11 +964,12 @@ function removePublicationFromPublishables(publicationId: string): void {
     }
   }
 
-  for (const collection of listEffectiveCollections()) {
+  for (const collection of listEffectiveCollections(runtime)) {
     const publicationIds = collection.publicationIds ?? [];
     if (publicationIds.includes(publicationId)) {
-      store.stageUpdateCollection(
+      runtime.store.stageUpdateCollection(
         makeCollectionRecord(
+          runtime,
           {
             id: collection.id,
             publicationIds: removePublicationTargets(publicationIds, [publicationId]),
@@ -953,10 +985,14 @@ function getPublishableProductId(rawId: unknown): string | null {
   return typeof rawId === 'string' && rawId.startsWith('gid://shopify/Product/') ? rawId : null;
 }
 
-function makeProductRecord(input: Record<string, unknown>, existing?: ProductRecord): ProductRecord {
+function makeProductRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing?: ProductRecord,
+): ProductRecord {
   const rawTitle = input['title'];
   const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : (existing?.title ?? 'Untitled product');
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const rawId = input['id'];
   const rawHandle = input['handle'];
   const rawStatus = input['status'];
@@ -973,7 +1009,8 @@ function makeProductRecord(input: Record<string, unknown>, existing?: ProductRec
   const existingSeo = existing?.seo ?? { title: null, description: null };
 
   return {
-    id: typeof rawId === 'string' ? rawId : (existing?.id ?? makeProxySyntheticGid('Product')),
+    id:
+      typeof rawId === 'string' ? rawId : (existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Product')),
     legacyResourceId: existing?.legacyResourceId ?? null,
     title,
     handle:
@@ -1095,12 +1132,17 @@ function readCollectionRuleSet(
   };
 }
 
-function makeCollectionRecord(input: Record<string, unknown>, existing?: CollectionRecord): CollectionRecord {
+function makeCollectionRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing?: CollectionRecord,
+): CollectionRecord {
   const rawTitle = input['title'];
   const title = typeof rawTitle === 'string' && rawTitle.trim() ? rawTitle : (existing?.title ?? 'Untitled collection');
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const rawId = input['id'];
-  const id = typeof rawId === 'string' ? rawId : (existing?.id ?? makeSyntheticGid('Collection'));
+  const id =
+    typeof rawId === 'string' ? rawId : (existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('Collection'));
   const rawHandle = input['handle'];
   const rawDescriptionHtml = input['descriptionHtml'];
   const rawImage = input['image'];
@@ -1157,9 +1199,16 @@ function makeCollectionRecord(input: Record<string, unknown>, existing?: Collect
   };
 }
 
-function makePublicationRecord(input: Record<string, unknown>, existing?: PublicationRecord): PublicationRecord {
+function makePublicationRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing?: PublicationRecord,
+): PublicationRecord {
   const rawId = input['id'];
-  const id = typeof rawId === 'string' && rawId.length > 0 ? rawId : (existing?.id ?? makeSyntheticGid('Publication'));
+  const id =
+    typeof rawId === 'string' && rawId.length > 0
+      ? rawId
+      : (existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('Publication'));
   const rawName = input['name'] ?? input['title'];
   const rawAutoPublish = input['autoPublish'];
   const rawSupportsFuturePublishing = input['supportsFuturePublishing'];
@@ -1180,12 +1229,16 @@ function makePublicationRecord(input: Record<string, unknown>, existing?: Public
   };
 }
 
-function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): ProductRecord {
+function makeDuplicatedProductRecord(
+  runtime: ProxyRuntimeContext,
+  source: ProductRecord,
+  newTitle?: string,
+): ProductRecord {
   const title = typeof newTitle === 'string' && newTitle.trim() ? newTitle : `Copy of ${source.title}`;
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
 
   return {
-    id: makeProxySyntheticGid('Product'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('Product'),
     legacyResourceId: null,
     title,
     handle: slugifyHandle(title),
@@ -1207,9 +1260,13 @@ function makeDuplicatedProductRecord(source: ProductRecord, newTitle?: string): 
   };
 }
 
-function duplicateVariantRecord(variant: ProductVariantRecord, productId: string): ProductVariantRecord {
+function duplicateVariantRecord(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  productId: string,
+): ProductVariantRecord {
   return {
-    id: makeSyntheticGid('ProductVariant'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductVariant'),
     productId,
     title: variant.title,
     sku: variant.sku,
@@ -1223,20 +1280,24 @@ function duplicateVariantRecord(variant: ProductVariantRecord, productId: string
     inventoryItem: variant.inventoryItem
       ? {
           ...structuredClone(variant.inventoryItem),
-          id: makeSyntheticGid('InventoryItem'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('InventoryItem'),
         }
       : null,
   };
 }
 
-function duplicateOptionRecord(option: ProductOptionRecord, productId: string): ProductOptionRecord {
+function duplicateOptionRecord(
+  runtime: ProxyRuntimeContext,
+  option: ProductOptionRecord,
+  productId: string,
+): ProductOptionRecord {
   return {
-    id: makeSyntheticGid('ProductOption'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductOption'),
     productId,
     name: option.name,
     position: option.position,
     optionValues: option.optionValues.map((optionValue) => ({
-      id: makeSyntheticGid('ProductOptionValue'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
       name: optionValue.name,
       hasVariants: optionValue.hasVariants,
     })),
@@ -1252,10 +1313,14 @@ function duplicateCollectionRecord(collection: ProductCollectionRecord, productI
   };
 }
 
-function duplicateMetafieldRecord(metafield: ProductMetafieldRecord, productId: string): ProductMetafieldRecord {
-  const timestamp = makeSyntheticTimestamp();
+function duplicateMetafieldRecord(
+  runtime: ProxyRuntimeContext,
+  metafield: ProductMetafieldRecord,
+  productId: string,
+): ProductMetafieldRecord {
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const duplicated: ProductMetafieldRecord = {
-    id: makeSyntheticGid('Metafield'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('Metafield'),
     productId,
     ownerId: productId,
     namespace: metafield.namespace,
@@ -1299,13 +1364,17 @@ function readSelectedOptionsInput(raw: unknown): ProductVariantRecord['selectedO
     .filter((value): value is ProductVariantRecord['selectedOptions'][number] => value !== null);
 }
 
-function readVariantOptionsArrayInput(raw: unknown, productId: string): ProductVariantRecord['selectedOptions'] {
+function readVariantOptionsArrayInput(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+  productId: string,
+): ProductVariantRecord['selectedOptions'] {
   if (!Array.isArray(raw)) {
     return [];
   }
 
   const optionValues = raw.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
-  const options = store.getEffectiveOptionsByProductId(productId);
+  const options = runtime.store.getEffectiveOptionsByProductId(productId);
   return optionValues
     .map((value, index) => {
       const optionName = options[index]?.name;
@@ -1322,6 +1391,7 @@ function readVariantOptionsArrayInput(raw: unknown, productId: string): ProductV
 }
 
 function readVariantSelectedOptions(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   productId: string,
   fallback: ProductVariantRecord['selectedOptions'] = [],
@@ -1335,7 +1405,7 @@ function readVariantSelectedOptions(
   }
 
   if (hasOwnField(input, 'options')) {
-    return readVariantOptionsArrayInput(input['options'], productId);
+    return readVariantOptionsArrayInput(runtime, input['options'], productId);
   }
 
   return structuredClone(fallback);
@@ -1451,6 +1521,7 @@ function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | 
 }
 
 function readInventoryItemInput(
+  runtime: ProxyRuntimeContext,
   raw: unknown,
   existing: ProductVariantRecord['inventoryItem'],
 ): ProductVariantRecord['inventoryItem'] {
@@ -1463,7 +1534,7 @@ function readInventoryItemInput(
   const rawWeight = isObject(rawMeasurement) ? rawMeasurement['weight'] : null;
 
   return {
-    id: current?.id ?? makeSyntheticGid('InventoryItem'),
+    id: current?.id ?? runtime.syntheticIdentity.makeSyntheticGid('InventoryItem'),
     tracked: typeof raw['tracked'] === 'boolean' ? raw['tracked'] : (current?.tracked ?? null),
     requiresShipping:
       typeof raw['requiresShipping'] === 'boolean' ? raw['requiresShipping'] : (current?.requiresShipping ?? null),
@@ -1496,12 +1567,13 @@ function readInventoryItemInput(
 }
 
 function makeInventoryItemForInventoryQuantities(
+  runtime: ProxyRuntimeContext,
   existing: ProductVariantRecord['inventoryItem'],
 ): NonNullable<ProductVariantRecord['inventoryItem']> {
   return existing
     ? structuredClone(existing)
     : {
-        id: makeSyntheticGid('InventoryItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('InventoryItem'),
         tracked: null,
         requiresShipping: null,
         measurement: null,
@@ -1513,10 +1585,11 @@ function makeInventoryItemForInventoryQuantities(
 }
 
 function upsertInventoryLevelQuantity(
+  runtime: ProxyRuntimeContext,
   quantities: InventoryLevelRecord['quantities'],
   name: string,
   quantity: number,
-  updatedAt: string | null = makeSyntheticTimestamp(),
+  updatedAt: string | null = runtime.syntheticIdentity.makeSyntheticTimestamp(),
 ): InventoryLevelRecord['quantities'] {
   const nextQuantities = quantities.map((candidate) => structuredClone(candidate));
   const existingIndex = nextQuantities.findIndex((candidate) => candidate.name === name);
@@ -1558,6 +1631,7 @@ function ensureInventoryLevelQuantity(
 }
 
 function buildProductSetInventoryLevels(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   rawInventoryQuantities: unknown,
   inventoryItem: NonNullable<ProductVariantRecord['inventoryItem']>,
@@ -1574,21 +1648,20 @@ function buildProductSetInventoryLevels(
   }
 
   const existingLevelsByLocationId = new Map(
-    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels({ ...variant, inventoryItem })).map((level) => [
-      level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID,
-      level,
-    ]),
+    (inventoryItem.inventoryLevels ?? buildSyntheticInventoryLevels(runtime, { ...variant, inventoryItem })).map(
+      (level) => [level.location?.id ?? DEFAULT_INVENTORY_LEVEL_LOCATION_ID, level],
+    ),
   );
 
   return [...inputsByLocationId.entries()].map(([locationId, quantityInputsForLocation]) => {
     const existingLevel = existingLevelsByLocationId.get(locationId) ?? null;
-    const effectiveLocation = store.getEffectiveLocationById(locationId);
+    const effectiveLocation = runtime.store.getEffectiveLocationById(locationId);
     let quantities = existingLevel?.quantities.map((quantity) => structuredClone(quantity)) ?? [];
 
     for (const quantityInput of quantityInputsForLocation) {
-      quantities = upsertInventoryLevelQuantity(quantities, quantityInput.name, quantityInput.quantity);
+      quantities = upsertInventoryLevelQuantity(runtime, quantities, quantityInput.name, quantityInput.quantity);
       if (quantityInput.name === 'available') {
-        quantities = upsertInventoryLevelQuantity(quantities, 'on_hand', quantityInput.quantity, null);
+        quantities = upsertInventoryLevelQuantity(runtime, quantities, 'on_hand', quantityInput.quantity, null);
       }
     }
 
@@ -1609,6 +1682,7 @@ function buildProductSetInventoryLevels(
 }
 
 function applyProductSetInventoryQuantitiesToVariant(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   input: Record<string, unknown>,
 ): ProductVariantRecord {
@@ -1621,8 +1695,8 @@ function applyProductSetInventoryQuantitiesToVariant(
     return variant;
   }
 
-  const inventoryItem = makeInventoryItemForInventoryQuantities(variant.inventoryItem);
-  const inventoryLevels = buildProductSetInventoryLevels(variant, input['inventoryQuantities'], inventoryItem);
+  const inventoryItem = makeInventoryItemForInventoryQuantities(runtime, variant.inventoryItem);
+  const inventoryLevels = buildProductSetInventoryLevels(runtime, variant, input['inventoryQuantities'], inventoryItem);
   const availableQuantity = readProductSetInventoryQuantity(input['inventoryQuantities']);
 
   return {
@@ -1636,19 +1710,20 @@ function applyProductSetInventoryQuantitiesToVariant(
 }
 
 function makeCreatedVariantRecord(
+  runtime: ProxyRuntimeContext,
   productId: string,
   input: Record<string, unknown>,
   defaults: ProductVariantRecord | null = null,
 ): ProductVariantRecord {
-  const selectedOptions = readVariantSelectedOptions(input, productId);
+  const selectedOptions = readVariantSelectedOptions(runtime, input, productId);
   const defaultInventoryItem = defaults?.inventoryItem
     ? {
         ...structuredClone(defaults.inventoryItem),
-        id: makeSyntheticGid('InventoryItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('InventoryItem'),
       }
     : null;
   return {
-    id: makeSyntheticGid('ProductVariant'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductVariant'),
     productId,
     title: deriveVariantTitle(input['title'], selectedOptions, 'Default Title'),
     sku: readVariantSku(input, null),
@@ -1662,7 +1737,7 @@ function makeCreatedVariantRecord(
     inventoryQuantity: readVariantInventoryQuantity(input, 0),
     selectedOptions,
     inventoryItem: hasOwnField(input, 'inventoryItem')
-      ? readInventoryItemInput(input['inventoryItem'], null)
+      ? readInventoryItemInput(runtime, input['inventoryItem'], null)
       : defaultInventoryItem,
   };
 }
@@ -1726,6 +1801,7 @@ function fillMissingVariantOptionSelections(
 }
 
 function createVariantsForOptionValueCombinations(
+  runtime: ProxyRuntimeContext,
   productId: string,
   options: ProductOptionRecord[],
   existingVariants: ProductVariantRecord[],
@@ -1743,7 +1819,7 @@ function createVariantsForOptionValueCombinations(
 
   const createdVariants = combinations
     .filter((selectedOptions) => !variantsBySelectedOptions.has(selectedOptionsKey(selectedOptions)))
-    .map((selectedOptions) => makeCreatedVariantRecord(productId, { selectedOptions }, defaultVariant));
+    .map((selectedOptions) => makeCreatedVariantRecord(runtime, productId, { selectedOptions }, defaultVariant));
 
   return [...existingVariantsWithSelections, ...createdVariants];
 }
@@ -1752,10 +1828,15 @@ function productHasStandaloneDefaultVariant(options: ProductOptionRecord[], vari
   return productUsesOnlyDefaultOptionState(options, variants) && variants[0]?.title === 'Default Title';
 }
 
-function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
-  const variant = makeCreatedVariantRecord(productId, input);
+function makeCreatedProductSetVariantRecord(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  const variant = makeCreatedVariantRecord(runtime, productId, input);
 
   return applyProductSetInventoryQuantitiesToVariant(
+    runtime,
     {
       ...variant,
       taxable: variant.taxable ?? true,
@@ -1772,14 +1853,19 @@ function makeCreatedProductSetVariantRecord(productId: string, input: Record<str
 }
 
 function updateProductSetVariantRecord(
+  runtime: ProxyRuntimeContext,
   existing: ProductVariantRecord,
   input: Record<string, unknown>,
 ): ProductVariantRecord {
-  return applyProductSetInventoryQuantitiesToVariant(updateVariantRecord(existing, input), input);
+  return applyProductSetInventoryQuantitiesToVariant(runtime, updateVariantRecord(runtime, existing, input), input);
 }
 
-function updateVariantRecord(existing: ProductVariantRecord, input: Record<string, unknown>): ProductVariantRecord {
-  const selectedOptions = readVariantSelectedOptions(input, existing.productId, existing.selectedOptions);
+function updateVariantRecord(
+  runtime: ProxyRuntimeContext,
+  existing: ProductVariantRecord,
+  input: Record<string, unknown>,
+): ProductVariantRecord {
+  const selectedOptions = readVariantSelectedOptions(runtime, input, existing.productId, existing.selectedOptions);
 
   return {
     id: existing.id,
@@ -1794,7 +1880,7 @@ function updateVariantRecord(existing: ProductVariantRecord, input: Record<strin
     inventoryQuantity: readVariantInventoryQuantity(input, existing.inventoryQuantity),
     selectedOptions,
     inventoryItem: hasOwnField(input, 'inventoryItem')
-      ? readInventoryItemInput(input['inventoryItem'], existing.inventoryItem)
+      ? readInventoryItemInput(runtime, input['inventoryItem'], existing.inventoryItem)
       : structuredClone(existing.inventoryItem),
   };
 }
@@ -1829,6 +1915,7 @@ function bulkVariantOptionFieldName(input: Record<string, unknown>): string {
 }
 
 function validateBulkVariantOptionInput(
+  runtime: ProxyRuntimeContext,
   productId: string,
   input: Record<string, unknown>,
   index: number,
@@ -1837,9 +1924,9 @@ function validateBulkVariantOptionInput(
   selectedOptions: ProductVariantRecord['selectedOptions'];
   userErrors: BulkVariantUserError[];
 } {
-  const selectedOptions = readVariantSelectedOptions(input, productId);
+  const selectedOptions = readVariantSelectedOptions(runtime, input, productId);
   const userErrors: BulkVariantUserError[] = [];
-  const productOptions = store.getEffectiveOptionsByProductId(productId);
+  const productOptions = runtime.store.getEffectiveOptionsByProductId(productId);
   const optionFieldName = bulkVariantOptionFieldName(input);
   const seenOptionNames = new Set<string>();
 
@@ -1877,11 +1964,15 @@ function validateBulkVariantOptionInput(
   return { selectedOptions, userErrors };
 }
 
-function validateBulkCreateVariantBatch(productId: string, inputs: Record<string, unknown>[]): BulkVariantUserError[] {
+function validateBulkCreateVariantBatch(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  inputs: Record<string, unknown>[],
+): BulkVariantUserError[] {
   const userErrors: BulkVariantUserError[] = [];
 
   for (const [index, input] of inputs.entries()) {
-    const validation = validateBulkVariantOptionInput(productId, input, index, 'create');
+    const validation = validateBulkVariantOptionInput(runtime, productId, input, index, 'create');
     if (validation.userErrors.length > 0) {
       userErrors.push(...validation.userErrors);
       continue;
@@ -1901,7 +1992,7 @@ function validateBulkCreateVariantBatch(productId: string, inputs: Record<string
       return (
         typeof locationId === 'string' &&
         locationId !== DEFAULT_INVENTORY_LEVEL_LOCATION_ID &&
-        !findKnownLocationById(locationId)
+        !findKnownLocationById(runtime, locationId)
       );
     });
     if (invalidInventoryLocation) {
@@ -1916,6 +2007,7 @@ function validateBulkCreateVariantBatch(productId: string, inputs: Record<string
 }
 
 function validateBulkUpdateVariantBatch(
+  runtime: ProxyRuntimeContext,
   productId: string,
   inputs: Record<string, unknown>[],
   variantsById: Map<string, ProductVariantRecord>,
@@ -1953,7 +2045,7 @@ function validateBulkUpdateVariantBatch(
     }
 
     if (hasVariantOptionInput(input)) {
-      userErrors.push(...validateBulkVariantOptionInput(productId, input, index, 'update').userErrors);
+      userErrors.push(...validateBulkVariantOptionInput(runtime, productId, input, index, 'update').userErrors);
     }
   }
 
@@ -1988,9 +2080,10 @@ function deriveTracksInventory(variants: ProductVariantRecord[]): boolean | null
 }
 
 function syncProductOptionsWithVariants(
+  runtime: ProxyRuntimeContext,
   productId: string,
-  options: ProductOptionRecord[] = store.getEffectiveOptionsByProductId(productId),
-  variants: ProductVariantRecord[] = store.getEffectiveVariantsByProductId(productId),
+  options: ProductOptionRecord[] = runtime.store.getEffectiveOptionsByProductId(productId),
+  variants: ProductVariantRecord[] = runtime.store.getEffectiveVariantsByProductId(productId),
 ): ProductOptionRecord[] {
   const nextOptions = structuredClone(options) as ProductOptionRecord[];
   const optionOrder = new Map(nextOptions.map((option, index) => [option.name, index]));
@@ -2008,7 +2101,7 @@ function syncProductOptionsWithVariants(
       if (optionIndex < 0) {
         optionIndex = nextOptions.length;
         nextOptions.push({
-          id: makeSyntheticGid('ProductOption'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('ProductOption'),
           productId,
           name: selectedOption.name,
           position: optionIndex + 1,
@@ -2021,7 +2114,7 @@ function syncProductOptionsWithVariants(
       let optionValue = option.optionValues.find((candidate) => candidate.name === selectedOption.value);
       if (!optionValue) {
         optionValue = {
-          id: makeSyntheticGid('ProductOptionValue'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
           name: selectedOption.value,
           hasVariants: false,
         };
@@ -2087,6 +2180,7 @@ function reorderOptionValues(
 }
 
 function reorderProductOptionsAndVariants(
+  runtime: ProxyRuntimeContext,
   productId: string,
   rawOptions: unknown,
 ): {
@@ -2094,7 +2188,7 @@ function reorderProductOptionsAndVariants(
   variants: ProductVariantRecord[];
   userErrors: Array<{ field: string[]; message: string }>;
 } {
-  const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
+  const effectiveOptions = runtime.store.getEffectiveOptionsByProductId(productId);
   const remainingOptions = effectiveOptions.map((option) => structuredClone(option));
   const reorderedOptions: ProductOptionRecord[] = [];
   const requestedValueOrderByOptionName = new Map<string, Map<string, number>>();
@@ -2103,7 +2197,7 @@ function reorderProductOptionsAndVariants(
   if (!Array.isArray(rawOptions)) {
     return {
       options: effectiveOptions,
-      variants: store.getEffectiveVariantsByProductId(productId),
+      variants: runtime.store.getEffectiveVariantsByProductId(productId),
       userErrors: [{ field: ['options'], message: 'Options are required' }],
     };
   }
@@ -2149,7 +2243,7 @@ function reorderProductOptionsAndVariants(
     ]),
   );
   const remappedVariants = reorderVariantSelectionsForOptions(
-    store.getEffectiveVariantsByProductId(productId),
+    runtime.store.getEffectiveVariantsByProductId(productId),
     nextOptions,
   );
   const nextVariants = remappedVariants
@@ -2183,22 +2277,22 @@ function reorderProductOptionsAndVariants(
   };
 }
 
-function syncProductInventorySummary(productId: string): ProductRecord | null {
-  const existingProduct = store.getEffectiveProductById(productId);
+function syncProductInventorySummary(runtime: ProxyRuntimeContext, productId: string): ProductRecord | null {
+  const existingProduct = runtime.store.getEffectiveProductById(productId);
   if (!existingProduct) {
     return null;
   }
 
-  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
   const nextProduct: ProductRecord = {
     ...structuredClone(existingProduct),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     totalInventory: sumVariantInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
-  store.stageUpdateProduct(nextProduct);
-  return store.getEffectiveProductById(productId);
+  runtime.store.stageUpdateProduct(nextProduct);
+  return runtime.store.getEffectiveProductById(productId);
 }
 
 function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number | null {
@@ -2215,24 +2309,25 @@ function sumProductSetCreateInventory(variants: ProductVariantRecord[]): number 
 }
 
 function syncProductSetInventorySummary(
+  runtime: ProxyRuntimeContext,
   productId: string,
   previousProduct: ProductRecord | null,
 ): ProductRecord | null {
-  const existingProduct = store.getEffectiveProductById(productId);
+  const existingProduct = runtime.store.getEffectiveProductById(productId);
   if (!existingProduct) {
     return null;
   }
 
-  const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+  const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
   const nextProduct: ProductRecord = {
     ...structuredClone(existingProduct),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     totalInventory: previousProduct ? previousProduct.totalInventory : sumProductSetCreateInventory(effectiveVariants),
     tracksInventory: deriveTracksInventory(effectiveVariants),
   };
 
-  store.stageUpdateProduct(nextProduct);
-  return store.getEffectiveProductById(productId);
+  runtime.store.stageUpdateProduct(nextProduct);
+  return runtime.store.getEffectiveProductById(productId);
 }
 
 interface InventoryAdjustmentChangeInputRecord {
@@ -2822,6 +2917,7 @@ function readInventoryMoveQuantityChangeInputs(raw: unknown): InventoryMoveQuant
 }
 
 function serializeInventoryAdjustmentGroup(
+  runtime: ProxyRuntimeContext,
   group: InventoryAdjustmentGroupRecord | null,
   field: FieldNode | null,
 ): Record<string, unknown> | null {
@@ -2856,7 +2952,7 @@ function serializeInventoryAdjustmentGroup(
       case 'changes':
         result[key] = group.changes.map((change) => {
           const changeResult: Record<string, unknown> = {};
-          const variant = store.findEffectiveVariantByInventoryItemId(change.inventoryItemId);
+          const variant = runtime.store.findEffectiveVariantByInventoryItemId(change.inventoryItemId);
           for (const changeSelection of selection.selectionSet?.selections ?? []) {
             if (changeSelection.kind !== Kind.FIELD) {
               continue;
@@ -2878,11 +2974,11 @@ function serializeInventoryAdjustmentGroup(
                 break;
               case 'item':
                 changeResult[changeKey] = variant
-                  ? serializeInventoryItemSelectionSet(variant, changeSelection.selectionSet?.selections ?? [])
+                  ? serializeInventoryItemSelectionSet(runtime, variant, changeSelection.selectionSet?.selections ?? [])
                   : null;
                 break;
               case 'location': {
-                const location = change.locationId ? findKnownLocationById(change.locationId) : null;
+                const location = change.locationId ? findKnownLocationById(runtime, change.locationId) : null;
                 changeResult[changeKey] = Object.fromEntries(
                   (changeSelection.selectionSet?.selections ?? [])
                     .filter(
@@ -2976,17 +3072,18 @@ function isOnHandComponentQuantityName(name: string): boolean {
 }
 
 function getInventoryMutableVariant(
+  runtime: ProxyRuntimeContext,
   variantsByProductId: Map<string, ProductVariantRecord[]>,
   inventoryItemId: string,
 ): { variant: ProductVariantRecord; variants: ProductVariantRecord[]; index: number } | null {
-  const baseVariant = store.findEffectiveVariantByInventoryItemId(inventoryItemId);
+  const baseVariant = runtime.store.findEffectiveVariantByInventoryItemId(inventoryItemId);
   if (!baseVariant) {
     return null;
   }
 
   const variants =
     variantsByProductId.get(baseVariant.productId) ??
-    store.getEffectiveVariantsByProductId(baseVariant.productId).map((candidate) => structuredClone(candidate));
+    runtime.store.getEffectiveVariantsByProductId(baseVariant.productId).map((candidate) => structuredClone(candidate));
   const index = variants.findIndex((candidate) => candidate.inventoryItem?.id === inventoryItemId);
   if (index < 0) {
     return null;
@@ -2997,6 +3094,7 @@ function getInventoryMutableVariant(
 }
 
 function getInventoryMutableLevel(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   locationId: string,
 ): {
@@ -3013,18 +3111,19 @@ function getInventoryMutableLevel(
   const levels =
     inventoryItem.inventoryLevels && inventoryItem.inventoryLevels.length > 0
       ? structuredClone(inventoryItem.inventoryLevels)
-      : buildSyntheticInventoryLevels({ ...variant, inventoryItem });
+      : buildSyntheticInventoryLevels(runtime, { ...variant, inventoryItem });
   const existingIndex = levels.findIndex((level) => level.location?.id === locationId);
   if (existingIndex >= 0) {
     return { inventoryItem, levels, level: levels[existingIndex]!, index: existingIndex };
   }
 
-  const knownLocation = findKnownLocationById(locationId);
+  const knownLocation = findKnownLocationById(runtime, locationId);
   if (!knownLocation) {
     return null;
   }
 
   const nextLevel = buildSyntheticInventoryLevel(
+    runtime,
     { ...variant, inventoryItem },
     {
       locationId,
@@ -3100,6 +3199,7 @@ function validateInventoryQuantityName(name: string | null, field: string[]): In
 }
 
 function applyInventoryAdjustQuantities(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   options: { requireChangeFromQuantity?: boolean } = {},
 ):
@@ -3184,7 +3284,7 @@ function applyInventoryAdjustQuantities(
       };
     }
 
-    const variant = store.findEffectiveVariantByInventoryItemId(change.inventoryItemId);
+    const variant = runtime.store.findEffectiveVariantByInventoryItemId(change.inventoryItemId);
     if (!variant) {
       return {
         group: null,
@@ -3199,7 +3299,7 @@ function applyInventoryAdjustQuantities(
 
     const nextVariants =
       variantsByProductId.get(variant.productId) ??
-      store.getEffectiveVariantsByProductId(variant.productId).map((candidate) => structuredClone(candidate));
+      runtime.store.getEffectiveVariantsByProductId(variant.productId).map((candidate) => structuredClone(candidate));
     const variantIndex = nextVariants.findIndex((candidate) => candidate.id === variant.id);
     if (variantIndex < 0) {
       return {
@@ -3247,12 +3347,13 @@ function applyInventoryAdjustQuantities(
     const nextLevels =
       nextInventoryItem.inventoryLevels && nextInventoryItem.inventoryLevels.length > 0
         ? structuredClone(nextInventoryItem.inventoryLevels)
-        : buildSyntheticInventoryLevels({ ...existingVariant, inventoryItem: nextInventoryItem });
+        : buildSyntheticInventoryLevels(runtime, { ...existingVariant, inventoryItem: nextInventoryItem });
     const levelIndex = nextLevels.findIndex((level) => level.location?.id === change.locationId);
     const targetLevel =
       levelIndex >= 0
         ? nextLevels[levelIndex]!
         : (buildSyntheticInventoryLevel(
+            runtime,
             { ...existingVariant, inventoryItem: nextInventoryItem },
             {
               locationId: change.locationId,
@@ -3262,7 +3363,7 @@ function applyInventoryAdjustQuantities(
                   : 0,
             },
           ) ?? {
-            id: `${makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(change.inventoryItemId)}`,
+            id: `${runtime.syntheticIdentity.makeSyntheticGid('InventoryLevel')}?inventory_item_id=${encodeURIComponent(change.inventoryItemId)}`,
             cursor: null,
             location: change.locationId
               ? { id: change.locationId, name: null }
@@ -3288,13 +3389,13 @@ function applyInventoryAdjustQuantities(
       nextQuantities[quantityIndex] = {
         ...nextQuantities[quantityIndex]!,
         quantity: (nextQuantities[quantityIndex]!.quantity ?? 0) + change.delta,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       };
     } else {
       nextQuantities.push({
         name,
         quantity: change.delta,
-        updatedAt: makeSyntheticTimestamp(),
+        updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       });
     }
 
@@ -3370,15 +3471,15 @@ function applyInventoryAdjustQuantities(
   }
 
   for (const [productId, nextVariants] of variantsByProductId.entries()) {
-    store.replaceStagedVariantsForProduct(productId, nextVariants);
+    runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
   }
 
   adjustedChanges.push(...mirroredOnHandChanges);
 
   return {
     group: {
-      id: makeSyntheticGid('InventoryAdjustmentGroup'),
-      createdAt: makeSyntheticTimestamp(),
+      id: runtime.syntheticIdentity.makeSyntheticGid('InventoryAdjustmentGroup'),
+      createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       reason,
       referenceDocumentUri: typeof input['referenceDocumentUri'] === 'string' ? input['referenceDocumentUri'] : null,
       app: buildInventoryAdjustmentAppRecord(),
@@ -3389,6 +3490,7 @@ function applyInventoryAdjustQuantities(
 }
 
 function applyInventorySetQuantities(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   options: { useChangeFromQuantity?: boolean } = {},
 ): {
@@ -3480,7 +3582,7 @@ function applyInventorySetQuantities(
       };
     }
 
-    const mutableVariant = getInventoryMutableVariant(variantsByProductId, quantityInput.inventoryItemId);
+    const mutableVariant = getInventoryMutableVariant(runtime, variantsByProductId, quantityInput.inventoryItemId);
     if (!mutableVariant) {
       return {
         group: null,
@@ -3493,7 +3595,7 @@ function applyInventorySetQuantities(
       };
     }
 
-    const mutableLevel = getInventoryMutableLevel(mutableVariant.variant, quantityInput.locationId);
+    const mutableLevel = getInventoryMutableLevel(runtime, mutableVariant.variant, quantityInput.locationId);
     if (!mutableLevel) {
       return {
         group: null,
@@ -3529,12 +3631,13 @@ function applyInventorySetQuantities(
 
     const delta = quantityInput.quantity - previousQuantity;
     let nextQuantities = writeInventoryQuantityAmount(
+      runtime,
       mutableLevel.level.quantities,
       quantityName,
       quantityInput.quantity,
     );
     if (isOnHandComponentQuantityName(quantityName)) {
-      nextQuantities = addInventoryQuantityAmount(nextQuantities, 'on_hand', delta);
+      nextQuantities = addInventoryQuantityAmount(runtime, nextQuantities, 'on_hand', delta);
       mirroredOnHandChanges.push({
         inventoryItemId: quantityInput.inventoryItemId,
         locationId: quantityInput.locationId,
@@ -3565,13 +3668,13 @@ function applyInventorySetQuantities(
   }
 
   for (const [productId, nextVariants] of variantsByProductId.entries()) {
-    store.replaceStagedVariantsForProduct(productId, nextVariants);
+    runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
   }
 
   return {
     group: {
-      id: makeSyntheticGid('InventoryAdjustmentGroup'),
-      createdAt: makeSyntheticTimestamp(),
+      id: runtime.syntheticIdentity.makeSyntheticGid('InventoryAdjustmentGroup'),
+      createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       reason,
       referenceDocumentUri: typeof input['referenceDocumentUri'] === 'string' ? input['referenceDocumentUri'] : null,
       app: buildInventoryAdjustmentAppRecord(),
@@ -3581,7 +3684,10 @@ function applyInventorySetQuantities(
   };
 }
 
-function applyInventoryMoveQuantities(input: Record<string, unknown>): {
+function applyInventoryMoveQuantities(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): {
   group: InventoryAdjustmentGroupRecord | null;
   userErrors: InventoryMutationUserError[];
 } {
@@ -3678,7 +3784,7 @@ function applyInventoryMoveQuantities(input: Record<string, unknown>): {
       };
     }
 
-    const mutableVariant = getInventoryMutableVariant(variantsByProductId, change.inventoryItemId);
+    const mutableVariant = getInventoryMutableVariant(runtime, variantsByProductId, change.inventoryItemId);
     if (!mutableVariant) {
       return {
         group: null,
@@ -3691,7 +3797,7 @@ function applyInventoryMoveQuantities(input: Record<string, unknown>): {
       };
     }
 
-    const mutableLevel = getInventoryMutableLevel(mutableVariant.variant, change.from.locationId);
+    const mutableLevel = getInventoryMutableLevel(runtime, mutableVariant.variant, change.from.locationId);
     if (!mutableLevel) {
       return {
         group: null,
@@ -3704,13 +3810,18 @@ function applyInventoryMoveQuantities(input: Record<string, unknown>): {
       };
     }
 
-    let nextQuantities = addInventoryQuantityAmount(mutableLevel.level.quantities, change.from.name, -change.quantity);
-    nextQuantities = addInventoryQuantityAmount(nextQuantities, change.to.name, change.quantity);
+    let nextQuantities = addInventoryQuantityAmount(
+      runtime,
+      mutableLevel.level.quantities,
+      change.from.name,
+      -change.quantity,
+    );
+    nextQuantities = addInventoryQuantityAmount(runtime, nextQuantities, change.to.name, change.quantity);
     const onHandDelta =
       (isOnHandComponentQuantityName(change.from.name) ? -change.quantity : 0) +
       (isOnHandComponentQuantityName(change.to.name) ? change.quantity : 0);
     if (onHandDelta !== 0) {
-      nextQuantities = addInventoryQuantityAmount(nextQuantities, 'on_hand', onHandDelta);
+      nextQuantities = addInventoryQuantityAmount(runtime, nextQuantities, 'on_hand', onHandDelta);
     }
 
     const nextLevels = writeInventoryMutableLevel(mutableLevel, nextQuantities);
@@ -3743,13 +3854,13 @@ function applyInventoryMoveQuantities(input: Record<string, unknown>): {
   }
 
   for (const [productId, nextVariants] of variantsByProductId.entries()) {
-    store.replaceStagedVariantsForProduct(productId, nextVariants);
+    runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
   }
 
   return {
     group: {
-      id: makeSyntheticGid('InventoryAdjustmentGroup'),
-      createdAt: makeSyntheticTimestamp(),
+      id: runtime.syntheticIdentity.makeSyntheticGid('InventoryAdjustmentGroup'),
+      createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
       reason,
       referenceDocumentUri: typeof input['referenceDocumentUri'] === 'string' ? input['referenceDocumentUri'] : null,
       app: buildInventoryAdjustmentAppRecord(),
@@ -3759,10 +3870,14 @@ function applyInventoryMoveQuantities(input: Record<string, unknown>): {
   };
 }
 
-function findInventoryLevelTarget(inventoryLevelId: string): InventoryLevelTargetRecord | null {
-  for (const product of store.listEffectiveProducts()) {
-    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
-      const level = getEffectiveInventoryLevels(variant).find((candidate) => candidate.id === inventoryLevelId) ?? null;
+function findInventoryLevelTarget(
+  runtime: ProxyRuntimeContext,
+  inventoryLevelId: string,
+): InventoryLevelTargetRecord | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      const level =
+        getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.id === inventoryLevelId) ?? null;
       if (level) {
         return { variant, level };
       }
@@ -3772,11 +3887,12 @@ function findInventoryLevelTarget(inventoryLevelId: string): InventoryLevelTarge
   return null;
 }
 
-function findKnownLocationById(locationId: string): LocationRecord | null {
-  return listEffectiveLocations().find((location) => location.id === locationId) ?? null;
+function findKnownLocationById(runtime: ProxyRuntimeContext, locationId: string): LocationRecord | null {
+  return listEffectiveLocations(runtime).find((location) => location.id === locationId) ?? null;
 }
 
 function stageVariantInventoryLevels(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   nextLevels: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>,
 ): ProductVariantRecord {
@@ -3789,18 +3905,19 @@ function stageVariantInventoryLevels(
         }
       : null,
   };
-  const nextVariants = store
+  const nextVariants = runtime.store
     .getEffectiveVariantsByProductId(variant.productId)
     .map((candidate) => (candidate.id === variant.id ? nextVariant : candidate));
-  store.replaceStagedVariantsForProduct(variant.productId, nextVariants);
-  return store.getEffectiveVariantById(variant.id) ?? nextVariant;
+  runtime.store.replaceStagedVariantsForProduct(variant.productId, nextVariants);
+  return runtime.store.getEffectiveVariantById(variant.id) ?? nextVariant;
 }
 
 function buildActivatedInventoryLevel(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   location: LocationRecord,
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] | null {
-  const syntheticLevel = buildSyntheticInventoryLevel(variant, {
+  const syntheticLevel = buildSyntheticInventoryLevel(runtime, variant, {
     locationId: location.id,
     availableQuantity: 0,
   });
@@ -3817,9 +3934,11 @@ function buildActivatedInventoryLevel(
   };
 }
 
-function findEffectiveVariantById(variantId: string): ProductVariantRecord | null {
-  for (const product of store.listEffectiveProducts()) {
-    const variant = store.getEffectiveVariantsByProductId(product.id).find((candidate) => candidate.id === variantId);
+function findEffectiveVariantById(runtime: ProxyRuntimeContext, variantId: string): ProductVariantRecord | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    const variant = runtime.store
+      .getEffectiveVariantsByProductId(product.id)
+      .find((candidate) => candidate.id === variantId);
     if (variant) {
       return variant;
     }
@@ -3828,12 +3947,18 @@ function findEffectiveVariantById(variantId: string): ProductVariantRecord | nul
   return null;
 }
 
-function serializeVariantPayload(variants: ProductVariantRecord[], field: FieldNode | null): Record<string, unknown>[] {
+function serializeVariantPayload(
+  runtime: ProxyRuntimeContext,
+  variants: ProductVariantRecord[],
+  field: FieldNode | null,
+): Record<string, unknown>[] {
   if (!field) {
     return variants.map((variant) => ({ id: variant.id }));
   }
 
-  return variants.map((variant) => serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], {}));
+  return variants.map((variant) =>
+    serializeVariantSelectionSet(runtime, variant, field.selectionSet?.selections ?? [], {}),
+  );
 }
 
 function serializeMediaPayload(mediaRecords: ProductMediaRecord[], field: FieldNode | null): Record<string, unknown>[] {
@@ -3955,16 +4080,16 @@ function serializeDeletedMetafieldIdentifiers(
   });
 }
 
-function resolveProductMetafieldOwner(ownerId: string): ProductMetafieldOwner | null {
-  if (store.getEffectiveProductById(ownerId)) {
+function resolveProductMetafieldOwner(runtime: ProxyRuntimeContext, ownerId: string): ProductMetafieldOwner | null {
+  if (runtime.store.getEffectiveProductById(ownerId)) {
     return { id: ownerId, ownerType: 'PRODUCT' };
   }
 
-  if (store.getEffectiveVariantById(ownerId)) {
+  if (runtime.store.getEffectiveVariantById(ownerId)) {
     return { id: ownerId, ownerType: 'PRODUCTVARIANT' };
   }
 
-  if (store.getEffectiveCollectionById(ownerId)) {
+  if (runtime.store.getEffectiveCollectionById(ownerId)) {
     return { id: ownerId, ownerType: 'COLLECTION' };
   }
 
@@ -3975,18 +4100,29 @@ function getProductMetafieldOwnerId(metafield: ProductMetafieldRecord): string {
   return metafield.ownerId ?? metafield.productId ?? '';
 }
 
-function getEffectiveMetafieldsForOwner(ownerId: string): Array<ProductMetafieldRecord & { ownerId: string }> {
-  return store.getEffectiveMetafieldsByOwnerId(ownerId).map((metafield) => ({
+function getEffectiveMetafieldsForOwner(
+  runtime: ProxyRuntimeContext,
+  ownerId: string,
+): Array<ProductMetafieldRecord & { ownerId: string }> {
+  return runtime.store.getEffectiveMetafieldsByOwnerId(ownerId).map((metafield) => ({
     ...metafield,
     ownerId,
   }));
 }
 
-function replaceStagedMetafieldsForOwner(ownerId: string, metafields: ProductMetafieldRecord[]): void {
-  store.replaceStagedMetafieldsForOwner(ownerId, metafields);
+function replaceStagedMetafieldsForOwner(
+  runtime: ProxyRuntimeContext,
+  ownerId: string,
+  metafields: ProductMetafieldRecord[],
+): void {
+  runtime.store.replaceStagedMetafieldsForOwner(ownerId, metafields);
 }
 
-function replaceBaseMetafieldsForHydratedProduct(productId: string, metafields: ProductMetafieldRecord[]): void {
+function replaceBaseMetafieldsForHydratedProduct(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  metafields: ProductMetafieldRecord[],
+): void {
   const groupedByOwnerId = new Map<string, ProductMetafieldRecord[]>();
   groupedByOwnerId.set(productId, []);
 
@@ -4002,17 +4138,25 @@ function replaceBaseMetafieldsForHydratedProduct(productId: string, metafields: 
   }
 
   for (const [ownerId, ownerMetafields] of groupedByOwnerId.entries()) {
-    store.replaceBaseMetafieldsForOwner(ownerId, ownerMetafields);
+    runtime.store.replaceBaseMetafieldsForOwner(ownerId, ownerMetafields);
   }
 }
 
 function upsertMetafieldsForOwner(
+  runtime: ProxyRuntimeContext,
   owner: ProductMetafieldOwner,
   inputs: Record<string, unknown>[],
 ): { metafields: ProductMetafieldRecord[]; createdOrUpdated: ProductMetafieldRecord[] } {
-  const result = upsertOwnerMetafields('ownerId', owner.id, inputs, getEffectiveMetafieldsForOwner(owner.id), {
-    ownerType: owner.ownerType,
-  });
+  const result = upsertOwnerMetafields(
+    runtime,
+    'ownerId',
+    owner.id,
+    inputs,
+    getEffectiveMetafieldsForOwner(runtime, owner.id),
+    {
+      ownerType: owner.ownerType,
+    },
+  );
 
   if (owner.ownerType !== 'PRODUCT') {
     return result;
@@ -4039,6 +4183,7 @@ function readMetafieldsSetIdentity(input: Record<string, unknown>): {
 }
 
 function findMetafieldsSetDefinition(
+  runtime: ProxyRuntimeContext,
   owner: ProductMetafieldOwner,
   namespace: string | null,
   key: string | null,
@@ -4047,7 +4192,7 @@ function findMetafieldsSetDefinition(
     return null;
   }
 
-  return store.findEffectiveMetafieldDefinition({
+  return runtime.store.findEffectiveMetafieldDefinition({
     ownerType: owner.ownerType,
     namespace,
     key,
@@ -4068,7 +4213,10 @@ function makeMetafieldsSetUserError(
   };
 }
 
-function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): MetafieldsSetUserError[] {
+function validateMetafieldsSetInputs(
+  runtime: ProxyRuntimeContext,
+  inputs: Record<string, unknown>[],
+): MetafieldsSetUserError[] {
   const errors: MetafieldsSetUserError[] = [];
 
   if (inputs.length === 0) {
@@ -4094,7 +4242,7 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
       continue;
     }
 
-    const owner = resolveProductMetafieldOwner(ownerId);
+    const owner = resolveProductMetafieldOwner(runtime, ownerId);
     if (!owner) {
       errors.push(makeMetafieldsSetUserError(index, 'ownerId', 'Owner does not exist.', 'INVALID'));
       continue;
@@ -4105,11 +4253,11 @@ function validateMetafieldsSetInputs(inputs: Record<string, unknown>[]): Metafie
       continue;
     }
 
-    const effectiveMetafields = getEffectiveMetafieldsForOwner(owner.id);
+    const effectiveMetafields = getEffectiveMetafieldsForOwner(runtime, owner.id);
     const existing = effectiveMetafields.find(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
-    const definition = findMetafieldsSetDefinition(owner, namespace, key);
+    const definition = findMetafieldsSetDefinition(runtime, owner, namespace, key);
     const inputType = typeof input['type'] === 'string' && input['type'].trim() ? input['type'] : null;
     const type = inputType ?? definition?.type.name ?? existing?.type;
     const value = typeof input['value'] === 'string' ? input['value'] : null;
@@ -4208,6 +4356,7 @@ function getDefaultAppMetafieldNamespace(): string {
 }
 
 function normalizeMetafieldsSetInput(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   owner: ProductMetafieldOwner,
 ): Record<string, unknown> {
@@ -4224,7 +4373,7 @@ function normalizeMetafieldsSetInput(
   }
 
   const { namespace, key } = readMetafieldsSetIdentity(normalizedInput);
-  const definition = findMetafieldsSetDefinition(owner, namespace, key);
+  const definition = findMetafieldsSetDefinition(runtime, owner, namespace, key);
   return definition ? { ...normalizedInput, type: definition.type.name } : normalizedInput;
 }
 
@@ -4276,15 +4425,17 @@ function validateMetafieldsSetRequiredVariables(
   return null;
 }
 
-function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
-  for (const product of store.listEffectiveProducts()) {
-    const metafield = getEffectiveMetafieldsForOwner(product.id).find((candidate) => candidate.id === metafieldId);
+function findMetafieldById(runtime: ProxyRuntimeContext, metafieldId: string): ProductMetafieldRecord | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    const metafield = getEffectiveMetafieldsForOwner(runtime, product.id).find(
+      (candidate) => candidate.id === metafieldId,
+    );
     if (metafield) {
       return metafield;
     }
 
-    for (const variant of store.getEffectiveVariantsByProductId(product.id)) {
-      const variantMetafield = getEffectiveMetafieldsForOwner(variant.id).find(
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      const variantMetafield = getEffectiveMetafieldsForOwner(runtime, variant.id).find(
         (candidate) => candidate.id === metafieldId,
       );
       if (variantMetafield) {
@@ -4293,8 +4444,10 @@ function findMetafieldById(metafieldId: string): ProductMetafieldRecord | null {
     }
   }
 
-  for (const collection of store.listEffectiveCollections()) {
-    const metafield = getEffectiveMetafieldsForOwner(collection.id).find((candidate) => candidate.id === metafieldId);
+  for (const collection of runtime.store.listEffectiveCollections()) {
+    const metafield = getEffectiveMetafieldsForOwner(runtime, collection.id).find(
+      (candidate) => candidate.id === metafieldId,
+    );
     if (metafield) {
       return metafield;
     }
@@ -4329,7 +4482,10 @@ function validateMetafieldsDeleteRequiredFields(rawMetafields: unknown): {
   return null;
 }
 
-function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
+function deleteMetafieldsByIdentifiers(
+  runtime: ProxyRuntimeContext,
+  inputs: Record<string, unknown>[],
+): {
   deletedMetafields: DeletedMetafieldIdentifierPayload[];
   userErrors: Array<{ field: string[]; message: string }>;
 } {
@@ -4364,7 +4520,8 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
       continue;
     }
 
-    const effectiveMetafields = effectiveMetafieldsByOwnerId.get(ownerId) ?? getEffectiveMetafieldsForOwner(ownerId);
+    const effectiveMetafields =
+      effectiveMetafieldsByOwnerId.get(ownerId) ?? getEffectiveMetafieldsForOwner(runtime, ownerId);
     const metafieldExists = effectiveMetafields.some(
       (metafield) => metafield.namespace === namespace && metafield.key === key,
     );
@@ -4388,7 +4545,7 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
   }
 
   for (const [ownerId, metafields] of effectiveMetafieldsByOwnerId.entries()) {
-    replaceStagedMetafieldsForOwner(ownerId, metafields);
+    replaceStagedMetafieldsForOwner(runtime, ownerId, metafields);
   }
 
   return {
@@ -4397,8 +4554,12 @@ function deleteMetafieldsByIdentifiers(inputs: Record<string, unknown>[]): {
   };
 }
 
-function buildProductSetVariantRecords(productId: string, rawVariants: unknown): ProductVariantRecord[] {
-  const existingVariants = store.getEffectiveVariantsByProductId(productId);
+function buildProductSetVariantRecords(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  rawVariants: unknown,
+): ProductVariantRecord[] {
+  const existingVariants = runtime.store.getEffectiveVariantsByProductId(productId);
   const existingVariantsById = new Map(existingVariants.map((variant) => [variant.id, variant]));
   if (!Array.isArray(rawVariants)) {
     return [];
@@ -4411,28 +4572,35 @@ function buildProductSetVariantRecords(productId: string, rawVariants: unknown):
       const rawId = normalized['id'];
       const existing = typeof rawId === 'string' ? (existingVariantsById.get(rawId) ?? null) : null;
       return existing
-        ? updateProductSetVariantRecord(existing, normalized)
-        : makeCreatedProductSetVariantRecord(productId, normalized);
+        ? updateProductSetVariantRecord(runtime, existing, normalized)
+        : makeCreatedProductSetVariantRecord(runtime, productId, normalized);
     });
 }
 
-function buildProductSetMetafieldRecords(productId: string, rawMetafields: unknown): ProductMetafieldRecord[] {
+function buildProductSetMetafieldRecords(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  rawMetafields: unknown,
+): ProductMetafieldRecord[] {
   const inputs = Array.isArray(rawMetafields)
     ? rawMetafields.filter((value): value is Record<string, unknown> => isObject(value))
     : [];
 
   return inputs.map((input) => {
-    const existing = findMetafieldById(typeof input['id'] === 'string' ? input['id'] : '');
+    const existing = findMetafieldById(runtime, typeof input['id'] === 'string' ? input['id'] : '');
     const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
     const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
-    const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+    const createdAt = existing?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
     const updatedAt = existing
       ? value === existing.value && type === existing.type
         ? (existing.updatedAt ?? createdAt)
-        : makeSyntheticTimestamp()
+        : runtime.syntheticIdentity.makeSyntheticTimestamp()
       : createdAt;
     const metafield: ProductMetafieldRecord = {
-      id: existing && getProductMetafieldOwnerId(existing) === productId ? existing.id : makeSyntheticGid('Metafield'),
+      id:
+        existing && getProductMetafieldOwnerId(existing) === productId
+          ? existing.id
+          : runtime.syntheticIdentity.makeSyntheticGid('Metafield'),
       productId,
       ownerId: productId,
       namespace: typeof input['namespace'] === 'string' ? input['namespace'] : (existing?.namespace ?? ''),
@@ -4451,13 +4619,17 @@ function buildProductSetMetafieldRecords(productId: string, rawMetafields: unkno
   });
 }
 
-function buildProductSetCollectionRecords(productId: string, rawCollections: unknown): ProductCollectionRecord[] {
+function buildProductSetCollectionRecords(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  rawCollections: unknown,
+): ProductCollectionRecord[] {
   const collectionIds = Array.isArray(rawCollections)
     ? rawCollections.filter((value): value is string => typeof value === 'string')
     : [];
 
   return collectionIds.map((collectionId) => {
-    const existing = findEffectiveCollectionById(collectionId);
+    const existing = findEffectiveCollectionById(runtime, collectionId);
     return {
       id: collectionId,
       productId,
@@ -5074,6 +5246,7 @@ function getResponseKey(field: FieldNode): string {
 }
 
 function serializeProductMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -5084,7 +5257,7 @@ function serializeProductMutationPayload(
   const result: Record<string, unknown> = {};
   const productField = getChildField(field, 'product');
   if (productField) {
-    result[getResponseKey(productField)] = serializeProduct(payload.product, productField, variables);
+    result[getResponseKey(productField)] = serializeProduct(runtime, payload.product, productField, variables);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -5096,6 +5269,7 @@ function serializeProductMutationPayload(
 }
 
 function serializePublicationMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   payload: {
     publication: PublicationRecord | null;
@@ -5108,7 +5282,7 @@ function serializePublicationMutationPayload(
   const publicationField = getChildField(field, 'publication');
   if (publicationField) {
     result[getResponseKey(publicationField)] = payload.publication
-      ? serializePublicationSelectionSet(payload.publication, publicationField.selectionSet?.selections ?? [])
+      ? serializePublicationSelectionSet(runtime, payload.publication, publicationField.selectionSet?.selections ?? [])
       : null;
   }
 
@@ -5126,6 +5300,7 @@ function serializePublicationMutationPayload(
 }
 
 function serializePublishableSelectionSet(
+  runtime: ProxyRuntimeContext,
   publishable: ProductRecord | CollectionRecord | null,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -5135,13 +5310,16 @@ function serializePublishableSelectionSet(
   }
 
   if (publishable.id.startsWith('gid://shopify/Product/')) {
-    return serializeSelectionSet(publishable as ProductRecord, selections, variables);
+    return serializeSelectionSet(runtime, publishable as ProductRecord, selections, variables);
   }
 
-  return serializeCollectionObject(publishable as CollectionRecord, selections, variables);
+  return serializeCollectionObject(runtime, publishable as CollectionRecord, selections, variables);
 }
 
-function serializeShopSelectionSet(selections: readonly SelectionNode[]): Record<string, unknown> {
+function serializeShopSelectionSet(
+  runtime: ProxyRuntimeContext,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -5152,7 +5330,7 @@ function serializeShopSelectionSet(selections: readonly SelectionNode[]): Record
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'publicationCount':
-        result[key] = listEffectivePublications().length;
+        result[key] = listEffectivePublications(runtime).length;
         break;
       default:
         result[key] = null;
@@ -5163,6 +5341,7 @@ function serializeShopSelectionSet(selections: readonly SelectionNode[]): Record
 }
 
 function serializePublishableMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -5175,6 +5354,7 @@ function serializePublishableMutationPayload(
   const publishableField = getChildField(field, 'publishable');
   if (publishableField) {
     result[getResponseKey(publishableField)] = serializePublishableSelectionSet(
+      runtime,
       payload.publishable,
       publishableField.selectionSet?.selections ?? [],
       variables,
@@ -5183,7 +5363,7 @@ function serializePublishableMutationPayload(
 
   const shopField = getChildField(field, 'shop');
   if (shopField) {
-    result[getResponseKey(shopField)] = serializeShopSelectionSet(shopField.selectionSet?.selections ?? []);
+    result[getResponseKey(shopField)] = serializeShopSelectionSet(runtime, shopField.selectionSet?.selections ?? []);
   }
 
   const userErrorsField = getChildField(field, 'userErrors');
@@ -5195,6 +5375,7 @@ function serializePublishableMutationPayload(
 }
 
 function buildSyntheticInventoryLevel(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   options?: {
     existingLevel?: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] | null;
@@ -5211,7 +5392,7 @@ function buildSyntheticInventoryLevel(
   const availableQuantity =
     options?.availableQuantity ??
     (locationId === DEFAULT_INVENTORY_LEVEL_LOCATION_ID ? (variant.inventoryQuantity ?? 0) : 0);
-  const availableUpdatedAt = makeSyntheticTimestamp();
+  const availableUpdatedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
 
   return {
     id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, locationId),
@@ -5248,24 +5429,27 @@ function buildSyntheticInventoryLevel(
 }
 
 function buildSyntheticInventoryLevels(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
-  const level = buildSyntheticInventoryLevel(variant);
-  return level && !store.isLocationDeleted(level.location?.id ?? '') ? [level] : [];
+  const level = buildSyntheticInventoryLevel(runtime, variant);
+  return level && !runtime.store.isLocationDeleted(level.location?.id ?? '') ? [level] : [];
 }
 
 function getEffectiveInventoryLevels(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
   const hydratedLevels = variant.inventoryItem?.inventoryLevels;
   if (!hydratedLevels || hydratedLevels.length === 0) {
-    return buildSyntheticInventoryLevels(variant);
+    return buildSyntheticInventoryLevels(runtime, variant);
   }
 
-  return structuredClone(hydratedLevels).filter((level) => !store.isLocationDeleted(level.location?.id ?? ''));
+  return structuredClone(hydratedLevels).filter((level) => !runtime.store.isLocationDeleted(level.location?.id ?? ''));
 }
 
 function serializeInventoryLevelQuantities(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   field: FieldNode,
@@ -5276,7 +5460,9 @@ function serializeInventoryLevelQuantities(
     ? args['names'].filter((value): value is string => typeof value === 'string')
     : [];
   const allQuantities =
-    level.quantities.length > 0 ? level.quantities : (buildSyntheticInventoryLevels(variant)[0]?.quantities ?? []);
+    level.quantities.length > 0
+      ? level.quantities
+      : (buildSyntheticInventoryLevels(runtime, variant)[0]?.quantities ?? []);
   const visibleQuantities =
     requestedNames.length > 0
       ? requestedNames.map(
@@ -5311,6 +5497,7 @@ function serializeInventoryLevelQuantities(
 }
 
 function serializeInventoryLevelNode(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   field: FieldNode,
@@ -5332,7 +5519,7 @@ function serializeInventoryLevelNode(
           nodeResult[levelKey] = null;
           break;
         }
-        const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
+        const effectiveLocation = readEffectiveInventoryLevelLocation(runtime, level.location);
         const locationResult: Record<string, unknown> = {};
         for (const locationSelection of levelSelection.selectionSet?.selections ?? []) {
           if (locationSelection.kind !== Kind.FIELD) {
@@ -5354,7 +5541,7 @@ function serializeInventoryLevelNode(
         break;
       }
       case 'quantities':
-        nodeResult[levelKey] = serializeInventoryLevelQuantities(variant, level, levelSelection, variables);
+        nodeResult[levelKey] = serializeInventoryLevelQuantities(runtime, variant, level, levelSelection, variables);
         break;
       default:
         nodeResult[levelKey] = null;
@@ -5364,6 +5551,7 @@ function serializeInventoryLevelNode(
 }
 
 function serializeInventoryLevelsConnection(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -5371,7 +5559,7 @@ function serializeInventoryLevelsConnection(
   const getLevelCursor = (
     level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   ): string => level.cursor ?? `cursor:${level.id}`;
-  const allLevels = getEffectiveInventoryLevels(variant);
+  const allLevels = getEffectiveInventoryLevels(runtime, variant);
   const {
     items: levels,
     hasNextPage,
@@ -5382,7 +5570,7 @@ function serializeInventoryLevelsConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: getLevelCursor,
-    serializeNode: (level, selection) => serializeInventoryLevelNode(variant, level, selection, variables),
+    serializeNode: (level, selection) => serializeInventoryLevelNode(runtime, variant, level, selection, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -5413,29 +5601,33 @@ function readInventoryTransferLineItemInputs(raw: unknown): InventoryTransferLin
 }
 
 function makeInventoryTransferLocationSnapshot(
+  runtime: ProxyRuntimeContext,
   locationId: string | null,
 ): InventoryTransferLocationSnapshotRecord | null {
   if (!locationId) {
     return null;
   }
 
-  const location = findKnownLocationById(locationId);
+  const location = findKnownLocationById(runtime, locationId);
   return {
     id: locationId,
     name: location?.name ?? locationId,
-    snapshottedAt: makeSyntheticTimestamp(),
+    snapshottedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function makeInventoryTransferLineItem(input: InventoryTransferLineItemInput): InventoryTransferLineItemRecord | null {
+function makeInventoryTransferLineItem(
+  runtime: ProxyRuntimeContext,
+  input: InventoryTransferLineItemInput,
+): InventoryTransferLineItemRecord | null {
   if (!input.inventoryItemId || input.quantity === null) {
     return null;
   }
 
-  const variant = store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
-  const product = variant ? store.getEffectiveProductById(variant.productId) : null;
+  const variant = runtime.store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
+  const product = variant ? runtime.store.getEffectiveProductById(variant.productId) : null;
   return {
-    id: makeProxySyntheticGid('InventoryTransferLineItem'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('InventoryTransferLineItem'),
     inventoryItemId: input.inventoryItemId,
     title: product?.title ?? variant?.title ?? null,
     totalQuantity: input.quantity,
@@ -5444,10 +5636,13 @@ function makeInventoryTransferLineItem(input: InventoryTransferLineItemInput): I
   };
 }
 
-function validateInventoryTransferLineItems(inputs: InventoryTransferLineItemInput[]): InventoryTransferUserError[] {
+function validateInventoryTransferLineItems(
+  runtime: ProxyRuntimeContext,
+  inputs: InventoryTransferLineItemInput[],
+): InventoryTransferUserError[] {
   const errors: InventoryTransferUserError[] = [];
   inputs.forEach((input, index) => {
-    if (!input.inventoryItemId || !store.findEffectiveVariantByInventoryItemId(input.inventoryItemId)) {
+    if (!input.inventoryItemId || !runtime.store.findEffectiveVariantByInventoryItemId(input.inventoryItemId)) {
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
         message: "The inventory item can't be found.",
@@ -5455,7 +5650,7 @@ function validateInventoryTransferLineItems(inputs: InventoryTransferLineItemInp
       return;
     }
 
-    const variant = store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
+    const variant = runtime.store.findEffectiveVariantByInventoryItemId(input.inventoryItemId);
     if (variant?.inventoryItem?.tracked !== true) {
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
@@ -5474,21 +5669,25 @@ function validateInventoryTransferLineItems(inputs: InventoryTransferLineItemInp
 }
 
 function makeInventoryTransferRecord(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   status: InventoryTransferRecord['status'],
 ): { transfer: InventoryTransferRecord | null; userErrors: InventoryTransferUserError[] } {
   const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
-  const userErrors = validateInventoryTransferLineItems(lineItemInputs);
+  const userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
   if (userErrors.length > 0) {
     return { transfer: null, userErrors };
   }
 
-  const transferIndex = store.listEffectiveInventoryTransfers().length + 1;
-  const id = makeSyntheticGid('InventoryTransfer');
+  const transferIndex = runtime.store.listEffectiveInventoryTransfers().length + 1;
+  const id = runtime.syntheticIdentity.makeSyntheticGid('InventoryTransfer');
   const lineItems = lineItemInputs
-    .map((lineItemInput) => makeInventoryTransferLineItem(lineItemInput))
+    .map((lineItemInput) => makeInventoryTransferLineItem(runtime, lineItemInput))
     .filter((lineItem): lineItem is InventoryTransferLineItemRecord => lineItem !== null);
-  const dateCreated = typeof input['dateCreated'] === 'string' ? input['dateCreated'] : makeSyntheticTimestamp();
+  const dateCreated =
+    typeof input['dateCreated'] === 'string'
+      ? input['dateCreated']
+      : runtime.syntheticIdentity.makeSyntheticTimestamp();
 
   return {
     transfer: {
@@ -5500,9 +5699,11 @@ function makeInventoryTransferRecord(
       tags: Array.isArray(input['tags']) ? input['tags'].filter((tag): tag is string => typeof tag === 'string') : [],
       dateCreated,
       origin: makeInventoryTransferLocationSnapshot(
+        runtime,
         typeof input['originLocationId'] === 'string' ? input['originLocationId'] : null,
       ),
       destination: makeInventoryTransferLocationSnapshot(
+        runtime,
         typeof input['destinationLocationId'] === 'string' ? input['destinationLocationId'] : null,
       ),
       lineItems,
@@ -5512,21 +5713,23 @@ function makeInventoryTransferRecord(
 }
 
 function findInventoryTransferOriginLevel(
+  runtime: ProxyRuntimeContext,
   transfer: InventoryTransferRecord,
   lineItem: InventoryTransferLineItemRecord,
 ): { variant: ProductVariantRecord; level: InventoryLevelRecord } | null {
-  const variant = store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
+  const variant = runtime.store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
   if (!variant || !transfer.origin?.id) {
     return null;
   }
 
-  const level = getEffectiveInventoryLevels(variant).find(
+  const level = getEffectiveInventoryLevels(runtime, variant).find(
     (candidate) => candidate.location?.id === transfer.origin?.id,
   );
   return level ? { variant, level } : null;
 }
 
 function applyInventoryTransferReservation(
+  runtime: ProxyRuntimeContext,
   transfer: InventoryTransferRecord,
   direction: 'reserve' | 'release',
 ): InventoryTransferUserError[] {
@@ -5534,7 +5737,7 @@ function applyInventoryTransferReservation(
   const nextLevelsByVariantId = new Map<string, InventoryLevelRecord[]>();
 
   for (const lineItem of transfer.lineItems) {
-    const target = findInventoryTransferOriginLevel(transfer, lineItem);
+    const target = findInventoryTransferOriginLevel(runtime, transfer, lineItem);
     if (!target) {
       errors.push({
         field: ['id'],
@@ -5544,7 +5747,7 @@ function applyInventoryTransferReservation(
       continue;
     }
 
-    const levels = nextLevelsByVariantId.get(target.variant.id) ?? getEffectiveInventoryLevels(target.variant);
+    const levels = nextLevelsByVariantId.get(target.variant.id) ?? getEffectiveInventoryLevels(runtime, target.variant);
     const levelIndex = levels.findIndex((level) => level.id === target.level.id);
     const level = levels[levelIndex] ?? target.level;
     const available = readInventoryQuantityAmount(level.quantities, 'available', 0);
@@ -5559,8 +5762,18 @@ function applyInventoryTransferReservation(
     }
 
     const quantity = direction === 'reserve' ? lineItem.totalQuantity : -lineItem.totalQuantity;
-    const quantitiesWithAvailable = writeInventoryQuantityAmount(level.quantities, 'available', available - quantity);
-    const nextQuantities = writeInventoryQuantityAmount(quantitiesWithAvailable, 'reserved', reserved + quantity);
+    const quantitiesWithAvailable = writeInventoryQuantityAmount(
+      runtime,
+      level.quantities,
+      'available',
+      available - quantity,
+    );
+    const nextQuantities = writeInventoryQuantityAmount(
+      runtime,
+      quantitiesWithAvailable,
+      'reserved',
+      reserved + quantity,
+    );
     const nextLevel = { ...level, quantities: nextQuantities };
     const nextLevels = levels.map((candidate, index) => (index === levelIndex ? nextLevel : candidate));
     nextLevelsByVariantId.set(target.variant.id, nextLevels);
@@ -5571,16 +5784,16 @@ function applyInventoryTransferReservation(
   }
 
   for (const [variantId, nextLevels] of nextLevelsByVariantId.entries()) {
-    const variant = store.getEffectiveVariantById(variantId);
+    const variant = runtime.store.getEffectiveVariantById(variantId);
     if (!variant) {
       continue;
     }
 
-    const nextVariant = stageVariantInventoryLevels(variant, nextLevels);
-    const inventoryQuantity = sumAvailableInventoryLevels(getEffectiveInventoryLevels(nextVariant));
-    store.replaceStagedVariantsForProduct(
+    const nextVariant = stageVariantInventoryLevels(runtime, variant, nextLevels);
+    const inventoryQuantity = sumAvailableInventoryLevels(getEffectiveInventoryLevels(runtime, nextVariant));
+    runtime.store.replaceStagedVariantsForProduct(
       nextVariant.productId,
-      store
+      runtime.store
         .getEffectiveVariantsByProductId(nextVariant.productId)
         .map((candidate) => (candidate.id === nextVariant.id ? { ...nextVariant, inventoryQuantity } : candidate)),
     );
@@ -5617,6 +5830,7 @@ function serializeInventoryTransferUserErrors(
 }
 
 function serializeInventoryTransferLocationSnapshot(
+  runtime: ProxyRuntimeContext,
   snapshot: InventoryTransferLocationSnapshotRecord | null,
   field: FieldNode,
 ): Record<string, unknown> | null {
@@ -5639,9 +5853,9 @@ function serializeInventoryTransferLocationSnapshot(
         result[key] = snapshot.snapshottedAt;
         break;
       case 'location': {
-        const location = snapshot.id ? findKnownLocationById(snapshot.id) : null;
+        const location = snapshot.id ? findKnownLocationById(runtime, snapshot.id) : null;
         result[key] = location
-          ? serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [], {})
+          ? serializeLocationSelectionSet(runtime, location, selection.selectionSet?.selections ?? [], {})
           : null;
         break;
       }
@@ -5656,6 +5870,7 @@ function serializeInventoryTransferLocationSnapshot(
 }
 
 function serializeInventoryTransferLineItem(
+  runtime: ProxyRuntimeContext,
   transfer: InventoryTransferRecord,
   lineItem: InventoryTransferLineItemRecord,
   field: FieldNode,
@@ -5692,9 +5907,9 @@ function serializeInventoryTransferLineItem(
         result[key] = isReady ? lineItem.totalQuantity - lineItem.shippedQuantity : 0;
         break;
       case 'inventoryItem': {
-        const variant = store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
+        const variant = runtime.store.findEffectiveVariantByInventoryItemId(lineItem.inventoryItemId);
         result[key] = variant
-          ? serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables)
+          ? serializeInventoryItemSelectionSet(runtime, variant, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
@@ -5706,6 +5921,7 @@ function serializeInventoryTransferLineItem(
 }
 
 function serializeInventoryTransferLineItemsConnection(
+  runtime: ProxyRuntimeContext,
   transfer: InventoryTransferRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -5723,7 +5939,7 @@ function serializeInventoryTransferLineItemsConnection(
     hasPreviousPage,
     getCursorValue: getCursor,
     serializeNode: (lineItem, selection) =>
-      serializeInventoryTransferLineItem(transfer, lineItem, selection, variables),
+      serializeInventoryTransferLineItem(runtime, transfer, lineItem, selection, variables),
     pageInfoOptions: { prefixCursors: false },
   });
 }
@@ -5744,6 +5960,7 @@ function serializeEmptyInventoryTransferConnection(
 }
 
 function serializeInventoryTransfer(
+  runtime: ProxyRuntimeContext,
   transfer: InventoryTransferRecord | null,
   field: FieldNode | null,
   variables: Record<string, unknown>,
@@ -5789,13 +6006,13 @@ function serializeInventoryTransfer(
         result[key] = 0;
         break;
       case 'origin':
-        result[key] = serializeInventoryTransferLocationSnapshot(transfer.origin, selection);
+        result[key] = serializeInventoryTransferLocationSnapshot(runtime, transfer.origin, selection);
         break;
       case 'destination':
-        result[key] = serializeInventoryTransferLocationSnapshot(transfer.destination, selection);
+        result[key] = serializeInventoryTransferLocationSnapshot(runtime, transfer.destination, selection);
         break;
       case 'lineItems':
-        result[key] = serializeInventoryTransferLineItemsConnection(transfer, selection, variables);
+        result[key] = serializeInventoryTransferLineItemsConnection(runtime, transfer, selection, variables);
         break;
       case 'lineItemsCount':
         result[key] = serializeCountObject(totalQuantity, selection.selectionSet?.selections ?? []);
@@ -5819,10 +6036,11 @@ function serializeInventoryTransfer(
 }
 
 function serializeInventoryTransfersConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const transfers = store.listEffectiveInventoryTransfers();
+  const transfers = runtime.store.listEffectiveInventoryTransfers();
   const getCursor = (transfer: InventoryTransferRecord): string => `cursor:${transfer.id}`;
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(transfers, field, variables, getCursor);
   return serializeConnection(field, {
@@ -5830,7 +6048,7 @@ function serializeInventoryTransfersConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: getCursor,
-    serializeNode: (transfer, selection) => serializeInventoryTransfer(transfer, selection, variables),
+    serializeNode: (transfer, selection) => serializeInventoryTransfer(runtime, transfer, selection, variables),
     pageInfoOptions: { prefixCursors: false },
   });
 }
@@ -5980,10 +6198,10 @@ function serializeInventoryPropertiesSelectionSet(selections: readonly Selection
   return result;
 }
 
-function listEffectiveInventoryItemVariants(): ProductVariantRecord[] {
-  return store
+function listEffectiveInventoryItemVariants(runtime: ProxyRuntimeContext): ProductVariantRecord[] {
+  return runtime.store
     .listEffectiveProducts()
-    .flatMap((product) => store.getEffectiveVariantsByProductId(product.id))
+    .flatMap((product) => runtime.store.getEffectiveVariantsByProductId(product.id))
     .filter((variant) => variant.inventoryItem !== null)
     .sort((left, right) => (left.inventoryItem?.id ?? left.id).localeCompare(right.inventoryItem?.id ?? right.id));
 }
@@ -6018,11 +6236,12 @@ function applyInventoryItemsQuery(variants: ProductVariantRecord[], rawQuery: un
 }
 
 function serializeInventoryItemsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const variants = applyInventoryItemsQuery(listEffectiveInventoryItemVariants(), args['query']);
+  const variants = applyInventoryItemsQuery(listEffectiveInventoryItemVariants(runtime), args['query']);
   const orderedVariants = args['reverse'] === true ? [...variants].reverse() : variants;
   const getCursorValue = (variant: ProductVariantRecord): string => variant.inventoryItem?.id ?? variant.id;
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
@@ -6037,7 +6256,7 @@ function serializeInventoryItemsConnection(
     hasPreviousPage,
     getCursorValue,
     serializeNode: (variant, selection) =>
-      serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+      serializeInventoryItemSelectionSet(runtime, variant, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
@@ -6080,6 +6299,7 @@ function serializeInventoryMutationUserErrors(
 }
 
 function serializeInventoryLevelObject(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   selections: readonly SelectionNode[],
@@ -6102,7 +6322,7 @@ function serializeInventoryLevelObject(
           result[key] = null;
           break;
         }
-        const effectiveLocation = readEffectiveInventoryLevelLocation(level.location);
+        const effectiveLocation = readEffectiveInventoryLevelLocation(runtime, level.location);
         const locationResult: Record<string, unknown> = {};
         for (const locationSelection of selection.selectionSet?.selections ?? []) {
           if (locationSelection.kind !== Kind.FIELD) {
@@ -6124,10 +6344,15 @@ function serializeInventoryLevelObject(
         break;
       }
       case 'quantities':
-        result[key] = serializeInventoryLevelQuantities(variant, level, selection, variables);
+        result[key] = serializeInventoryLevelQuantities(runtime, variant, level, selection, variables);
         break;
       case 'item':
-        result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables);
+        result[key] = serializeInventoryItemSelectionSet(
+          runtime,
+          variant,
+          selection.selectionSet?.selections ?? [],
+          variables,
+        );
         break;
       default:
         result[key] = null;
@@ -6138,6 +6363,7 @@ function serializeInventoryLevelObject(
 }
 
 function serializeInventoryItemSelectionSet(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown> = {},
@@ -6155,12 +6381,12 @@ function serializeInventoryItemSelectionSet(
           case 'id':
             return [inventoryKey, variant.inventoryItem?.id ?? null];
           case 'createdAt': {
-            const product = store.getEffectiveProductById(variant.productId);
-            return [inventoryKey, product?.createdAt ?? makeSyntheticTimestamp()];
+            const product = runtime.store.getEffectiveProductById(variant.productId);
+            return [inventoryKey, product?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp()];
           }
           case 'updatedAt': {
-            const product = store.getEffectiveProductById(variant.productId);
-            return [inventoryKey, product?.updatedAt ?? makeSyntheticTimestamp()];
+            const product = runtime.store.getEffectiveProductById(variant.productId);
+            return [inventoryKey, product?.updatedAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp()];
           }
           case 'legacyResourceId':
             return [inventoryKey, readLegacyResourceIdFromGid(variant.inventoryItem?.id ?? '') ?? '0'];
@@ -6240,7 +6466,7 @@ function serializeInventoryItemSelectionSet(
             return [
               inventoryKey,
               serializeCountObject(
-                getEffectiveInventoryLevels(variant).length,
+                getEffectiveInventoryLevels(runtime, variant).length,
                 inventorySelection.selectionSet?.selections ?? [],
               ),
             ];
@@ -6248,13 +6474,15 @@ function serializeInventoryItemSelectionSet(
             const inventoryArgs = getFieldArguments(inventorySelection, variables);
             const locationId = typeof inventoryArgs['locationId'] === 'string' ? inventoryArgs['locationId'] : null;
             const level = locationId
-              ? (getEffectiveInventoryLevels(variant).find((candidate) => candidate.location?.id === locationId) ??
-                null)
+              ? (getEffectiveInventoryLevels(runtime, variant).find(
+                  (candidate) => candidate.location?.id === locationId,
+                ) ?? null)
               : null;
             return [
               inventoryKey,
               level
                 ? serializeInventoryLevelObject(
+                    runtime,
                     variant,
                     level,
                     inventorySelection.selectionSet?.selections ?? [],
@@ -6264,11 +6492,16 @@ function serializeInventoryItemSelectionSet(
             ];
           }
           case 'inventoryLevels':
-            return [inventoryKey, serializeInventoryLevelsConnection(variant, inventorySelection, variables)];
+            return [inventoryKey, serializeInventoryLevelsConnection(runtime, variant, inventorySelection, variables)];
           case 'variant':
             return [
               inventoryKey,
-              serializeVariantSelectionSet(variant, inventorySelection.selectionSet?.selections ?? [], variables),
+              serializeVariantSelectionSet(
+                runtime,
+                variant,
+                inventorySelection.selectionSet?.selections ?? [],
+                variables,
+              ),
             ];
           default:
             return [inventoryKey, null];
@@ -6371,12 +6604,13 @@ function serializeSellingPlanConnection(
 }
 
 function serializeSellingPlanGroupProductsConnection(
+  runtime: ProxyRuntimeContext,
   group: SellingPlanGroupRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const products = group.productIds
-    .map((productId) => store.getEffectiveProductById(productId))
+    .map((productId) => runtime.store.getEffectiveProductById(productId))
     .filter((product): product is ProductRecord => product !== null);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     products,
@@ -6390,11 +6624,12 @@ function serializeSellingPlanGroupProductsConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: (product) => product.id,
-    serializeNode: (product, selection) => serializeProduct(product, selection, variables),
+    serializeNode: (product, selection) => serializeProduct(runtime, product, selection, variables),
   });
 }
 
 function serializeSellingPlanGroupProductVariantsConnection(
+  runtime: ProxyRuntimeContext,
   group: SellingPlanGroupRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -6402,7 +6637,7 @@ function serializeSellingPlanGroupProductVariantsConnection(
   const args = getFieldArguments(field, variables);
   const productId = typeof args['productId'] === 'string' ? args['productId'] : null;
   const variants = group.productVariantIds
-    .map((variantId) => store.getEffectiveVariantById(variantId))
+    .map((variantId) => runtime.store.getEffectiveVariantById(variantId))
     .filter((variant): variant is ProductVariantRecord => variant !== null)
     .filter((variant) => productId === null || variant.productId === productId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
@@ -6418,11 +6653,12 @@ function serializeSellingPlanGroupProductVariantsConnection(
     hasPreviousPage,
     getCursorValue: (variant) => variant.id,
     serializeNode: (variant, selection) =>
-      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+      serializeVariantSelectionSet(runtime, variant, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
 function serializeSellingPlanGroup(
+  runtime: ProxyRuntimeContext,
   group: SellingPlanGroupRecord | null,
   field: FieldNode | null,
   variables: Record<string, unknown>,
@@ -6486,18 +6722,18 @@ function serializeSellingPlanGroup(
         result[key] =
           productId !== null &&
           group.productVariantIds.some(
-            (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+            (variantId) => runtime.store.getEffectiveVariantById(variantId)?.productId === productId,
           );
         break;
       }
       case 'products':
-        result[key] = serializeSellingPlanGroupProductsConnection(group, selection, variables);
+        result[key] = serializeSellingPlanGroupProductsConnection(runtime, group, selection, variables);
         break;
       case 'productsCount':
         result[key] = serializeCountValue(selection, group.productIds.length);
         break;
       case 'productVariants':
-        result[key] = serializeSellingPlanGroupProductVariantsConnection(group, selection, variables);
+        result[key] = serializeSellingPlanGroupProductVariantsConnection(runtime, group, selection, variables);
         break;
       case 'productVariantsCount': {
         const args = getFieldArguments(selection, variables);
@@ -6506,7 +6742,7 @@ function serializeSellingPlanGroup(
           productId === null
             ? group.productVariantIds.length
             : group.productVariantIds.filter(
-                (variantId) => store.getEffectiveVariantById(variantId)?.productId === productId,
+                (variantId) => runtime.store.getEffectiveVariantById(variantId)?.productId === productId,
               ).length;
         result[key] = serializeCountValue(selection, count);
         break;
@@ -6523,6 +6759,7 @@ function serializeSellingPlanGroup(
 }
 
 function serializeSellingPlanGroupConnection(
+  runtime: ProxyRuntimeContext,
   groups: SellingPlanGroupRecord[],
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -6539,11 +6776,12 @@ function serializeSellingPlanGroupConnection(
     hasNextPage,
     hasPreviousPage,
     getCursorValue: (group) => group.cursor ?? group.id,
-    serializeNode: (group, selection) => serializeSellingPlanGroup(group, selection, variables),
+    serializeNode: (group, selection) => serializeSellingPlanGroup(runtime, group, selection, variables),
   });
 }
 
 function serializeVariantSelectionSet(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown> = {},
@@ -6612,7 +6850,12 @@ function serializeVariantSelectionSet(
         });
         break;
       case 'inventoryItem':
-        result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables);
+        result[key] = serializeInventoryItemSelectionSet(
+          runtime,
+          variant,
+          selection.selectionSet?.selections ?? [],
+          variables,
+        );
         break;
       case 'contextualPricing':
         result[key] = projectGraphqlValue(
@@ -6622,8 +6865,8 @@ function serializeVariantSelectionSet(
         );
         break;
       case 'product': {
-        const product = store.getEffectiveProductById(variant.productId);
-        result[key] = serializeProduct(product, selection, {});
+        const product = runtime.store.getEffectiveProductById(variant.productId);
+        result[key] = serializeProduct(runtime, product, selection, {});
         break;
       }
       case 'metafield': {
@@ -6635,7 +6878,7 @@ function serializeVariantSelectionSet(
           break;
         }
 
-        const metafield = getEffectiveMetafieldsForOwner(variant.id).find(
+        const metafield = getEffectiveMetafieldsForOwner(runtime, variant.id).find(
           (candidate) => candidate.namespace === namespace && candidate.key === metafieldKey,
         );
         result[key] = metafield
@@ -6645,23 +6888,24 @@ function serializeVariantSelectionSet(
       }
       case 'metafields':
         result[key] = serializeOwnerMetafieldsConnection(
-          getEffectiveMetafieldsForOwner(variant.id),
+          getEffectiveMetafieldsForOwner(runtime, variant.id),
           selection,
           variables,
         );
         break;
       case 'media':
-        result[key] = serializeVariantMediaConnection(variant, selection, variables);
+        result[key] = serializeVariantMediaConnection(runtime, variant, selection, variables);
         break;
       case 'requiresComponents':
-        result[key] = store.getEffectiveVariantComponentsByParentVariantId(variant.id).length > 0;
+        result[key] = runtime.store.getEffectiveVariantComponentsByParentVariantId(variant.id).length > 0;
         break;
       case 'productVariantComponents':
-        result[key] = serializeProductVariantComponentConnection(variant.id, selection, variables);
+        result[key] = serializeProductVariantComponentConnection(runtime, variant.id, selection, variables);
         break;
       case 'sellingPlanGroups':
         result[key] = serializeSellingPlanGroupConnection(
-          store.listEffectiveSellingPlanGroupsVisibleForProductVariant(variant.id),
+          runtime,
+          runtime.store.listEffectiveSellingPlanGroupsVisibleForProductVariant(variant.id),
           selection,
           variables,
         );
@@ -6669,7 +6913,7 @@ function serializeVariantSelectionSet(
       case 'sellingPlanGroupsCount':
         result[key] = serializeCountValue(
           selection,
-          store.listEffectiveSellingPlanGroupsForProductVariant(variant.id).length,
+          runtime.store.listEffectiveSellingPlanGroupsForProductVariant(variant.id).length,
         );
         break;
       default:
@@ -6681,6 +6925,7 @@ function serializeVariantSelectionSet(
 }
 
 function serializeProductVariantComponentSelectionSet(
+  runtime: ProxyRuntimeContext,
   component: ProductVariantComponentRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -6704,7 +6949,8 @@ function serializeProductVariantComponentSelectionSet(
         break;
       case 'productVariant':
         result[key] = serializeVariantSelectionSet(
-          store.getEffectiveVariantById(component.componentProductVariantId) ?? {
+          runtime,
+          runtime.store.getEffectiveVariantById(component.componentProductVariantId) ?? {
             id: component.componentProductVariantId,
             productId: '',
             title: component.componentProductVariantId.split('/').at(-1) ?? component.componentProductVariantId,
@@ -6731,11 +6977,12 @@ function serializeProductVariantComponentSelectionSet(
 }
 
 function serializeProductVariantComponentConnection(
+  runtime: ProxyRuntimeContext,
   parentProductVariantId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const components = store.getEffectiveVariantComponentsByParentVariantId(parentProductVariantId);
+  const components = runtime.store.getEffectiveVariantComponentsByParentVariantId(parentProductVariantId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     components,
     field,
@@ -6748,7 +6995,12 @@ function serializeProductVariantComponentConnection(
     hasPreviousPage,
     getCursorValue: (component) => component.id,
     serializeNode: (component, selection) =>
-      serializeProductVariantComponentSelectionSet(component, selection.selectionSet?.selections ?? [], variables),
+      serializeProductVariantComponentSelectionSet(
+        runtime,
+        component,
+        selection.selectionSet?.selections ?? [],
+        variables,
+      ),
   });
 }
 
@@ -6859,11 +7111,12 @@ export function serializeProductOptionValueNodeById(
 }
 
 function serializeVariantsConnection(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allVariants = store.getEffectiveVariantsByProductId(productId);
+  const allVariants = runtime.store.getEffectiveVariantsByProductId(productId);
   const {
     items: variants,
     hasNextPage,
@@ -6875,11 +7128,12 @@ function serializeVariantsConnection(
     hasPreviousPage,
     getCursorValue: (variant) => variant.id,
     serializeNode: (variant, selection) =>
-      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+      serializeVariantSelectionSet(runtime, variant, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
 function serializeCollectionSelectionSet(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -6892,7 +7146,7 @@ function serializeCollectionSelectionSet(
     }
 
     const key = selection.alias?.value ?? selection.name.value;
-    result[key] = serializeCollectionField(collection, selection, variables);
+    result[key] = serializeCollectionField(runtime, collection, selection, variables);
   }
 
   return result;
@@ -7021,6 +7275,7 @@ function serializeCollectionRuleSet(
 }
 
 function serializeCollectionField(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord | ProductCollectionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -7076,13 +7331,13 @@ function serializeCollectionField(
     case 'productsCount':
       return serializeCountValue(
         field,
-        options.productsCountOverride ?? listEffectiveProductsForCollection(collection.id).length,
+        options.productsCountOverride ?? listEffectiveProductsForCollection(runtime, collection.id).length,
       );
     case 'hasProduct': {
       const args = getFieldArguments(field, variables);
       const productId = typeof args['id'] === 'string' ? args['id'] : null;
       return productId
-        ? listEffectiveProductsForCollection(collection.id).some((product) => product.id === productId)
+        ? listEffectiveProductsForCollection(runtime, collection.id).some((product) => product.id === productId)
         : false;
     }
     case 'sortOrder':
@@ -7101,19 +7356,24 @@ function serializeCollectionField(
         return null;
       }
 
-      const metafield = getEffectiveMetafieldsForOwner(collection.id).find(
+      const metafield = getEffectiveMetafieldsForOwner(runtime, collection.id).find(
         (candidate) => candidate.namespace === namespace && candidate.key === key,
       );
       return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
     }
     case 'metafields':
-      return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(collection.id), field, variables);
+      return serializeOwnerMetafieldsConnection(
+        getEffectiveMetafieldsForOwner(runtime, collection.id),
+        field,
+        variables,
+      );
     default:
       return null;
   }
 }
 
 function serializeCollectionObject(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -7130,7 +7390,7 @@ function serializeCollectionObject(
 
       Object.assign(
         result,
-        serializeCollectionObject(collection, selection.selectionSet.selections, variables, options),
+        serializeCollectionObject(runtime, collection, selection.selectionSet.selections, variables, options),
       );
       continue;
     }
@@ -7148,7 +7408,8 @@ function serializeCollectionObject(
         const first = typeof rawFirst === 'number' ? rawFirst : null;
         const last = typeof rawLast === 'number' ? rawLast : null;
         result[key] = serializeProductsConnection(
-          listEffectiveProductsForCollection(collection.id),
+          runtime,
+          listEffectiveProductsForCollection(runtime, collection.id),
           selection,
           first,
           last,
@@ -7163,7 +7424,7 @@ function serializeCollectionObject(
         break;
       }
       default:
-        result[key] = serializeCollectionField(collection, selection, variables, options);
+        result[key] = serializeCollectionField(runtime, collection, selection, variables, options);
     }
   }
 
@@ -7171,13 +7432,14 @@ function serializeCollectionObject(
 }
 
 function serializeCollectionsConnection(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const allCollections = sortCollections(
-    applyCollectionsQuery(store.getEffectiveCollectionsByProductId(productId), args['query']),
+    applyCollectionsQuery(runtime, runtime.store.getEffectiveCollectionsByProductId(productId), args['query']),
     args['sortKey'],
     args['reverse'],
     args['query'],
@@ -7193,7 +7455,7 @@ function serializeCollectionsConnection(
     hasPreviousPage,
     getCursorValue: (collection) => collection.id,
     serializeNode: (collection, selection) =>
-      serializeCollectionSelectionSet(collection, selection.selectionSet?.selections ?? [], variables),
+      serializeCollectionSelectionSet(runtime, collection, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
@@ -7229,12 +7491,17 @@ function filterCollectionsByQuery(collections: CollectionRecord[], rawQuery: unk
 }
 
 function serializeTopLevelCollectionsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const allCollections = sortCollections(
-    applyCollectionsQuery(filterCollectionsByQuery(listEffectiveCollections(), args['query']), args['query']),
+    applyCollectionsQuery(
+      runtime,
+      filterCollectionsByQuery(listEffectiveCollections(runtime), args['query']),
+      args['query'],
+    ),
     args['sortKey'],
     args['reverse'],
     args['query'],
@@ -7250,23 +7517,25 @@ function serializeTopLevelCollectionsConnection(
     hasPreviousPage,
     getCursorValue: (collection) => collection.id,
     serializeNode: (collection, selection) =>
-      serializeCollectionObject(collection, selection.selectionSet?.selections ?? [], variables),
+      serializeCollectionObject(runtime, collection, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
 function serializeLocationSelectionSet(
+  runtime: ProxyRuntimeContext,
   location: LocationRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return serializeStorePropertiesLocation(location, selections, variables);
+  return serializeStorePropertiesLocation(runtime, location, selections, variables);
 }
 
 function serializeTopLevelLocationsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allLocations = listEffectiveLocations();
+  const allLocations = listEffectiveLocations(runtime);
   const {
     items: locations,
     hasNextPage,
@@ -7278,22 +7547,24 @@ function serializeTopLevelLocationsConnection(
     hasPreviousPage,
     getCursorValue: (location) => location.id,
     serializeNode: (location, selection) =>
-      serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [], variables),
+      serializeLocationSelectionSet(runtime, location, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
-function listProductsPublishedToPublication(publicationId: string): ProductRecord[] {
-  return store
+function listProductsPublishedToPublication(runtime: ProxyRuntimeContext, publicationId: string): ProductRecord[] {
+  return runtime.store
     .listEffectiveProducts()
     .filter((product) => product.status === 'ACTIVE' && product.publicationIds.includes(publicationId));
 }
 
-function countCollectionsPublishedToPublication(publicationId: string): number {
-  return listEffectiveCollections().filter((collection) => (collection.publicationIds ?? []).includes(publicationId))
-    .length;
+function countCollectionsPublishedToPublication(runtime: ProxyRuntimeContext, publicationId: string): number {
+  return listEffectiveCollections(runtime).filter((collection) =>
+    (collection.publicationIds ?? []).includes(publicationId),
+  ).length;
 }
 
 function serializeChannelSelectionSet(
+  runtime: ProxyRuntimeContext,
   channel: ChannelRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown> = {},
@@ -7308,7 +7579,10 @@ function serializeChannelSelectionSet(
         continue;
       }
 
-      Object.assign(result, serializeChannelSelectionSet(channel, selection.selectionSet.selections, variables));
+      Object.assign(
+        result,
+        serializeChannelSelectionSet(runtime, channel, selection.selectionSet.selections, variables),
+      );
       continue;
     }
 
@@ -7333,7 +7607,8 @@ function serializeChannelSelectionSet(
       case 'publication':
         result[key] = publicationId
           ? serializePublicationSelectionSet(
-              store.getEffectivePublicationById(publicationId) ?? { id: publicationId, name: channel.name },
+              runtime,
+              runtime.store.getEffectivePublicationById(publicationId) ?? { id: publicationId, name: channel.name },
               selection.selectionSet?.selections ?? [],
               variables,
             )
@@ -7342,7 +7617,7 @@ function serializeChannelSelectionSet(
       case 'productsCount':
         result[key] = serializeCountValue(
           selection,
-          publicationId ? listProductsPublishedToPublication(publicationId).length : 0,
+          publicationId ? listProductsPublishedToPublication(runtime, publicationId).length : 0,
         );
         break;
       default:
@@ -7354,10 +7629,11 @@ function serializeChannelSelectionSet(
 }
 
 function serializeTopLevelChannelsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allChannels = listEffectiveChannels();
+  const allChannels = listEffectiveChannels(runtime);
   const {
     items: channels,
     hasNextPage,
@@ -7371,7 +7647,7 @@ function serializeTopLevelChannelsConnection(
     hasPreviousPage,
     getCursorValue: (channel) => channel.cursor ?? `cursor:${channel.id}`,
     serializeNode: (channel, selection) =>
-      serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables),
+      serializeChannelSelectionSet(runtime, channel, selection.selectionSet?.selections ?? [], variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -7379,6 +7655,7 @@ function serializeTopLevelChannelsConnection(
 }
 
 function serializePublicationSelectionSet(
+  runtime: ProxyRuntimeContext,
   publication: PublicationRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown> = {},
@@ -7394,7 +7671,7 @@ function serializePublicationSelectionSet(
 
       Object.assign(
         result,
-        serializePublicationSelectionSet(publication, selection.selectionSet.selections, variables),
+        serializePublicationSelectionSet(runtime, publication, selection.selectionSet.selections, variables),
       );
       continue;
     }
@@ -7441,9 +7718,9 @@ function serializePublicationSelectionSet(
         break;
       case 'channel': {
         const channel =
-          store.listEffectiveChannels().find((candidate) => candidate.publicationId === publication.id) ?? null;
+          runtime.store.listEffectiveChannels().find((candidate) => candidate.publicationId === publication.id) ?? null;
         result[key] = channel
-          ? serializeChannelSelectionSet(channel, selection.selectionSet?.selections ?? [], variables)
+          ? serializeChannelSelectionSet(runtime, channel, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
@@ -7452,7 +7729,8 @@ function serializePublicationSelectionSet(
         const rawFirst = args['first'];
         const rawLast = args['last'];
         result[key] = serializeProductsConnection(
-          listProductsPublishedToPublication(publication.id),
+          runtime,
+          listProductsPublishedToPublication(runtime, publication.id),
           selection,
           typeof rawFirst === 'number' ? rawFirst : null,
           typeof rawLast === 'number' ? rawLast : null,
@@ -7467,10 +7745,13 @@ function serializePublicationSelectionSet(
       }
       case 'productsCount':
       case 'publishedProductsCount':
-        result[key] = serializeCountValue(selection, listProductsPublishedToPublication(publication.id).length);
+        result[key] = serializeCountValue(
+          selection,
+          listProductsPublishedToPublication(runtime, publication.id).length,
+        );
         break;
       case 'collectionsCount':
-        result[key] = serializeCountValue(selection, countCollectionsPublishedToPublication(publication.id));
+        result[key] = serializeCountValue(selection, countCollectionsPublishedToPublication(runtime, publication.id));
         break;
       default:
         result[key] = null;
@@ -7487,10 +7768,11 @@ function serializePublicationCursor(publication: PublicationRecord): string {
 }
 
 function serializeTopLevelPublicationsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allPublications = listEffectivePublications();
+  const allPublications = listEffectivePublications(runtime);
   const {
     items: publications,
     hasNextPage,
@@ -7504,7 +7786,7 @@ function serializeTopLevelPublicationsConnection(
     hasPreviousPage,
     getCursorValue: serializePublicationCursor,
     serializeNode: (publication, selection) =>
-      serializePublicationSelectionSet(publication, selection.selectionSet?.selections ?? []),
+      serializePublicationSelectionSet(runtime, publication, selection.selectionSet?.selections ?? []),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -7558,10 +7840,11 @@ function serializeProductFeedSelectionSet(
 }
 
 function serializeTopLevelProductFeedsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const productFeeds = store.listEffectiveProductFeeds();
+  const productFeeds = runtime.store.listEffectiveProductFeeds();
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     productFeeds,
     field,
@@ -7811,24 +8094,29 @@ function serializeMediaSelectionSet(
   return result;
 }
 
-function promoteProcessingMediaAfterRead(productId: string, mediaRecords: ProductMediaRecord[]): void {
+function promoteProcessingMediaAfterRead(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  mediaRecords: ProductMediaRecord[],
+): void {
   const needsPromotion = mediaRecords.some((mediaRecord) => mediaRecord.status === 'PROCESSING');
   if (!needsPromotion) {
     return;
   }
 
-  const nextMedia = store
+  const nextMedia = runtime.store
     .getEffectiveMediaByProductId(productId)
     .map((mediaRecord) => (mediaRecord.status === 'PROCESSING' ? transitionMediaToReady(mediaRecord) : mediaRecord));
-  store.replaceStagedMediaForProduct(productId, nextMedia);
+  runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
 }
 
 function serializeMediaConnection(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allMediaRecords = store.getEffectiveMediaByProductId(productId);
+  const allMediaRecords = runtime.store.getEffectiveMediaByProductId(productId);
   const {
     items: mediaRecords,
     hasNextPage,
@@ -7843,17 +8131,18 @@ function serializeMediaConnection(
       serializeMediaSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
   });
 
-  promoteProcessingMediaAfterRead(productId, allMediaRecords);
+  promoteProcessingMediaAfterRead(runtime, productId, allMediaRecords);
   return result;
 }
 
 function serializeVariantMediaConnection(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const productMediaById = new Map(
-    store
+    runtime.store
       .getEffectiveMediaByProductId(variant.productId)
       .filter((mediaRecord) => typeof mediaRecord.id === 'string')
       .map((mediaRecord) => [mediaRecord.id as string, mediaRecord]),
@@ -7939,11 +8228,12 @@ function serializeProductImageSelectionSet(
 }
 
 function serializeProductImagesConnection(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const allMediaRecords = store.getEffectiveMediaByProductId(productId);
+  const allMediaRecords = runtime.store.getEffectiveMediaByProductId(productId);
   const allImageRecords = allMediaRecords.filter(
     (mediaRecord) =>
       mediaRecord.mediaContentType === 'IMAGE' &&
@@ -7963,7 +8253,7 @@ function serializeProductImagesConnection(
       serializeProductImageSelectionSet(mediaRecord, selection.selectionSet?.selections ?? []),
   });
 
-  promoteProcessingMediaAfterRead(productId, allMediaRecords);
+  promoteProcessingMediaAfterRead(runtime, productId, allMediaRecords);
   return result;
 }
 
@@ -7993,18 +8283,19 @@ function serializeBundleOptionSelectionValue(
 }
 
 function serializeBundleComponentOptionSelection(
+  runtime: ProxyRuntimeContext,
   component: ProductBundleComponentRecord,
   optionSelection: ProductBundleComponentOptionSelectionRecord,
   field: FieldNode,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   const componentOption =
-    store
+    runtime.store
       .getEffectiveOptionsByProductId(component.componentProductId)
       .find((option) => option.id === optionSelection.componentOptionId || option.name === optionSelection.name) ??
     null;
   const parentOption =
-    store
+    runtime.store
       .getEffectiveOptionsByProductId(component.bundleProductId)
       .find((option) => option.name === optionSelection.name) ?? null;
 
@@ -8098,6 +8389,7 @@ function serializeBundleQuantityOption(
 }
 
 function serializeProductBundleComponentSelectionSet(
+  runtime: ProxyRuntimeContext,
   component: ProductBundleComponentRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -8115,23 +8407,24 @@ function serializeProductBundleComponentSelectionSet(
         break;
       case 'componentProduct':
         result[key] = serializeProduct(
-          store.getEffectiveProductById(component.componentProductId),
+          runtime,
+          runtime.store.getEffectiveProductById(component.componentProductId),
           selection,
           variables,
         );
         break;
       case 'componentVariants':
-        result[key] = serializeVariantsConnection(component.componentProductId, selection, variables);
+        result[key] = serializeVariantsConnection(runtime, component.componentProductId, selection, variables);
         break;
       case 'componentVariantsCount':
         result[key] = serializeCountValue(
           selection,
-          store.getEffectiveVariantsByProductId(component.componentProductId).length,
+          runtime.store.getEffectiveVariantsByProductId(component.componentProductId).length,
         );
         break;
       case 'optionSelections':
         result[key] = component.optionSelections.map((optionSelection) =>
-          serializeBundleComponentOptionSelection(component, optionSelection, selection),
+          serializeBundleComponentOptionSelection(runtime, component, optionSelection, selection),
         );
         break;
       case 'quantity':
@@ -8150,11 +8443,12 @@ function serializeProductBundleComponentSelectionSet(
 }
 
 function serializeProductBundleComponentsConnection(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const components = store.getEffectiveBundleComponentsByProductId(productId);
+  const components = runtime.store.getEffectiveBundleComponentsByProductId(productId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     components,
     field,
@@ -8167,11 +8461,17 @@ function serializeProductBundleComponentsConnection(
     hasPreviousPage,
     getCursorValue: (component) => component.id,
     serializeNode: (component, selection) =>
-      serializeProductBundleComponentSelectionSet(component, selection.selectionSet?.selections ?? [], variables),
+      serializeProductBundleComponentSelectionSet(
+        runtime,
+        component,
+        selection.selectionSet?.selections ?? [],
+        variables,
+      ),
   });
 }
 
 function serializeCombinedListingChildSelectionSet(
+  runtime: ProxyRuntimeContext,
   child: CombinedListingChildRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -8187,11 +8487,16 @@ function serializeCombinedListingChildSelectionSet(
         result[key] = 'CombinedListingChild';
         break;
       case 'product':
-        result[key] = serializeProduct(store.getEffectiveProductById(child.childProductId), selection, variables);
+        result[key] = serializeProduct(
+          runtime,
+          runtime.store.getEffectiveProductById(child.childProductId),
+          selection,
+          variables,
+        );
         break;
       case 'parentVariant': {
         const parentVariant =
-          store
+          runtime.store
             .getEffectiveVariantsByProductId(child.parentProductId)
             .find((variant) =>
               child.selectedParentOptionValues.every((optionValue) =>
@@ -8201,10 +8506,10 @@ function serializeCombinedListingChildSelectionSet(
                 ),
               ),
             ) ??
-          store.getEffectiveVariantsByProductId(child.parentProductId)[0] ??
+          runtime.store.getEffectiveVariantsByProductId(child.parentProductId)[0] ??
           null;
         result[key] = parentVariant
-          ? serializeVariantSelectionSet(parentVariant, selection.selectionSet?.selections ?? [], variables)
+          ? serializeVariantSelectionSet(runtime, parentVariant, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
@@ -8216,11 +8521,12 @@ function serializeCombinedListingChildSelectionSet(
 }
 
 function serializeCombinedListingChildrenConnection(
+  runtime: ProxyRuntimeContext,
   parentProductId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const children = store.getEffectiveCombinedListingChildrenByParentId(parentProductId);
+  const children = runtime.store.getEffectiveCombinedListingChildrenByParentId(parentProductId);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     children,
     field,
@@ -8233,11 +8539,12 @@ function serializeCombinedListingChildrenConnection(
     hasPreviousPage,
     getCursorValue: (child) => child.childProductId,
     serializeNode: (child, selection) =>
-      serializeCombinedListingChildSelectionSet(child, selection.selectionSet?.selections ?? [], variables),
+      serializeCombinedListingChildSelectionSet(runtime, child, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
 function serializeCombinedListing(
+  runtime: ProxyRuntimeContext,
   product: ProductRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -8257,10 +8564,10 @@ function serializeCombinedListing(
         result[key] = 'CombinedListing';
         break;
       case 'parentProduct':
-        result[key] = serializeProduct(product, selection, variables);
+        result[key] = serializeProduct(runtime, product, selection, variables);
         break;
       case 'combinedListingChildren':
-        result[key] = serializeCombinedListingChildrenConnection(product.id, selection, variables);
+        result[key] = serializeCombinedListingChildrenConnection(runtime, product.id, selection, variables);
         break;
       default:
         result[key] = null;
@@ -8270,7 +8577,12 @@ function serializeCombinedListing(
   return result;
 }
 
-function serializeProductField(product: ProductRecord, field: FieldNode, variables: Record<string, unknown>): unknown {
+function serializeProductField(
+  runtime: ProxyRuntimeContext,
+  product: ProductRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const visiblePublicationCount = product.status === 'ACTIVE' ? product.publicationIds.length : 0;
 
   switch (field.name.value) {
@@ -8324,13 +8636,13 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     case 'requiresSellingPlan':
       return false;
     case 'combinedListingRole': {
-      const parentLink = store.getEffectiveCombinedListingParentByChildId(product.id);
+      const parentLink = runtime.store.getEffectiveCombinedListingParentByChildId(product.id);
       return product.combinedListingRole ?? (parentLink ? 'CHILD' : null);
     }
     case 'combinedListing':
-      return serializeCombinedListing(product, field, variables);
+      return serializeCombinedListing(runtime, product, field, variables);
     case 'bundleComponents':
-      return serializeProductBundleComponentsConnection(product.id, field, variables);
+      return serializeProductBundleComponentsConnection(runtime, product.id, field, variables);
     case 'createdAt':
       return product.createdAt;
     case 'updatedAt':
@@ -8379,17 +8691,17 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
           }),
       );
     case 'options':
-      return store
+      return runtime.store
         .getEffectiveOptionsByProductId(product.id)
         .map((option) => serializeOptionSelectionSet(option, field.selectionSet?.selections ?? []));
     case 'variants':
-      return serializeVariantsConnection(product.id, field, variables);
+      return serializeVariantsConnection(runtime, product.id, field, variables);
     case 'collections':
-      return serializeCollectionsConnection(product.id, field, variables);
+      return serializeCollectionsConnection(runtime, product.id, field, variables);
     case 'media':
-      return serializeMediaConnection(product.id, field, variables);
+      return serializeMediaConnection(runtime, product.id, field, variables);
     case 'images':
-      return serializeProductImagesConnection(product.id, field, variables);
+      return serializeProductImagesConnection(runtime, product.id, field, variables);
     case 'metafield': {
       const args = getFieldArguments(field, variables);
       const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
@@ -8398,29 +8710,31 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
         return null;
       }
 
-      const metafield = store
+      const metafield = runtime.store
         .getEffectiveMetafieldsByOwnerId(product.id)
         .find((candidate) => candidate.namespace === namespace && candidate.key === key);
       return metafield ? serializeMetafieldSelectionSet(metafield, field.selectionSet?.selections ?? []) : null;
     }
     case 'metafields':
-      return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
+      return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(runtime, product.id), field, variables);
     case 'contextualPricing':
       return projectGraphqlValue(product.contextualPricing, field.selectionSet?.selections ?? [], new Map());
     case 'sellingPlanGroups':
       return serializeSellingPlanGroupConnection(
-        store.listEffectiveSellingPlanGroupsVisibleForProduct(product.id),
+        runtime,
+        runtime.store.listEffectiveSellingPlanGroupsVisibleForProduct(product.id),
         field,
         variables,
       );
     case 'sellingPlanGroupsCount':
-      return serializeCountValue(field, store.listEffectiveSellingPlanGroupsForProduct(product.id).length);
+      return serializeCountValue(field, runtime.store.listEffectiveSellingPlanGroupsForProduct(product.id).length);
     default:
       return null;
   }
 }
 
 function serializeSelectionSet(
+  runtime: ProxyRuntimeContext,
   product: ProductRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -8434,7 +8748,7 @@ function serializeSelectionSet(
         continue;
       }
 
-      Object.assign(result, serializeSelectionSet(product, selection.selectionSet.selections, variables));
+      Object.assign(result, serializeSelectionSet(runtime, product, selection.selectionSet.selections, variables));
       continue;
     }
 
@@ -8443,13 +8757,14 @@ function serializeSelectionSet(
     }
 
     const key = selection.alias?.value ?? selection.name.value;
-    result[key] = serializeProductField(product, selection, variables);
+    result[key] = serializeProductField(runtime, product, selection, variables);
   }
 
   return result;
 }
 
 function serializeProduct(
+  runtime: ProxyRuntimeContext,
   product: ProductRecord | null,
   field: FieldNode | null,
   variables: Record<string, unknown>,
@@ -8459,19 +8774,24 @@ function serializeProduct(
   }
 
   const selections = field?.selectionSet?.selections ?? [];
-  return serializeSelectionSet(product, selections, variables);
+  return serializeSelectionSet(runtime, product, selections, variables);
 }
 
 export function serializeProductBulkSelection(
+  runtime: ProxyRuntimeContext,
   product: ProductRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return serializeSelectionSet(product, selections, variables);
+  return serializeSelectionSet(runtime, product, selections, variables);
 }
 
-function serializeProductsCount(rawQuery: unknown, selections: readonly SelectionNode[]): Record<string, unknown> {
-  const filteredProducts = applyProductsQuery(store.listEffectiveProducts(), rawQuery);
+function serializeProductsCount(
+  runtime: ProxyRuntimeContext,
+  rawQuery: unknown,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const filteredProducts = applyProductsQuery(runtime, runtime.store.listEffectiveProducts(), rawQuery);
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
@@ -8560,12 +8880,12 @@ function matchesStringValue(candidate: string, rawValue: string, matchMode: 'inc
   return matchesSearchQueryString(candidate, rawValue, matchMode, { wordPrefix: true });
 }
 
-function getSearchableProductTags(product: ProductRecord): string[] {
-  if (!store.isTagSearchLagged(product.id)) {
+function getSearchableProductTags(runtime: ProxyRuntimeContext, product: ProductRecord): string[] {
+  if (!runtime.store.isTagSearchLagged(product.id)) {
     return product.tags;
   }
 
-  const baseProduct = store.getBaseProductById(product.id);
+  const baseProduct = runtime.store.getBaseProductById(product.id);
   if (!baseProduct) {
     return product.tags;
   }
@@ -8573,34 +8893,38 @@ function getSearchableProductTags(product: ProductRecord): string[] {
   return product.tags.filter((tag) => baseProduct.tags.includes(tag));
 }
 
-function getSearchableProductVariants(product: ProductRecord): ProductVariantRecord[] {
-  if (!store.isVariantSearchLagged(product.id)) {
-    return store.getEffectiveVariantsByProductId(product.id);
+function getSearchableProductVariants(runtime: ProxyRuntimeContext, product: ProductRecord): ProductVariantRecord[] {
+  if (!runtime.store.isVariantSearchLagged(product.id)) {
+    return runtime.store.getEffectiveVariantsByProductId(product.id);
   }
 
-  const baseProduct = store.getBaseProductById(product.id);
+  const baseProduct = runtime.store.getBaseProductById(product.id);
   if (!baseProduct) {
     return [];
   }
 
-  return store.getBaseVariantsByProductId(baseProduct.id);
+  return runtime.store.getBaseVariantsByProductId(baseProduct.id);
 }
 
-function matchesProductSearchText(product: ProductRecord, rawValue: string): boolean {
+function matchesProductSearchText(runtime: ProxyRuntimeContext, product: ProductRecord, rawValue: string): boolean {
   const searchableValues = [
     product.title,
     product.handle,
     product.vendor ?? '',
     product.productType ?? '',
-    ...getSearchableProductTags(product),
+    ...getSearchableProductTags(runtime, product),
   ];
 
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQueryTerm): boolean {
+function matchesPositiveProductQueryTerm(
+  runtime: ProxyRuntimeContext,
+  product: ProductRecord,
+  term: SearchQueryTerm,
+): boolean {
   if (term.field === null) {
-    return matchesProductSearchText(product, term.value);
+    return matchesProductSearchText(runtime, product, term.value);
   }
 
   const field = term.field.toLowerCase();
@@ -8612,7 +8936,7 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
     case 'handle':
       return matchesStringValue(product.handle, value, 'exact');
     case 'tag':
-      return getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact'));
+      return getSearchableProductTags(runtime, product).some((tag) => matchesStringValue(tag, value, 'exact'));
     case 'product_type':
       return typeof product.productType === 'string' && matchesStringValue(product.productType, value, 'exact');
     case 'vendor':
@@ -8630,13 +8954,13 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
     case 'updated_at':
       return matchesProductTimestampTerm(product.updatedAt, value);
     case 'tag_not':
-      return !getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact'));
+      return !getSearchableProductTags(runtime, product).some((tag) => matchesStringValue(tag, value, 'exact'));
     case 'sku':
-      return getSearchableProductVariants(product).some(
+      return getSearchableProductVariants(runtime, product).some(
         (variant) => typeof variant.sku === 'string' && matchesStringValue(variant.sku, value, 'exact'),
       );
     case 'barcode':
-      return getSearchableProductVariants(product).some(
+      return getSearchableProductVariants(runtime, product).some(
         (variant) => typeof variant.barcode === 'string' && matchesStringValue(variant.barcode, value, 'exact'),
       );
     case 'inventory_total': {
@@ -8671,8 +8995,14 @@ function matchesPositiveProductQueryTerm(product: ProductRecord, term: SearchQue
   }
 }
 
-function applyProductsQuery(products: ProductRecord[], rawQuery: unknown): ProductRecord[] {
-  return applySearchQuery(products, rawQuery, { recognizeNotKeyword: true }, matchesPositiveProductQueryTerm);
+function applyProductsQuery(
+  runtime: ProxyRuntimeContext,
+  products: ProductRecord[],
+  rawQuery: unknown,
+): ProductRecord[] {
+  return applySearchQuery(products, rawQuery, { recognizeNotKeyword: true }, (product, term) =>
+    matchesPositiveProductQueryTerm(runtime, product, term),
+  );
 }
 
 function collectionIsSmart(collection: CollectionRecord | ProductCollectionRecord): boolean {
@@ -8728,8 +9058,12 @@ function matchesResourceIdRange(resourceId: string, rawValue: string): boolean {
   }
 }
 
-function collectionHasProduct(collection: CollectionRecord | ProductCollectionRecord, rawValue: string): boolean {
-  return listEffectiveProductsForCollection(collection.id).some((product) =>
+function collectionHasProduct(
+  runtime: ProxyRuntimeContext,
+  collection: CollectionRecord | ProductCollectionRecord,
+  rawValue: string,
+): boolean {
+  return listEffectiveProductsForCollection(runtime, collection.id).some((product) =>
     matchesResourceIdValue(product.id, rawValue),
   );
 }
@@ -8749,6 +9083,7 @@ function matchesCollectionSearchText(
 }
 
 function matchesPositiveCollectionQueryTerm(
+  runtime: ProxyRuntimeContext,
   collection: CollectionRecord | ProductCollectionRecord,
   term: SearchQueryTerm,
 ): boolean {
@@ -8777,7 +9112,7 @@ function matchesPositiveCollectionQueryTerm(
     case 'id':
       return matchesResourceIdRange(collection.id, value);
     case 'product_id':
-      return collectionHasProduct(collection, value);
+      return collectionHasProduct(runtime, collection, value);
     case 'updated_at':
       return matchesNullableProductTimestampTerm(collection.updatedAt ?? null, value);
     case 'product_publication_status':
@@ -8791,10 +9126,13 @@ function matchesPositiveCollectionQueryTerm(
 }
 
 function applyCollectionsQuery<T extends CollectionRecord | ProductCollectionRecord>(
+  runtime: ProxyRuntimeContext,
   collections: T[],
   rawQuery: unknown,
 ): T[] {
-  return applySearchQuery(collections, rawQuery, { recognizeNotKeyword: true }, matchesPositiveCollectionQueryTerm);
+  return applySearchQuery(collections, rawQuery, { recognizeNotKeyword: true }, (collection, term) =>
+    matchesPositiveCollectionQueryTerm(runtime, collection, term),
+  );
 }
 
 function compareCollectionIds(leftId: string, rightId: string): number {
@@ -8873,16 +9211,19 @@ function resolveCatalogProductCursor(
   return catalogConnection?.cursorByProductId[productId] ?? buildSyntheticProductCursor(productId);
 }
 
-function listProductsForConnection(catalogConnection: ProductCatalogConnectionRecord | null): ProductRecord[] {
+function listProductsForConnection(
+  runtime: ProxyRuntimeContext,
+  catalogConnection: ProductCatalogConnectionRecord | null,
+): ProductRecord[] {
   if (!catalogConnection) {
-    return store.listEffectiveProducts();
+    return runtime.store.listEffectiveProducts();
   }
 
   const orderedProducts = catalogConnection.orderedProductIds
-    .map((productId) => store.getEffectiveProductById(productId))
+    .map((productId) => runtime.store.getEffectiveProductById(productId))
     .filter((product): product is ProductRecord => product !== null);
   const seenProductIds = new Set(orderedProducts.map((product) => product.id));
-  const extraProducts = store.listEffectiveProducts().filter((product) => !seenProductIds.has(product.id));
+  const extraProducts = runtime.store.listEffectiveProducts().filter((product) => !seenProductIds.has(product.id));
   return [...orderedProducts, ...extraProducts];
 }
 
@@ -8959,16 +9300,19 @@ function sortProducts(
   return rawReverse === true ? sortedProducts.reverse() : sortedProducts;
 }
 
-function listEffectiveProductVariants(): ProductVariantRecord[] {
-  return store.listEffectiveProducts().flatMap((product) => store.getEffectiveVariantsByProductId(product.id));
+function listEffectiveProductVariants(runtime: ProxyRuntimeContext): ProductVariantRecord[] {
+  return runtime.store
+    .listEffectiveProducts()
+    .flatMap((product) => runtime.store.getEffectiveVariantsByProductId(product.id));
 }
 
 export function serializeProductVariantBulkSelection(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return serializeVariantSelectionSet(variant, selections, variables);
+  return serializeVariantSelectionSet(runtime, variant, selections, variables);
 }
 
 function compareVariantIds(leftId: string, rightId: string): number {
@@ -8982,20 +9326,28 @@ function compareVariantIds(leftId: string, rightId: string): number {
   return leftId.localeCompare(rightId);
 }
 
-function matchesProductVariantSearchText(variant: ProductVariantRecord, rawValue: string): boolean {
-  const product = store.getEffectiveProductById(variant.productId);
+function matchesProductVariantSearchText(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  rawValue: string,
+): boolean {
+  const product = runtime.store.getEffectiveProductById(variant.productId);
   const searchableValues = [variant.title, variant.sku ?? '', variant.barcode ?? '', product?.title ?? ''];
   return searchableValues.some((candidate) => matchesStringValue(candidate, rawValue, 'includes'));
 }
 
-function matchesPositiveProductVariantQueryTerm(variant: ProductVariantRecord, term: SearchQueryTerm): boolean {
+function matchesPositiveProductVariantQueryTerm(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  term: SearchQueryTerm,
+): boolean {
   if (term.field === null) {
-    return matchesProductVariantSearchText(variant, term.value);
+    return matchesProductVariantSearchText(runtime, variant, term.value);
   }
 
   const field = term.field.toLowerCase();
   const value = searchQueryTermValue(term);
-  const product = store.getEffectiveProductById(variant.productId);
+  const product = runtime.store.getEffectiveProductById(variant.productId);
 
   switch (field) {
     case 'id':
@@ -9013,37 +9365,51 @@ function matchesPositiveProductVariantQueryTerm(variant: ProductVariantRecord, t
     case 'product_type':
       return typeof product?.productType === 'string' && matchesStringValue(product.productType, value, 'exact');
     case 'tag':
-      return product ? getSearchableProductTags(product).some((tag) => matchesStringValue(tag, value, 'exact')) : false;
+      return product
+        ? getSearchableProductTags(runtime, product).some((tag) => matchesStringValue(tag, value, 'exact'))
+        : false;
     default:
       return true;
   }
 }
 
-function matchesProductVariantQueryTerm(variant: ProductVariantRecord, term: SearchQueryTerm): boolean {
+function matchesProductVariantQueryTerm(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  term: SearchQueryTerm,
+): boolean {
   if (!term.raw) {
     return true;
   }
 
-  const matches = matchesPositiveProductVariantQueryTerm(variant, term);
+  const matches = matchesPositiveProductVariantQueryTerm(runtime, variant, term);
   return term.negated ? !matches : matches;
 }
 
-function matchesProductVariantQueryNode(variant: ProductVariantRecord, node: SearchQueryNode): boolean {
+function matchesProductVariantQueryNode(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  node: SearchQueryNode,
+): boolean {
   switch (node.type) {
     case 'term':
-      return matchesProductVariantQueryTerm(variant, node.term);
+      return matchesProductVariantQueryTerm(runtime, variant, node.term);
     case 'and':
-      return node.children.every((child) => matchesProductVariantQueryNode(variant, child));
+      return node.children.every((child) => matchesProductVariantQueryNode(runtime, variant, child));
     case 'or':
-      return node.children.some((child) => matchesProductVariantQueryNode(variant, child));
+      return node.children.some((child) => matchesProductVariantQueryNode(runtime, variant, child));
     case 'not':
-      return !matchesProductVariantQueryNode(variant, node.child);
+      return !matchesProductVariantQueryNode(runtime, variant, node.child);
     default:
       return true;
   }
 }
 
-function applyProductVariantsQuery(variants: ProductVariantRecord[], rawQuery: unknown): ProductVariantRecord[] {
+function applyProductVariantsQuery(
+  runtime: ProxyRuntimeContext,
+  variants: ProductVariantRecord[],
+  rawQuery: unknown,
+): ProductVariantRecord[] {
   if (typeof rawQuery !== 'string' || !rawQuery.trim()) {
     return variants;
   }
@@ -9053,10 +9419,11 @@ function applyProductVariantsQuery(variants: ProductVariantRecord[], rawQuery: u
     return variants;
   }
 
-  return variants.filter((variant) => matchesProductVariantQueryNode(variant, parsedQuery));
+  return variants.filter((variant) => matchesProductVariantQueryNode(runtime, variant, parsedQuery));
 }
 
 function compareProductVariantsBySortKey(
+  runtime: ProxyRuntimeContext,
   left: ProductVariantRecord,
   right: ProductVariantRecord,
   rawSortKey: unknown,
@@ -9071,8 +9438,10 @@ function compareProductVariantsBySortKey(
     case 'POSITION':
       return (
         left.productId.localeCompare(right.productId) ||
-        store.getEffectiveVariantsByProductId(left.productId).findIndex((variant) => variant.id === left.id) -
-          store.getEffectiveVariantsByProductId(right.productId).findIndex((variant) => variant.id === right.id) ||
+        runtime.store.getEffectiveVariantsByProductId(left.productId).findIndex((variant) => variant.id === left.id) -
+          runtime.store
+            .getEffectiveVariantsByProductId(right.productId)
+            .findIndex((variant) => variant.id === right.id) ||
         compareVariantIds(left.id, right.id)
       );
     case 'INVENTORY_QUANTITY':
@@ -9084,34 +9453,41 @@ function compareProductVariantsBySortKey(
 }
 
 function sortProductVariants(
+  runtime: ProxyRuntimeContext,
   variants: ProductVariantRecord[],
   rawSortKey: unknown,
   rawReverse: unknown,
 ): ProductVariantRecord[] {
-  const sortedVariants = [...variants].sort((left, right) => compareProductVariantsBySortKey(left, right, rawSortKey));
+  const sortedVariants = [...variants].sort((left, right) =>
+    compareProductVariantsBySortKey(runtime, left, right, rawSortKey),
+  );
   return rawReverse === true ? sortedVariants.reverse() : sortedVariants;
 }
 
 export function listProductVariantsForBulkExport(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): ProductVariantRecord[] {
   const args = getFieldArguments(field, variables);
   return sortProductVariants(
-    applyProductVariantsQuery(listEffectiveProductVariants(), args['query']),
+    runtime,
+    applyProductVariantsQuery(runtime, listEffectiveProductVariants(runtime), args['query']),
     args['sortKey'],
     args['reverse'],
   );
 }
 
 export function listProductVariantsForProductBulkExport(
+  runtime: ProxyRuntimeContext,
   productId: string,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): ProductVariantRecord[] {
   const args = getFieldArguments(field, variables);
   return sortProductVariants(
-    applyProductVariantsQuery(store.getEffectiveVariantsByProductId(productId), args['query']),
+    runtime,
+    applyProductVariantsQuery(runtime, runtime.store.getEffectiveVariantsByProductId(productId), args['query']),
     args['sortKey'],
     args['reverse'],
   );
@@ -9127,6 +9503,7 @@ function parseProductsCursor(rawCursor: unknown): string | null {
 }
 
 function serializeProductsConnection(
+  runtime: ProxyRuntimeContext,
   products: ProductRecord[],
   field: FieldNode,
   first: number | null,
@@ -9140,9 +9517,11 @@ function serializeProductsConnection(
   options: { preserveDefaultOrder?: boolean } = {},
 ): Record<string, unknown> {
   const searchConnectionKey = buildProductSearchConnectionKey(rawQuery, rawSortKey, rawReverse);
-  const searchConnection = searchConnectionKey ? store.getBaseProductSearchConnection(searchConnectionKey) : null;
-  const candidateProducts = searchConnection ? listProductsForConnection(searchConnection) : products;
-  const filteredProducts = applyProductsQuery(candidateProducts, rawQuery);
+  const searchConnection = searchConnectionKey
+    ? runtime.store.getBaseProductSearchConnection(searchConnectionKey)
+    : null;
+  const candidateProducts = searchConnection ? listProductsForConnection(runtime, searchConnection) : products;
+  const filteredProducts = applyProductsQuery(runtime, candidateProducts, rawQuery);
   const sortedProducts = searchConnection
     ? filteredProducts
     : sortProducts(filteredProducts, rawSortKey, rawReverse, options);
@@ -9199,7 +9578,7 @@ function serializeProductsConnection(
     hasPreviousPage,
     getCursorValue: (product) => resolveCatalogProductCursor(product.id, searchConnection),
     serializeNode: (product, selection) =>
-      serializeSelectionSet(product, selection.selectionSet?.selections ?? [], variables),
+      serializeSelectionSet(runtime, product, selection.selectionSet?.selections ?? [], variables),
     pageInfoOptions: {
       prefixCursors: false,
       fallbackStartCursor: preserveBaselinePageInfo ? (searchConnection?.pageInfo.startCursor ?? null) : null,
@@ -9208,24 +9587,32 @@ function serializeProductsConnection(
   });
 }
 
-export function listProductsForBulkExport(field: FieldNode, variables: Record<string, unknown>): ProductRecord[] {
+export function listProductsForBulkExport(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): ProductRecord[] {
   const args = getFieldArguments(field, variables);
   const searchConnectionKey = buildProductSearchConnectionKey(args['query'], args['sortKey'], args['reverse']);
-  const searchConnection = searchConnectionKey ? store.getBaseProductSearchConnection(searchConnectionKey) : null;
+  const searchConnection = searchConnectionKey
+    ? runtime.store.getBaseProductSearchConnection(searchConnectionKey)
+    : null;
   const candidateProducts = searchConnection
-    ? listProductsForConnection(searchConnection)
-    : store.listEffectiveProducts();
-  const filteredProducts = applyProductsQuery(candidateProducts, args['query']);
+    ? listProductsForConnection(runtime, searchConnection)
+    : runtime.store.listEffectiveProducts();
+  const filteredProducts = applyProductsQuery(runtime, candidateProducts, args['query']);
   return searchConnection ? filteredProducts : sortProducts(filteredProducts, args['sortKey'], args['reverse']);
 }
 
 function serializeProductVariantsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const variants = sortProductVariants(
-    applyProductVariantsQuery(listEffectiveProductVariants(), args['query']),
+    runtime,
+    applyProductVariantsQuery(runtime, listEffectiveProductVariants(runtime), args['query']),
     args['sortKey'],
     args['reverse'],
   );
@@ -9241,12 +9628,16 @@ function serializeProductVariantsConnection(
     hasPreviousPage,
     getCursorValue: (variant) => variant.id,
     serializeNode: (variant, selection) =>
-      serializeVariantSelectionSet(variant, selection.selectionSet?.selections ?? [], variables),
+      serializeVariantSelectionSet(runtime, variant, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
-function serializeProductVariantsCount(rawQuery: unknown, field: FieldNode): Record<string, unknown> {
-  const variants = applyProductVariantsQuery(listEffectiveProductVariants(), rawQuery);
+function serializeProductVariantsCount(
+  runtime: ProxyRuntimeContext,
+  rawQuery: unknown,
+  field: FieldNode,
+): Record<string, unknown> {
+  const variants = applyProductVariantsQuery(runtime, listEffectiveProductVariants(runtime), rawQuery);
   return serializeCountValue(field, variants.length);
 }
 
@@ -9319,6 +9710,7 @@ function serializeProductOperationUserErrors(
 }
 
 function serializeProductOperationField(
+  runtime: ProxyRuntimeContext,
   operation: ProductOperationRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -9332,13 +9724,15 @@ function serializeProductOperationField(
       return operation.status;
     case 'product':
       return serializeProduct(
-        operation.productId ? store.getEffectiveProductById(operation.productId) : null,
+        runtime,
+        operation.productId ? runtime.store.getEffectiveProductById(operation.productId) : null,
         field,
         variables,
       );
     case 'newProduct':
       return serializeProduct(
-        operation.newProductId ? store.getEffectiveProductById(operation.newProductId) : null,
+        runtime,
+        operation.newProductId ? runtime.store.getEffectiveProductById(operation.newProductId) : null,
         field,
         variables,
       );
@@ -9350,6 +9744,7 @@ function serializeProductOperationField(
 }
 
 function serializeProductOperation(
+  runtime: ProxyRuntimeContext,
   operation: ProductOperationRecord | null,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -9371,7 +9766,7 @@ function serializeProductOperation(
           continue;
         }
         const key = fragmentSelection.alias?.value ?? fragmentSelection.name.value;
-        result[key] = serializeProductOperationField(operation, fragmentSelection, variables);
+        result[key] = serializeProductOperationField(runtime, operation, fragmentSelection, variables);
       }
       continue;
     }
@@ -9381,13 +9776,14 @@ function serializeProductOperation(
     }
 
     const key = selection.alias?.value ?? selection.name.value;
-    result[key] = serializeProductOperationField(operation, selection, variables);
+    result[key] = serializeProductOperationField(runtime, operation, selection, variables);
   }
 
   return result;
 }
 
 function serializeProductDuplicateOperation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode | null,
   operation: ProductOperationRecord | null,
   variables: Record<string, unknown>,
@@ -9396,10 +9792,11 @@ function serializeProductDuplicateOperation(
     return null;
   }
 
-  return serializeProductOperation(operation, field, variables);
+  return serializeProductOperation(runtime, operation, field, variables);
 }
 
 function serializeProductDuplicateMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -9412,12 +9809,13 @@ function serializeProductDuplicateMutationPayload(
 
   const newProductField = getChildField(field, 'newProduct');
   if (newProductField) {
-    result[getResponseKey(newProductField)] = serializeProduct(payload.newProduct, newProductField, variables);
+    result[getResponseKey(newProductField)] = serializeProduct(runtime, payload.newProduct, newProductField, variables);
   }
 
   const operationField = getChildField(field, 'productDuplicateOperation');
   if (operationField) {
     result[getResponseKey(operationField)] = serializeProductDuplicateOperation(
+      runtime,
       operationField,
       payload.productDuplicateOperation,
       variables,
@@ -9436,20 +9834,25 @@ function readPlainObjectInputs(raw: unknown): Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter((item): item is Record<string, unknown> => isObject(item)) : [];
 }
 
-function makeProductFeedRecord(input: Record<string, unknown>): ProductFeedRecord {
+function makeProductFeedRecord(runtime: ProxyRuntimeContext, input: Record<string, unknown>): ProductFeedRecord {
   return {
-    id: makeSyntheticGid('ProductFeed'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductFeed'),
     country: typeof input['country'] === 'string' ? input['country'] : null,
     language: typeof input['language'] === 'string' ? input['language'] : null,
     status: 'ACTIVE',
   };
 }
 
-function makeProductResourceFeedbackRecord(input: Record<string, unknown>): ProductResourceFeedbackRecord | null {
+function makeProductResourceFeedbackRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): ProductResourceFeedbackRecord | null {
   const productId = typeof input['productId'] === 'string' ? input['productId'] : null;
   const state = input['state'];
   const feedbackGeneratedAt =
-    typeof input['feedbackGeneratedAt'] === 'string' ? input['feedbackGeneratedAt'] : makeSyntheticTimestamp();
+    typeof input['feedbackGeneratedAt'] === 'string'
+      ? input['feedbackGeneratedAt']
+      : runtime.syntheticIdentity.makeSyntheticTimestamp();
   const productUpdatedAt =
     typeof input['productUpdatedAt'] === 'string' ? input['productUpdatedAt'] : feedbackGeneratedAt;
   if (!productId || (state !== 'ACCEPTED' && state !== 'REQUIRES_ACTION')) {
@@ -9465,17 +9868,22 @@ function makeProductResourceFeedbackRecord(input: Record<string, unknown>): Prod
   };
 }
 
-function makeShopResourceFeedbackRecord(input: Record<string, unknown>): ShopResourceFeedbackRecord | null {
+function makeShopResourceFeedbackRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): ShopResourceFeedbackRecord | null {
   const state = input['state'];
   if (state !== 'ACCEPTED' && state !== 'REQUIRES_ACTION') {
     return null;
   }
 
   return {
-    id: makeSyntheticGid('AppFeedback'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('AppFeedback'),
     state,
     feedbackGeneratedAt:
-      typeof input['feedbackGeneratedAt'] === 'string' ? input['feedbackGeneratedAt'] : makeSyntheticTimestamp(),
+      typeof input['feedbackGeneratedAt'] === 'string'
+        ? input['feedbackGeneratedAt']
+        : runtime.syntheticIdentity.makeSyntheticTimestamp(),
     messages: readStringArray(input['messages']),
   };
 }
@@ -9509,7 +9917,11 @@ function readBundleComponentOptionSelections(raw: unknown): ProductBundleCompone
     );
 }
 
-function makeBundleComponentRecords(bundleProductId: string, rawComponents: unknown): ProductBundleComponentRecord[] {
+function makeBundleComponentRecords(
+  runtime: ProxyRuntimeContext,
+  bundleProductId: string,
+  rawComponents: unknown,
+): ProductBundleComponentRecord[] {
   return readPlainObjectInputs(rawComponents).flatMap((component) => {
     const componentProductId = typeof component['productId'] === 'string' ? component['productId'] : null;
     if (!componentProductId) {
@@ -9518,7 +9930,7 @@ function makeBundleComponentRecords(bundleProductId: string, rawComponents: unkn
 
     return [
       {
-        id: makeSyntheticGid('ProductBundleComponent'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('ProductBundleComponent'),
         bundleProductId,
         componentProductId,
         quantity: typeof component['quantity'] === 'number' ? component['quantity'] : null,
@@ -9529,7 +9941,10 @@ function makeBundleComponentRecords(bundleProductId: string, rawComponents: unkn
   });
 }
 
-function validateBundleComponents(rawComponents: unknown): Array<{ field: string[] | null; message: string }> {
+function validateBundleComponents(
+  runtime: ProxyRuntimeContext,
+  rawComponents: unknown,
+): Array<{ field: string[] | null; message: string }> {
   const components = readPlainObjectInputs(rawComponents);
   if (components.length === 0) {
     return [{ field: null, message: 'At least one component is required.' }];
@@ -9538,7 +9953,7 @@ function validateBundleComponents(rawComponents: unknown): Array<{ field: string
   const errors: Array<{ field: string[] | null; message: string }> = [];
   components.forEach((component, index) => {
     const productId = typeof component['productId'] === 'string' ? component['productId'] : null;
-    if (!productId || !store.getEffectiveProductById(productId)) {
+    if (!productId || !runtime.store.getEffectiveProductById(productId)) {
       errors.push({ field: ['input', 'components', String(index), 'productId'], message: 'Product does not exist' });
     }
   });
@@ -9580,14 +9995,21 @@ function readCombinedListingChildInputs(raw: unknown): CombinedListingChildRecor
     }));
 }
 
-function makeCombinedListingOptionRecords(productId: string, rawOptions: unknown): ProductOptionRecord[] {
+function makeCombinedListingOptionRecords(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  rawOptions: unknown,
+): ProductOptionRecord[] {
   return readPlainObjectInputs(rawOptions).map((option, index) => ({
-    id: typeof option['optionId'] === 'string' ? option['optionId'] : makeSyntheticGid('ProductOption'),
+    id:
+      typeof option['optionId'] === 'string'
+        ? option['optionId']
+        : runtime.syntheticIdentity.makeSyntheticGid('ProductOption'),
     productId,
     name: typeof option['name'] === 'string' ? option['name'] : `Option ${index + 1}`,
     position: index + 1,
     optionValues: readStringArray(option['values']).map((value) => ({
-      id: makeSyntheticGid('ProductOptionValue'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
       name: value,
       hasVariants: true,
     })),
@@ -9863,6 +10285,7 @@ function normalizeUpstreamProduct(value: unknown): {
 }
 
 export function hydrateProductsFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   responseBody: unknown,
@@ -9878,46 +10301,46 @@ export function hydrateProductsFromUpstreamResponse(
 
   const productSearchConnections = collectProductSearchConnections(document, variables, rawData);
   for (const [key, connection] of Object.entries(productSearchConnections)) {
-    store.setBaseProductSearchConnection(key, connection);
+    runtime.store.setBaseProductSearchConnection(key, connection);
   }
 
   const publications = readPublicationRecords(rawData['publications']);
   if (publications.length > 0) {
-    store.upsertBasePublications(publications);
+    runtime.store.upsertBasePublications(publications);
   }
 
   const maybePublication = normalizeUpstreamPublication(rawData['publication']);
   if (maybePublication) {
-    store.upsertBasePublications([maybePublication]);
+    runtime.store.upsertBasePublications([maybePublication]);
   }
 
   const channels = readChannelRecords(rawData['channels']);
   if (channels.length > 0) {
-    store.upsertBaseChannels(channels);
+    runtime.store.upsertBaseChannels(channels);
   }
 
   const maybeChannel = normalizeUpstreamChannel(rawData['channel']);
   if (maybeChannel) {
-    store.upsertBaseChannels([maybeChannel]);
+    runtime.store.upsertBaseChannels([maybeChannel]);
   }
 
   const maybeProduct = normalizeUpstreamProduct(rawData['product']);
   if (maybeProduct) {
-    store.upsertBaseProducts([maybeProduct.product]);
+    runtime.store.upsertBaseProducts([maybeProduct.product]);
     if (maybeProduct.hasOptions) {
-      store.replaceBaseOptionsForProduct(maybeProduct.product.id, maybeProduct.options);
+      runtime.store.replaceBaseOptionsForProduct(maybeProduct.product.id, maybeProduct.options);
     }
     if (maybeProduct.hasVariants) {
-      store.replaceBaseVariantsForProduct(maybeProduct.product.id, maybeProduct.variants);
+      runtime.store.replaceBaseVariantsForProduct(maybeProduct.product.id, maybeProduct.variants);
     }
     if (maybeProduct.hasCollections) {
-      store.replaceBaseCollectionsForProduct(maybeProduct.product.id, maybeProduct.collections);
+      runtime.store.replaceBaseCollectionsForProduct(maybeProduct.product.id, maybeProduct.collections);
     }
     if (maybeProduct.hasMedia || maybeProduct.hasImages) {
-      store.replaceBaseMediaForProduct(maybeProduct.product.id, maybeProduct.media);
+      runtime.store.replaceBaseMediaForProduct(maybeProduct.product.id, maybeProduct.media);
     }
     if (maybeProduct.hasMetafields) {
-      replaceBaseMetafieldsForHydratedProduct(maybeProduct.product.id, maybeProduct.metafields);
+      replaceBaseMetafieldsForHydratedProduct(runtime, maybeProduct.product.id, maybeProduct.metafields);
     }
   }
 
@@ -9927,21 +10350,21 @@ export function hydrateProductsFromUpstreamResponse(
       return;
     }
 
-    store.upsertBaseProducts([normalized.product]);
+    runtime.store.upsertBaseProducts([normalized.product]);
     if (normalized.hasOptions) {
-      store.replaceBaseOptionsForProduct(normalized.product.id, normalized.options);
+      runtime.store.replaceBaseOptionsForProduct(normalized.product.id, normalized.options);
     }
     if (normalized.hasVariants) {
-      store.replaceBaseVariantsForProduct(normalized.product.id, normalized.variants);
+      runtime.store.replaceBaseVariantsForProduct(normalized.product.id, normalized.variants);
     }
     if (normalized.hasCollections) {
-      store.replaceBaseCollectionsForProduct(normalized.product.id, normalized.collections);
+      runtime.store.replaceBaseCollectionsForProduct(normalized.product.id, normalized.collections);
     }
     if (normalized.hasMedia || normalized.hasImages) {
-      store.replaceBaseMediaForProduct(normalized.product.id, normalized.media);
+      runtime.store.replaceBaseMediaForProduct(normalized.product.id, normalized.media);
     }
     if (normalized.hasMetafields) {
-      replaceBaseMetafieldsForHydratedProduct(normalized.product.id, normalized.metafields);
+      replaceBaseMetafieldsForHydratedProduct(runtime, normalized.product.id, normalized.metafields);
     }
   };
 
@@ -9963,7 +10386,8 @@ export function hydrateProductsFromUpstreamResponse(
       return;
     }
 
-    const variants = hydratedTopLevelVariantsByProductId.get(productId) ?? store.getBaseVariantsByProductId(productId);
+    const variants =
+      hydratedTopLevelVariantsByProductId.get(productId) ?? runtime.store.getBaseVariantsByProductId(productId);
     hydratedTopLevelVariantsByProductId.set(productId, [
       ...variants.filter((candidate) => candidate.id !== variant.id),
       variant,
@@ -9986,7 +10410,7 @@ export function hydrateProductsFromUpstreamResponse(
   }
 
   for (const [productId, variants] of hydratedTopLevelVariantsByProductId) {
-    store.replaceBaseVariantsForProduct(productId, variants);
+    runtime.store.replaceBaseVariantsForProduct(productId, variants);
   }
 
   const hydrateCollection = (value: unknown): void => {
@@ -9995,9 +10419,9 @@ export function hydrateProductsFromUpstreamResponse(
       return;
     }
 
-    store.upsertBaseCollections([collection]);
+    runtime.store.upsertBaseCollections([collection]);
     if (hasOwnField(value, 'metafields') || hasOwnField(value, 'metafield')) {
-      store.replaceBaseMetafieldsForOwner(
+      runtime.store.replaceBaseMetafieldsForOwner(
         collection.id,
         normalizeUpstreamMetafieldsForOwner(collection.id, value, 'COLLECTION'),
       );
@@ -10010,22 +10434,22 @@ export function hydrateProductsFromUpstreamResponse(
         continue;
       }
 
-      store.upsertBaseProducts([normalizedProduct.product]);
+      runtime.store.upsertBaseProducts([normalizedProduct.product]);
       if (normalizedProduct.hasOptions) {
-        store.replaceBaseOptionsForProduct(normalizedProduct.product.id, normalizedProduct.options);
+        runtime.store.replaceBaseOptionsForProduct(normalizedProduct.product.id, normalizedProduct.options);
       }
       if (normalizedProduct.hasVariants) {
-        store.replaceBaseVariantsForProduct(normalizedProduct.product.id, normalizedProduct.variants);
+        runtime.store.replaceBaseVariantsForProduct(normalizedProduct.product.id, normalizedProduct.variants);
       }
       if (normalizedProduct.hasMedia || normalizedProduct.hasImages) {
-        store.replaceBaseMediaForProduct(normalizedProduct.product.id, normalizedProduct.media);
+        runtime.store.replaceBaseMediaForProduct(normalizedProduct.product.id, normalizedProduct.media);
       }
       if (normalizedProduct.hasMetafields) {
-        replaceBaseMetafieldsForHydratedProduct(normalizedProduct.product.id, normalizedProduct.metafields);
+        replaceBaseMetafieldsForHydratedProduct(runtime, normalizedProduct.product.id, normalizedProduct.metafields);
       }
 
       const nextCollections = [
-        ...store
+        ...runtime.store
           .getEffectiveCollectionsByProductId(normalizedProduct.product.id)
           .filter((candidate) => candidate.id !== collection.id),
         {
@@ -10034,7 +10458,7 @@ export function hydrateProductsFromUpstreamResponse(
           position: productEntry.position,
         },
       ];
-      store.replaceBaseCollectionsForProduct(normalizedProduct.product.id, nextCollections);
+      runtime.store.replaceBaseCollectionsForProduct(normalizedProduct.product.id, nextCollections);
     }
   };
 
@@ -10082,22 +10506,22 @@ export function hydrateProductsFromUpstreamResponse(
         } => product !== null,
       );
 
-    store.upsertBaseProducts(products.map((entry) => entry.product));
+    runtime.store.upsertBaseProducts(products.map((entry) => entry.product));
     for (const entry of products) {
       if (entry.hasOptions) {
-        store.replaceBaseOptionsForProduct(entry.product.id, entry.options);
+        runtime.store.replaceBaseOptionsForProduct(entry.product.id, entry.options);
       }
       if (entry.hasVariants) {
-        store.replaceBaseVariantsForProduct(entry.product.id, entry.variants);
+        runtime.store.replaceBaseVariantsForProduct(entry.product.id, entry.variants);
       }
       if (entry.hasCollections) {
-        store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
+        runtime.store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
       }
       if (entry.hasMedia || entry.hasImages) {
-        store.replaceBaseMediaForProduct(entry.product.id, entry.media);
+        runtime.store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
-        replaceBaseMetafieldsForHydratedProduct(entry.product.id, entry.metafields);
+        replaceBaseMetafieldsForHydratedProduct(runtime, entry.product.id, entry.metafields);
       }
     }
   }
@@ -10134,22 +10558,22 @@ export function hydrateProductsFromUpstreamResponse(
         } => product !== null,
       );
 
-    store.upsertBaseProducts(products.map((entry) => entry.product));
+    runtime.store.upsertBaseProducts(products.map((entry) => entry.product));
     for (const entry of products) {
       if (entry.hasOptions) {
-        store.replaceBaseOptionsForProduct(entry.product.id, entry.options);
+        runtime.store.replaceBaseOptionsForProduct(entry.product.id, entry.options);
       }
       if (entry.hasVariants) {
-        store.replaceBaseVariantsForProduct(entry.product.id, entry.variants);
+        runtime.store.replaceBaseVariantsForProduct(entry.product.id, entry.variants);
       }
       if (entry.hasCollections) {
-        store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
+        runtime.store.replaceBaseCollectionsForProduct(entry.product.id, entry.collections);
       }
       if (entry.hasMedia || entry.hasImages) {
-        store.replaceBaseMediaForProduct(entry.product.id, entry.media);
+        runtime.store.replaceBaseMediaForProduct(entry.product.id, entry.media);
       }
       if (entry.hasMetafields) {
-        replaceBaseMetafieldsForHydratedProduct(entry.product.id, entry.metafields);
+        replaceBaseMetafieldsForHydratedProduct(runtime, entry.product.id, entry.metafields);
       }
     }
   }
@@ -10255,9 +10679,17 @@ function sellingPlanPricingPolicies(input: unknown): Array<Record<string, unknow
   });
 }
 
-function makeSellingPlanRecord(input: Record<string, unknown>, existing?: SellingPlanRecord): SellingPlanRecord {
+function makeSellingPlanRecord(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing?: SellingPlanRecord,
+): SellingPlanRecord {
   const previous = existing?.data ?? {};
-  const id = readStringInput(input, 'id', existing?.id ?? makeProxySyntheticGid('SellingPlan'))!;
+  const id = readStringInput(
+    input,
+    'id',
+    existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('SellingPlan'),
+  )!;
   const data: Record<string, unknown> = {
     ...structuredClone(previous),
     __typename: 'SellingPlan',
@@ -10279,7 +10711,10 @@ function makeSellingPlanRecord(input: Record<string, unknown>, existing?: Sellin
       'category',
       typeof previous['category'] === 'string' ? previous['category'] : null,
     ),
-    createdAt: typeof previous['createdAt'] === 'string' ? previous['createdAt'] : makeSyntheticTimestamp(),
+    createdAt:
+      typeof previous['createdAt'] === 'string'
+        ? previous['createdAt']
+        : runtime.syntheticIdentity.makeSyntheticTimestamp(),
     billingPolicy: sellingPlanBillingPolicy(readProductInput(input['billingPolicy']), previous['billingPolicy']),
     deliveryPolicy: sellingPlanDeliveryPolicy(readProductInput(input['deliveryPolicy']), previous['deliveryPolicy']),
     inventoryPolicy: {
@@ -10313,6 +10748,7 @@ function summarizeSellingPlanGroup(plans: SellingPlanRecord[]): string | null {
 }
 
 function applySellingPlanGroupInput(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: SellingPlanGroupRecord,
   resources: Record<string, unknown> = {},
@@ -10322,7 +10758,7 @@ function applySellingPlanGroupInput(
   const nextPlans = [...currentPlans];
 
   for (const createInput of readPlainObjectArray(input['sellingPlansToCreate'])) {
-    nextPlans.push(makeSellingPlanRecord(createInput));
+    nextPlans.push(makeSellingPlanRecord(runtime, createInput));
   }
 
   for (const updateInput of readPlainObjectArray(input['sellingPlansToUpdate'])) {
@@ -10333,12 +10769,12 @@ function applySellingPlanGroupInput(
     }
 
     const index = nextPlans.findIndex((plan) => plan.id === planId);
-    nextPlans[index] = makeSellingPlanRecord(updateInput, existingPlan);
+    nextPlans[index] = makeSellingPlanRecord(runtime, updateInput, existingPlan);
   }
 
   const deletedPlanIds = new Set(readStringArray(input['sellingPlansToDelete']));
   const filteredPlans = nextPlans.filter((plan) => !deletedPlanIds.has(plan.id));
-  const createdAt = existing?.createdAt ?? makeSyntheticTimestamp();
+  const createdAt = existing?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
   const productIds = uniqueStrings([...(existing?.productIds ?? []), ...readStringArray(resources['productIds'])]);
   const productVariantIds = uniqueStrings([
     ...(existing?.productVariantIds ?? []),
@@ -10346,7 +10782,7 @@ function applySellingPlanGroupInput(
   ]);
 
   const group: SellingPlanGroupRecord = {
-    id: existing?.id ?? makeProxySyntheticGid('SellingPlanGroup'),
+    id: existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('SellingPlanGroup'),
     appId: readStringInput(input, 'appId', existing?.appId ?? null),
     name: readStringInput(input, 'name', existing?.name ?? 'Selling plan group')!,
     merchantCode: readStringInput(input, 'merchantCode', existing?.merchantCode ?? 'selling-plan-group')!,
@@ -10364,6 +10800,7 @@ function applySellingPlanGroupInput(
 }
 
 function serializeSellingPlanGroupMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: Record<string, unknown>,
@@ -10378,6 +10815,7 @@ function serializeSellingPlanGroupMutationPayload(
     switch (selection.name.value) {
       case 'sellingPlanGroup':
         result[key] = serializeSellingPlanGroup(
+          runtime,
           (payload['sellingPlanGroup'] as SellingPlanGroupRecord | null | undefined) ?? null,
           selection,
           variables,
@@ -10403,6 +10841,7 @@ function serializeSellingPlanGroupMutationPayload(
 }
 
 function serializeProductSellingPlanGroupMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -10420,11 +10859,16 @@ function serializeProductSellingPlanGroupMutationPayload(
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'product':
-        result[key] = serializeProduct(payload.product ?? null, selection, variables);
+        result[key] = serializeProduct(runtime, payload.product ?? null, selection, variables);
         break;
       case 'productVariant':
         result[key] = payload.productVariant
-          ? serializeVariantSelectionSet(payload.productVariant, selection.selectionSet?.selections ?? [], variables)
+          ? serializeVariantSelectionSet(
+              runtime,
+              payload.productVariant,
+              selection.selectionSet?.selections ?? [],
+              variables,
+            )
           : null;
         break;
       case 'userErrors':
@@ -10438,6 +10882,7 @@ function serializeProductSellingPlanGroupMutationPayload(
 }
 
 function serializeVariantMediaMutationPayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: {
@@ -10455,10 +10900,10 @@ function serializeVariantMediaMutationPayload(
     const key = selection.alias?.value ?? selection.name.value;
     switch (selection.name.value) {
       case 'product':
-        result[key] = serializeProduct(payload.product, selection, variables);
+        result[key] = serializeProduct(runtime, payload.product, selection, variables);
         break;
       case 'productVariants':
-        result[key] = serializeVariantPayload(payload.productVariants, selection);
+        result[key] = serializeVariantPayload(runtime, payload.productVariants, selection);
         break;
       case 'userErrors':
         result[key] = payload.userErrors.map((error) => {
@@ -10491,6 +10936,7 @@ function serializeVariantMediaMutationPayload(
 }
 
 export function handleProductMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   readMode: ReadMode,
@@ -10504,7 +10950,7 @@ export function handleProductMutation(
   switch (field.name.value) {
     case 'productFeedCreate': {
       const input = readProductInput(args['input']);
-      const productFeed = store.upsertStagedProductFeed(makeProductFeedRecord(input));
+      const productFeed = runtime.store.upsertStagedProductFeed(makeProductFeedRecord(runtime, input));
       return {
         data: {
           [responseKey]: {
@@ -10519,7 +10965,7 @@ export function handleProductMutation(
     }
     case 'productFeedDelete': {
       const productFeedId = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = productFeedId ? store.getEffectiveProductFeedById(productFeedId) : null;
+      const existing = productFeedId ? runtime.store.getEffectiveProductFeedById(productFeedId) : null;
       if (!productFeedId || !existing) {
         return {
           data: {
@@ -10534,7 +10980,7 @@ export function handleProductMutation(
         };
       }
 
-      store.deleteStagedProductFeed(productFeedId);
+      runtime.store.deleteStagedProductFeed(productFeedId);
       return {
         data: {
           [responseKey]: {
@@ -10546,7 +10992,7 @@ export function handleProductMutation(
     }
     case 'productFullSync': {
       const productFeedId = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = productFeedId ? store.getEffectiveProductFeedById(productFeedId) : null;
+      const existing = productFeedId ? runtime.store.getEffectiveProductFeedById(productFeedId) : null;
       return {
         data: {
           [responseKey]: {
@@ -10564,8 +11010,8 @@ export function handleProductMutation(
       const feedback: ProductResourceFeedbackRecord[] = [];
       const userErrors: Array<{ field: string[] | null; message: string; code?: string | null }> = [];
       feedbackInput.forEach((input, index) => {
-        const record = makeProductResourceFeedbackRecord(input);
-        if (!record || !store.getEffectiveProductById(record.productId)) {
+        const record = makeProductResourceFeedbackRecord(runtime, input);
+        if (!record || !runtime.store.getEffectiveProductById(record.productId)) {
           userErrors.push({
             field: ['feedbackInput', String(index), 'productId'],
             message: 'Product does not exist',
@@ -10574,7 +11020,7 @@ export function handleProductMutation(
           return;
         }
 
-        feedback.push(store.upsertStagedProductResourceFeedback(record));
+        feedback.push(runtime.store.upsertStagedProductResourceFeedback(record));
       });
 
       return {
@@ -10592,7 +11038,7 @@ export function handleProductMutation(
       };
     }
     case 'shopResourceFeedbackCreate': {
-      const feedback = makeShopResourceFeedbackRecord(readProductInput(args['input']));
+      const feedback = makeShopResourceFeedbackRecord(runtime, readProductInput(args['input']));
       if (!feedback) {
         return {
           data: {
@@ -10607,7 +11053,7 @@ export function handleProductMutation(
         };
       }
 
-      const stagedFeedback = store.upsertStagedShopResourceFeedback(feedback);
+      const stagedFeedback = runtime.store.upsertStagedShopResourceFeedback(feedback);
       return {
         data: {
           [responseKey]: {
@@ -10622,7 +11068,7 @@ export function handleProductMutation(
     }
     case 'productBundleCreate': {
       const input = readProductInput(args['input']);
-      const userErrors = validateBundleComponents(input['components']);
+      const userErrors = validateBundleComponents(runtime, input['components']);
       if (userErrors.length > 0) {
         return {
           data: {
@@ -10634,15 +11080,17 @@ export function handleProductMutation(
         };
       }
 
-      const product = store.stageCreateProduct(makeProductRecord({ title: input['title'], status: 'ACTIVE' }));
-      store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(product)]);
-      store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(product)]);
-      store.replaceStagedBundleComponentsForProduct(
-        product.id,
-        makeBundleComponentRecords(product.id, input['components']),
+      const product = runtime.store.stageCreateProduct(
+        makeProductRecord(runtime, { title: input['title'], status: 'ACTIVE' }),
       );
-      const operation = store.stageProductOperation({
-        id: makeSyntheticGid('ProductBundleOperation'),
+      runtime.store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(runtime, product)]);
+      runtime.store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(runtime, product)]);
+      runtime.store.replaceStagedBundleComponentsForProduct(
+        product.id,
+        makeBundleComponentRecords(runtime, product.id, input['components']),
+      );
+      const operation = runtime.store.stageProductOperation({
+        id: runtime.syntheticIdentity.makeSyntheticGid('ProductBundleOperation'),
         typeName: 'ProductBundleOperation',
         productId: product.id,
         status: 'CREATED',
@@ -10652,6 +11100,7 @@ export function handleProductMutation(
         data: {
           [responseKey]: {
             productBundleOperation: serializeProductOperation(
+              runtime,
               operation,
               getChildField(field, 'productBundleOperation') ?? field,
               variables,
@@ -10664,7 +11113,7 @@ export function handleProductMutation(
     case 'productBundleUpdate': {
       const input = readProductInput(args['input']);
       const productId = typeof input['productId'] === 'string' ? input['productId'] : null;
-      const existing = productId ? store.getEffectiveProductById(productId) : null;
+      const existing = productId ? runtime.store.getEffectiveProductById(productId) : null;
       if (!productId || !existing) {
         return {
           data: {
@@ -10679,7 +11128,7 @@ export function handleProductMutation(
         };
       }
 
-      const userErrors = hasOwnField(input, 'components') ? validateBundleComponents(input['components']) : [];
+      const userErrors = hasOwnField(input, 'components') ? validateBundleComponents(runtime, input['components']) : [];
       if (userErrors.length > 0) {
         return {
           data: {
@@ -10692,16 +11141,18 @@ export function handleProductMutation(
       }
 
       if (typeof input['title'] === 'string') {
-        store.stageUpdateProduct(makeProductRecord({ id: productId, title: input['title'] }, existing));
-      }
-      if (hasOwnField(input, 'components')) {
-        store.replaceStagedBundleComponentsForProduct(
-          productId,
-          makeBundleComponentRecords(productId, input['components']),
+        runtime.store.stageUpdateProduct(
+          makeProductRecord(runtime, { id: productId, title: input['title'] }, existing),
         );
       }
-      const operation = store.stageProductOperation({
-        id: makeSyntheticGid('ProductBundleOperation'),
+      if (hasOwnField(input, 'components')) {
+        runtime.store.replaceStagedBundleComponentsForProduct(
+          productId,
+          makeBundleComponentRecords(runtime, productId, input['components']),
+        );
+      }
+      const operation = runtime.store.stageProductOperation({
+        id: runtime.syntheticIdentity.makeSyntheticGid('ProductBundleOperation'),
         typeName: 'ProductBundleOperation',
         productId,
         status: 'CREATED',
@@ -10711,6 +11162,7 @@ export function handleProductMutation(
         data: {
           [responseKey]: {
             productBundleOperation: serializeProductOperation(
+              runtime,
               operation,
               getChildField(field, 'productBundleOperation') ?? field,
               variables,
@@ -10729,9 +11181,9 @@ export function handleProductMutation(
           typeof input['parentProductVariantId'] === 'string'
             ? input['parentProductVariantId']
             : typeof input['parentProductId'] === 'string'
-              ? (store.getEffectiveVariantsByProductId(input['parentProductId'])[0]?.id ?? null)
+              ? (runtime.store.getEffectiveVariantsByProductId(input['parentProductId'])[0]?.id ?? null)
               : null;
-        const parentVariant = parentVariantId ? store.getEffectiveVariantById(parentVariantId) : null;
+        const parentVariant = parentVariantId ? runtime.store.getEffectiveVariantById(parentVariantId) : null;
         if (!parentVariant) {
           const missingIds = [
             parentVariantId,
@@ -10754,7 +11206,7 @@ export function handleProductMutation(
         let nextComponents =
           input['removeAllProductVariantRelationships'] === true
             ? []
-            : store.getEffectiveVariantComponentsByParentVariantId(parentVariant.id);
+            : runtime.store.getEffectiveVariantComponentsByParentVariantId(parentVariant.id);
         const removeIds = new Set(readStringArray(input['productVariantRelationshipsToRemove']));
         nextComponents = nextComponents.filter((component) => !removeIds.has(component.componentProductVariantId));
         const upsertInputs = [
@@ -10764,7 +11216,7 @@ export function handleProductMutation(
         for (const relationship of upsertInputs) {
           const componentVariantId = typeof relationship['id'] === 'string' ? relationship['id'] : null;
           const quantity = typeof relationship['quantity'] === 'number' ? relationship['quantity'] : 1;
-          if (!componentVariantId || !store.getEffectiveVariantById(componentVariantId)) {
+          if (!componentVariantId || !runtime.store.getEffectiveVariantById(componentVariantId)) {
             userErrors.push({
               field: ['input', String(index), 'productVariantRelationshipsToCreate', 'id'],
               message: 'Product variant does not exist',
@@ -10776,7 +11228,7 @@ export function handleProductMutation(
             (component) => component.componentProductVariantId !== componentVariantId,
           );
           nextComponents.push({
-            id: makeSyntheticGid('ProductVariantComponent'),
+            id: runtime.syntheticIdentity.makeSyntheticGid('ProductVariantComponent'),
             parentProductVariantId: parentVariant.id,
             componentProductVariantId: componentVariantId,
             quantity,
@@ -10784,7 +11236,7 @@ export function handleProductMutation(
         }
 
         if (userErrors.length === 0) {
-          store.replaceStagedVariantComponentsForParentVariant(parentVariant.id, nextComponents);
+          runtime.store.replaceStagedVariantComponentsForParentVariant(parentVariant.id, nextComponents);
           parentVariants.push(parentVariant);
         }
       });
@@ -10796,6 +11248,7 @@ export function handleProductMutation(
               userErrors.length === 0
                 ? parentVariants.map((variant) =>
                     serializeVariantSelectionSet(
+                      runtime,
                       variant,
                       getChildField(field, 'parentProductVariants')?.selectionSet?.selections ?? [],
                       variables,
@@ -10809,7 +11262,7 @@ export function handleProductMutation(
     }
     case 'combinedListingUpdate': {
       const parentProductId = typeof args['parentProductId'] === 'string' ? args['parentProductId'] : null;
-      const parentProduct = parentProductId ? store.getEffectiveProductById(parentProductId) : null;
+      const parentProduct = parentProductId ? runtime.store.getEffectiveProductById(parentProductId) : null;
       if (!parentProductId || !parentProduct) {
         return {
           data: {
@@ -10824,40 +11277,41 @@ export function handleProductMutation(
         };
       }
 
-      let children = store.getEffectiveCombinedListingChildrenByParentId(parentProductId);
+      let children = runtime.store.getEffectiveCombinedListingChildrenByParentId(parentProductId);
       const removedIds = new Set(readStringArray(args['productsRemovedIds']));
       children = children.filter((child) => !removedIds.has(child.childProductId));
       for (const child of [
         ...readCombinedListingChildInputs(args['productsAdded']),
         ...readCombinedListingChildInputs(args['productsEdited']),
       ]) {
-        if (!store.getEffectiveProductById(child.childProductId)) {
+        if (!runtime.store.getEffectiveProductById(child.childProductId)) {
           continue;
         }
         children = children.filter((existingChild) => existingChild.childProductId !== child.childProductId);
         children.push({ ...child, parentProductId });
-        const childProduct = store.getEffectiveProductById(child.childProductId);
+        const childProduct = runtime.store.getEffectiveProductById(child.childProductId);
         if (childProduct) {
-          store.stageUpdateProduct(
-            makeProductRecord({ id: childProduct.id, combinedListingRole: 'CHILD' }, childProduct),
+          runtime.store.stageUpdateProduct(
+            makeProductRecord(runtime, { id: childProduct.id, combinedListingRole: 'CHILD' }, childProduct),
           );
         }
       }
-      store.replaceStagedCombinedListingChildren(parentProductId, children);
+      runtime.store.replaceStagedCombinedListingChildren(parentProductId, children);
       const title = typeof args['title'] === 'string' ? args['title'] : parentProduct.title;
-      store.stageUpdateProduct(
-        makeProductRecord({ id: parentProductId, title, combinedListingRole: 'PARENT' }, parentProduct),
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: parentProductId, title, combinedListingRole: 'PARENT' }, parentProduct),
       );
-      const optionRecords = makeCombinedListingOptionRecords(parentProductId, args['optionsAndValues']);
+      const optionRecords = makeCombinedListingOptionRecords(runtime, parentProductId, args['optionsAndValues']);
       if (optionRecords.length > 0) {
-        store.replaceStagedOptionsForProduct(parentProductId, optionRecords);
+        runtime.store.replaceStagedOptionsForProduct(parentProductId, optionRecords);
       }
 
       return {
         data: {
           [responseKey]: {
             product: serializeProduct(
-              store.getEffectiveProductById(parentProductId),
+              runtime,
+              runtime.store.getEffectiveProductById(parentProductId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -10867,12 +11321,17 @@ export function handleProductMutation(
       };
     }
     case 'sellingPlanGroupCreate': {
-      const group = store.upsertStagedSellingPlanGroup(
-        applySellingPlanGroupInput(readProductInput(args['input']), undefined, readProductInput(args['resources'])),
+      const group = runtime.store.upsertStagedSellingPlanGroup(
+        applySellingPlanGroupInput(
+          runtime,
+          readProductInput(args['input']),
+          undefined,
+          readProductInput(args['resources']),
+        ),
       );
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             sellingPlanGroup: group,
             userErrors: [],
           }),
@@ -10881,11 +11340,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupUpdate': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               deletedSellingPlanIds: null,
               sellingPlanGroup: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
@@ -10898,10 +11357,10 @@ export function handleProductMutation(
       const deletedSellingPlanIds = readStringArray(input['sellingPlansToDelete']).filter((planId) =>
         existing.sellingPlans.some((plan) => plan.id === planId),
       );
-      const group = store.upsertStagedSellingPlanGroup(applySellingPlanGroupInput(input, existing));
+      const group = runtime.store.upsertStagedSellingPlanGroup(applySellingPlanGroupInput(runtime, input, existing));
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             deletedSellingPlanIds,
             sellingPlanGroup: group,
             userErrors: [],
@@ -10911,11 +11370,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupDelete': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               deletedSellingPlanGroupId: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
             }),
@@ -10923,10 +11382,10 @@ export function handleProductMutation(
         };
       }
 
-      store.deleteStagedSellingPlanGroup(id);
+      runtime.store.deleteStagedSellingPlanGroup(id);
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             deletedSellingPlanGroupId: id,
             userErrors: [],
           }),
@@ -10935,11 +11394,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupAddProducts': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               sellingPlanGroup: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
             }),
@@ -10947,13 +11406,13 @@ export function handleProductMutation(
         };
       }
 
-      const group = store.upsertStagedSellingPlanGroup({
+      const group = runtime.store.upsertStagedSellingPlanGroup({
         ...existing,
         productIds: uniqueStrings([...existing.productIds, ...readStringArray(args['productIds'])]),
       });
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             sellingPlanGroup: group,
             userErrors: [],
           }),
@@ -10962,11 +11421,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupRemoveProducts': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               removedProductIds: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
             }),
@@ -10977,13 +11436,13 @@ export function handleProductMutation(
       const requestedIds = readStringArray(args['productIds']);
       const requested = new Set(requestedIds);
       const removedProductIds = existing.productIds.filter((productId) => requested.has(productId));
-      store.upsertStagedSellingPlanGroup({
+      runtime.store.upsertStagedSellingPlanGroup({
         ...existing,
         productIds: existing.productIds.filter((productId) => !requested.has(productId)),
       });
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             removedProductIds,
             userErrors: [],
           }),
@@ -10992,11 +11451,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupAddProductVariants': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               sellingPlanGroup: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
             }),
@@ -11004,7 +11463,7 @@ export function handleProductMutation(
         };
       }
 
-      const group = store.upsertStagedSellingPlanGroup({
+      const group = runtime.store.upsertStagedSellingPlanGroup({
         ...existing,
         productVariantIds: uniqueStrings([
           ...existing.productVariantIds,
@@ -11013,7 +11472,7 @@ export function handleProductMutation(
       });
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             sellingPlanGroup: group,
             userErrors: [],
           }),
@@ -11022,11 +11481,11 @@ export function handleProductMutation(
     }
     case 'sellingPlanGroupRemoveProductVariants': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const existing = id ? store.getEffectiveSellingPlanGroupById(id) : null;
+      const existing = id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null;
       if (!id || !existing) {
         return {
           data: {
-            [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
               removedProductVariantIds: null,
               userErrors: [sellingPlanGroupDoesNotExistError()],
             }),
@@ -11036,13 +11495,13 @@ export function handleProductMutation(
 
       const requested = new Set(readStringArray(args['productVariantIds']));
       const removedProductVariantIds = existing.productVariantIds.filter((variantId) => requested.has(variantId));
-      store.upsertStagedSellingPlanGroup({
+      runtime.store.upsertStagedSellingPlanGroup({
         ...existing,
         productVariantIds: existing.productVariantIds.filter((variantId) => !requested.has(variantId)),
       });
       return {
         data: {
-          [responseKey]: serializeSellingPlanGroupMutationPayload(field, variables, {
+          [responseKey]: serializeSellingPlanGroupMutationPayload(runtime, field, variables, {
             removedProductVariantIds,
             userErrors: [],
           }),
@@ -11052,11 +11511,11 @@ export function handleProductMutation(
     case 'productJoinSellingPlanGroups':
     case 'productLeaveSellingPlanGroups': {
       const productId = typeof args['id'] === 'string' ? args['id'] : null;
-      const product = productId ? store.getEffectiveProductById(productId) : null;
+      const product = productId ? runtime.store.getEffectiveProductById(productId) : null;
       if (!productId || !product) {
         return {
           data: {
-            [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeProductSellingPlanGroupMutationPayload(runtime, field, variables, {
               product: null,
               userErrors: [{ field: ['id'], message: 'Product does not exist.', code: 'PRODUCT_DOES_NOT_EXIST' }],
             }),
@@ -11067,13 +11526,13 @@ export function handleProductMutation(
       const isJoin = field.name.value === 'productJoinSellingPlanGroups';
       const userErrors: SellingPlanGroupUserError[] = [];
       for (const groupId of readStringArray(args['sellingPlanGroupIds'])) {
-        const group = store.getEffectiveSellingPlanGroupById(groupId);
+        const group = runtime.store.getEffectiveSellingPlanGroupById(groupId);
         if (!group) {
           userErrors.push(sellingPlanGroupDoesNotExistError());
           continue;
         }
 
-        store.upsertStagedSellingPlanGroup({
+        runtime.store.upsertStagedSellingPlanGroup({
           ...group,
           productIds: isJoin
             ? uniqueStrings([...group.productIds, productId])
@@ -11083,8 +11542,8 @@ export function handleProductMutation(
 
       return {
         data: {
-          [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
-            product: store.getEffectiveProductById(productId),
+          [responseKey]: serializeProductSellingPlanGroupMutationPayload(runtime, field, variables, {
+            product: runtime.store.getEffectiveProductById(productId),
             userErrors,
           }),
         },
@@ -11093,11 +11552,11 @@ export function handleProductMutation(
     case 'productVariantJoinSellingPlanGroups':
     case 'productVariantLeaveSellingPlanGroups': {
       const variantId = typeof args['id'] === 'string' ? args['id'] : null;
-      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
+      const variant = variantId ? runtime.store.getEffectiveVariantById(variantId) : null;
       if (!variantId || !variant) {
         return {
           data: {
-            [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
+            [responseKey]: serializeProductSellingPlanGroupMutationPayload(runtime, field, variables, {
               productVariant: null,
               userErrors: [
                 {
@@ -11114,13 +11573,13 @@ export function handleProductMutation(
       const isJoin = field.name.value === 'productVariantJoinSellingPlanGroups';
       const userErrors: SellingPlanGroupUserError[] = [];
       for (const groupId of readStringArray(args['sellingPlanGroupIds'])) {
-        const group = store.getEffectiveSellingPlanGroupById(groupId);
+        const group = runtime.store.getEffectiveSellingPlanGroupById(groupId);
         if (!group) {
           userErrors.push(sellingPlanGroupDoesNotExistError());
           continue;
         }
 
-        store.upsertStagedSellingPlanGroup({
+        runtime.store.upsertStagedSellingPlanGroup({
           ...group,
           productVariantIds: isJoin
             ? uniqueStrings([...group.productVariantIds, variantId])
@@ -11130,8 +11589,8 @@ export function handleProductMutation(
 
       return {
         data: {
-          [responseKey]: serializeProductSellingPlanGroupMutationPayload(field, variables, {
-            productVariant: store.getEffectiveVariantById(variantId),
+          [responseKey]: serializeProductSellingPlanGroupMutationPayload(runtime, field, variables, {
+            productVariant: runtime.store.getEffectiveVariantById(variantId),
             userErrors,
           }),
         },
@@ -11151,7 +11610,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -11182,17 +11641,17 @@ export function handleProductMutation(
         }
       }
 
-      store.stageUpdateProduct(
-        makeProductRecord({ id: productId, tags: normalizeProductTags(nextTags) }, existingProduct),
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: productId, tags: normalizeProductTags(nextTags) }, existingProduct),
       );
-      if (store.getBaseProductById(productId)) {
-        store.markTagSearchLagged(productId);
+      if (runtime.store.getBaseProductById(productId)) {
+        runtime.store.markTagSearchLagged(productId);
       }
-      const product = store.getEffectiveProductById(productId);
+      const product = runtime.store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {
-            node: serializeProduct(product, getChildField(field, 'node'), variables),
+            node: serializeProduct(runtime, product, getChildField(field, 'node'), variables),
             userErrors: [],
           },
         },
@@ -11212,7 +11671,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -11237,15 +11696,15 @@ export function handleProductMutation(
       }
 
       const nextTags = normalizeProductTags(existingProduct.tags.filter((tag) => !tags.includes(tag)));
-      store.stageUpdateProduct(makeProductRecord({ id: productId, tags: nextTags }, existingProduct));
-      if (store.getBaseProductById(productId)) {
-        store.markTagSearchLagged(productId);
+      runtime.store.stageUpdateProduct(makeProductRecord(runtime, { id: productId, tags: nextTags }, existingProduct));
+      if (runtime.store.getBaseProductById(productId)) {
+        runtime.store.markTagSearchLagged(productId);
       }
-      const product = store.getEffectiveProductById(productId);
+      const product = runtime.store.getEffectiveProductById(productId);
       return {
         data: {
           [responseKey]: {
-            node: serializeProduct(product, getChildField(field, 'node'), variables),
+            node: serializeProduct(runtime, product, getChildField(field, 'node'), variables),
             userErrors: [],
           },
         },
@@ -11266,7 +11725,7 @@ export function handleProductMutation(
         };
       }
 
-      const preparedCreateInput = prepareProductInputWithResolvedHandle(input);
+      const preparedCreateInput = prepareProductInputWithResolvedHandle(runtime, input);
       if (preparedCreateInput.error) {
         return {
           data: {
@@ -11278,14 +11737,14 @@ export function handleProductMutation(
         };
       }
 
-      const product = store.stageCreateProduct(makeProductRecord(preparedCreateInput.input));
-      store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(product)]);
-      store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(product)]);
-      const syncedProduct = syncProductInventorySummary(product.id);
+      const product = runtime.store.stageCreateProduct(makeProductRecord(runtime, preparedCreateInput.input));
+      runtime.store.replaceStagedOptionsForProduct(product.id, [makeDefaultOptionRecord(runtime, product)]);
+      runtime.store.replaceStagedVariantsForProduct(product.id, [makeDefaultVariantRecord(runtime, product)]);
+      const syncedProduct = syncProductInventorySummary(runtime, product.id);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(syncedProduct ?? product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, syncedProduct ?? product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
@@ -11306,7 +11765,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(id) ?? undefined;
+      const existing = runtime.store.getEffectiveProductById(id) ?? undefined;
       if (!existing && readMode === 'snapshot') {
         return {
           data: {
@@ -11323,20 +11782,21 @@ export function handleProductMutation(
         return {
           data: {
             [responseKey]: {
-              product: serializeProduct(existing, getChildField(field, 'product'), variables),
+              product: serializeProduct(runtime, existing, getChildField(field, 'product'), variables),
               userErrors: [{ field: ['title'], message: "Title can't be blank" }],
             },
           },
         };
       }
 
-      const preparedUpdateInput = prepareProductInputWithResolvedHandle({ ...input, id }, existing);
+      const preparedUpdateInput = prepareProductInputWithResolvedHandle(runtime, { ...input, id }, existing);
       if (preparedUpdateInput.error) {
         return {
           data: {
             [responseKey]: {
               product: serializeProduct(
-                existing ?? store.getEffectiveProductById(id),
+                runtime,
+                existing ?? runtime.store.getEffectiveProductById(id),
                 getChildField(field, 'product'),
                 variables,
               ),
@@ -11346,12 +11806,12 @@ export function handleProductMutation(
         };
       }
 
-      store.stageUpdateProduct(makeProductRecord(preparedUpdateInput.input, existing));
-      const product = store.getEffectiveProductById(id);
+      runtime.store.stageUpdateProduct(makeProductRecord(runtime, preparedUpdateInput.input, existing));
+      const product = runtime.store.getEffectiveProductById(id);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
@@ -11388,7 +11848,7 @@ export function handleProductMutation(
         return buildProductDeleteInvalidVariableError(input, []);
       }
 
-      const existing = store.getEffectiveProductById(id);
+      const existing = runtime.store.getEffectiveProductById(id);
       if (!existing && readMode === 'snapshot') {
         return {
           data: {
@@ -11400,7 +11860,7 @@ export function handleProductMutation(
         };
       }
 
-      store.stageDeleteProduct(id);
+      runtime.store.stageDeleteProduct(id);
       return {
         data: {
           [responseKey]: {
@@ -11416,7 +11876,7 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
+            [responseKey]: serializeProductDuplicateMutationPayload(runtime, field, variables, {
               newProduct: null,
               productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product id is required' }],
@@ -11426,11 +11886,11 @@ export function handleProductMutation(
       }
 
       const synchronous = args['synchronous'] !== false;
-      const sourceProduct = store.getEffectiveProductById(productId);
+      const sourceProduct = runtime.store.getEffectiveProductById(productId);
       if (!sourceProduct) {
         if (!synchronous) {
-          const operation = store.stageProductOperation({
-            id: makeSyntheticGid('ProductDuplicateOperation'),
+          const operation = runtime.store.stageProductOperation({
+            id: runtime.syntheticIdentity.makeSyntheticGid('ProductDuplicateOperation'),
             typeName: 'ProductDuplicateOperation',
             productId: null,
             newProductId: null,
@@ -11445,7 +11905,7 @@ export function handleProductMutation(
 
           return {
             data: {
-              [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
+              [responseKey]: serializeProductDuplicateMutationPayload(runtime, field, variables, {
                 newProduct: null,
                 productDuplicateOperation: initialOperation,
                 userErrors: [],
@@ -11456,7 +11916,7 @@ export function handleProductMutation(
 
         return {
           data: {
-            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
+            [responseKey]: serializeProductDuplicateMutationPayload(runtime, field, variables, {
               newProduct: null,
               productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product not found' }],
@@ -11466,50 +11926,53 @@ export function handleProductMutation(
       }
 
       const duplicatedRecord = makeDuplicatedProductRecord(
+        runtime,
         sourceProduct,
         typeof args['newTitle'] === 'string' ? args['newTitle'] : undefined,
       );
-      const duplicatedProduct = store.stageCreateProduct(
+      const duplicatedProduct = runtime.store.stageCreateProduct(
         makeProductRecord(
+          runtime,
           {
             ...duplicatedRecord,
-            handle: ensureUniqueProductHandle(duplicatedRecord.handle),
+            handle: ensureUniqueProductHandle(runtime, duplicatedRecord.handle),
           },
           duplicatedRecord,
         ),
       );
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedOptionsForProduct(
         duplicatedProduct.id,
-        store
+        runtime.store
           .getEffectiveOptionsByProductId(productId)
-          .map((option) => duplicateOptionRecord(option, duplicatedProduct.id)),
+          .map((option) => duplicateOptionRecord(runtime, option, duplicatedProduct.id)),
       );
-      store.replaceStagedVariantsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(
         duplicatedProduct.id,
-        store
+        runtime.store
           .getEffectiveVariantsByProductId(productId)
-          .map((variant) => duplicateVariantRecord(variant, duplicatedProduct.id)),
+          .map((variant) => duplicateVariantRecord(runtime, variant, duplicatedProduct.id)),
       );
-      store.replaceStagedCollectionsForProduct(
+      runtime.store.replaceStagedCollectionsForProduct(
         duplicatedProduct.id,
-        store
+        runtime.store
           .getEffectiveCollectionsByProductId(productId)
           .map((collection) => duplicateCollectionRecord(collection, duplicatedProduct.id)),
       );
       // Captured Shopify duplicate responses keep immediate duplicate media empty even when the source has ready media.
-      store.replaceStagedMediaForProduct(duplicatedProduct.id, []);
-      store.replaceStagedMetafieldsForProduct(
+      runtime.store.replaceStagedMediaForProduct(duplicatedProduct.id, []);
+      runtime.store.replaceStagedMetafieldsForProduct(
         duplicatedProduct.id,
-        store
+        runtime.store
           .getEffectiveMetafieldsByProductId(productId)
-          .map((metafield) => duplicateMetafieldRecord(metafield, duplicatedProduct.id)),
+          .map((metafield) => duplicateMetafieldRecord(runtime, metafield, duplicatedProduct.id)),
       );
       const product =
-        syncProductInventorySummary(duplicatedProduct.id) ?? store.getEffectiveProductById(duplicatedProduct.id);
+        syncProductInventorySummary(runtime, duplicatedProduct.id) ??
+        runtime.store.getEffectiveProductById(duplicatedProduct.id);
       const productDuplicateOperation = synchronous
         ? null
-        : store.stageProductOperation({
-            id: makeSyntheticGid('ProductDuplicateOperation'),
+        : runtime.store.stageProductOperation({
+            id: runtime.syntheticIdentity.makeSyntheticGid('ProductDuplicateOperation'),
             typeName: 'ProductDuplicateOperation',
             productId,
             newProductId: duplicatedProduct.id,
@@ -11520,12 +11983,12 @@ export function handleProductMutation(
       return {
         data: {
           [responseKey]: synchronous
-            ? serializeProductDuplicateMutationPayload(field, variables, {
+            ? serializeProductDuplicateMutationPayload(runtime, field, variables, {
                 newProduct: product,
                 productDuplicateOperation: null,
                 userErrors: [],
               })
-            : serializeProductDuplicateMutationPayload(field, variables, {
+            : serializeProductDuplicateMutationPayload(runtime, field, variables, {
                 newProduct: null,
                 productDuplicateOperation: productDuplicateOperation
                   ? {
@@ -11547,12 +12010,13 @@ export function handleProductMutation(
       const inputId = typeof input['id'] === 'string' ? input['id'] : null;
       const synchronous = args['synchronous'] !== false;
       const existing =
-        (identifierId ? store.getEffectiveProductById(identifierId) : null) ??
-        (inputId ? store.getEffectiveProductById(inputId) : null) ??
-        (identifierHandle ? findEffectiveProductByHandle(identifierHandle) : null);
+        (identifierId ? runtime.store.getEffectiveProductById(identifierId) : null) ??
+        (inputId ? runtime.store.getEffectiveProductById(inputId) : null) ??
+        (identifierHandle ? findEffectiveProductByHandle(runtime, identifierHandle) : null);
       const productInput =
         !existing && !hasOwnField(input, 'descriptionHtml') ? { ...input, descriptionHtml: '' } : input;
       const preparedInput = prepareProductInputWithResolvedHandle(
+        runtime,
         existing ? { ...productInput, id: existing.id } : productInput,
         existing ?? undefined,
       );
@@ -11560,7 +12024,9 @@ export function handleProductMutation(
         return {
           data: {
             [responseKey]: {
-              product: synchronous ? serializeProduct(existing, getChildField(field, 'product'), variables) : null,
+              product: synchronous
+                ? serializeProduct(runtime, existing, getChildField(field, 'product'), variables)
+                : null,
               productSetOperation: null,
               userErrors: [preparedInput.error],
             },
@@ -11568,10 +12034,10 @@ export function handleProductMutation(
         };
       }
 
-      const productRecord = makeProductRecord(preparedInput.input, existing ?? undefined);
+      const productRecord = makeProductRecord(runtime, preparedInput.input, existing ?? undefined);
       const stagedProduct = existing
-        ? store.stageUpdateProduct(productRecord)
-        : store.stageCreateProduct({
+        ? runtime.store.stageUpdateProduct(productRecord)
+        : runtime.store.stageCreateProduct({
             ...productRecord,
             onlineStorePreviewUrl:
               productRecord.onlineStorePreviewUrl ?? makeSyntheticOnlineStorePreviewUrl(productRecord),
@@ -11579,51 +12045,54 @@ export function handleProductMutation(
       const productId = stagedProduct.id;
 
       if (hasOwnField(input, 'productOptions')) {
-        store.replaceStagedOptionsForProduct(
+        runtime.store.replaceStagedOptionsForProduct(
           productId,
-          buildProductSetOptionRecords(productId, input['productOptions']),
+          buildProductSetOptionRecords(runtime, productId, input['productOptions']),
         );
-      } else if (!existing && store.getEffectiveOptionsByProductId(productId).length === 0) {
-        store.replaceStagedOptionsForProduct(productId, [makeDefaultOptionRecord(stagedProduct)]);
+      } else if (!existing && runtime.store.getEffectiveOptionsByProductId(productId).length === 0) {
+        runtime.store.replaceStagedOptionsForProduct(productId, [makeDefaultOptionRecord(runtime, stagedProduct)]);
       }
 
       if (hasOwnField(input, 'variants')) {
-        const nextVariants = buildProductSetVariantRecords(productId, input['variants']);
-        store.replaceStagedVariantsForProduct(productId, nextVariants);
-      } else if (!existing && store.getEffectiveVariantsByProductId(productId).length === 0) {
-        store.replaceStagedVariantsForProduct(productId, [makeDefaultVariantRecord(stagedProduct)]);
+        const nextVariants = buildProductSetVariantRecords(runtime, productId, input['variants']);
+        runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      } else if (!existing && runtime.store.getEffectiveVariantsByProductId(productId).length === 0) {
+        runtime.store.replaceStagedVariantsForProduct(productId, [makeDefaultVariantRecord(runtime, stagedProduct)]);
       }
 
       if (hasOwnField(input, 'productOptions') || hasOwnField(input, 'variants')) {
-        store.replaceStagedOptionsForProduct(
+        runtime.store.replaceStagedOptionsForProduct(
           productId,
           syncProductOptionsWithVariants(
+            runtime,
             productId,
-            store.getEffectiveOptionsByProductId(productId),
-            store.getEffectiveVariantsByProductId(productId),
+            runtime.store.getEffectiveOptionsByProductId(productId),
+            runtime.store.getEffectiveVariantsByProductId(productId),
           ),
         );
       }
 
       if (hasOwnField(input, 'collections')) {
-        store.replaceStagedCollectionsForProduct(
+        runtime.store.replaceStagedCollectionsForProduct(
           productId,
-          buildProductSetCollectionRecords(productId, input['collections']),
+          buildProductSetCollectionRecords(runtime, productId, input['collections']),
         );
       }
 
       if (hasOwnField(input, 'metafields')) {
-        store.replaceStagedMetafieldsForProduct(
+        runtime.store.replaceStagedMetafieldsForProduct(
           productId,
-          buildProductSetMetafieldRecords(productId, input['metafields']),
+          buildProductSetMetafieldRecords(runtime, productId, input['metafields']),
         );
       }
 
-      const product = syncProductSetInventorySummary(productId, existing) ?? store.getEffectiveProductById(productId);
+      const product =
+        syncProductSetInventorySummary(runtime, productId, existing) ??
+        runtime.store.getEffectiveProductById(productId);
       const productSetOperation = synchronous
         ? null
-        : store.stageProductOperation({
-            id: makeSyntheticGid('ProductSetOperation'),
+        : runtime.store.stageProductOperation({
+            id: runtime.syntheticIdentity.makeSyntheticGid('ProductSetOperation'),
             typeName: 'ProductSetOperation',
             productId,
             status: 'CREATED',
@@ -11632,7 +12101,9 @@ export function handleProductMutation(
       return {
         data: {
           [responseKey]: {
-            product: synchronous ? serializeProduct(product, getChildField(field, 'product'), variables) : null,
+            product: synchronous
+              ? serializeProduct(runtime, product, getChildField(field, 'product'), variables)
+              : null,
             productSetOperation: serializeProductSetOperation(
               getChildField(field, 'productSetOperation'),
               productSetOperation,
@@ -11672,7 +12143,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(productId);
+      const existing = runtime.store.getEffectiveProductById(productId);
       if (!existing) {
         return {
           data: {
@@ -11684,8 +12155,9 @@ export function handleProductMutation(
         };
       }
 
-      store.stageUpdateProduct(
+      runtime.store.stageUpdateProduct(
         makeProductRecord(
+          runtime,
           {
             id: productId,
             status: rawStatus,
@@ -11693,12 +12165,12 @@ export function handleProductMutation(
           existing,
         ),
       );
-      const product = store.getEffectiveProductById(productId);
+      const product = runtime.store.getEffectiveProductById(productId);
 
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
@@ -11719,7 +12191,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(productId);
+      const existing = runtime.store.getEffectiveProductById(productId);
       if (!existing) {
         return {
           data: {
@@ -11735,13 +12207,15 @@ export function handleProductMutation(
         existing.publicationIds,
         readPublicationTargets(input?.['productPublications']),
       );
-      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
-      const product = store.getEffectiveProductById(productId);
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: productId, publicationIds: nextPublicationIds }, existing),
+      );
+      const product = runtime.store.getEffectiveProductById(productId);
 
       return {
         data: {
           [responseKey]: {
-            ...(productField ? { product: serializeProduct(product, productField, variables) } : {}),
+            ...(productField ? { product: serializeProduct(runtime, product, productField, variables) } : {}),
             userErrors: [],
           },
         },
@@ -11753,7 +12227,7 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: serializeProductMutationPayload(field, variables, {
+            [responseKey]: serializeProductMutationPayload(runtime, field, variables, {
               product: null,
               userErrors: [{ field: ['input', 'id'], message: 'Product id is required' }],
             }),
@@ -11761,11 +12235,11 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(productId);
+      const existing = runtime.store.getEffectiveProductById(productId);
       if (!existing) {
         return {
           data: {
-            [responseKey]: serializeProductMutationPayload(field, variables, {
+            [responseKey]: serializeProductMutationPayload(runtime, field, variables, {
               product: null,
               userErrors: [{ field: ['input', 'id'], message: 'Product not found' }],
             }),
@@ -11777,12 +12251,14 @@ export function handleProductMutation(
         existing.publicationIds,
         readPublicationTargets(input?.['productPublications']),
       );
-      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
-      const product = store.getEffectiveProductById(productId);
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: productId, publicationIds: nextPublicationIds }, existing),
+      );
+      const product = runtime.store.getEffectiveProductById(productId);
 
       return {
         data: {
-          [responseKey]: serializeProductMutationPayload(field, variables, {
+          [responseKey]: serializeProductMutationPayload(runtime, field, variables, {
             product,
             userErrors: [],
           }),
@@ -11791,11 +12267,11 @@ export function handleProductMutation(
     }
     case 'publicationCreate': {
       const input = readProductInput(args['input'] ?? args['publication']);
-      const publication = store.stageCreatePublication(makePublicationRecord(input));
+      const publication = runtime.store.stageCreatePublication(makePublicationRecord(runtime, input));
 
       return {
         data: {
-          [responseKey]: serializePublicationMutationPayload(field, {
+          [responseKey]: serializePublicationMutationPayload(runtime, field, {
             publication,
             userErrors: [],
           }),
@@ -11809,7 +12285,7 @@ export function handleProductMutation(
       if (!publicationId) {
         return {
           data: {
-            [responseKey]: serializePublicationMutationPayload(field, {
+            [responseKey]: serializePublicationMutationPayload(runtime, field, {
               publication: null,
               userErrors: [{ field: ['id'], message: 'Publication id is required' }],
             }),
@@ -11817,11 +12293,11 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectivePublicationById(publicationId);
+      const existing = runtime.store.getEffectivePublicationById(publicationId);
       if (!existing) {
         return {
           data: {
-            [responseKey]: serializePublicationMutationPayload(field, {
+            [responseKey]: serializePublicationMutationPayload(runtime, field, {
               publication: null,
               userErrors: [{ field: ['id'], message: 'Publication not found' }],
             }),
@@ -11829,12 +12305,12 @@ export function handleProductMutation(
         };
       }
 
-      const publication = store.stageUpdatePublication(
-        makePublicationRecord({ ...input, id: publicationId }, existing),
+      const publication = runtime.store.stageUpdatePublication(
+        makePublicationRecord(runtime, { ...input, id: publicationId }, existing),
       );
       return {
         data: {
-          [responseKey]: serializePublicationMutationPayload(field, {
+          [responseKey]: serializePublicationMutationPayload(runtime, field, {
             publication,
             userErrors: [],
           }),
@@ -11847,7 +12323,7 @@ export function handleProductMutation(
       if (!publicationId) {
         return {
           data: {
-            [responseKey]: serializePublicationMutationPayload(field, {
+            [responseKey]: serializePublicationMutationPayload(runtime, field, {
               publication: null,
               deletedId: null,
               userErrors: [{ field: ['id'], message: 'Publication id is required' }],
@@ -11856,11 +12332,11 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectivePublicationById(publicationId);
+      const existing = runtime.store.getEffectivePublicationById(publicationId);
       if (!existing) {
         return {
           data: {
-            [responseKey]: serializePublicationMutationPayload(field, {
+            [responseKey]: serializePublicationMutationPayload(runtime, field, {
               publication: null,
               deletedId: null,
               userErrors: [{ field: ['id'], message: 'Publication not found' }],
@@ -11869,11 +12345,11 @@ export function handleProductMutation(
         };
       }
 
-      removePublicationFromPublishables(publicationId);
-      store.stageDeletePublication(publicationId);
+      removePublicationFromPublishables(runtime, publicationId);
+      runtime.store.stageDeletePublication(publicationId);
       return {
         data: {
-          [responseKey]: serializePublicationMutationPayload(field, {
+          [responseKey]: serializePublicationMutationPayload(runtime, field, {
             publication: existing,
             deletedId: publicationId,
             userErrors: [],
@@ -11887,7 +12363,7 @@ export function handleProductMutation(
       if (!publishableId) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Publishable id is required' }],
             }),
@@ -11897,12 +12373,12 @@ export function handleProductMutation(
 
       const isPublish = field.name.value === 'publishablePublish';
       const publicationTargets = readPublicationTargets(args['input']);
-      const existingProduct = store.getEffectiveProductById(publishableId);
+      const existingProduct = runtime.store.getEffectiveProductById(publishableId);
       if (existingProduct) {
         if (publicationTargets.length === 0) {
           return {
             data: {
-              [responseKey]: serializePublishableMutationPayload(field, variables, {
+              [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
                 publishable: existingProduct,
                 userErrors: [{ field: ['input'], message: 'Publication target is required' }],
               }),
@@ -11913,14 +12389,14 @@ export function handleProductMutation(
         const nextPublicationIds = isPublish
           ? mergePublicationTargets(existingProduct.publicationIds, publicationTargets)
           : removePublicationTargets(existingProduct.publicationIds, publicationTargets);
-        store.stageUpdateProduct(
-          makeProductRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingProduct),
+        runtime.store.stageUpdateProduct(
+          makeProductRecord(runtime, { id: publishableId, publicationIds: nextPublicationIds }, existingProduct),
         );
 
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
-              publishable: store.getEffectiveProductById(publishableId),
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
+              publishable: runtime.store.getEffectiveProductById(publishableId),
               userErrors: [],
             }),
           },
@@ -11930,7 +12406,7 @@ export function handleProductMutation(
       if (publishableId.startsWith('gid://shopify/Product/')) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Product not found' }],
             }),
@@ -11938,12 +12414,12 @@ export function handleProductMutation(
         };
       }
 
-      const existingCollection = findEffectiveCollectionById(publishableId);
+      const existingCollection = findEffectiveCollectionById(runtime, publishableId);
       if (existingCollection) {
         if (publicationTargets.length === 0) {
           return {
             data: {
-              [responseKey]: serializePublishableMutationPayload(field, variables, {
+              [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
                 publishable: existingCollection,
                 userErrors: [{ field: ['input'], message: 'Publication target is required' }],
               }),
@@ -11954,14 +12430,14 @@ export function handleProductMutation(
         const nextPublicationIds = isPublish
           ? mergePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets)
           : removePublicationTargets(existingCollection.publicationIds ?? [], publicationTargets);
-        store.stageUpdateCollection(
-          makeCollectionRecord({ id: publishableId, publicationIds: nextPublicationIds }, existingCollection),
+        runtime.store.stageUpdateCollection(
+          makeCollectionRecord(runtime, { id: publishableId, publicationIds: nextPublicationIds }, existingCollection),
         );
 
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
-              publishable: findEffectiveCollectionById(publishableId),
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
+              publishable: findEffectiveCollectionById(runtime, publishableId),
               userErrors: [],
             }),
           },
@@ -11971,7 +12447,7 @@ export function handleProductMutation(
       if (publishableId.startsWith('gid://shopify/Collection/')) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Collection not found' }],
             }),
@@ -11981,7 +12457,7 @@ export function handleProductMutation(
 
       return {
         data: {
-          [responseKey]: serializePublishableMutationPayload(field, variables, {
+          [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
             publishable: null,
             userErrors: [
               { field: ['id'], message: 'Only Product and Collection publishable IDs are supported locally' },
@@ -11996,7 +12472,7 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
             }),
@@ -12004,11 +12480,11 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(productId);
+      const existing = runtime.store.getEffectiveProductById(productId);
       if (!existing) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Product not found' }],
             }),
@@ -12023,7 +12499,7 @@ export function handleProductMutation(
       if (publicationTargets.length === 0) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: existing,
               userErrors: [{ field: ['input'], message: 'Publication target is required' }],
             }),
@@ -12032,12 +12508,14 @@ export function handleProductMutation(
       }
 
       const nextPublicationIds = mergePublicationTargets(existing.publicationIds, publicationTargets);
-      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
-      const product = store.getEffectiveProductById(productId);
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: productId, publicationIds: nextPublicationIds }, existing),
+      );
+      const product = runtime.store.getEffectiveProductById(productId);
 
       return {
         data: {
-          [responseKey]: serializePublishableMutationPayload(field, variables, {
+          [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
             publishable: product,
             userErrors: [],
           }),
@@ -12050,7 +12528,7 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Only Product publishable IDs are supported locally' }],
             }),
@@ -12058,11 +12536,11 @@ export function handleProductMutation(
         };
       }
 
-      const existing = store.getEffectiveProductById(productId);
+      const existing = runtime.store.getEffectiveProductById(productId);
       if (!existing) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: null,
               userErrors: [{ field: ['id'], message: 'Product not found' }],
             }),
@@ -12077,7 +12555,7 @@ export function handleProductMutation(
       if (publicationTargets.length === 0) {
         return {
           data: {
-            [responseKey]: serializePublishableMutationPayload(field, variables, {
+            [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
               publishable: existing,
               userErrors: [{ field: ['input'], message: 'Publication target is required' }],
             }),
@@ -12086,12 +12564,14 @@ export function handleProductMutation(
       }
 
       const nextPublicationIds = removePublicationTargets(existing.publicationIds, publicationTargets);
-      store.stageUpdateProduct(makeProductRecord({ id: productId, publicationIds: nextPublicationIds }, existing));
-      const product = store.getEffectiveProductById(productId);
+      runtime.store.stageUpdateProduct(
+        makeProductRecord(runtime, { id: productId, publicationIds: nextPublicationIds }, existing),
+      );
+      const product = runtime.store.getEffectiveProductById(productId);
 
       return {
         data: {
-          [responseKey]: serializePublishableMutationPayload(field, variables, {
+          [responseKey]: serializePublishableMutationPayload(runtime, field, variables, {
             publishable: product,
             userErrors: [],
           }),
@@ -12112,7 +12592,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12124,8 +12604,8 @@ export function handleProductMutation(
         };
       }
 
-      const existingOptions = store.getEffectiveOptionsByProductId(productId);
-      const existingVariants = store.getEffectiveVariantsByProductId(productId);
+      const existingOptions = runtime.store.getEffectiveOptionsByProductId(productId);
+      const existingVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       let nextOptions = existingOptions;
       let nextVariants = existingVariants;
       const optionInputs = Array.isArray(args['options']) ? args['options'] : [];
@@ -12141,28 +12621,29 @@ export function handleProductMutation(
 
         nextOptions = insertOptionAtPosition(
           nextOptions,
-          makeCreatedOptionRecord(productId, optionInput),
+          makeCreatedOptionRecord(runtime, productId, optionInput),
           optionInput['position'],
         );
       }
 
       if (shouldReplaceDefaultOptionState && existingVariants[0]) {
         nextVariants = [remapDefaultVariantToCreatedOptions(existingVariants[0], nextOptions)];
-        store.replaceStagedVariantsForProduct(productId, nextVariants);
+        runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
       }
 
       if (shouldCreateOptionVariants) {
-        nextVariants = createVariantsForOptionValueCombinations(productId, nextOptions, nextVariants);
-        store.replaceStagedVariantsForProduct(productId, nextVariants);
+        nextVariants = createVariantsForOptionValueCombinations(runtime, productId, nextOptions, nextVariants);
+        runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
       }
 
-      nextOptions = syncProductOptionsWithVariants(productId, nextOptions, nextVariants);
-      store.replaceStagedOptionsForProduct(productId, nextOptions);
+      nextOptions = syncProductOptionsWithVariants(runtime, productId, nextOptions, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(productId, nextOptions);
       return {
         data: {
           [responseKey]: {
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -12185,7 +12666,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12200,14 +12681,14 @@ export function handleProductMutation(
       const optionInput = readProductInput(args['option']);
       const rawOptionId = optionInput['id'];
       if (typeof rawOptionId === 'string') {
-        const optionExists = store
+        const optionExists = runtime.store
           .getEffectiveOptionsByProductId(productId)
           .some((option) => option.id === rawOptionId && option.productId === productId);
         if (!optionExists) {
           return {
             data: {
               [responseKey]: {
-                product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+                product: serializeProduct(runtime, existingProduct, getChildField(field, 'product'), variables),
                 userErrors: [{ field: ['option'], message: 'Option does not exist' }],
               },
             },
@@ -12216,9 +12697,10 @@ export function handleProductMutation(
       }
 
       const updateResult = updateOptionRecords(
+        runtime,
         productId,
-        store.getEffectiveOptionsByProductId(productId),
-        store.getEffectiveVariantsByProductId(productId),
+        runtime.store.getEffectiveOptionsByProductId(productId),
+        runtime.store.getEffectiveVariantsByProductId(productId),
         optionInput,
         args['optionValuesToAdd'],
         args['optionValuesToUpdate'],
@@ -12235,14 +12717,20 @@ export function handleProductMutation(
         };
       }
 
-      store.replaceStagedVariantsForProduct(productId, updateResult.variants);
-      const syncedOptions = syncProductOptionsWithVariants(productId, updateResult.options, updateResult.variants);
-      store.replaceStagedOptionsForProduct(productId, syncedOptions);
+      runtime.store.replaceStagedVariantsForProduct(productId, updateResult.variants);
+      const syncedOptions = syncProductOptionsWithVariants(
+        runtime,
+        productId,
+        updateResult.options,
+        updateResult.variants,
+      );
+      runtime.store.replaceStagedOptionsForProduct(productId, syncedOptions);
       return {
         data: {
           [responseKey]: {
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -12266,7 +12754,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12279,8 +12767,8 @@ export function handleProductMutation(
         };
       }
 
-      const effectiveOptions = store.getEffectiveOptionsByProductId(productId);
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const effectiveOptions = runtime.store.getEffectiveOptionsByProductId(productId);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       const optionIds = Array.isArray(args['options'])
         ? args['options'].filter((value): value is string => typeof value === 'string')
         : [];
@@ -12300,7 +12788,7 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               deletedOptionsIds: [],
-              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              product: serializeProduct(runtime, existingProduct, getChildField(field, 'product'), variables),
               userErrors: unknownOptionErrors,
             },
           },
@@ -12311,21 +12799,22 @@ export function handleProductMutation(
       let nextOptions = deleteResult.options;
       let nextVariants = effectiveVariants;
       if (nextOptions.length === 0) {
-        const restoredDefaultState = restoreDefaultOptionState(existingProduct, effectiveVariants);
+        const restoredDefaultState = restoreDefaultOptionState(runtime, existingProduct, effectiveVariants);
         nextOptions = restoredDefaultState.options;
         nextVariants = restoredDefaultState.variants;
-        store.replaceStagedVariantsForProduct(productId, nextVariants);
+        runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
       }
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, nextOptions, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, nextOptions, nextVariants),
       );
       return {
         data: {
           [responseKey]: {
             deletedOptionsIds: deleteResult.deletedOptionIds,
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -12348,7 +12837,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12360,25 +12849,26 @@ export function handleProductMutation(
         };
       }
 
-      const reorderResult = reorderProductOptionsAndVariants(productId, args['options']);
+      const reorderResult = reorderProductOptionsAndVariants(runtime, productId, args['options']);
       if (reorderResult.userErrors.length > 0) {
         return {
           data: {
             [responseKey]: {
-              product: serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+              product: serializeProduct(runtime, existingProduct, getChildField(field, 'product'), variables),
               userErrors: reorderResult.userErrors,
             },
           },
         };
       }
 
-      store.replaceStagedOptionsForProduct(productId, reorderResult.options);
-      store.replaceStagedVariantsForProduct(productId, reorderResult.variants);
+      runtime.store.replaceStagedOptionsForProduct(productId, reorderResult.options);
+      runtime.store.replaceStagedVariantsForProduct(productId, reorderResult.variants);
       return {
         data: {
           [responseKey]: {
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -12402,10 +12892,10 @@ export function handleProductMutation(
         };
       }
 
-      const collection = makeCollectionRecord(input);
+      const collection = makeCollectionRecord(runtime, input);
       const productIds = readCollectionProductIds(input['products']);
       if (productIds.length > 0) {
-        const result = addProductsToCollection(collection, productIds);
+        const result = addProductsToCollection(runtime, collection, productIds);
         if (result.userErrors.length > 0) {
           return {
             data: {
@@ -12418,11 +12908,12 @@ export function handleProductMutation(
         }
       }
 
-      const stagedCollection = store.stageCreateCollection(collection);
+      const stagedCollection = runtime.store.stageCreateCollection(collection);
       return {
         data: {
           [responseKey]: {
             collection: serializeCollectionObject(
+              runtime,
               stagedCollection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
@@ -12448,7 +12939,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12460,11 +12951,12 @@ export function handleProductMutation(
         };
       }
 
-      const collection = store.stageUpdateCollection(makeCollectionRecord(input, existing));
+      const collection = runtime.store.stageUpdateCollection(makeCollectionRecord(runtime, input, existing));
       return {
         data: {
           [responseKey]: {
             collection: serializeCollectionObject(
+              runtime,
               collection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
@@ -12489,7 +12981,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12501,7 +12993,7 @@ export function handleProductMutation(
         };
       }
 
-      store.stageDeleteCollection(collectionId);
+      runtime.store.stageDeleteCollection(collectionId);
       return {
         data: {
           [responseKey]: {
@@ -12525,7 +13017,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12540,12 +13032,13 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds);
+      const result = addProductsToCollection(runtime, existing, productIds);
       return {
         data: {
           [responseKey]: {
             collection: result.collection
               ? serializeCollectionObject(
+                  runtime,
                   result.collection,
                   getChildField(field, 'collection')?.selectionSet?.selections ?? [],
                   variables,
@@ -12570,7 +13063,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12585,10 +13078,10 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds, {
+      const result = addProductsToCollection(runtime, existing, productIds, {
         placement: existing.sortOrder === 'MANUAL' ? 'append' : 'prepend-reverse',
       });
-      const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
+      const job = result.collection ? { id: runtime.syntheticIdentity.makeSyntheticGid('Job'), done: false } : null;
       return {
         data: {
           [responseKey]: {
@@ -12614,7 +13107,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12629,8 +13122,8 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      removeProductsFromCollection(existing, productIds);
-      const job = { id: makeSyntheticGid('Job'), done: false };
+      removeProductsFromCollection(runtime, existing, productIds);
+      const job = { id: runtime.syntheticIdentity.makeSyntheticGid('Job'), done: false };
       return {
         data: {
           [responseKey]: {
@@ -12654,7 +13147,7 @@ export function handleProductMutation(
         };
       }
 
-      const existing = findEffectiveCollectionById(collectionId);
+      const existing = findEffectiveCollectionById(runtime, collectionId);
       if (!existing) {
         return {
           data: {
@@ -12666,7 +13159,7 @@ export function handleProductMutation(
         };
       }
 
-      const result = reorderCollectionProducts(existing, args['moves']);
+      const result = reorderCollectionProducts(runtime, existing, args['moves']);
       return {
         data: {
           [responseKey]: {
@@ -12692,7 +13185,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12704,7 +13197,7 @@ export function handleProductMutation(
         };
       }
 
-      const result = reorderProductMedia(productId, args['moves']);
+      const result = reorderProductMedia(runtime, productId, args['moves']);
       return {
         data: {
           [responseKey]: {
@@ -12723,7 +13216,7 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+            [responseKey]: serializeVariantMediaMutationPayload(runtime, field, variables, {
               product: null,
               productVariants: [],
               userErrors: [{ field: ['productId'], message: 'Product id is required' }],
@@ -12732,11 +13225,11 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
-            [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+            [responseKey]: serializeVariantMediaMutationPayload(runtime, field, variables, {
               product: null,
               productVariants: [],
               userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
@@ -12746,10 +13239,10 @@ export function handleProductMutation(
       }
 
       const isAppend = field.name.value === 'productVariantAppendMedia';
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, structuredClone(variant)]));
       const productMediaIds = new Set(
-        store
+        runtime.store
           .getEffectiveMediaByProductId(productId)
           .map((mediaRecord) => mediaRecord.id)
           .filter((mediaId): mediaId is string => typeof mediaId === 'string'),
@@ -12782,18 +13275,18 @@ export function handleProductMutation(
       });
 
       if (userErrors.length === 0) {
-        store.replaceStagedVariantsForProduct(
+        runtime.store.replaceStagedVariantsForProduct(
           productId,
           effectiveVariants.map((variant) => variantsById.get(variant.id) ?? variant),
         );
       }
 
       const updatedVariants = uniqueStrings(updatedVariantIds)
-        .map((variantId) => store.getEffectiveVariantById(variantId))
+        .map((variantId) => runtime.store.getEffectiveVariantById(variantId))
         .filter((variant): variant is ProductVariantRecord => variant !== null);
       return {
         data: {
-          [responseKey]: serializeVariantMediaMutationPayload(field, variables, {
+          [responseKey]: serializeVariantMediaMutationPayload(runtime, field, variables, {
             product: existingProduct,
             productVariants: updatedVariants,
             userErrors,
@@ -12837,7 +13330,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12846,7 +13339,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingMedia = store.getEffectiveMediaByProductId(productId);
+      const existingMedia = runtime.store.getEffectiveMediaByProductId(productId);
       const createdMedia: ProductMediaRecord[] = [];
       const mediaUserErrors: Array<{ field: string[]; message: string }> = [];
       for (const [mediaIndex, media] of mediaInput.entries()) {
@@ -12863,11 +13356,13 @@ export function handleProductMutation(
           continue;
         }
 
-        createdMedia.push(makeCreatedMediaRecord(productId, media, existingMedia.length + createdMedia.length));
+        createdMedia.push(
+          makeCreatedMediaRecord(runtime, productId, media, existingMedia.length + createdMedia.length),
+        );
       }
       const nextMedia = [...existingMedia, ...createdMedia];
       if (createdMedia.length > 0) {
-        store.replaceStagedMediaForProduct(productId, nextMedia);
+        runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
       }
 
       const response = {
@@ -12876,7 +13371,8 @@ export function handleProductMutation(
             media: serializeMediaPayload(createdMedia, getChildField(field, 'media')),
             mediaUserErrors,
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -12885,7 +13381,7 @@ export function handleProductMutation(
       };
 
       if (createdMedia.length > 0) {
-        store.replaceStagedMediaForProduct(productId, [
+        runtime.store.replaceStagedMediaForProduct(productId, [
           ...existingMedia,
           ...createdMedia.map((mediaRecord) => transitionMediaToProcessing(mediaRecord)),
         ]);
@@ -12911,7 +13407,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -12920,7 +13416,7 @@ export function handleProductMutation(
         };
       }
 
-      const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+      const effectiveMedia = runtime.store.getEffectiveMediaByProductId(productId);
       const updates = (Array.isArray(args['media']) ? args['media'] : []).filter(
         (media): media is Record<string, unknown> => isObject(media),
       );
@@ -12976,7 +13472,7 @@ export function handleProductMutation(
         return nextRecord;
       });
 
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
       return {
         data: {
           [responseKey]: {
@@ -13006,7 +13502,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -13018,7 +13514,7 @@ export function handleProductMutation(
       const mediaIds = Array.isArray(args['mediaIds'])
         ? args['mediaIds'].filter((mediaId): mediaId is string => typeof mediaId === 'string')
         : [];
-      const effectiveMedia = store.getEffectiveMediaByProductId(productId);
+      const effectiveMedia = runtime.store.getEffectiveMediaByProductId(productId);
       const unknownMediaId = mediaIds.find(
         (mediaId) => !effectiveMedia.some((mediaRecord) => mediaRecord.id === mediaId),
       );
@@ -13030,7 +13526,8 @@ export function handleProductMutation(
               deletedProductImageIds: null,
               mediaUserErrors: [{ field: ['mediaIds'], message: `Media id ${unknownMediaId} does not exist` }],
               product: serializeProduct(
-                store.getEffectiveProductById(productId),
+                runtime,
+                runtime.store.getEffectiveProductById(productId),
                 getChildField(field, 'product'),
                 variables,
               ),
@@ -13045,7 +13542,7 @@ export function handleProductMutation(
       const nextMedia = effectiveMedia.filter(
         (mediaRecord) => typeof mediaRecord.id !== 'string' || !mediaIds.includes(mediaRecord.id),
       );
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
 
       const deletedMediaIds = deletedMedia
         .map((mediaRecord) => mediaRecord.id)
@@ -13061,7 +13558,8 @@ export function handleProductMutation(
             deletedProductImageIds,
             mediaUserErrors: [],
             product: serializeProduct(
-              store.getEffectiveProductById(productId),
+              runtime,
+              runtime.store.getEffectiveProductById(productId),
               getChildField(field, 'product'),
               variables,
             ),
@@ -13073,24 +13571,25 @@ export function handleProductMutation(
     case 'inventoryTransferCreateAsReadyToShip': {
       const input = readProductInput(args['input']);
       const status = field.name.value === 'inventoryTransferCreateAsReadyToShip' ? 'READY_TO_SHIP' : 'DRAFT';
-      const result = makeInventoryTransferRecord(input, status);
+      const result = makeInventoryTransferRecord(runtime, input, status);
       let transfer = result.transfer;
       let userErrors = result.userErrors;
       if (transfer && status === 'READY_TO_SHIP') {
-        userErrors = applyInventoryTransferReservation(transfer, 'reserve');
+        userErrors = applyInventoryTransferReservation(runtime, transfer, 'reserve');
         if (userErrors.length > 0) {
           transfer = null;
         }
       }
 
       if (transfer) {
-        store.upsertStagedInventoryTransfer(transfer);
+        runtime.store.upsertStagedInventoryTransfer(transfer);
       }
 
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               transfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13103,7 +13602,7 @@ export function handleProductMutation(
     case 'inventoryTransferEdit': {
       const rawId = args['id'];
       const id = typeof rawId === 'string' ? rawId : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
@@ -13119,18 +13618,19 @@ export function handleProductMutation(
         dateCreated: typeof input['dateCreated'] === 'string' ? input['dateCreated'] : transfer.dateCreated,
         origin:
           typeof input['originId'] === 'string'
-            ? makeInventoryTransferLocationSnapshot(input['originId'])
+            ? makeInventoryTransferLocationSnapshot(runtime, input['originId'])
             : transfer.origin,
         destination:
           typeof input['destinationId'] === 'string'
-            ? makeInventoryTransferLocationSnapshot(input['destinationId'])
+            ? makeInventoryTransferLocationSnapshot(runtime, input['destinationId'])
             : transfer.destination,
       };
-      store.upsertStagedInventoryTransfer(nextTransfer);
+      runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               nextTransfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13143,17 +13643,17 @@ export function handleProductMutation(
     case 'inventoryTransferSetItems': {
       const input = readProductInput(args['input']);
       const id = typeof input['id'] === 'string' ? input['id'] : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
 
       const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
-      const userErrors = validateInventoryTransferLineItems(lineItemInputs);
+      const userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
       const priorByItemId = new Map(transfer.lineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
       const updatedLineItems = lineItemInputs
         .map((lineItemInput) => {
-          const lineItem = makeInventoryTransferLineItem(lineItemInput);
+          const lineItem = makeInventoryTransferLineItem(runtime, lineItemInput);
           const prior = lineItemInput.inventoryItemId ? priorByItemId.get(lineItemInput.inventoryItemId) : null;
           return lineItem && prior ? { ...lineItem, id: prior.id } : lineItem;
         })
@@ -13168,13 +13668,14 @@ export function handleProductMutation(
       });
       const nextTransfer = { ...transfer, lineItems: updatedLineItems };
       if (userErrors.length === 0) {
-        store.upsertStagedInventoryTransfer(nextTransfer);
+        runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       }
 
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               userErrors.length === 0 ? nextTransfer : transfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13191,7 +13692,7 @@ export function handleProductMutation(
     case 'inventoryTransferRemoveItems': {
       const input = readProductInput(args['input']);
       const id = typeof input['id'] === 'string' ? input['id'] : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
@@ -13209,11 +13710,12 @@ export function handleProductMutation(
         newQuantity: 0,
         deltaQuantity: -lineItem.totalQuantity,
       }));
-      store.upsertStagedInventoryTransfer(nextTransfer);
+      runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               nextTransfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13230,20 +13732,22 @@ export function handleProductMutation(
     case 'inventoryTransferMarkAsReadyToShip': {
       const rawId = args['id'];
       const id = typeof rawId === 'string' ? rawId : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
 
-      const userErrors = transfer.status === 'DRAFT' ? applyInventoryTransferReservation(transfer, 'reserve') : [];
+      const userErrors =
+        transfer.status === 'DRAFT' ? applyInventoryTransferReservation(runtime, transfer, 'reserve') : [];
       const nextTransfer = userErrors.length === 0 ? { ...transfer, status: 'READY_TO_SHIP' as const } : null;
       if (nextTransfer) {
-        store.upsertStagedInventoryTransfer(nextTransfer);
+        runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       }
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               nextTransfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13256,20 +13760,21 @@ export function handleProductMutation(
     case 'inventoryTransferCancel': {
       const rawId = args['id'];
       const id = typeof rawId === 'string' ? rawId : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
 
       if (transfer.status === 'READY_TO_SHIP') {
-        applyInventoryTransferReservation(transfer, 'release');
+        applyInventoryTransferReservation(runtime, transfer, 'release');
       }
       const nextTransfer: InventoryTransferRecord = { ...transfer, status: 'CANCELED' };
-      store.upsertStagedInventoryTransfer(nextTransfer);
+      runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               nextTransfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13282,26 +13787,27 @@ export function handleProductMutation(
     case 'inventoryTransferDuplicate': {
       const rawId = args['id'];
       const id = typeof rawId === 'string' ? rawId : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
 
       const duplicated: InventoryTransferRecord = {
         ...structuredClone(transfer),
-        id: makeSyntheticGid('InventoryTransfer'),
-        name: `#T${String(store.listEffectiveInventoryTransfers().length + 1).padStart(4, '0')}`,
+        id: runtime.syntheticIdentity.makeSyntheticGid('InventoryTransfer'),
+        name: `#T${String(runtime.store.listEffectiveInventoryTransfers().length + 1).padStart(4, '0')}`,
         status: 'DRAFT',
         lineItems: transfer.lineItems.map((lineItem) => ({
           ...lineItem,
-          id: makeProxySyntheticGid('InventoryTransferLineItem'),
+          id: runtime.syntheticIdentity.makeProxySyntheticGid('InventoryTransferLineItem'),
         })),
       };
-      store.upsertStagedInventoryTransfer(duplicated);
+      runtime.store.upsertStagedInventoryTransfer(duplicated);
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
+              runtime,
               duplicated,
               getChildField(field, 'inventoryTransfer'),
               variables,
@@ -13314,7 +13820,7 @@ export function handleProductMutation(
     case 'inventoryTransferDelete': {
       const rawId = args['id'];
       const id = typeof rawId === 'string' ? rawId : null;
-      const transfer = id ? store.getEffectiveInventoryTransferById(id) : null;
+      const transfer = id ? runtime.store.getEffectiveInventoryTransferById(id) : null;
       if (!transfer) {
         return { data: inventoryTransferNotFoundPayload(responseKey, field) };
       }
@@ -13332,7 +13838,7 @@ export function handleProductMutation(
         };
       }
 
-      store.deleteStagedInventoryTransfer(transfer.id);
+      runtime.store.deleteStagedInventoryTransfer(transfer.id);
       return {
         data: {
           [responseKey]: {
@@ -13345,7 +13851,9 @@ export function handleProductMutation(
     case 'inventoryItemUpdate': {
       const rawId = args['id'];
       const inventoryItemId = typeof rawId === 'string' ? rawId : null;
-      const existingVariant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      const existingVariant = inventoryItemId
+        ? runtime.store.findEffectiveVariantByInventoryItemId(inventoryItemId)
+        : null;
       if (!existingVariant || !existingVariant.inventoryItem) {
         return {
           data: {
@@ -13359,20 +13867,21 @@ export function handleProductMutation(
 
       const nextVariant: ProductVariantRecord = {
         ...structuredClone(existingVariant),
-        inventoryItem: readInventoryItemInput(args['input'], existingVariant.inventoryItem),
+        inventoryItem: readInventoryItemInput(runtime, args['input'], existingVariant.inventoryItem),
       };
       const productId = existingVariant.productId;
-      const nextVariants = store
+      const nextVariants = runtime.store
         .getEffectiveVariantsByProductId(productId)
         .map((variant) => (variant.id === existingVariant.id ? nextVariant : variant));
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      syncProductInventorySummary(productId);
-      const updatedVariant = store.getEffectiveVariantById(existingVariant.id) ?? nextVariant;
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      syncProductInventorySummary(runtime, productId);
+      const updatedVariant = runtime.store.getEffectiveVariantById(existingVariant.id) ?? nextVariant;
 
       return {
         data: {
           [responseKey]: {
             inventoryItem: serializeInventoryItemSelectionSet(
+              runtime,
               updatedVariant,
               getChildField(field, 'inventoryItem')?.selectionSet?.selections ?? [],
               variables,
@@ -13400,7 +13909,7 @@ export function handleProductMutation(
         return invalidVariableError;
       }
 
-      const result = applyInventoryAdjustQuantities(input, {
+      const result = applyInventoryAdjustQuantities(runtime, input, {
         requireChangeFromQuantity: usesInventoryQuantity202604Contract,
       });
       const inventoryAdjustmentGroupField = getChildField(field, 'inventoryAdjustmentGroup');
@@ -13410,7 +13919,11 @@ export function handleProductMutation(
       const response: Record<string, unknown> = {
         data: {
           [responseKey]: {
-            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(result.group, inventoryAdjustmentGroupField),
+            inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
+              runtime,
+              result.group,
+              inventoryAdjustmentGroupField,
+            ),
             userErrors: result.userErrors,
           },
         },
@@ -13436,13 +13949,14 @@ export function handleProductMutation(
         }
       }
 
-      const result = applyInventorySetQuantities(input, {
+      const result = applyInventorySetQuantities(runtime, input, {
         useChangeFromQuantity: usesInventoryQuantity202604Contract,
       });
       return {
         data: {
           [responseKey]: {
             inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
+              runtime,
               result.group,
               getChildField(field, 'inventoryAdjustmentGroup'),
             ),
@@ -13452,11 +13966,12 @@ export function handleProductMutation(
       };
     }
     case 'inventoryMoveQuantities': {
-      const result = applyInventoryMoveQuantities(readProductInput(args['input']));
+      const result = applyInventoryMoveQuantities(runtime, readProductInput(args['input']));
       return {
         data: {
           [responseKey]: {
             inventoryAdjustmentGroup: serializeInventoryAdjustmentGroup(
+              runtime,
               result.group,
               getChildField(field, 'inventoryAdjustmentGroup'),
             ),
@@ -13470,11 +13985,12 @@ export function handleProductMutation(
       const rawLocationId = args['locationId'];
       const inventoryItemId = typeof rawInventoryItemId === 'string' ? rawInventoryItemId : null;
       const locationId = typeof rawLocationId === 'string' ? rawLocationId : null;
-      const variant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
-      const knownLocation = locationId ? findKnownLocationById(locationId) : null;
+      const variant = inventoryItemId ? runtime.store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(variant).find((candidate) => candidate.location?.id === locationId) ?? null)
+          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
+            null)
           : null;
       const hasAvailableArg = hasOwnField(args, 'available');
       const userErrors: InventoryMutationUserError[] = [];
@@ -13496,11 +14012,14 @@ export function handleProductMutation(
       let resolvedVariant = variant;
       let resolvedLevel = level;
       if (variant && knownLocation && !level) {
-        const nextLevel = buildActivatedInventoryLevel(variant, knownLocation);
+        const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
         if (nextLevel) {
-          resolvedVariant = stageVariantInventoryLevels(variant, [...getEffectiveInventoryLevels(variant), nextLevel]);
+          resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
+            ...getEffectiveInventoryLevels(runtime, variant),
+            nextLevel,
+          ]);
           resolvedLevel =
-            getEffectiveInventoryLevels(resolvedVariant).find(
+            getEffectiveInventoryLevels(runtime, resolvedVariant).find(
               (candidate) => candidate.location?.id === knownLocation.id,
             ) ?? nextLevel;
         }
@@ -13512,6 +14031,7 @@ export function handleProductMutation(
             inventoryLevel:
               resolvedVariant && resolvedLevel && userErrors.length === 0
                 ? serializeInventoryLevelObject(
+                    runtime,
                     resolvedVariant,
                     resolvedLevel,
                     getChildField(field, 'inventoryLevel')?.selectionSet?.selections ?? [],
@@ -13526,8 +14046,8 @@ export function handleProductMutation(
     case 'inventoryDeactivate': {
       const rawInventoryLevelId = args['inventoryLevelId'];
       const inventoryLevelId = typeof rawInventoryLevelId === 'string' ? rawInventoryLevelId : null;
-      const target = inventoryLevelId ? findInventoryLevelTarget(inventoryLevelId) : null;
-      const allLevels = target ? getEffectiveInventoryLevels(target.variant) : [];
+      const target = inventoryLevelId ? findInventoryLevelTarget(runtime, inventoryLevelId) : null;
+      const allLevels = target ? getEffectiveInventoryLevels(runtime, target.variant) : [];
       const userErrors: InventoryMutationUserError[] = [];
 
       if (target && allLevels.length <= 1) {
@@ -13539,6 +14059,7 @@ export function handleProductMutation(
 
       if (target && userErrors.length === 0) {
         stageVariantInventoryLevels(
+          runtime,
           target.variant,
           allLevels.filter((candidate) => candidate.id !== target.level.id),
         );
@@ -13555,17 +14076,18 @@ export function handleProductMutation(
     case 'inventoryBulkToggleActivation': {
       const rawInventoryItemId = args['inventoryItemId'];
       const inventoryItemId = typeof rawInventoryItemId === 'string' ? rawInventoryItemId : null;
-      const variant = inventoryItemId ? store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
+      const variant = inventoryItemId ? runtime.store.findEffectiveVariantByInventoryItemId(inventoryItemId) : null;
       const updates = Array.isArray(args['inventoryItemUpdates'])
         ? args['inventoryItemUpdates'].filter((value): value is Record<string, unknown> => isObject(value))
         : [];
       const firstUpdate = updates[0] ?? null;
       const locationId = typeof firstUpdate?.['locationId'] === 'string' ? firstUpdate['locationId'] : null;
       const activate = typeof firstUpdate?.['activate'] === 'boolean' ? firstUpdate['activate'] : null;
-      const knownLocation = locationId ? findKnownLocationById(locationId) : null;
+      const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(variant).find((candidate) => candidate.location?.id === locationId) ?? null)
+          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
+            null)
           : null;
       const userErrors: InventoryMutationUserError[] = [];
 
@@ -13577,7 +14099,7 @@ export function handleProductMutation(
         });
       }
 
-      if (variant && activate === false && level && getEffectiveInventoryLevels(variant).length <= 1) {
+      if (variant && activate === false && level && getEffectiveInventoryLevels(runtime, variant).length <= 1) {
         userErrors.push({
           field: ['inventoryItemUpdates', '0', 'locationId'],
           message: `The variant couldn't be unstocked from ${level.location?.name ?? 'this location'} because products need to be stocked at a minimum of 1 location.`,
@@ -13589,18 +14111,19 @@ export function handleProductMutation(
       let responseLevels: Record<string, unknown>[] | null = null;
       if (variant && userErrors.length === 0 && locationId) {
         if (activate === true && !level && knownLocation) {
-          const nextLevel = buildActivatedInventoryLevel(variant, knownLocation);
+          const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
           if (nextLevel) {
-            resolvedVariant = stageVariantInventoryLevels(variant, [
-              ...getEffectiveInventoryLevels(variant),
+            resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
+              ...getEffectiveInventoryLevels(runtime, variant),
               nextLevel,
             ]);
             const resolvedLevel =
-              getEffectiveInventoryLevels(resolvedVariant).find(
+              getEffectiveInventoryLevels(runtime, resolvedVariant).find(
                 (candidate) => candidate.location?.id === knownLocation.id,
               ) ?? nextLevel;
             responseLevels = [
               serializeInventoryLevelObject(
+                runtime,
                 resolvedVariant,
                 resolvedLevel,
                 getChildField(field, 'inventoryLevels')?.selectionSet?.selections ?? [],
@@ -13610,13 +14133,15 @@ export function handleProductMutation(
           }
         } else if (activate === false && level) {
           resolvedVariant = stageVariantInventoryLevels(
+            runtime,
             variant,
-            getEffectiveInventoryLevels(variant).filter((candidate) => candidate.id !== level.id),
+            getEffectiveInventoryLevels(runtime, variant).filter((candidate) => candidate.id !== level.id),
           );
           responseLevels = [];
         } else if (level) {
           responseLevels = [
             serializeInventoryLevelObject(
+              runtime,
               variant,
               level,
               getChildField(field, 'inventoryLevels')?.selectionSet?.selections ?? [],
@@ -13632,6 +14157,7 @@ export function handleProductMutation(
             inventoryItem:
               resolvedVariant && userErrors.length === 0
                 ? serializeInventoryItemSelectionSet(
+                    runtime,
                     resolvedVariant,
                     getChildField(field, 'inventoryItem')?.selectionSet?.selections ?? [],
                     variables,
@@ -13650,7 +14176,7 @@ export function handleProductMutation(
         return invalidVariableResponse;
       }
 
-      const userErrors = validateMetafieldsSetInputs(inputs);
+      const userErrors = validateMetafieldsSetInputs(runtime, inputs);
 
       if (userErrors.length > 0) {
         return {
@@ -13666,24 +14192,24 @@ export function handleProductMutation(
       const inputsByOwnerId = new Map<string, Record<string, unknown>[]>();
       for (const input of inputs) {
         const ownerId = input['ownerId'] as string;
-        const owner = resolveProductMetafieldOwner(ownerId);
+        const owner = resolveProductMetafieldOwner(runtime, ownerId);
         if (!owner) {
           continue;
         }
         const ownerInputs = inputsByOwnerId.get(ownerId) ?? [];
-        ownerInputs.push(normalizeMetafieldsSetInput(input, owner));
+        ownerInputs.push(normalizeMetafieldsSetInput(runtime, input, owner));
         inputsByOwnerId.set(ownerId, ownerInputs);
       }
 
       const createdOrUpdated: ProductMetafieldRecord[] = [];
       for (const [ownerId, ownerInputs] of inputsByOwnerId.entries()) {
-        const owner = resolveProductMetafieldOwner(ownerId);
+        const owner = resolveProductMetafieldOwner(runtime, ownerId);
         if (!owner) {
           continue;
         }
 
-        const updateResult = upsertMetafieldsForOwner(owner, ownerInputs);
-        replaceStagedMetafieldsForOwner(owner.id, updateResult.metafields);
+        const updateResult = upsertMetafieldsForOwner(runtime, owner, ownerInputs);
+        replaceStagedMetafieldsForOwner(runtime, owner.id, updateResult.metafields);
         createdOrUpdated.push(...updateResult.createdOrUpdated);
       }
 
@@ -13712,7 +14238,7 @@ export function handleProductMutation(
         }
       }
 
-      const deleteResult = deleteMetafieldsByIdentifiers(readMetafieldInputObjects(args['metafields']));
+      const deleteResult = deleteMetafieldsByIdentifiers(runtime, readMetafieldInputObjects(args['metafields']));
       return {
         data: {
           [responseKey]: {
@@ -13740,7 +14266,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingMetafield = findMetafieldById(metafieldId);
+      const existingMetafield = findMetafieldById(runtime, metafieldId);
       if (!existingMetafield) {
         return {
           data: {
@@ -13752,7 +14278,7 @@ export function handleProductMutation(
         };
       }
 
-      const deleteResult = deleteMetafieldsByIdentifiers([
+      const deleteResult = deleteMetafieldsByIdentifiers(runtime, [
         {
           ownerId: getProductMetafieldOwnerId(existingMetafield),
           namespace: existingMetafield.namespace,
@@ -13784,7 +14310,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -13797,20 +14323,21 @@ export function handleProductMutation(
         };
       }
 
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
-      const createdVariant = makeCreatedVariantRecord(productId, input, effectiveVariants[0] ?? null);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
+      const createdVariant = makeCreatedVariantRecord(runtime, productId, input, effectiveVariants[0] ?? null);
       const nextVariants = [...effectiveVariants, createdVariant];
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, undefined, nextVariants),
       );
-      const product = syncProductInventorySummary(productId);
+      const product = syncProductInventorySummary(runtime, productId);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             productVariant: serializeVariantSelectionSet(
+              runtime,
               createdVariant,
               getChildField(field, 'productVariant')?.selectionSet?.selections ?? [],
               variables,
@@ -13836,7 +14363,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingVariant = findEffectiveVariantById(variantId);
+      const existingVariant = findEffectiveVariantById(runtime, variantId);
       if (!existingVariant) {
         return {
           data: {
@@ -13851,29 +14378,30 @@ export function handleProductMutation(
 
       const productId = existingVariant.productId;
       const updatedVariants: ProductVariantRecord[] = [];
-      const nextVariants = store.getEffectiveVariantsByProductId(productId).map((variant) => {
+      const nextVariants = runtime.store.getEffectiveVariantsByProductId(productId).map((variant) => {
         if (variant.id !== variantId) {
           return variant;
         }
 
-        const updatedVariant = updateVariantRecord(variant, input);
+        const updatedVariant = updateVariantRecord(runtime, variant, input);
         updatedVariants.push(updatedVariant);
         return updatedVariant;
       });
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, undefined, nextVariants),
       );
-      store.markVariantSearchLagged(productId);
-      const product = syncProductInventorySummary(productId);
+      runtime.store.markVariantSearchLagged(productId);
+      const product = syncProductInventorySummary(runtime, productId);
       const updatedVariant = updatedVariants[0] ?? null;
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             productVariant: updatedVariant
               ? serializeVariantSelectionSet(
+                  runtime,
                   updatedVariant,
                   getChildField(field, 'productVariant')?.selectionSet?.selections ?? [],
                   variables,
@@ -13898,7 +14426,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingVariant = findEffectiveVariantById(variantId);
+      const existingVariant = findEffectiveVariantById(runtime, variantId);
       if (!existingVariant) {
         return {
           data: {
@@ -13911,15 +14439,15 @@ export function handleProductMutation(
       }
 
       const productId = existingVariant.productId;
-      const nextVariants = store
+      const nextVariants = runtime.store
         .getEffectiveVariantsByProductId(productId)
         .filter((variant) => variant.id !== variantId);
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, undefined, nextVariants),
       );
-      syncProductInventorySummary(productId);
+      syncProductInventorySummary(runtime, productId);
       return {
         data: {
           [responseKey]: {
@@ -13944,7 +14472,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -13957,10 +14485,10 @@ export function handleProductMutation(
         };
       }
 
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       const defaultVariant = effectiveVariants[0] ?? null;
       const variantInputs = readBulkVariantInputs(args['variants']);
-      const userErrors = validateBulkCreateVariantBatch(productId, variantInputs);
+      const userErrors = validateBulkCreateVariantBatch(runtime, productId, variantInputs);
       if (userErrors.length > 0) {
         return {
           data: {
@@ -13974,26 +14502,34 @@ export function handleProductMutation(
       }
 
       const createdVariants = variantInputs.map((variant) =>
-        makeCreatedVariantRecord(productId, variant, defaultVariant),
+        makeCreatedVariantRecord(runtime, productId, variant, defaultVariant),
       );
       const shouldRemoveStandaloneVariant =
         variantInputs.length > 0 &&
         effectiveVariants.length === 1 &&
         (args['strategy'] === 'REMOVE_STANDALONE_VARIANT' ||
-          productHasStandaloneDefaultVariant(store.getEffectiveOptionsByProductId(productId), effectiveVariants));
+          productHasStandaloneDefaultVariant(
+            runtime.store.getEffectiveOptionsByProductId(productId),
+            effectiveVariants,
+          ));
       const nextVariants = [...(shouldRemoveStandaloneVariant ? [] : effectiveVariants), ...createdVariants];
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, shouldRemoveStandaloneVariant ? [] : undefined, nextVariants),
+        syncProductOptionsWithVariants(
+          runtime,
+          productId,
+          shouldRemoveStandaloneVariant ? [] : undefined,
+          nextVariants,
+        ),
       );
-      store.markVariantSearchLagged(productId);
-      const product = syncProductInventorySummary(productId);
+      runtime.store.markVariantSearchLagged(productId);
+      const product = syncProductInventorySummary(runtime, productId);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
-            productVariants: serializeVariantPayload(createdVariants, getChildField(field, 'productVariants')),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
+            productVariants: serializeVariantPayload(runtime, createdVariants, getChildField(field, 'productVariants')),
             userErrors: [],
           },
         },
@@ -14014,7 +14550,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -14027,10 +14563,10 @@ export function handleProductMutation(
         };
       }
 
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
       const updates = readBulkVariantInputs(args['variants']);
-      const userErrors = validateBulkUpdateVariantBatch(productId, updates, variantsById);
+      const userErrors = validateBulkUpdateVariantBatch(runtime, productId, updates, variantsById);
       if (userErrors.length > 0) {
         return {
           data: {
@@ -14038,7 +14574,7 @@ export function handleProductMutation(
               product:
                 userErrors[0]?.field === null
                   ? null
-                  : serializeProduct(existingProduct, getChildField(field, 'product'), variables),
+                  : serializeProduct(runtime, existingProduct, getChildField(field, 'product'), variables),
               productVariants: null,
               userErrors,
             },
@@ -14053,23 +14589,23 @@ export function handleProductMutation(
           return variant;
         }
 
-        const updatedVariant = updateVariantRecord(variant, update);
+        const updatedVariant = updateVariantRecord(runtime, variant, update);
         updatedVariants.push(updatedVariant);
         return updatedVariant;
       });
 
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, undefined, nextVariants),
       );
-      store.markVariantSearchLagged(productId);
-      const product = syncProductInventorySummary(productId);
+      runtime.store.markVariantSearchLagged(productId);
+      const product = syncProductInventorySummary(runtime, productId);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
-            productVariants: serializeVariantPayload(updatedVariants, getChildField(field, 'productVariants')),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
+            productVariants: serializeVariantPayload(runtime, updatedVariants, getChildField(field, 'productVariants')),
             userErrors: [],
           },
         },
@@ -14089,7 +14625,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -14104,7 +14640,7 @@ export function handleProductMutation(
       const variantIds = Array.isArray(args['variantsIds'])
         ? args['variantsIds'].filter((variantId): variantId is string => typeof variantId === 'string')
         : [];
-      const effectiveVariants = store.getEffectiveVariantsByProductId(productId);
+      const effectiveVariants = runtime.store.getEffectiveVariantsByProductId(productId);
       const variantsById = new Map(effectiveVariants.map((variant) => [variant.id, variant]));
       const missingVariantIndex =
         effectiveVariants.length > 0
@@ -14127,17 +14663,17 @@ export function handleProductMutation(
       }
 
       const nextVariants = effectiveVariants.filter((variant) => !variantIds.includes(variant.id));
-      store.replaceStagedVariantsForProduct(productId, nextVariants);
-      store.replaceStagedOptionsForProduct(
+      runtime.store.replaceStagedVariantsForProduct(productId, nextVariants);
+      runtime.store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(runtime, productId, undefined, nextVariants),
       );
-      store.markVariantSearchLagged(productId);
-      const product = syncProductInventorySummary(productId);
+      runtime.store.markVariantSearchLagged(productId);
+      const product = syncProductInventorySummary(runtime, productId);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             userErrors: [],
           },
         },
@@ -14157,7 +14693,7 @@ export function handleProductMutation(
         };
       }
 
-      const existingProduct = store.getEffectiveProductById(productId);
+      const existingProduct = runtime.store.getEffectiveProductById(productId);
       if (!existingProduct) {
         return {
           data: {
@@ -14169,11 +14705,11 @@ export function handleProductMutation(
         };
       }
 
-      const result = reorderProductVariants(productId, args['positions']);
+      const result = reorderProductVariants(runtime, productId, args['positions']);
       return {
         data: {
           [responseKey]: {
-            product: serializeProduct(result.product, getChildField(field, 'product'), variables),
+            product: serializeProduct(runtime, result.product, getChildField(field, 'product'), variables),
             userErrors: result.userErrors,
           },
         },
@@ -14185,6 +14721,7 @@ export function handleProductMutation(
 }
 
 export function handleProductQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   readMode: ReadMode,
@@ -14201,20 +14738,25 @@ export function handleProductQuery(
       case 'product': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const product = id ? store.getEffectiveProductById(id) : null;
-        data[responseKey] = serializeProduct(product, field, variables);
+        const product = id ? runtime.store.getEffectiveProductById(id) : null;
+        data[responseKey] = serializeProduct(runtime, product, field, variables);
         break;
       }
       case 'productByIdentifier': {
         const identifier = readProductInput(args['identifier']);
         const customId = readProductIdentifierCustomId(identifier);
-        if (customId && !getProductCustomIdDefinition(customId)) {
+        if (customId && !getProductCustomIdDefinition(runtime, customId)) {
           data[responseKey] = null;
           errors.push(buildProductCustomIdDefinitionMissingError(field));
           break;
         }
 
-        data[responseKey] = serializeProduct(findEffectiveProductByIdentifier(identifier), field, variables);
+        data[responseKey] = serializeProduct(
+          runtime,
+          findEffectiveProductByIdentifier(runtime, identifier),
+          field,
+          variables,
+        );
         break;
       }
       case 'products': {
@@ -14223,7 +14765,8 @@ export function handleProductQuery(
         const first = typeof rawFirst === 'number' ? rawFirst : null;
         const last = typeof rawLast === 'number' ? rawLast : null;
         data[responseKey] = serializeProductsConnection(
-          store.listEffectiveProducts(),
+          runtime,
+          runtime.store.listEffectiveProducts(),
           field,
           first,
           last,
@@ -14237,49 +14780,49 @@ export function handleProductQuery(
         break;
       }
       case 'productsCount': {
-        data[responseKey] = serializeProductsCount(args['query'], field.selectionSet?.selections ?? []);
+        data[responseKey] = serializeProductsCount(runtime, args['query'], field.selectionSet?.selections ?? []);
         break;
       }
       case 'productFeed': {
         const id = typeof args['id'] === 'string' ? args['id'] : null;
-        const productFeed = id ? store.getEffectiveProductFeedById(id) : null;
+        const productFeed = id ? runtime.store.getEffectiveProductFeedById(id) : null;
         data[responseKey] = productFeed
           ? serializeProductFeedSelectionSet(productFeed, field.selectionSet?.selections ?? [])
           : null;
         break;
       }
       case 'productFeeds': {
-        data[responseKey] = serializeTopLevelProductFeedsConnection(field, variables);
+        data[responseKey] = serializeTopLevelProductFeedsConnection(runtime, field, variables);
         break;
       }
       case 'productVariant': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const variant = id ? store.getEffectiveVariantById(id) : null;
+        const variant = id ? runtime.store.getEffectiveVariantById(id) : null;
         data[responseKey] = variant
-          ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          ? serializeVariantSelectionSet(runtime, variant, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'productVariantByIdentifier': {
         const identifier = readProductInput(args['identifier']);
-        const variant = findEffectiveVariantByIdentifier(identifier);
+        const variant = findEffectiveVariantByIdentifier(runtime, identifier);
         data[responseKey] = variant
-          ? serializeVariantSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          ? serializeVariantSelectionSet(runtime, variant, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'productVariants': {
-        data[responseKey] = serializeProductVariantsConnection(field, variables);
+        data[responseKey] = serializeProductVariantsConnection(runtime, field, variables);
         break;
       }
       case 'productVariantsCount': {
-        data[responseKey] = serializeProductVariantsCount(args['query'], field);
+        data[responseKey] = serializeProductVariantsCount(runtime, args['query'], field);
         break;
       }
       case 'productTags': {
         data[responseKey] = serializeStringConnection(
-          store.listEffectiveProducts().flatMap((product) => product.tags),
+          runtime.store.listEffectiveProducts().flatMap((product) => product.tags),
           field,
           variables,
         );
@@ -14287,7 +14830,7 @@ export function handleProductQuery(
       }
       case 'productTypes': {
         data[responseKey] = serializeStringConnection(
-          store
+          runtime.store
             .listEffectiveProducts()
             .map((product) => product.productType)
             .filter((productType): productType is string => typeof productType === 'string'),
@@ -14298,7 +14841,7 @@ export function handleProductQuery(
       }
       case 'productVendors': {
         data[responseKey] = serializeStringConnection(
-          store
+          runtime.store
             .listEffectiveProducts()
             .map((product) => product.vendor)
             .filter((vendor): vendor is string => typeof vendor === 'string'),
@@ -14315,7 +14858,8 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         data[responseKey] = serializeProductOperation(
-          id ? store.getEffectiveProductOperationById(id) : null,
+          runtime,
+          id ? runtime.store.getEffectiveProductOperationById(id) : null,
           field,
           variables,
         );
@@ -14327,7 +14871,7 @@ export function handleProductQuery(
       }
       case 'productResourceFeedback': {
         const id = typeof args['id'] === 'string' ? args['id'] : null;
-        const feedback = id ? store.getEffectiveProductResourceFeedback(id) : null;
+        const feedback = id ? runtime.store.getEffectiveProductResourceFeedback(id) : null;
         data[responseKey] = feedback
           ? serializeProductResourceFeedbackSelectionSet(feedback, field.selectionSet?.selections ?? [])
           : null;
@@ -14337,7 +14881,8 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         data[responseKey] = serializeSellingPlanGroup(
-          id ? store.getEffectiveSellingPlanGroupById(id) : null,
+          runtime,
+          id ? runtime.store.getEffectiveSellingPlanGroupById(id) : null,
           field,
           variables,
         );
@@ -14345,7 +14890,8 @@ export function handleProductQuery(
       }
       case 'sellingPlanGroups': {
         data[responseKey] = serializeSellingPlanGroupConnection(
-          store.listEffectiveSellingPlanGroups(),
+          runtime,
+          runtime.store.listEffectiveSellingPlanGroups(),
           field,
           variables,
         );
@@ -14354,22 +14900,28 @@ export function handleProductQuery(
       case 'inventoryItem': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const variant = id ? store.findEffectiveVariantByInventoryItemId(id) : null;
+        const variant = id ? runtime.store.findEffectiveVariantByInventoryItemId(id) : null;
         data[responseKey] = variant
-          ? serializeInventoryItemSelectionSet(variant, field.selectionSet?.selections ?? [], variables)
+          ? serializeInventoryItemSelectionSet(runtime, variant, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'inventoryItems': {
-        data[responseKey] = serializeInventoryItemsConnection(field, variables);
+        data[responseKey] = serializeInventoryItemsConnection(runtime, field, variables);
         break;
       }
       case 'inventoryLevel': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const target = id ? findInventoryLevelTarget(id) : null;
+        const target = id ? findInventoryLevelTarget(runtime, id) : null;
         data[responseKey] = target
-          ? serializeInventoryLevelObject(target.variant, target.level, field.selectionSet?.selections ?? [], variables)
+          ? serializeInventoryLevelObject(
+              runtime,
+              target.variant,
+              target.level,
+              field.selectionSet?.selections ?? [],
+              variables,
+            )
           : null;
         break;
       }
@@ -14381,86 +14933,87 @@ export function handleProductQuery(
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
         data[responseKey] = serializeInventoryTransfer(
-          id ? store.getEffectiveInventoryTransferById(id) : null,
+          runtime,
+          id ? runtime.store.getEffectiveInventoryTransferById(id) : null,
           field,
           variables,
         );
         break;
       }
       case 'inventoryTransfers': {
-        data[responseKey] = serializeInventoryTransfersConnection(field, variables);
+        data[responseKey] = serializeInventoryTransfersConnection(runtime, field, variables);
         break;
       }
       case 'collection': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const collection = id ? findEffectiveCollectionById(id) : null;
+        const collection = id ? findEffectiveCollectionById(runtime, id) : null;
         data[responseKey] = collection
-          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          ? serializeCollectionObject(runtime, collection, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'collectionByIdentifier': {
         const identifier = readProductInput(args['identifier']);
-        const collection = findEffectiveCollectionByIdentifier(identifier);
+        const collection = findEffectiveCollectionByIdentifier(runtime, identifier);
         data[responseKey] = collection
-          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          ? serializeCollectionObject(runtime, collection, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'collectionByHandle': {
         const rawHandle = args['handle'];
         const handle = typeof rawHandle === 'string' ? rawHandle : null;
-        const collection = handle ? findEffectiveCollectionByHandle(handle) : null;
+        const collection = handle ? findEffectiveCollectionByHandle(runtime, handle) : null;
         data[responseKey] = collection
-          ? serializeCollectionObject(collection, field.selectionSet?.selections ?? [], variables)
+          ? serializeCollectionObject(runtime, collection, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'collections': {
-        data[responseKey] = serializeTopLevelCollectionsConnection(field, variables);
+        data[responseKey] = serializeTopLevelCollectionsConnection(runtime, field, variables);
         break;
       }
       case 'locations': {
-        data[responseKey] = serializeTopLevelLocationsConnection(field, variables);
+        data[responseKey] = serializeTopLevelLocationsConnection(runtime, field, variables);
         break;
       }
       case 'channel': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const channel = id ? store.getEffectiveChannelById(id) : null;
+        const channel = id ? runtime.store.getEffectiveChannelById(id) : null;
         data[responseKey] = channel
-          ? serializeChannelSelectionSet(channel, field.selectionSet?.selections ?? [], variables)
+          ? serializeChannelSelectionSet(runtime, channel, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'channels': {
-        data[responseKey] = serializeTopLevelChannelsConnection(field, variables);
+        data[responseKey] = serializeTopLevelChannelsConnection(runtime, field, variables);
         break;
       }
       case 'publication': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const publication = id ? store.getEffectivePublicationById(id) : null;
+        const publication = id ? runtime.store.getEffectivePublicationById(id) : null;
         data[responseKey] = publication
-          ? serializePublicationSelectionSet(publication, field.selectionSet?.selections ?? [], variables)
+          ? serializePublicationSelectionSet(runtime, publication, field.selectionSet?.selections ?? [], variables)
           : null;
         break;
       }
       case 'publications': {
-        data[responseKey] = serializeTopLevelPublicationsConnection(field, variables);
+        data[responseKey] = serializeTopLevelPublicationsConnection(runtime, field, variables);
         break;
       }
       case 'publicationsCount': {
-        data[responseKey] = serializeCountValue(field, listEffectivePublications().length);
+        data[responseKey] = serializeCountValue(field, listEffectivePublications(runtime).length);
         break;
       }
       case 'publishedProductsCount': {
         const rawPublicationId = args['publicationId'];
         const publicationId = typeof rawPublicationId === 'string' ? rawPublicationId : null;
         const count = publicationId
-          ? listProductsPublishedToPublication(publicationId).length
-          : store
+          ? listProductsPublishedToPublication(runtime, publicationId).length
+          : runtime.store
               .listEffectiveProducts()
               .filter((product) => product.status === 'ACTIVE' && product.publicationIds.length > 0).length;
         data[responseKey] = serializeCountValue(field, count);

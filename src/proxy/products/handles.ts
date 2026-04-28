@@ -1,4 +1,4 @@
-import { store } from '../../state/store.js';
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import type { ProductRecord } from '../../state/types.js';
 
 const maxProductHandleLength = 255;
@@ -21,8 +21,8 @@ type ExplicitHandleResolution =
   | { kind: 'fallback-explicit'; handle: string }
   | { kind: 'invalid'; error: { field: string[]; message: string } };
 
-export function findEffectiveProductByHandle(handle: string): ProductRecord | null {
-  return store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
+export function findEffectiveProductByHandle(runtime: ProxyRuntimeContext, handle: string): ProductRecord | null {
+  return runtime.store.listEffectiveProducts().find((product) => product.handle === handle) ?? null;
 }
 
 function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResolution | null {
@@ -54,8 +54,8 @@ function readExplicitHandle(input: Record<string, unknown>): ExplicitHandleResol
   return { kind: 'normalized-explicit', handle: normalized };
 }
 
-function productHandleInUse(handle: string, excludedProductId?: string): boolean {
-  const existing = findEffectiveProductByHandle(handle);
+function productHandleInUse(runtime: ProxyRuntimeContext, handle: string, excludedProductId?: string): boolean {
+  const existing = findEffectiveProductByHandle(runtime, handle);
   return Boolean(existing && existing.id !== excludedProductId);
 }
 
@@ -77,9 +77,13 @@ function nextProductHandleCandidate(handle: string): string {
   return `${handle}-1`;
 }
 
-export function ensureUniqueProductHandle(handle: string, excludedProductId?: string): string {
+export function ensureUniqueProductHandle(
+  runtime: ProxyRuntimeContext,
+  handle: string,
+  excludedProductId?: string,
+): string {
   let candidate = handle;
-  while (productHandleInUse(candidate, excludedProductId)) {
+  while (productHandleInUse(runtime, candidate, excludedProductId)) {
     candidate = nextProductHandleCandidate(candidate);
   }
 
@@ -94,6 +98,7 @@ function productHandleConflictError(handle: string): { field: string[]; message:
 }
 
 export function prepareProductInputWithResolvedHandle(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: ProductRecord,
 ): { input: Record<string, unknown>; error: { field: string[]; message: string } | null } {
@@ -104,7 +109,7 @@ export function prepareProductInputWithResolvedHandle(
     }
 
     if (explicitHandle.kind === 'normalized-explicit') {
-      if (productHandleInUse(explicitHandle.handle, existing?.id)) {
+      if (productHandleInUse(runtime, explicitHandle.handle, existing?.id)) {
         return { input, error: productHandleConflictError(explicitHandle.handle) };
       }
 
@@ -114,7 +119,7 @@ export function prepareProductInputWithResolvedHandle(
     return {
       input: {
         ...input,
-        handle: ensureUniqueProductHandle(explicitHandle.handle, existing?.id),
+        handle: ensureUniqueProductHandle(runtime, explicitHandle.handle, existing?.id),
       },
       error: null,
     };
@@ -139,7 +144,7 @@ export function prepareProductInputWithResolvedHandle(
   return {
     input: {
       ...input,
-      handle: ensureUniqueProductHandle(baseHandle, existing?.id),
+      handle: ensureUniqueProductHandle(runtime, baseHandle, existing?.id),
     },
     error: null,
   };

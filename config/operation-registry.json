@@ -2243,7 +2243,7 @@
     "implemented": true,
     "matchNames": ["article", "Article"],
     "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
-    "supportNotes": "HAR-303: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields are resolved from the local online-store content graph."
+    "supportNotes": "HAR-303/HAR-410: snapshot/local detail reads return staged or hydrated Article records and null for missing IDs; nested blog/comments/count fields plus captured article image and ARTICLE-owned metafield selections are resolved from the local online-store content graph."
   },
   {
     "name": "articleAuthors",
@@ -2263,7 +2263,7 @@
     "implemented": true,
     "matchNames": ["articles", "Articles"],
     "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
-    "supportNotes": "HAR-303: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, and staged read-after-write effects."
+    "supportNotes": "HAR-303/HAR-410: supports snapshot/local Article catalog reads, empty connections, simple id/title/handle/status text filtering, sort/reverse, cursor windows, staged read-after-write effects, and captured article image/metafield projection."
   },
   {
     "name": "articleTags",
@@ -2283,7 +2283,7 @@
     "implemented": true,
     "matchNames": ["articleCreate", "ArticleCreate"],
     "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
-    "supportNotes": "HAR-303: stages Article creation locally, including handle/publication/tag/author fields and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
+    "supportNotes": "HAR-303/HAR-410: stages Article creation locally, including handle/publication/tag/author fields, image input, ARTICLE-owned metafield inputs, and optional inline blog creation, with downstream article/blog reads updated and raw mutation preserved for commit replay."
   },
   {
     "name": "articleUpdate",
@@ -2293,7 +2293,7 @@
     "implemented": true,
     "matchNames": ["articleUpdate", "ArticleUpdate"],
     "runtimeTests": ["tests/integration/online-store-content-flow.test.ts"],
-    "supportNotes": "HAR-303: stages Article updates locally for the supported scalar lifecycle fields and keeps downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
+    "supportNotes": "HAR-303/HAR-410: stages Article updates locally for supported scalar lifecycle fields, image replacement, and ARTICLE-owned metafield replacement while keeping downstream detail/catalog/blog article reads coherent without runtime Shopify writes."
   },
   {
     "name": "articleDelete",

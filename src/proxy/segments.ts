@@ -1,8 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, parse, type FieldNode, type OperationDefinitionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { CustomerRecord, CustomerSegmentMembersQueryRecord, SegmentRecord } from '../state/types.js';
 import {
   defaultGraphqlTypeConditionApplies,
@@ -144,6 +143,7 @@ function collectSegmentNodes(value: unknown, segments: SegmentRecord[] = []): Se
 }
 
 export function hydrateSegmentsFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
@@ -168,43 +168,47 @@ export function hydrateSegmentsFromUpstreamResponse(
       rootField === 'segmentValueSuggestions' ||
       rootField === 'segmentMigrations'
     ) {
-      store.setBaseSegmentsRootPayload(rootField, payload);
+      runtime.store.setBaseSegmentsRootPayload(rootField, payload);
     }
 
     const segments = collectSegmentNodes(payload);
     if (segments.length > 0) {
-      store.upsertBaseSegments(segments);
+      runtime.store.upsertBaseSegments(segments);
     }
   }
 }
 
-function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>): unknown {
+function rootPayloadForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   switch (field.name.value) {
     case 'segment': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectiveSegmentById(id) : null;
+      return id ? runtime.store.getEffectiveSegmentById(id) : null;
     }
     case 'segments':
-      return store.hasStagedSegments()
-        ? buildSegmentsConnection(field, variables, store.listEffectiveSegments())
-        : (store.getBaseSegmentsRootPayload('segments') ??
-            buildSegmentsConnection(field, variables, store.listBaseSegments()));
+      return runtime.store.hasStagedSegments()
+        ? buildSegmentsConnection(field, variables, runtime.store.listEffectiveSegments())
+        : (runtime.store.getBaseSegmentsRootPayload('segments') ??
+            buildSegmentsConnection(field, variables, runtime.store.listBaseSegments()));
     case 'segmentsCount':
-      return store.hasStagedSegments()
+      return runtime.store.hasStagedSegments()
         ? {
-            count: store.listEffectiveSegments().length,
+            count: runtime.store.listEffectiveSegments().length,
             precision: 'EXACT',
           }
-        : (store.getBaseSegmentsRootPayload('segmentsCount') ?? {
-            count: store.listBaseSegments().length,
+        : (runtime.store.getBaseSegmentsRootPayload('segmentsCount') ?? {
+            count: runtime.store.listBaseSegments().length,
             precision: 'EXACT',
           });
     case 'segmentFilters':
     case 'segmentFilterSuggestions':
     case 'segmentValueSuggestions':
     case 'segmentMigrations':
-      return store.getBaseSegmentsRootPayload(field.name.value) ?? emptyConnection();
+      return runtime.store.getBaseSegmentsRootPayload(field.name.value) ?? emptyConnection();
     default:
       return null;
   }
@@ -223,9 +227,13 @@ function normalizeSegmentName(name: string): string {
   return name.trim();
 }
 
-function resolveUniqueSegmentName(requestedName: string, currentSegmentId: string | null = null): string {
+function resolveUniqueSegmentName(
+  runtime: ProxyRuntimeContext,
+  requestedName: string,
+  currentSegmentId: string | null = null,
+): string {
   const usedNames = new Set(
-    store
+    runtime.store
       .listEffectiveSegments()
       .filter((segment) => segment.id !== currentSegmentId)
       .map((segment) => segment.name)
@@ -364,13 +372,13 @@ function customerMatchesSupportedSegmentQuery(customer: CustomerRecord, parsed: 
   }
 }
 
-function listCustomerSegmentMembersForQuery(query: string | null): CustomerRecord[] {
+function listCustomerSegmentMembersForQuery(runtime: ProxyRuntimeContext, query: string | null): CustomerRecord[] {
   const parsed = parseSupportedSegmentQuery(query);
   if (!parsed) {
     return [];
   }
 
-  return store
+  return runtime.store
     .listEffectiveCustomers()
     .filter((customer) => customerMatchesSupportedSegmentQuery(customer, parsed))
     .sort((left, right) => right.id.localeCompare(left.id));
@@ -500,14 +508,17 @@ function serializeSegmentStatistics(field: FieldNode): Record<string, unknown> {
   return result;
 }
 
-function resolveCustomerSegmentMemberQuery(args: Record<string, unknown>): {
+function resolveCustomerSegmentMemberQuery(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): {
   query: string | null;
   queryRecord: CustomerSegmentMembersQueryRecord | null;
   missingQueryId: string | null;
 } {
   const queryId = typeof args['queryId'] === 'string' ? args['queryId'] : null;
   if (queryId) {
-    const queryRecord = store.getEffectiveCustomerSegmentMembersQueryById(queryId);
+    const queryRecord = runtime.store.getEffectiveCustomerSegmentMembersQueryById(queryId);
     return {
       query: queryRecord?.query ?? null,
       queryRecord,
@@ -517,7 +528,7 @@ function resolveCustomerSegmentMemberQuery(args: Record<string, unknown>): {
 
   const segmentId = typeof args['segmentId'] === 'string' ? args['segmentId'] : null;
   if (segmentId) {
-    const segment = store.getEffectiveSegmentById(segmentId);
+    const segment = runtime.store.getEffectiveSegmentById(segmentId);
     return {
       query: segment?.query ?? null,
       queryRecord: null,
@@ -533,11 +544,12 @@ function resolveCustomerSegmentMemberQuery(args: Record<string, unknown>): {
 }
 
 function serializeCustomerSegmentMembersConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): { data: Record<string, unknown> | null; error: Record<string, unknown> | null } {
   const args = getFieldArguments(field, variables);
-  const resolved = resolveCustomerSegmentMemberQuery(args);
+  const resolved = resolveCustomerSegmentMemberQuery(runtime, args);
   if (resolved.missingQueryId) {
     return {
       data: null,
@@ -553,7 +565,7 @@ function serializeCustomerSegmentMembersConnection(
     };
   }
 
-  const allMembers = listCustomerSegmentMembersForQuery(resolved.query);
+  const allMembers = listCustomerSegmentMembersForQuery(runtime, resolved.query);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     allMembers,
     field,
@@ -617,17 +629,18 @@ function serializeCustomerSegmentMembersQuery(
 }
 
 function serializeCustomerSegmentMembership(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
   const rawSegmentIds = Array.isArray(args['segmentIds']) ? args['segmentIds'] : [];
-  const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+  const customer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
   const memberships = rawSegmentIds
     .filter((segmentId): segmentId is string => typeof segmentId === 'string')
     .flatMap((segmentId) => {
-      const segment = store.getEffectiveSegmentById(segmentId);
+      const segment = runtime.store.getEffectiveSegmentById(segmentId);
       if (!segment) {
         return [];
       }
@@ -687,7 +700,12 @@ function projectMutationPayload(payload: Record<string, unknown>, field: FieldNo
     : payload;
 }
 
-function handleSegmentCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleSegmentCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const rawName = readStringArg(args, 'name');
   const rawQuery = readStringArg(args, 'query');
@@ -698,12 +716,12 @@ function handleSegmentCreate(field: FieldNode, variables: Record<string, unknown
   }
   errors.push(...validateSegmentQuery(rawQuery));
 
-  const timestamp = makeSyntheticTimestamp();
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const segment: SegmentRecord | null =
     errors.length === 0 && rawName !== null && rawQuery !== null
       ? {
-          id: makeSyntheticGid('Segment'),
-          name: resolveUniqueSegmentName(normalizeSegmentName(rawName)),
+          id: runtime.syntheticIdentity.makeSyntheticGid('Segment'),
+          name: resolveUniqueSegmentName(runtime, normalizeSegmentName(rawName)),
           query: rawQuery.trim(),
           creationDate: timestamp,
           lastEditDate: timestamp,
@@ -711,7 +729,7 @@ function handleSegmentCreate(field: FieldNode, variables: Record<string, unknown
       : null;
 
   if (segment) {
-    store.stageCreateSegment(segment);
+    runtime.store.stageCreateSegment(segment);
   }
 
   return projectMutationPayload(
@@ -724,10 +742,15 @@ function handleSegmentCreate(field: FieldNode, variables: Record<string, unknown
   );
 }
 
-function handleSegmentUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleSegmentUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = readStringArg(args, 'id');
-  const existing = id ? store.getEffectiveSegmentById(id) : null;
+  const existing = id ? runtime.store.getEffectiveSegmentById(id) : null;
   const errors: SegmentUserError[] = [];
 
   if (!id || !existing) {
@@ -747,15 +770,18 @@ function handleSegmentUpdate(field: FieldNode, variables: Record<string, unknown
     errors.length === 0 && existing && id
       ? {
           id,
-          name: rawName === null ? existing.name : resolveUniqueSegmentName(normalizeSegmentName(rawName), existing.id),
+          name:
+            rawName === null
+              ? existing.name
+              : resolveUniqueSegmentName(runtime, normalizeSegmentName(rawName), existing.id),
           query: rawQuery === null ? existing.query : rawQuery.trim(),
           creationDate: existing.creationDate,
-          lastEditDate: makeSyntheticTimestamp(),
+          lastEditDate: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         }
       : null;
 
   if (segment) {
-    store.stageUpdateSegment(segment);
+    runtime.store.stageUpdateSegment(segment);
   }
 
   return projectMutationPayload(
@@ -768,10 +794,15 @@ function handleSegmentUpdate(field: FieldNode, variables: Record<string, unknown
   );
 }
 
-function handleSegmentDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleSegmentDelete(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = readStringArg(args, 'id');
-  const existing = id ? store.getEffectiveSegmentById(id) : null;
+  const existing = id ? runtime.store.getEffectiveSegmentById(id) : null;
   const errors: SegmentUserError[] = [];
 
   if (!id || !existing) {
@@ -779,7 +810,7 @@ function handleSegmentDelete(field: FieldNode, variables: Record<string, unknown
   }
 
   if (errors.length === 0 && id) {
-    store.stageDeleteSegment(id);
+    runtime.store.stageDeleteSegment(id);
   }
 
   return projectMutationPayload(
@@ -831,6 +862,7 @@ function buildSegmentNotFoundError(field: FieldNode): Record<string, unknown> {
 }
 
 export function handleSegmentsQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): {
@@ -844,7 +876,7 @@ export function handleSegmentsQuery(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     if (field.name.value === 'customerSegmentMembers') {
-      const result = serializeCustomerSegmentMembersConnection(field, variables);
+      const result = serializeCustomerSegmentMembersConnection(runtime, field, variables);
       if (result.error) {
         errors.push(result.error);
         return {
@@ -859,7 +891,7 @@ export function handleSegmentsQuery(
     if (field.name.value === 'customerSegmentMembersQuery') {
       const args = getFieldArguments(field, variables);
       const queryId = typeof args['id'] === 'string' ? args['id'] : null;
-      const queryRecord = queryId ? store.getEffectiveCustomerSegmentMembersQueryById(queryId) : null;
+      const queryRecord = queryId ? runtime.store.getEffectiveCustomerSegmentMembersQueryById(queryId) : null;
       data[key] = queryRecord ? serializeCustomerSegmentMembersQuery(queryRecord, field) : null;
       if (queryId && !queryRecord) {
         errors.push(buildCustomerSegmentMembersQueryNotFoundError(field));
@@ -868,11 +900,11 @@ export function handleSegmentsQuery(
     }
 
     if (field.name.value === 'customerSegmentMembership') {
-      data[key] = serializeCustomerSegmentMembership(field, variables);
+      data[key] = serializeCustomerSegmentMembership(runtime, field, variables);
       continue;
     }
 
-    const rootPayload = rootPayloadForField(field, variables);
+    const rootPayload = rootPayloadForField(runtime, field, variables);
     data[key] = field.selectionSet
       ? projectGraphqlValue(rootPayload, field.selectionSet.selections, fragments, segmentProjectionOptions)
       : rootPayload;
@@ -892,6 +924,7 @@ export function handleSegmentsQuery(
 }
 
 export function handleSegmentMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): {
@@ -912,7 +945,7 @@ export function handleSegmentMutation(
           errors.push(buildMissingRequiredArgumentsError(document, field, missingArguments));
           break;
         }
-        data[key] = handleSegmentCreate(field, variables, fragments);
+        data[key] = handleSegmentCreate(runtime, field, variables, fragments);
         break;
       }
       case 'segmentUpdate': {
@@ -921,7 +954,7 @@ export function handleSegmentMutation(
           errors.push(buildMissingRequiredArgumentsError(document, field, ['id']));
           break;
         }
-        data[key] = handleSegmentUpdate(field, variables, fragments);
+        data[key] = handleSegmentUpdate(runtime, field, variables, fragments);
         break;
       }
       case 'segmentDelete': {
@@ -930,7 +963,7 @@ export function handleSegmentMutation(
           errors.push(buildMissingRequiredArgumentsError(document, field, ['id']));
           break;
         }
-        data[key] = handleSegmentDelete(field, variables, fragments);
+        data[key] = handleSegmentDelete(runtime, field, variables, fragments);
         break;
       }
       case 'customerSegmentMembersQueryCreate': {
@@ -939,7 +972,7 @@ export function handleSegmentMutation(
           errors.push(buildMissingRequiredArgumentsError(document, field, ['input']));
           break;
         }
-        data[key] = handleCustomerSegmentMembersQueryCreate(field, variables, fragments);
+        data[key] = handleCustomerSegmentMembersQueryCreate(runtime, field, variables, fragments);
         break;
       }
       default:
@@ -961,6 +994,7 @@ function readInputObjectArg(args: Record<string, unknown>, name: string): Record
 }
 
 function handleCustomerSegmentMembersQueryCreate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -969,14 +1003,14 @@ function handleCustomerSegmentMembersQueryCreate(
   const input = readInputObjectArg(args, 'input');
   const rawQuery = typeof input?.['query'] === 'string' ? input['query'] : null;
   const segmentId = typeof input?.['segmentId'] === 'string' ? input['segmentId'] : null;
-  const segment = segmentId ? store.getEffectiveSegmentById(segmentId) : null;
+  const segment = segmentId ? runtime.store.getEffectiveSegmentById(segmentId) : null;
   const query = rawQuery ?? segment?.query ?? null;
   const userErrors = validateCustomerSegmentMembersQuery(query);
-  const members = userErrors.length === 0 ? listCustomerSegmentMembersForQuery(query) : [];
+  const members = userErrors.length === 0 ? listCustomerSegmentMembersForQuery(runtime, query) : [];
   const queryRecord: CustomerSegmentMembersQueryRecord | null =
     userErrors.length === 0
       ? {
-          id: makeSyntheticGid('CustomerSegmentMembersQuery'),
+          id: runtime.syntheticIdentity.makeSyntheticGid('CustomerSegmentMembersQuery'),
           query,
           segmentId,
           currentCount: members.length,
@@ -985,7 +1019,7 @@ function handleCustomerSegmentMembersQueryCreate(
       : null;
 
   if (queryRecord) {
-    store.stageCustomerSegmentMembersQuery(queryRecord);
+    runtime.store.stageCustomerSegmentMembersQuery(queryRecord);
   }
 
   const responseQuery = queryRecord

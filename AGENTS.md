@@ -56,6 +56,14 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 - Use strict TypeScript.
 - Keep runtime state in memory unless the project scope explicitly expands.
+- Embeddable `DraftProxy` instances must own isolated in-memory state, mutation
+  logs, and synthetic identity registries. Do not add module-level runtime
+  store, synthetic identity, proxy instance, or other mutable runtime singleton.
+  Domain helpers may access the current instance through explicit request
+  context only, and must fail when no `DraftProxy` runtime is active.
+- Do not use `AsyncLocalStorage` as a runtime state bridge for `DraftProxy`.
+  Thread instance-owned store and synthetic identity objects explicitly through
+  request/runtime APIs instead.
 - Preserve Shopify-like versioned routes.
 - Forward auth headers unchanged to upstream Shopify.
 - Expose and test the meta API.

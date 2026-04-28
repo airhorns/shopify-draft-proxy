@@ -1,7 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeProxySyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import {
   matchesSearchQueryText,
   normalizeSearchQueryValue,
@@ -9,7 +9,6 @@ import {
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { store } from '../state/store.js';
 import type { WebhookSubscriptionRecord } from '../state/types.js';
 import {
   defaultGraphqlTypeConditionApplies,
@@ -186,13 +185,14 @@ function projectMutationPayload(payload: Record<string, unknown>, field: FieldNo
 }
 
 function buildWebhookSubscriptionFromCreateInput(
+  runtime: ProxyRuntimeContext,
   topic: unknown,
   input: Record<string, unknown>,
 ): WebhookSubscriptionRecord {
-  const timestamp = makeSyntheticTimestamp();
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const uri = normalizeUri(input) as string;
   return {
-    id: makeProxySyntheticGid('WebhookSubscription'),
+    id: runtime.syntheticIdentity.makeProxySyntheticGid('WebhookSubscription'),
     topic: typeof topic === 'string' ? topic : null,
     uri,
     name: readOptionalString(input, 'name') ?? null,
@@ -207,6 +207,7 @@ function buildWebhookSubscriptionFromCreateInput(
 }
 
 function applyWebhookSubscriptionUpdateInput(
+  runtime: ProxyRuntimeContext,
   existing: WebhookSubscriptionRecord,
   input: Record<string, unknown>,
 ): WebhookSubscriptionRecord {
@@ -219,12 +220,13 @@ function applyWebhookSubscriptionUpdateInput(
     includeFields: readOptionalStringArray(input, 'includeFields') ?? existing.includeFields,
     metafieldNamespaces: readOptionalStringArray(input, 'metafieldNamespaces') ?? existing.metafieldNamespaces,
     filter: readOptionalString(input, 'filter') ?? existing.filter,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     endpoint: uri ? endpointFromUri(uri) : existing.endpoint,
   };
 }
 
 function handleWebhookSubscriptionCreate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -238,10 +240,10 @@ function handleWebhookSubscriptionCreate(
   }
 
   const webhookSubscription =
-    errors.length === 0 && input ? buildWebhookSubscriptionFromCreateInput(args['topic'], input) : null;
+    errors.length === 0 && input ? buildWebhookSubscriptionFromCreateInput(runtime, args['topic'], input) : null;
 
   if (webhookSubscription) {
-    store.upsertStagedWebhookSubscription(webhookSubscription);
+    runtime.store.upsertStagedWebhookSubscription(webhookSubscription);
   }
 
   return {
@@ -258,6 +260,7 @@ function handleWebhookSubscriptionCreate(
 }
 
 function handleWebhookSubscriptionUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -265,7 +268,7 @@ function handleWebhookSubscriptionUpdate(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readWebhookSubscriptionInput(args);
-  const existing = id ? store.getEffectiveWebhookSubscriptionById(id) : null;
+  const existing = id ? runtime.store.getEffectiveWebhookSubscriptionById(id) : null;
   const errors: WebhookSubscriptionUserError[] = [];
 
   if (!id || !existing) {
@@ -273,10 +276,10 @@ function handleWebhookSubscriptionUpdate(
   }
 
   const webhookSubscription =
-    errors.length === 0 && existing && input ? applyWebhookSubscriptionUpdateInput(existing, input) : null;
+    errors.length === 0 && existing && input ? applyWebhookSubscriptionUpdateInput(runtime, existing, input) : null;
 
   if (webhookSubscription) {
-    store.upsertStagedWebhookSubscription(webhookSubscription);
+    runtime.store.upsertStagedWebhookSubscription(webhookSubscription);
   }
 
   return {
@@ -335,6 +338,7 @@ function validateWebhookSubscriptionDeleteId(
 }
 
 function handleWebhookSubscriptionDelete(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -348,7 +352,7 @@ function handleWebhookSubscriptionDelete(
     };
   }
 
-  const existing = validatedId.id ? store.getEffectiveWebhookSubscriptionById(validatedId.id) : null;
+  const existing = validatedId.id ? runtime.store.getEffectiveWebhookSubscriptionById(validatedId.id) : null;
   const userErrors: WebhookSubscriptionUserError[] = [];
   if (!validatedId.id || !existing) {
     userErrors.push(webhookSubscriptionUserError(['id'], 'Webhook subscription does not exist'));
@@ -356,7 +360,7 @@ function handleWebhookSubscriptionDelete(
 
   const deletedWebhookSubscriptionId = userErrors.length === 0 ? validatedId.id : null;
   if (deletedWebhookSubscriptionId) {
-    store.deleteStagedWebhookSubscription(deletedWebhookSubscriptionId);
+    runtime.store.deleteStagedWebhookSubscription(deletedWebhookSubscriptionId);
   }
 
   return {
@@ -456,6 +460,7 @@ function collectWebhookSubscriptions(
 }
 
 export function hydrateWebhookSubscriptionsFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
@@ -470,7 +475,7 @@ export function hydrateWebhookSubscriptionsFromUpstreamResponse(
   }
 
   if (records.length > 0) {
-    store.upsertBaseWebhookSubscriptions(records);
+    runtime.store.upsertBaseWebhookSubscriptions(records);
   }
 }
 
@@ -608,13 +613,14 @@ function serializeWebhookSubscriptionNode(
 }
 
 function serializeWebhookSubscriptionsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const filteredWebhookSubscriptions = filterWebhookSubscriptionsByQuery(
-    filterWebhookSubscriptionsByFieldArguments(store.listEffectiveWebhookSubscriptions(), args),
+    filterWebhookSubscriptionsByFieldArguments(runtime.store.listEffectiveWebhookSubscriptions(), args),
     args['query'],
   );
   const sortedWebhookSubscriptions = sortWebhookSubscriptionsForConnection(
@@ -642,12 +648,13 @@ function serializeWebhookSubscriptionsConnection(
 }
 
 function serializeWebhookSubscriptionsCount(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const filteredWebhookSubscriptions = filterWebhookSubscriptionsByQuery(
-    store.listEffectiveWebhookSubscriptions(),
+    runtime.store.listEffectiveWebhookSubscriptions(),
     args['query'],
   );
   const rawLimit = args['limit'];
@@ -678,26 +685,32 @@ function serializeWebhookSubscriptionsCount(
   return result;
 }
 
-function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function rootPayloadForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   switch (field.name.value) {
     case 'webhookSubscription': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      const webhookSubscription = id ? store.getEffectiveWebhookSubscriptionById(id) : null;
+      const webhookSubscription = id ? runtime.store.getEffectiveWebhookSubscriptionById(id) : null;
       return webhookSubscription && field.selectionSet
         ? projectGraphqlValue(webhookSubscription, field.selectionSet.selections, fragments, webhookProjectionOptions)
         : webhookSubscription;
     }
     case 'webhookSubscriptions':
-      return serializeWebhookSubscriptionsConnection(field, variables, fragments);
+      return serializeWebhookSubscriptionsConnection(runtime, field, variables, fragments);
     case 'webhookSubscriptionsCount':
-      return serializeWebhookSubscriptionsCount(field, variables);
+      return serializeWebhookSubscriptionsCount(runtime, field, variables);
     default:
       return null;
   }
 }
 
 export function handleWebhookSubscriptionQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): { data: Record<string, unknown> } {
@@ -705,13 +718,14 @@ export function handleWebhookSubscriptionQuery(
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
-    data[getFieldResponseKey(field)] = rootPayloadForField(field, variables, fragments);
+    data[getFieldResponseKey(field)] = rootPayloadForField(runtime, field, variables, fragments);
   }
 
   return { data };
 }
 
 export function handleWebhookSubscriptionMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): WebhookSubscriptionMutationResult | null {
@@ -724,7 +738,7 @@ export function handleWebhookSubscriptionMutation(
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'webhookSubscriptionCreate': {
-        const result = handleWebhookSubscriptionCreate(field, variables, fragments);
+        const result = handleWebhookSubscriptionCreate(runtime, field, variables, fragments);
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);
@@ -732,7 +746,7 @@ export function handleWebhookSubscriptionMutation(
         break;
       }
       case 'webhookSubscriptionUpdate': {
-        const result = handleWebhookSubscriptionUpdate(field, variables, fragments);
+        const result = handleWebhookSubscriptionUpdate(runtime, field, variables, fragments);
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);
@@ -740,7 +754,7 @@ export function handleWebhookSubscriptionMutation(
         break;
       }
       case 'webhookSubscriptionDelete': {
-        const result = handleWebhookSubscriptionDelete(field, variables, fragments);
+        const result = handleWebhookSubscriptionDelete(runtime, field, variables, fragments);
         if (result.errors.length > 0) {
           errors.push(...result.errors);
           break;

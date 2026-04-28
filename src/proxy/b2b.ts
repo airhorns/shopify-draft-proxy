@@ -1,9 +1,8 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
-import { store } from '../state/store.js';
-import { makeProxySyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type {
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
@@ -161,13 +160,17 @@ function serializeCompanyRole(role: B2BCompanyContactRoleRecord, field: FieldNod
   );
 }
 
-function serializeCompanyContact(contact: B2BCompanyContactRecord, field: FieldNode): unknown {
+function serializeCompanyContact(
+  runtime: ProxyRuntimeContext,
+  contact: B2BCompanyContactRecord,
+  field: FieldNode,
+): unknown {
   const source = recordSource(contact, 'CompanyContact');
   return projectGraphqlObject(source, field.selectionSet?.selections ?? [], new Map(), {
     projectFieldValue: ({ field: childField, fieldName }) => {
       if (fieldName === 'company') {
-        const company = store.getEffectiveB2BCompanyById(contact.companyId);
-        return { handled: true, value: company ? serializeCompany(company, childField, {}) : null };
+        const company = runtime.store.getEffectiveB2BCompanyById(contact.companyId);
+        return { handled: true, value: company ? serializeCompany(runtime, company, childField, {}) : null };
       }
       if (fieldName === 'roleAssignments') {
         return {
@@ -190,13 +193,17 @@ function serializeCompanyContact(contact: B2BCompanyContactRecord, field: FieldN
   });
 }
 
-function serializeCompanyLocation(location: B2BCompanyLocationRecord, field: FieldNode): unknown {
+function serializeCompanyLocation(
+  runtime: ProxyRuntimeContext,
+  location: B2BCompanyLocationRecord,
+  field: FieldNode,
+): unknown {
   const source = recordSource(location, 'CompanyLocation');
   return projectGraphqlObject(source, field.selectionSet?.selections ?? [], new Map(), {
     projectFieldValue: ({ field: childField, fieldName }) => {
       if (fieldName === 'company') {
-        const company = store.getEffectiveB2BCompanyById(location.companyId);
-        return { handled: true, value: company ? serializeCompany(company, childField, {}) : null };
+        const company = runtime.store.getEffectiveB2BCompanyById(location.companyId);
+        return { handled: true, value: company ? serializeCompany(runtime, company, childField, {}) : null };
       }
       if (fieldName === 'roleAssignments' || fieldName === 'staffMemberAssignments') {
         const items =
@@ -232,28 +239,33 @@ function serializeCompanyLocation(location: B2BCompanyLocationRecord, field: Fie
   });
 }
 
-function companyContacts(company: B2BCompanyRecord): B2BCompanyContactRecord[] {
+function companyContacts(runtime: ProxyRuntimeContext, company: B2BCompanyRecord): B2BCompanyContactRecord[] {
   return company.contactIds
-    .map((id) => store.getEffectiveB2BCompanyContactById(id))
+    .map((id) => runtime.store.getEffectiveB2BCompanyContactById(id))
     .filter((contact): contact is B2BCompanyContactRecord => contact !== null);
 }
 
-function companyLocations(company: B2BCompanyRecord): B2BCompanyLocationRecord[] {
+function companyLocations(runtime: ProxyRuntimeContext, company: B2BCompanyRecord): B2BCompanyLocationRecord[] {
   return company.locationIds
-    .map((id) => store.getEffectiveB2BCompanyLocationById(id))
+    .map((id) => runtime.store.getEffectiveB2BCompanyLocationById(id))
     .filter((location): location is B2BCompanyLocationRecord => location !== null);
 }
 
-function companyRoles(company: B2BCompanyRecord): B2BCompanyContactRoleRecord[] {
+function companyRoles(runtime: ProxyRuntimeContext, company: B2BCompanyRecord): B2BCompanyContactRoleRecord[] {
   return company.contactRoleIds
-    .map((id) => store.getEffectiveB2BCompanyContactRoleById(id))
+    .map((id) => runtime.store.getEffectiveB2BCompanyContactRoleById(id))
     .filter((role): role is B2BCompanyContactRoleRecord => role !== null);
 }
 
-function serializeCompany(company: B2BCompanyRecord, field: FieldNode, variables: Record<string, unknown>): unknown {
-  const contacts = companyContacts(company);
-  const locations = companyLocations(company);
-  const roles = companyRoles(company);
+function serializeCompany(
+  runtime: ProxyRuntimeContext,
+  company: B2BCompanyRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
+  const contacts = companyContacts(runtime, company);
+  const locations = companyLocations(runtime, company);
+  const roles = companyRoles(runtime, company);
   const source = recordSource(company, 'Company');
 
   return projectGraphqlObject(source, field.selectionSet?.selections ?? [], new Map(), {
@@ -263,14 +275,14 @@ function serializeCompany(company: B2BCompanyRecord, field: FieldNode, variables
           return {
             handled: true,
             value: serializeRecordConnection(childField, variables, contacts, (contact, nodeField) =>
-              serializeCompanyContact(contact, nodeField),
+              serializeCompanyContact(runtime, contact, nodeField),
             ),
           };
         case 'locations':
           return {
             handled: true,
             value: serializeRecordConnection(childField, variables, locations, (location, nodeField) =>
-              serializeCompanyLocation(location, nodeField),
+              serializeCompanyLocation(runtime, location, nodeField),
             ),
           };
         case 'contactRoles':
@@ -294,7 +306,7 @@ function serializeCompany(company: B2BCompanyRecord, field: FieldNode, variables
           const mainContact = contacts.find((contact) => contact.data['isMainContact'] === true) ?? contacts[0] ?? null;
           return {
             handled: true,
-            value: mainContact ? serializeCompanyContact(mainContact, childField) : null,
+            value: mainContact ? serializeCompanyContact(runtime, mainContact, childField) : null,
           };
         }
         case 'defaultRole':
@@ -315,15 +327,26 @@ function serializeCompany(company: B2BCompanyRecord, field: FieldNode, variables
   });
 }
 
-function serializeCompanies(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
-  return serializeRecordConnection(field, variables, store.listEffectiveB2BCompanies(), (company, nodeField) =>
-    serializeCompany(company, nodeField, variables),
+function serializeCompanies(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeRecordConnection(field, variables, runtime.store.listEffectiveB2BCompanies(), (company, nodeField) =>
+    serializeCompany(runtime, company, nodeField, variables),
   );
 }
 
-function serializeCompanyLocations(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
-  return serializeRecordConnection(field, variables, store.listEffectiveB2BCompanyLocations(), (location, nodeField) =>
-    serializeCompanyLocation(location, nodeField),
+function serializeCompanyLocations(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return serializeRecordConnection(
+    field,
+    variables,
+    runtime.store.listEffectiveB2BCompanyLocations(),
+    (location, nodeField) => serializeCompanyLocation(runtime, location, nodeField),
   );
 }
 
@@ -363,8 +386,12 @@ function removeFromList(list: string[], value: string): string[] {
   return list.filter((item) => item !== value);
 }
 
-function addressFromInput(input: Record<string, unknown>, existingId: string | null = null): Record<string, JsonValue> {
-  const id = existingId ?? makeProxySyntheticGid('CompanyAddress');
+function addressFromInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existingId: string | null = null,
+): Record<string, JsonValue> {
+  const id = existingId ?? runtime.syntheticIdentity.makeProxySyntheticGid('CompanyAddress');
   return {
     __typename: 'CompanyAddress',
     id,
@@ -409,6 +436,7 @@ function contactDataFromInput(
 }
 
 function locationDataFromInput(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   now: string,
   existing: Record<string, unknown> = {},
@@ -423,10 +451,10 @@ function locationDataFromInput(
     data['taxExemptions'] = readStringArray(input['taxExemptions']);
   }
   if (isPlainObject(input['billingAddress'])) {
-    data['billingAddress'] = addressFromInput(input['billingAddress']);
+    data['billingAddress'] = addressFromInput(runtime, input['billingAddress']);
   }
   if (isPlainObject(input['shippingAddress'])) {
-    data['shippingAddress'] = addressFromInput(input['shippingAddress']);
+    data['shippingAddress'] = addressFromInput(runtime, input['shippingAddress']);
   }
   if (data['billingSameAsShipping'] === true && isPlainObject(data['shippingAddress'])) {
     data['billingAddress'] = data['shippingAddress'];
@@ -447,6 +475,7 @@ function refreshCompanyCounts(company: B2BCompanyRecord): B2BCompanyRecord {
 }
 
 function serializeMutationRoot(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   payload: B2BMutationPayload,
@@ -460,13 +489,17 @@ function serializeMutationRoot(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'company':
-        result[key] = payload.company ? serializeCompany(payload.company, selection, variables) : null;
+        result[key] = payload.company ? serializeCompany(runtime, payload.company, selection, variables) : null;
         break;
       case 'companyContact':
-        result[key] = payload.companyContact ? serializeCompanyContact(payload.companyContact, selection) : null;
+        result[key] = payload.companyContact
+          ? serializeCompanyContact(runtime, payload.companyContact, selection)
+          : null;
         break;
       case 'companyLocation':
-        result[key] = payload.companyLocation ? serializeCompanyLocation(payload.companyLocation, selection) : null;
+        result[key] = payload.companyLocation
+          ? serializeCompanyLocation(runtime, payload.companyLocation, selection)
+          : null;
         break;
       case 'companyContactRoleAssignment':
         result[key] = payload.companyContactRoleAssignment
@@ -506,6 +539,7 @@ function serializeMutationRoot(
 }
 
 function mutationResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   payloadByRoot: Map<string, B2BMutationPayload>,
@@ -514,20 +548,20 @@ function mutationResponse(
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
     const payload = payloadByRoot.get(field.name.value);
-    data[key] = payload ? serializeMutationRoot(field, variables, payload) : null;
+    data[key] = payload ? serializeMutationRoot(runtime, field, variables, payload) : null;
   }
   return { data };
 }
 
-function createDefaultRoles(companyId: string): B2BCompanyContactRoleRecord[] {
+function createDefaultRoles(runtime: ProxyRuntimeContext, companyId: string): B2BCompanyContactRoleRecord[] {
   return [
     {
-      id: makeProxySyntheticGid('CompanyContactRole'),
+      id: runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContactRole'),
       companyId,
       data: { id: '', name: 'Location admin', note: 'System-defined Location admin role' },
     },
     {
-      id: makeProxySyntheticGid('CompanyContactRole'),
+      id: runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContactRole'),
       companyId,
       data: { id: '', name: 'Ordering only', note: 'System-defined Ordering only role' },
     },
@@ -535,12 +569,13 @@ function createDefaultRoles(companyId: string): B2BCompanyContactRoleRecord[] {
 }
 
 function createContact(
+  runtime: ProxyRuntimeContext,
   companyId: string,
   input: Record<string, unknown>,
   isMainContact = false,
 ): B2BCompanyContactRecord {
-  const id = makeProxySyntheticGid('CompanyContact');
-  const now = makeSyntheticTimestamp();
+  const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContact');
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   return {
     id,
     companyId,
@@ -555,13 +590,14 @@ function createContact(
 }
 
 function createLocation(
+  runtime: ProxyRuntimeContext,
   companyId: string,
   input: Record<string, unknown>,
   fallbackName: string,
 ): B2BCompanyLocationRecord {
-  const id = makeProxySyntheticGid('CompanyLocation');
-  const now = makeSyntheticTimestamp();
-  const data = locationDataFromInput({ name: fallbackName, ...input }, now, {
+  const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyLocation');
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const data = locationDataFromInput(runtime, { name: fallbackName, ...input }, now, {
     id,
     createdAt: now,
     roleAssignments: [],
@@ -570,11 +606,14 @@ function createLocation(
   return { id, companyId, data: { ...data, id } };
 }
 
-function stageCompany(company: B2BCompanyRecord): B2BCompanyRecord {
-  return store.upsertStagedB2BCompany(refreshCompanyCounts(company));
+function stageCompany(runtime: ProxyRuntimeContext, company: B2BCompanyRecord): B2BCompanyRecord {
+  return runtime.store.upsertStagedB2BCompany(refreshCompanyCounts(company));
 }
 
-function handleCompanyCreate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleCompanyCreate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const input = readInputObject(args['input']);
   const companyInput = readInputObject(input['company']);
   const name = readStringValue(companyInput['name']);
@@ -588,17 +627,19 @@ function handleCompanyCreate(args: Record<string, unknown>): { payload: B2BMutat
     };
   }
 
-  const companyId = makeProxySyntheticGid('Company');
-  const now = makeSyntheticTimestamp();
-  const roles = createDefaultRoles(companyId).map((role) => store.upsertStagedB2BCompanyContactRole(role));
-  const location = store.upsertStagedB2BCompanyLocation(
-    createLocation(companyId, readInputObject(input['companyLocation']), name),
+  const companyId = runtime.syntheticIdentity.makeProxySyntheticGid('Company');
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const roles = createDefaultRoles(runtime, companyId).map((role) =>
+    runtime.store.upsertStagedB2BCompanyContactRole(role),
+  );
+  const location = runtime.store.upsertStagedB2BCompanyLocation(
+    createLocation(runtime, companyId, readInputObject(input['companyLocation']), name),
   );
   const contactInput = isPlainObject(input['companyContact']) ? input['companyContact'] : null;
   const contact = contactInput
-    ? store.upsertStagedB2BCompanyContact(createContact(companyId, contactInput, true))
+    ? runtime.store.upsertStagedB2BCompanyContact(createContact(runtime, companyId, contactInput, true))
     : null;
-  const company = stageCompany({
+  const company = stageCompany(runtime, {
     id: companyId,
     data: {
       id: companyId,
@@ -616,9 +657,12 @@ function handleCompanyCreate(args: Record<string, unknown>): { payload: B2BMutat
   };
 }
 
-function handleCompanyUpdate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleCompanyUpdate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['companyId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
   if (!company || !companyId) {
     return {
       payload: { company: null, userErrors: [resourceNotFound(['companyId'])] },
@@ -635,76 +679,90 @@ function handleCompanyUpdate(args: Record<string, unknown>): { payload: B2BMutat
     };
   }
 
-  const updated = stageCompany({
+  const updated = stageCompany(runtime, {
     ...company,
-    data: companyDataFromInput(input, makeSyntheticTimestamp(), company.data),
+    data: companyDataFromInput(input, runtime.syntheticIdentity.makeSyntheticTimestamp(), company.data),
   });
   return { payload: { company: updated, userErrors: [] }, stagedIds: [updated.id] };
 }
 
-function deleteCompanyTree(companyId: string): string[] {
-  const company = store.getEffectiveB2BCompanyById(companyId);
+function deleteCompanyTree(runtime: ProxyRuntimeContext, companyId: string): string[] {
+  const company = runtime.store.getEffectiveB2BCompanyById(companyId);
   if (!company) {
     return [];
   }
   for (const contactId of company.contactIds) {
-    store.deleteStagedB2BCompanyContact(contactId);
+    runtime.store.deleteStagedB2BCompanyContact(contactId);
   }
   for (const locationId of company.locationIds) {
-    store.deleteStagedB2BCompanyLocation(locationId);
+    runtime.store.deleteStagedB2BCompanyLocation(locationId);
   }
   for (const roleId of company.contactRoleIds) {
-    store.deleteStagedB2BCompanyContactRole(roleId);
+    runtime.store.deleteStagedB2BCompanyContactRole(roleId);
   }
-  store.deleteStagedB2BCompany(companyId);
+  runtime.store.deleteStagedB2BCompany(companyId);
   return [companyId, ...company.contactIds, ...company.locationIds, ...company.contactRoleIds];
 }
 
-function handleCompanyDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleCompanyDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['id']);
-  if (!companyId || !store.getEffectiveB2BCompanyById(companyId)) {
+  if (!companyId || !runtime.store.getEffectiveB2BCompanyById(companyId)) {
     return {
       payload: { deletedCompanyId: null, userErrors: [resourceNotFound(['id'])] },
       stagedIds: [],
     };
   }
-  const stagedIds = deleteCompanyTree(companyId);
+  const stagedIds = deleteCompanyTree(runtime, companyId);
   return { payload: { deletedCompanyId: companyId, userErrors: [] }, stagedIds };
 }
 
-function handleCompaniesDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleCompaniesDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyIds = readStringArray(args['companyIds']);
   const deletedCompanyIds: string[] = [];
   const stagedIds: string[] = [];
   const userErrors: B2BUserError[] = [];
   for (const companyId of companyIds) {
-    if (!store.getEffectiveB2BCompanyById(companyId)) {
+    if (!runtime.store.getEffectiveB2BCompanyById(companyId)) {
       userErrors.push(resourceNotFound(['companyIds']));
       continue;
     }
     deletedCompanyIds.push(companyId);
-    stagedIds.push(...deleteCompanyTree(companyId));
+    stagedIds.push(...deleteCompanyTree(runtime, companyId));
   }
   return { payload: { deletedCompanyIds, userErrors }, stagedIds };
 }
 
-function handleContactCreate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleContactCreate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['companyId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
   if (!company || !companyId) {
     return {
       payload: { companyContact: null, userErrors: [resourceNotFound(['companyId'])] },
       stagedIds: [],
     };
   }
-  const contact = store.upsertStagedB2BCompanyContact(createContact(companyId, readInputObject(args['input'])));
-  stageCompany({ ...company, contactIds: appendUnique(company.contactIds, contact.id) });
+  const contact = runtime.store.upsertStagedB2BCompanyContact(
+    createContact(runtime, companyId, readInputObject(args['input'])),
+  );
+  stageCompany(runtime, { ...company, contactIds: appendUnique(company.contactIds, contact.id) });
   return { payload: { companyContact: contact, userErrors: [] }, stagedIds: [contact.id, companyId] };
 }
 
-function handleContactUpdate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleContactUpdate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const contactId = readStringValue(args['companyContactId']);
-  const contact = contactId ? store.getEffectiveB2BCompanyContactById(contactId) : null;
+  const contact = contactId ? runtime.store.getEffectiveB2BCompanyContactById(contactId) : null;
   if (!contact || !contactId) {
     return {
       payload: {
@@ -714,40 +772,47 @@ function handleContactUpdate(args: Record<string, unknown>): { payload: B2BMutat
       stagedIds: [],
     };
   }
-  const updated = store.upsertStagedB2BCompanyContact({
+  const updated = runtime.store.upsertStagedB2BCompanyContact({
     ...contact,
-    data: contactDataFromInput(readInputObject(args['input']), makeSyntheticTimestamp(), contact.data),
+    data: contactDataFromInput(
+      readInputObject(args['input']),
+      runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      contact.data,
+    ),
   });
   return { payload: { companyContact: updated, userErrors: [] }, stagedIds: [updated.id] };
 }
 
-function deleteContact(contactId: string): string[] {
-  const contact = store.getEffectiveB2BCompanyContactById(contactId);
+function deleteContact(runtime: ProxyRuntimeContext, contactId: string): string[] {
+  const contact = runtime.store.getEffectiveB2BCompanyContactById(contactId);
   if (!contact) {
     return [];
   }
-  const company = store.getEffectiveB2BCompanyById(contact.companyId);
+  const company = runtime.store.getEffectiveB2BCompanyById(contact.companyId);
   if (company) {
-    stageCompany({ ...company, contactIds: removeFromList(company.contactIds, contactId) });
+    stageCompany(runtime, { ...company, contactIds: removeFromList(company.contactIds, contactId) });
   }
-  for (const location of store.listEffectiveB2BCompanyLocations()) {
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
     const roleAssignments = readPlainObjectArray(location.data['roleAssignments']).filter(
       (assignment) => assignment['companyContactId'] !== contactId,
     );
     if (roleAssignments.length !== readPlainObjectArray(location.data['roleAssignments']).length) {
-      store.upsertStagedB2BCompanyLocation({
+      runtime.store.upsertStagedB2BCompanyLocation({
         ...location,
         data: jsonRecord({ ...location.data, roleAssignments: jsonValue(roleAssignments) }),
       });
     }
   }
-  store.deleteStagedB2BCompanyContact(contactId);
+  runtime.store.deleteStagedB2BCompanyContact(contactId);
   return [contactId, contact.companyId];
 }
 
-function handleContactDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleContactDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const contactId = readStringValue(args['companyContactId']);
-  if (!contactId || !store.getEffectiveB2BCompanyContactById(contactId)) {
+  if (!contactId || !runtime.store.getEffectiveB2BCompanyContactById(contactId)) {
     return {
       payload: {
         deletedCompanyContactId: null,
@@ -758,41 +823,47 @@ function handleContactDelete(args: Record<string, unknown>): { payload: B2BMutat
   }
   return {
     payload: { deletedCompanyContactId: contactId, userErrors: [] },
-    stagedIds: deleteContact(contactId),
+    stagedIds: deleteContact(runtime, contactId),
   };
 }
 
-function handleContactsDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleContactsDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const contactIds = readStringArray(args['companyContactIds']);
   const deletedCompanyContactIds: string[] = [];
   const stagedIds: string[] = [];
   const userErrors: B2BUserError[] = [];
   for (const contactId of contactIds) {
-    if (!store.getEffectiveB2BCompanyContactById(contactId)) {
+    if (!runtime.store.getEffectiveB2BCompanyContactById(contactId)) {
       userErrors.push(resourceNotFound(['companyContactIds'], "The company contact doesn't exist."));
       continue;
     }
     deletedCompanyContactIds.push(contactId);
-    stagedIds.push(...deleteContact(contactId));
+    stagedIds.push(...deleteContact(runtime, contactId));
   }
   return { payload: { deletedCompanyContactIds, userErrors }, stagedIds };
 }
 
-function handleAssignCustomerAsContact(args: Record<string, unknown>): {
+function handleAssignCustomerAsContact(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): {
   payload: B2BMutationPayload;
   stagedIds: string[];
 } {
   const companyId = readStringValue(args['companyId']);
   const customerId = readStringValue(args['customerId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
   if (!company || !companyId) {
     return { payload: { companyContact: null, userErrors: [resourceNotFound(['companyId'])] }, stagedIds: [] };
   }
   if (!customerId) {
     return { payload: { companyContact: null, userErrors: [resourceNotFound(['customerId'])] }, stagedIds: [] };
   }
-  const contact = createContact(companyId, {}, false);
-  const stagedContact = store.upsertStagedB2BCompanyContact({
+  const contact = createContact(runtime, companyId, {}, false);
+  const stagedContact = runtime.store.upsertStagedB2BCompanyContact({
     ...contact,
     data: jsonRecord({
       ...contact.data,
@@ -800,16 +871,19 @@ function handleAssignCustomerAsContact(args: Record<string, unknown>): {
       customer: { __typename: 'Customer', id: customerId },
     }),
   });
-  stageCompany({ ...company, contactIds: appendUnique(company.contactIds, stagedContact.id) });
+  stageCompany(runtime, { ...company, contactIds: appendUnique(company.contactIds, stagedContact.id) });
   return { payload: { companyContact: stagedContact, userErrors: [] }, stagedIds: [stagedContact.id, companyId] };
 }
 
-function handleContactRemoveFromCompany(args: Record<string, unknown>): {
+function handleContactRemoveFromCompany(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): {
   payload: B2BMutationPayload;
   stagedIds: string[];
 } {
   const contactId = readStringValue(args['companyContactId']);
-  if (!contactId || !store.getEffectiveB2BCompanyContactById(contactId)) {
+  if (!contactId || !runtime.store.getEffectiveB2BCompanyContactById(contactId)) {
     return {
       payload: {
         removedCompanyContactId: null,
@@ -818,14 +892,20 @@ function handleContactRemoveFromCompany(args: Record<string, unknown>): {
       stagedIds: [],
     };
   }
-  return { payload: { removedCompanyContactId: contactId, userErrors: [] }, stagedIds: deleteContact(contactId) };
+  return {
+    payload: { removedCompanyContactId: contactId, userErrors: [] },
+    stagedIds: deleteContact(runtime, contactId),
+  };
 }
 
-function handleAssignMainContact(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleAssignMainContact(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['companyId']);
   const contactId = readStringValue(args['companyContactId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
-  const contact = contactId ? store.getEffectiveB2BCompanyContactById(contactId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
+  const contact = contactId ? runtime.store.getEffectiveB2BCompanyContactById(contactId) : null;
   if (!company || !companyId) {
     return { payload: { company: null, userErrors: [resourceNotFound(['companyId'])] }, stagedIds: [] };
   }
@@ -834,56 +914,65 @@ function handleAssignMainContact(args: Record<string, unknown>): { payload: B2BM
   }
   const stagedIds: string[] = [companyId];
   for (const candidateId of company.contactIds) {
-    const candidate = store.getEffectiveB2BCompanyContactById(candidateId);
+    const candidate = runtime.store.getEffectiveB2BCompanyContactById(candidateId);
     if (!candidate) {
       continue;
     }
-    store.upsertStagedB2BCompanyContact({
+    runtime.store.upsertStagedB2BCompanyContact({
       ...candidate,
       data: jsonRecord({ ...candidate.data, isMainContact: candidate.id === contactId }),
     });
     stagedIds.push(candidate.id);
   }
-  return { payload: { company: store.getEffectiveB2BCompanyById(companyId), userErrors: [] }, stagedIds };
+  return { payload: { company: runtime.store.getEffectiveB2BCompanyById(companyId), userErrors: [] }, stagedIds };
 }
 
-function handleRevokeMainContact(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleRevokeMainContact(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['companyId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
   if (!company || !companyId) {
     return { payload: { company: null, userErrors: [resourceNotFound(['companyId'])] }, stagedIds: [] };
   }
   const stagedIds: string[] = [companyId];
   for (const contactId of company.contactIds) {
-    const contact = store.getEffectiveB2BCompanyContactById(contactId);
+    const contact = runtime.store.getEffectiveB2BCompanyContactById(contactId);
     if (contact) {
-      store.upsertStagedB2BCompanyContact({
+      runtime.store.upsertStagedB2BCompanyContact({
         ...contact,
         data: jsonRecord({ ...contact.data, isMainContact: false }),
       });
       stagedIds.push(contact.id);
     }
   }
-  return { payload: { company: store.getEffectiveB2BCompanyById(companyId), userErrors: [] }, stagedIds };
+  return { payload: { company: runtime.store.getEffectiveB2BCompanyById(companyId), userErrors: [] }, stagedIds };
 }
 
-function handleLocationCreate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleLocationCreate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const companyId = readStringValue(args['companyId']);
-  const company = companyId ? store.getEffectiveB2BCompanyById(companyId) : null;
+  const company = companyId ? runtime.store.getEffectiveB2BCompanyById(companyId) : null;
   if (!company || !companyId) {
     return { payload: { companyLocation: null, userErrors: [resourceNotFound(['companyId'])] }, stagedIds: [] };
   }
   const fallbackName = readStringValue(company.data['name']) ?? 'Company location';
-  const location = store.upsertStagedB2BCompanyLocation(
-    createLocation(companyId, readInputObject(args['input']), fallbackName),
+  const location = runtime.store.upsertStagedB2BCompanyLocation(
+    createLocation(runtime, companyId, readInputObject(args['input']), fallbackName),
   );
-  stageCompany({ ...company, locationIds: appendUnique(company.locationIds, location.id) });
+  stageCompany(runtime, { ...company, locationIds: appendUnique(company.locationIds, location.id) });
   return { payload: { companyLocation: location, userErrors: [] }, stagedIds: [location.id, companyId] };
 }
 
-function handleLocationUpdate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleLocationUpdate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationId = readStringValue(args['companyLocationId']);
-  const location = locationId ? store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
   if (!location || !locationId) {
     return {
       payload: {
@@ -893,40 +982,48 @@ function handleLocationUpdate(args: Record<string, unknown>): { payload: B2BMuta
       stagedIds: [],
     };
   }
-  const updated = store.upsertStagedB2BCompanyLocation({
+  const updated = runtime.store.upsertStagedB2BCompanyLocation({
     ...location,
-    data: locationDataFromInput(readInputObject(args['input']), makeSyntheticTimestamp(), location.data),
+    data: locationDataFromInput(
+      runtime,
+      readInputObject(args['input']),
+      runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      location.data,
+    ),
   });
   return { payload: { companyLocation: updated, userErrors: [] }, stagedIds: [updated.id] };
 }
 
-function deleteLocation(locationId: string): string[] {
-  const location = store.getEffectiveB2BCompanyLocationById(locationId);
+function deleteLocation(runtime: ProxyRuntimeContext, locationId: string): string[] {
+  const location = runtime.store.getEffectiveB2BCompanyLocationById(locationId);
   if (!location) {
     return [];
   }
-  const company = store.getEffectiveB2BCompanyById(location.companyId);
+  const company = runtime.store.getEffectiveB2BCompanyById(location.companyId);
   if (company) {
-    stageCompany({ ...company, locationIds: removeFromList(company.locationIds, locationId) });
+    stageCompany(runtime, { ...company, locationIds: removeFromList(company.locationIds, locationId) });
   }
-  for (const contact of store.listEffectiveB2BCompanyContacts()) {
+  for (const contact of runtime.store.listEffectiveB2BCompanyContacts()) {
     const roleAssignments = readPlainObjectArray(contact.data['roleAssignments']).filter(
       (assignment) => assignment['companyLocationId'] !== locationId,
     );
     if (roleAssignments.length !== readPlainObjectArray(contact.data['roleAssignments']).length) {
-      store.upsertStagedB2BCompanyContact({
+      runtime.store.upsertStagedB2BCompanyContact({
         ...contact,
         data: jsonRecord({ ...contact.data, roleAssignments: jsonValue(roleAssignments) }),
       });
     }
   }
-  store.deleteStagedB2BCompanyLocation(locationId);
+  runtime.store.deleteStagedB2BCompanyLocation(locationId);
   return [locationId, location.companyId];
 }
 
-function handleLocationDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleLocationDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationId = readStringValue(args['companyLocationId']);
-  if (!locationId || !store.getEffectiveB2BCompanyLocationById(locationId)) {
+  if (!locationId || !runtime.store.getEffectiveB2BCompanyLocationById(locationId)) {
     return {
       payload: {
         deletedCompanyLocationId: null,
@@ -937,32 +1034,36 @@ function handleLocationDelete(args: Record<string, unknown>): { payload: B2BMuta
   }
   return {
     payload: { deletedCompanyLocationId: locationId, userErrors: [] },
-    stagedIds: deleteLocation(locationId),
+    stagedIds: deleteLocation(runtime, locationId),
   };
 }
 
-function handleLocationsDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleLocationsDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationIds = readStringArray(args['companyLocationIds']);
   const deletedCompanyLocationIds: string[] = [];
   const stagedIds: string[] = [];
   const userErrors: B2BUserError[] = [];
   for (const locationId of locationIds) {
-    if (!store.getEffectiveB2BCompanyLocationById(locationId)) {
+    if (!runtime.store.getEffectiveB2BCompanyLocationById(locationId)) {
       userErrors.push(resourceNotFound(['companyLocationIds'], "The company location doesn't exist"));
       continue;
     }
     deletedCompanyLocationIds.push(locationId);
-    stagedIds.push(...deleteLocation(locationId));
+    stagedIds.push(...deleteLocation(runtime, locationId));
   }
   return { payload: { deletedCompanyLocationIds, userErrors }, stagedIds };
 }
 
 function buildRoleAssignment(
+  runtime: ProxyRuntimeContext,
   contact: B2BCompanyContactRecord,
   role: B2BCompanyContactRoleRecord,
   location: B2BCompanyLocationRecord,
 ): Record<string, JsonValue> {
-  const id = makeProxySyntheticGid('CompanyContactRoleAssignment');
+  const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContactRoleAssignment');
   return jsonRecord({
     __typename: 'CompanyContactRoleAssignment',
     id,
@@ -975,15 +1076,15 @@ function buildRoleAssignment(
   });
 }
 
-function stageRoleAssignments(assignments: Record<string, unknown>[]): string[] {
+function stageRoleAssignments(runtime: ProxyRuntimeContext, assignments: Record<string, unknown>[]): string[] {
   const stagedIds: string[] = [];
   for (const assignment of assignments) {
     const contactId = readStringValue(assignment['companyContactId']);
     const locationId = readStringValue(assignment['companyLocationId']);
     if (contactId) {
-      const contact = store.getEffectiveB2BCompanyContactById(contactId);
+      const contact = runtime.store.getEffectiveB2BCompanyContactById(contactId);
       if (contact) {
-        store.upsertStagedB2BCompanyContact({
+        runtime.store.upsertStagedB2BCompanyContact({
           ...contact,
           data: jsonRecord({
             ...contact.data,
@@ -994,9 +1095,9 @@ function stageRoleAssignments(assignments: Record<string, unknown>[]): string[] 
       }
     }
     if (locationId) {
-      const location = store.getEffectiveB2BCompanyLocationById(locationId);
+      const location = runtime.store.getEffectiveB2BCompanyLocationById(locationId);
       if (location) {
-        store.upsertStagedB2BCompanyLocation({
+        runtime.store.upsertStagedB2BCompanyLocation({
           ...location,
           data: jsonRecord({
             ...location.data,
@@ -1011,6 +1112,7 @@ function stageRoleAssignments(assignments: Record<string, unknown>[]): string[] 
 }
 
 function resolveRoleAssignmentInputs(
+  runtime: ProxyRuntimeContext,
   rawInputs: Record<string, unknown>[],
   contactIdFallback?: string,
   locationIdFallback?: string,
@@ -1021,9 +1123,9 @@ function resolveRoleAssignmentInputs(
     const contactId = readStringValue(input['companyContactId']) ?? contactIdFallback ?? null;
     const roleId = readStringValue(input['companyContactRoleId']);
     const locationId = readStringValue(input['companyLocationId']) ?? locationIdFallback ?? null;
-    const contact = contactId ? store.getEffectiveB2BCompanyContactById(contactId) : null;
-    const role = roleId ? store.getEffectiveB2BCompanyContactRoleById(roleId) : null;
-    const location = locationId ? store.getEffectiveB2BCompanyLocationById(locationId) : null;
+    const contact = contactId ? runtime.store.getEffectiveB2BCompanyContactById(contactId) : null;
+    const role = roleId ? runtime.store.getEffectiveB2BCompanyContactRoleById(roleId) : null;
+    const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
     if (
       !contact ||
       !role ||
@@ -1034,17 +1136,18 @@ function resolveRoleAssignmentInputs(
       userErrors.push(resourceNotFound(['rolesToAssign']));
       continue;
     }
-    assignments.push(buildRoleAssignment(contact, role, location));
+    assignments.push(buildRoleAssignment(runtime, contact, role, location));
   }
   return { assignments, userErrors };
 }
 
 function revokeRoleAssignments(
+  runtime: ProxyRuntimeContext,
   assignmentIds: string[],
   options: { contactId?: string | null; locationId?: string | null; revokeAll?: boolean } = {},
 ): string[] {
   const removedIds = new Set<string>();
-  for (const contact of store.listEffectiveB2BCompanyContacts()) {
+  for (const contact of runtime.store.listEffectiveB2BCompanyContacts()) {
     if (options.contactId && contact.id !== options.contactId) {
       continue;
     }
@@ -1058,13 +1161,13 @@ function revokeRoleAssignments(
       return !shouldRemove;
     });
     if (next.length !== current.length) {
-      store.upsertStagedB2BCompanyContact({
+      runtime.store.upsertStagedB2BCompanyContact({
         ...contact,
         data: jsonRecord({ ...contact.data, roleAssignments: jsonValue(next) }),
       });
     }
   }
-  for (const location of store.listEffectiveB2BCompanyLocations()) {
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
     if (options.locationId && location.id !== options.locationId) {
       continue;
     }
@@ -1078,7 +1181,7 @@ function revokeRoleAssignments(
       return !shouldRemove;
     });
     if (next.length !== current.length) {
-      store.upsertStagedB2BCompanyLocation({
+      runtime.store.upsertStagedB2BCompanyLocation({
         ...location,
         data: jsonRecord({ ...location.data, roleAssignments: jsonValue(next) }),
       });
@@ -1087,13 +1190,16 @@ function revokeRoleAssignments(
   return [...removedIds];
 }
 
-function handleAssignAddress(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleAssignAddress(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationId = readStringValue(args['locationId']);
-  const location = locationId ? store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
   if (!location || !locationId) {
     return { payload: { addresses: [], userErrors: [resourceNotFound(['locationId'])] }, stagedIds: [] };
   }
-  const address = addressFromInput(readInputObject(args['address']));
+  const address = addressFromInput(runtime, readInputObject(args['address']));
   const addressTypes = readStringArray(args['addressTypes']);
   const nextData: Record<string, unknown> = { ...location.data };
   const addresses: Record<string, unknown>[] = [];
@@ -1111,19 +1217,22 @@ function handleAssignAddress(args: Record<string, unknown>): { payload: B2BMutat
       stagedIds: [],
     };
   }
-  const updated = store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(nextData) });
+  const updated = runtime.store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(nextData) });
   return {
     payload: { addresses, userErrors: [] },
     stagedIds: [updated.id, ...addresses.map((item) => String(item['id']))],
   };
 }
 
-function handleAddressDelete(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleAddressDelete(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const addressId = readStringValue(args['addressId']);
   if (!addressId) {
     return { payload: { deletedAddressId: null, userErrors: [resourceNotFound(['addressId'])] }, stagedIds: [] };
   }
-  for (const location of store.listEffectiveB2BCompanyLocations()) {
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
     const nextData: Record<string, unknown> = { ...location.data };
     let found = false;
     for (const key of ['billingAddress', 'shippingAddress']) {
@@ -1134,16 +1243,19 @@ function handleAddressDelete(args: Record<string, unknown>): { payload: B2BMutat
       }
     }
     if (found) {
-      store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(nextData) });
+      runtime.store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(nextData) });
       return { payload: { deletedAddressId: addressId, userErrors: [] }, stagedIds: [location.id, addressId] };
     }
   }
   return { payload: { deletedAddressId: null, userErrors: [resourceNotFound(['addressId'])] }, stagedIds: [] };
 }
 
-function handleAssignStaff(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleAssignStaff(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationId = readStringValue(args['companyLocationId']);
-  const location = locationId ? store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
   if (!location || !locationId) {
     return {
       payload: { companyLocationStaffMemberAssignments: [], userErrors: [resourceNotFound(['companyLocationId'])] },
@@ -1151,7 +1263,7 @@ function handleAssignStaff(args: Record<string, unknown>): { payload: B2BMutatio
     };
   }
   const assignments = readStringArray(args['staffMemberIds']).map((staffMemberId) => {
-    const id = makeProxySyntheticGid('CompanyLocationStaffMemberAssignment');
+    const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyLocationStaffMemberAssignment');
     return {
       __typename: 'CompanyLocationStaffMemberAssignment',
       id,
@@ -1160,7 +1272,7 @@ function handleAssignStaff(args: Record<string, unknown>): { payload: B2BMutatio
       companyLocation: recordSource(location, 'CompanyLocation'),
     };
   });
-  const updated = store.upsertStagedB2BCompanyLocation({
+  const updated = runtime.store.upsertStagedB2BCompanyLocation({
     ...location,
     data: {
       ...location.data,
@@ -1176,11 +1288,14 @@ function handleAssignStaff(args: Record<string, unknown>): { payload: B2BMutatio
   };
 }
 
-function handleRemoveStaff(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleRemoveStaff(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const assignmentIds = readStringArray(args['companyLocationStaffMemberAssignmentIds']);
   const removed = new Set<string>();
   const stagedIds: string[] = [];
-  for (const location of store.listEffectiveB2BCompanyLocations()) {
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
     const current = readPlainObjectArray(location.data['staffMemberAssignments']);
     const next = current.filter((assignment) => {
       const id = readStringValue(assignment['id']);
@@ -1191,7 +1306,7 @@ function handleRemoveStaff(args: Record<string, unknown>): { payload: B2BMutatio
       return !shouldRemove;
     });
     if (next.length !== current.length) {
-      store.upsertStagedB2BCompanyLocation({
+      runtime.store.upsertStagedB2BCompanyLocation({
         ...location,
         data: jsonRecord({ ...location.data, staffMemberAssignments: jsonValue(next) }),
       });
@@ -1204,9 +1319,12 @@ function handleRemoveStaff(args: Record<string, unknown>): { payload: B2BMutatio
   };
 }
 
-function handleTaxSettingsUpdate(args: Record<string, unknown>): { payload: B2BMutationPayload; stagedIds: string[] } {
+function handleTaxSettingsUpdate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): { payload: B2BMutationPayload; stagedIds: string[] } {
   const locationId = readStringValue(args['companyLocationId']);
-  const location = locationId ? store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
   if (!location || !locationId) {
     return {
       payload: {
@@ -1226,95 +1344,98 @@ function handleTaxSettingsUpdate(args: Record<string, unknown>): { payload: B2BM
   const data: Record<string, unknown> = {
     ...location.data,
     taxExemptions: [...exemptions],
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
   maybeSetString(data, args, 'taxRegistrationId');
   maybeSetBoolean(data, args, 'taxExempt');
-  const updated = store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(data) });
+  const updated = runtime.store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(data) });
   return { payload: { companyLocation: updated, userErrors: [] }, stagedIds: [updated.id] };
 }
 
 function dispatchB2BMutationRoot(
+  runtime: ProxyRuntimeContext,
   rootField: string,
   args: Record<string, unknown>,
 ): { payload: B2BMutationPayload; stagedIds: string[] } | null {
   switch (rootField) {
     case 'companyCreate':
-      return handleCompanyCreate(args);
+      return handleCompanyCreate(runtime, args);
     case 'companyUpdate':
-      return handleCompanyUpdate(args);
+      return handleCompanyUpdate(runtime, args);
     case 'companyDelete':
-      return handleCompanyDelete(args);
+      return handleCompanyDelete(runtime, args);
     case 'companiesDelete':
-      return handleCompaniesDelete(args);
+      return handleCompaniesDelete(runtime, args);
     case 'companyContactCreate':
-      return handleContactCreate(args);
+      return handleContactCreate(runtime, args);
     case 'companyContactUpdate':
-      return handleContactUpdate(args);
+      return handleContactUpdate(runtime, args);
     case 'companyContactDelete':
-      return handleContactDelete(args);
+      return handleContactDelete(runtime, args);
     case 'companyContactsDelete':
-      return handleContactsDelete(args);
+      return handleContactsDelete(runtime, args);
     case 'companyAssignCustomerAsContact':
-      return handleAssignCustomerAsContact(args);
+      return handleAssignCustomerAsContact(runtime, args);
     case 'companyContactRemoveFromCompany':
-      return handleContactRemoveFromCompany(args);
+      return handleContactRemoveFromCompany(runtime, args);
     case 'companyAssignMainContact':
-      return handleAssignMainContact(args);
+      return handleAssignMainContact(runtime, args);
     case 'companyRevokeMainContact':
-      return handleRevokeMainContact(args);
+      return handleRevokeMainContact(runtime, args);
     case 'companyLocationCreate':
-      return handleLocationCreate(args);
+      return handleLocationCreate(runtime, args);
     case 'companyLocationUpdate':
-      return handleLocationUpdate(args);
+      return handleLocationUpdate(runtime, args);
     case 'companyLocationDelete':
-      return handleLocationDelete(args);
+      return handleLocationDelete(runtime, args);
     case 'companyLocationsDelete':
-      return handleLocationsDelete(args);
+      return handleLocationsDelete(runtime, args);
     case 'companyLocationAssignAddress':
-      return handleAssignAddress(args);
+      return handleAssignAddress(runtime, args);
     case 'companyAddressDelete':
-      return handleAddressDelete(args);
+      return handleAddressDelete(runtime, args);
     case 'companyLocationAssignStaffMembers':
-      return handleAssignStaff(args);
+      return handleAssignStaff(runtime, args);
     case 'companyLocationRemoveStaffMembers':
-      return handleRemoveStaff(args);
+      return handleRemoveStaff(runtime, args);
     case 'companyLocationTaxSettingsUpdate':
-      return handleTaxSettingsUpdate(args);
+      return handleTaxSettingsUpdate(runtime, args);
     case 'companyContactAssignRole': {
-      const { assignments, userErrors } = resolveRoleAssignmentInputs([
+      const { assignments, userErrors } = resolveRoleAssignmentInputs(runtime, [
         {
           companyContactId: args['companyContactId'],
           companyContactRoleId: args['companyContactRoleId'],
           companyLocationId: args['companyLocationId'],
         },
       ]);
-      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(assignments);
+      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(runtime, assignments);
       return { payload: { companyContactRoleAssignment: assignments[0] ?? null, userErrors }, stagedIds };
     }
     case 'companyContactAssignRoles': {
       const contactId = readStringValue(args['companyContactId']) ?? undefined;
       const { assignments, userErrors } = resolveRoleAssignmentInputs(
+        runtime,
         readPlainObjectArray(args['rolesToAssign']),
         contactId,
       );
-      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(assignments);
+      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(runtime, assignments);
       return { payload: { roleAssignments: assignments, userErrors }, stagedIds };
     }
     case 'companyLocationAssignRoles': {
       const locationId = readStringValue(args['companyLocationId']);
       const { assignments, userErrors } = resolveRoleAssignmentInputs(
+        runtime,
         readPlainObjectArray(args['rolesToAssign']),
         undefined,
         locationId ?? undefined,
       );
-      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(assignments);
+      const stagedIds = userErrors.length > 0 ? [] : stageRoleAssignments(runtime, assignments);
       return { payload: { roleAssignments: assignments, userErrors }, stagedIds };
     }
     case 'companyContactRevokeRole': {
       const assignmentId = readStringValue(args['companyContactRoleAssignmentId']);
       const revoked = assignmentId
-        ? revokeRoleAssignments([assignmentId], { contactId: readStringValue(args['companyContactId']) })
+        ? revokeRoleAssignments(runtime, [assignmentId], { contactId: readStringValue(args['companyContactId']) })
         : [];
       return {
         payload: {
@@ -1325,14 +1446,14 @@ function dispatchB2BMutationRoot(
       };
     }
     case 'companyContactRevokeRoles': {
-      const revoked = revokeRoleAssignments(readStringArray(args['roleAssignmentIds']), {
+      const revoked = revokeRoleAssignments(runtime, readStringArray(args['roleAssignmentIds']), {
         contactId: readStringValue(args['companyContactId']),
         revokeAll: readBooleanValue(args['revokeAll']) === true,
       });
       return { payload: { revokedRoleAssignmentIds: revoked, userErrors: [] }, stagedIds: revoked };
     }
     case 'companyLocationRevokeRoles': {
-      const revoked = revokeRoleAssignments(readStringArray(args['rolesToRevoke']), {
+      const revoked = revokeRoleAssignments(runtime, readStringArray(args['rolesToRevoke']), {
         locationId: readStringValue(args['companyLocationId']),
       });
       return { payload: { revokedRoleAssignmentIds: revoked, userErrors: [] }, stagedIds: revoked };
@@ -1342,14 +1463,18 @@ function dispatchB2BMutationRoot(
   }
 }
 
-export function handleB2BMutation(document: string, variables: Record<string, unknown>): B2BMutationResult | null {
+export function handleB2BMutation(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): B2BMutationResult | null {
   const payloads = new Map<string, B2BMutationPayload>();
   const stagedResourceIds = new Set<string>();
   let handled = false;
   let staged = false;
 
   for (const field of getRootFields(document)) {
-    const result = dispatchB2BMutationRoot(field.name.value, getFieldArguments(field, variables));
+    const result = dispatchB2BMutationRoot(runtime, field.name.value, getFieldArguments(field, variables));
     if (!result) {
       continue;
     }
@@ -1368,14 +1493,18 @@ export function handleB2BMutation(document: string, variables: Record<string, un
   }
 
   return {
-    response: mutationResponse(document, variables, payloads),
+    response: mutationResponse(runtime, document, variables, payloads),
     staged,
     stagedResourceIds: [...stagedResourceIds],
     notes: 'Staged locally in the in-memory B2B company draft store.',
   };
 }
 
-export function handleB2BQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleB2BQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
@@ -1385,33 +1514,33 @@ export function handleB2BQuery(document: string, variables: Record<string, unkno
 
     switch (field.name.value) {
       case 'companies':
-        data[key] = serializeCompanies(field, variables);
+        data[key] = serializeCompanies(runtime, field, variables);
         break;
       case 'companiesCount':
-        data[key] = serializeCount(field, store.listEffectiveB2BCompanies().length);
+        data[key] = serializeCount(field, runtime.store.listEffectiveB2BCompanies().length);
         break;
       case 'company': {
-        const company = id ? store.getEffectiveB2BCompanyById(id) : null;
-        data[key] = company ? serializeCompany(company, field, variables) : null;
+        const company = id ? runtime.store.getEffectiveB2BCompanyById(id) : null;
+        data[key] = company ? serializeCompany(runtime, company, field, variables) : null;
         break;
       }
       case 'companyContact': {
-        const contact = id ? store.getEffectiveB2BCompanyContactById(id) : null;
-        data[key] = contact ? serializeCompanyContact(contact, field) : null;
+        const contact = id ? runtime.store.getEffectiveB2BCompanyContactById(id) : null;
+        data[key] = contact ? serializeCompanyContact(runtime, contact, field) : null;
         break;
       }
       case 'companyContactRole': {
-        const role = id ? store.getEffectiveB2BCompanyContactRoleById(id) : null;
+        const role = id ? runtime.store.getEffectiveB2BCompanyContactRoleById(id) : null;
         data[key] = role ? serializeCompanyRole(role, field) : null;
         break;
       }
       case 'companyLocation': {
-        const location = id ? store.getEffectiveB2BCompanyLocationById(id) : null;
-        data[key] = location ? serializeCompanyLocation(location, field) : null;
+        const location = id ? runtime.store.getEffectiveB2BCompanyLocationById(id) : null;
+        data[key] = location ? serializeCompanyLocation(runtime, location, field) : null;
         break;
       }
       case 'companyLocations':
-        data[key] = serializeCompanyLocations(field, variables);
+        data[key] = serializeCompanyLocations(runtime, field, variables);
         break;
       default:
         data[key] = null;
