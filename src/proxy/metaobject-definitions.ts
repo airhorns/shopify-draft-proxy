@@ -1,4 +1,4 @@
-import { Kind, type FieldNode, type SelectionNode } from 'graphql';
+import { Kind, type ArgumentNode, type FieldNode, type ValueNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -48,6 +48,11 @@ type MetaobjectBulkDeleteJob = {
   done: boolean;
 };
 
+type RequiredArgumentValidation = {
+  value: unknown;
+  errors: Record<string, unknown>[];
+};
+
 type StandardMetaobjectDefinitionTemplate = {
   type: string;
   name: string;
@@ -92,6 +97,110 @@ const STANDARD_METAOBJECT_DEFINITION_TEMPLATES: StandardMetaobjectDefinitionTemp
     ],
   },
 ];
+
+function buildMissingRequiredArgumentError(operationName: string, argumentName: string): Record<string, unknown> {
+  return {
+    message: `Field '${operationName}' is missing required arguments: ${argumentName}`,
+    path: ['mutation', operationName],
+    extensions: {
+      code: 'missingRequiredArguments',
+      className: 'Field',
+      name: operationName,
+      arguments: argumentName,
+    },
+  };
+}
+
+function buildNullArgumentError(
+  operationName: string,
+  argumentName: string,
+  expectedType: string,
+): Record<string, unknown> {
+  return {
+    message: `Argument '${argumentName}' on Field '${operationName}' has an invalid value (null). Expected type '${expectedType}'.`,
+    path: ['mutation', operationName, argumentName],
+    extensions: {
+      code: 'argumentLiteralsIncompatible',
+      typeName: 'Field',
+      argumentName,
+    },
+  };
+}
+
+function buildMissingVariableError(variableName: string, variableType: string): Record<string, unknown> {
+  return {
+    message: `Variable $${variableName} of type ${variableType} was provided invalid value`,
+    extensions: {
+      code: 'INVALID_VARIABLE',
+      value: null,
+      problems: [{ path: [], explanation: 'Expected value to not be null' }],
+    },
+  };
+}
+
+function resolveArgumentValueNode(node: ValueNode, variables: Record<string, unknown>): unknown {
+  switch (node.kind) {
+    case Kind.NULL:
+      return null;
+    case Kind.STRING:
+    case Kind.ENUM:
+    case Kind.BOOLEAN:
+      return node.value;
+    case Kind.INT:
+      return Number.parseInt(node.value, 10);
+    case Kind.FLOAT:
+      return Number.parseFloat(node.value);
+    case Kind.LIST:
+      return node.values.map((value) => resolveArgumentValueNode(value, variables));
+    case Kind.OBJECT:
+      return Object.fromEntries(
+        node.fields.map((objectField) => [
+          objectField.name.value,
+          resolveArgumentValueNode(objectField.value, variables),
+        ]),
+      );
+    case Kind.VARIABLE:
+      return variables[node.name.value] ?? null;
+  }
+}
+
+function validateRequiredArgument(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  operationName: string,
+  argumentName: string,
+  expectedType: string,
+): RequiredArgumentValidation {
+  const argument = field.arguments?.find((candidate: ArgumentNode) => candidate.name.value === argumentName) ?? null;
+  if (!argument) {
+    return {
+      value: null,
+      errors: [buildMissingRequiredArgumentError(operationName, argumentName)],
+    };
+  }
+
+  if (argument.value.kind === Kind.NULL) {
+    return {
+      value: null,
+      errors: [buildNullArgumentError(operationName, argumentName, expectedType)],
+    };
+  }
+
+  if (argument.value.kind === Kind.VARIABLE) {
+    const variableName = argument.value.name.value;
+    if (variables[variableName] === null || variables[variableName] === undefined) {
+      return {
+        value: null,
+        errors: [buildMissingVariableError(variableName, expectedType)],
+      };
+    }
+  }
+
+  return {
+    value: resolveArgumentValueNode(argument.value, variables),
+    errors: [],
+  };
+}
 
 function normalizeCapabilities(rawCapabilities: unknown): MetaobjectDefinitionCapabilitiesRecord {
   const capabilities = isPlainObject(rawCapabilities) ? rawCapabilities : {};
@@ -153,6 +262,10 @@ function readNullableBooleanValue(value: unknown): boolean | null {
 
 function hasOwnProperty(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function readNonBlankStringValue(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
 function isAppReservedMetaobjectType(type: string): boolean {
@@ -452,6 +565,52 @@ function readMetaobjectJsonValue(typeName: string | null, value: string | null):
   }
 }
 
+function buildInvalidJsonMessage(value: string): string {
+  const objectKeyMatch = /^\{\s*([^"{}\s:,]+)/u.exec(value);
+  if (objectKeyMatch?.[1]) {
+    return `Value is invalid JSON: expected object key, got '${objectKeyMatch[1]}' at line 1 column 2.`;
+  }
+
+  return 'Value is invalid JSON.';
+}
+
+function validateMetaobjectFieldInputValue(
+  rawField: Record<string, unknown>,
+  fieldDefinition: MetaobjectFieldDefinitionRecord,
+  index: number,
+): MetaobjectUserError[] {
+  const value = readStringValue(rawField['value']);
+  const errors: MetaobjectUserError[] = [];
+
+  if (value !== null && fieldDefinition.type.name === 'json') {
+    try {
+      JSON.parse(value);
+    } catch {
+      errors.push({
+        field: ['metaobject', 'fields', String(index)],
+        message: buildInvalidJsonMessage(value),
+        code: 'INVALID_VALUE',
+        elementKey: fieldDefinition.key,
+        elementIndex: null,
+      });
+    }
+  }
+
+  const maxValidation = fieldDefinition.validations.find((validation) => validation.name === 'max');
+  const maxLength = maxValidation?.value ? Number.parseInt(maxValidation.value, 10) : Number.NaN;
+  if (value !== null && Number.isInteger(maxLength) && maxLength >= 0 && value.length > maxLength) {
+    errors.push({
+      field: ['metaobject', 'fields', String(index)],
+      message: `Value has a maximum length of ${maxLength}.`,
+      code: 'INVALID_VALUE',
+      elementKey: fieldDefinition.key,
+      elementIndex: null,
+    });
+  }
+
+  return errors;
+}
+
 function buildMetaobjectFieldFromInput(
   rawField: Record<string, unknown>,
   fieldDefinition: MetaobjectFieldDefinitionRecord,
@@ -477,6 +636,7 @@ function buildMetaobjectFieldsFromInput(
   const definitionsByKey = new Map(
     definition.fieldDefinitions.map((fieldDefinition) => [fieldDefinition.key, fieldDefinition]),
   );
+  const providedFieldKeys = new Set<string>();
 
   for (const [index, rawField] of readPlainObjectArray(input['fields']).entries()) {
     const key = readStringValue(rawField['key']);
@@ -502,12 +662,23 @@ function buildMetaobjectFieldsFromInput(
       continue;
     }
 
+    providedFieldKeys.add(key);
+    const valueErrors = validateMetaobjectFieldInputValue(rawField, fieldDefinition, index);
+    if (valueErrors.length > 0) {
+      userErrors.push(...valueErrors);
+      continue;
+    }
+
     fieldsByKey.set(key, buildMetaobjectFieldFromInput(rawField, fieldDefinition));
   }
 
   if (options.requireRequiredFields === true) {
     for (const fieldDefinition of definition.fieldDefinitions) {
-      if (fieldDefinition.required === true && !fieldsByKey.has(fieldDefinition.key)) {
+      if (
+        fieldDefinition.required === true &&
+        !fieldsByKey.has(fieldDefinition.key) &&
+        !providedFieldKeys.has(fieldDefinition.key)
+      ) {
         userErrors.push({
           field: ['metaobject'],
           message: `${fieldDefinition.name ?? fieldDefinition.key} can't be blank`,
@@ -650,7 +821,6 @@ function buildCreateMetaobjectUserErrors(
 ): MetaobjectUserError[] {
   const userErrors: MetaobjectUserError[] = [];
   const type = readStringValue(input['type']);
-  const handle = readStringValue(input['handle']);
 
   if (!type) {
     userErrors.push({
@@ -663,20 +833,20 @@ function buildCreateMetaobjectUserErrors(
   if (type && !definition) {
     userErrors.push({
       field: ['metaobject', 'type'],
-      message: 'Metaobject definition not found.',
-      code: 'NOT_FOUND',
-    });
-  }
-
-  if (type && handle && store.findEffectiveMetaobjectByHandle({ type, handle })) {
-    userErrors.push({
-      field: ['metaobject', 'handle'],
-      message: 'Handle has already been taken',
-      code: 'TAKEN',
+      message: `No metaobject definition exists for type "${type}"`,
+      code: 'UNDEFINED_OBJECT_TYPE',
     });
   }
 
   return userErrors;
+}
+
+function recordNotFoundUserError(field: string[] = ['id']): MetaobjectUserError {
+  return {
+    field,
+    message: 'Record not found',
+    code: 'RECORD_NOT_FOUND',
+  };
 }
 
 function buildMetaobjectFromCreateInput(
@@ -692,8 +862,8 @@ function buildMetaobjectFromCreateInput(
   }
 
   const displayName = metaobjectDisplayName(definition, fieldResult.fields);
-  const handle =
-    readStringValue(input['handle']) ?? makeUniqueMetaobjectHandle(definition.type, displayName ?? definition.type);
+  const preferredHandle = readNonBlankStringValue(input['handle']) ?? displayName ?? definition.type;
+  const handle = makeUniqueMetaobjectHandle(definition.type, preferredHandle);
   const now = makeSyntheticTimestamp();
 
   return {
@@ -1673,13 +1843,7 @@ function serializeMetaobjectDefinitionUpdateMutation(
   const id = readStringValue(args['id']);
   const existingDefinition = id ? store.getEffectiveMetaobjectDefinitionById(id) : null;
   if (!id || !existingDefinition) {
-    return serializeDefinitionMutationPayload(field, document, null, [
-      {
-        field: ['id'],
-        message: 'Metaobject definition not found.',
-        code: 'NOT_FOUND',
-      },
-    ]);
+    return serializeDefinitionMutationPayload(field, document, null, [recordNotFoundUserError()]);
   }
 
   const input = isPlainObject(args['definition']) ? args['definition'] : {};
@@ -1715,13 +1879,7 @@ function serializeMetaobjectDefinitionDeleteMutation(
   const definition = id ? store.getEffectiveMetaobjectDefinitionById(id) : null;
 
   if (!id || !definition) {
-    return serializeDeleteDefinitionPayload(field, null, [
-      {
-        field: ['id'],
-        message: 'Metaobject definition not found.',
-        code: 'NOT_FOUND',
-      },
-    ]);
+    return serializeDeleteDefinitionPayload(field, null, [recordNotFoundUserError()]);
   }
 
   if ((definition.metaobjectsCount ?? 0) > 0) {
@@ -1826,13 +1984,7 @@ function serializeMetaobjectUpdateMutation(
   const id = readStringValue(args['id']);
   const existingMetaobject = id ? store.getEffectiveMetaobjectById(id) : null;
   if (!id || !existingMetaobject) {
-    return serializeMetaobjectMutationPayload(field, document, variables, null, [
-      {
-        field: ['id'],
-        message: 'Metaobject not found.',
-        code: 'NOT_FOUND',
-      },
-    ]);
+    return serializeMetaobjectMutationPayload(field, document, variables, null, [recordNotFoundUserError()]);
   }
 
   const definition = store.findEffectiveMetaobjectDefinitionByType(existingMetaobject.type);
@@ -1840,8 +1992,8 @@ function serializeMetaobjectUpdateMutation(
     return serializeMetaobjectMutationPayload(field, document, variables, null, [
       {
         field: ['id'],
-        message: 'Metaobject definition not found.',
-        code: 'NOT_FOUND',
+        message: `No metaobject definition exists for type "${existingMetaobject.type}"`,
+        code: 'UNDEFINED_OBJECT_TYPE',
       },
     ]);
   }
@@ -1863,11 +2015,11 @@ function serializeMetaobjectUpsertMutation(
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const handle = readMetaobjectHandleInput(args['handle']);
-  if (!handle.type || !handle.handle) {
+  if (!handle.type) {
     return serializeMetaobjectMutationPayload(field, document, variables, null, [
       {
-        field: ['handle'],
-        message: 'Handle type and value are required.',
+        field: ['handle', 'type'],
+        message: "Type can't be blank",
         code: 'BLANK',
       },
     ]);
@@ -1878,14 +2030,17 @@ function serializeMetaobjectUpsertMutation(
     return serializeMetaobjectMutationPayload(field, document, variables, null, [
       {
         field: ['handle', 'type'],
-        message: 'Metaobject definition not found.',
-        code: 'NOT_FOUND',
+        message: `No metaobject definition exists for type "${handle.type}"`,
+        code: 'UNDEFINED_OBJECT_TYPE',
       },
     ]);
   }
 
   const input = isPlainObject(args['metaobject']) ? args['metaobject'] : {};
-  const existingMetaobject = store.findEffectiveMetaobjectByHandle({ type: handle.type, handle: handle.handle });
+  const requestedHandle = readNonBlankStringValue(handle.handle);
+  const existingMetaobject = requestedHandle
+    ? store.findEffectiveMetaobjectByHandle({ type: handle.type, handle: requestedHandle })
+    : null;
   if (existingMetaobject) {
     const updateResult = applyMetaobjectUpdateInput(
       existingMetaobject,
@@ -1900,11 +2055,12 @@ function serializeMetaobjectUpsertMutation(
     return serializeMetaobjectMutationPayload(field, document, variables, updateResult.metaobject, []);
   }
 
+  const createHandle = readNonBlankStringValue(input['handle']) ?? requestedHandle;
   const createResult = buildMetaobjectFromCreateInput(
     {
       ...input,
       type: handle.type,
-      handle: readStringValue(input['handle']) ?? handle.handle,
+      ...(createHandle ? { handle: createHandle } : {}),
     },
     definition,
   );
@@ -1926,13 +2082,7 @@ function serializeMetaobjectDeleteMutation(
   const metaobject = id ? store.getEffectiveMetaobjectById(id) : null;
 
   if (!id || !metaobject) {
-    return serializeMetaobjectDeletePayload(field, null, [
-      {
-        field: ['id'],
-        message: 'Metaobject not found.',
-        code: 'NOT_FOUND',
-      },
-    ]);
+    return serializeMetaobjectDeletePayload(field, null, [recordNotFoundUserError()]);
   }
 
   store.deleteStagedMetaobject(id);
@@ -1979,9 +2129,7 @@ function serializeMetaobjectBulkDeleteMutation(
     const metaobject = store.getEffectiveMetaobjectById(id);
     if (!metaobject) {
       userErrors.push({
-        field: ['ids', String(index)],
-        message: 'Metaobject not found.',
-        code: 'NOT_FOUND',
+        ...recordNotFoundUserError(['ids', String(index)]),
         elementIndex: index,
       });
       continue;
@@ -2000,6 +2148,59 @@ function serializeMetaobjectBulkDeleteMutation(
     deletedCountsByType.size > 0 ? { id: makeSyntheticGid('Job'), done: true } : null,
     userErrors,
   );
+}
+
+function validateMetaobjectMutationArguments(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown>[] {
+  const name = field.name.value;
+  const validations: RequiredArgumentValidation[] = [];
+
+  switch (name) {
+    case 'metaobjectDefinitionCreate':
+      validations.push(
+        validateRequiredArgument(field, variables, name, 'definition', 'MetaobjectDefinitionCreateInput!'),
+      );
+      break;
+    case 'metaobjectDefinitionUpdate':
+      validations.push(validateRequiredArgument(field, variables, name, 'id', 'ID!'));
+      validations.push(
+        validateRequiredArgument(field, variables, name, 'definition', 'MetaobjectDefinitionUpdateInput!'),
+      );
+      break;
+    case 'metaobjectDefinitionDelete':
+      validations.push(validateRequiredArgument(field, variables, name, 'id', 'ID!'));
+      break;
+    case 'standardMetaobjectDefinitionEnable':
+      validations.push(validateRequiredArgument(field, variables, name, 'type', 'String!'));
+      break;
+    case 'metaobjectCreate':
+      validations.push(validateRequiredArgument(field, variables, name, 'metaobject', 'MetaobjectCreateInput!'));
+      break;
+    case 'metaobjectUpdate':
+      validations.push(validateRequiredArgument(field, variables, name, 'id', 'ID!'));
+      validations.push(validateRequiredArgument(field, variables, name, 'metaobject', 'MetaobjectUpdateInput!'));
+      break;
+    case 'metaobjectUpsert':
+      validations.push(validateRequiredArgument(field, variables, name, 'handle', 'MetaobjectHandleInput!'));
+      validations.push(validateRequiredArgument(field, variables, name, 'metaobject', 'MetaobjectUpsertInput!'));
+      break;
+    case 'metaobjectDelete':
+      validations.push(validateRequiredArgument(field, variables, name, 'id', 'ID!'));
+      break;
+    case 'metaobjectBulkDelete':
+      if (!field.arguments?.some((argument) => argument.name.value === 'ids')) {
+        validations.push(
+          validateRequiredArgument(field, variables, name, 'where', 'MetaobjectBulkDeleteWhereCondition!'),
+        );
+      }
+      break;
+    default:
+      break;
+  }
+
+  return validations.flatMap((validation) => validation.errors);
 }
 
 export function handleMetaobjectDefinitionQuery(
@@ -2072,6 +2273,11 @@ export function handleMetaobjectDefinitionMutation(
 
   for (const field of getRootFields(document)) {
     const responseKey = getFieldResponseKey(field);
+    const graphqlErrors = validateMetaobjectMutationArguments(field, variables);
+    if (graphqlErrors.length > 0) {
+      return { errors: graphqlErrors };
+    }
+
     switch (field.name.value) {
       case 'metaobjectDefinitionCreate':
         data[responseKey] = serializeMetaobjectDefinitionCreateMutation(field, variables, document);
