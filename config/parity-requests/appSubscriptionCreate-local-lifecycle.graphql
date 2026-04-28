@@ -1,0 +1,42 @@
+mutation AppSubscriptionCreateLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+  appSubscriptionCreate(
+    name: "Local plan"
+    returnUrl: "https://app.example.test/return"
+    trialDays: 7
+    test: true
+    lineItems: $lineItems
+  ) {
+    confirmationUrl
+    appSubscription {
+      id
+      name
+      status
+      test
+      trialDays
+      lineItems {
+        id
+        plan {
+          pricingDetails {
+            __typename
+            ... on AppUsagePricing {
+              cappedAmount {
+                amount
+                currencyCode
+              }
+              balanceUsed {
+                amount
+                currencyCode
+              }
+              interval
+              terms
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

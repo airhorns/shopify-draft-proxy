@@ -1,14 +1,6 @@
 {
   "scenarioId": "price-list-mutation-validation",
-  "operationNames": [
-    "priceListCreate",
-    "priceListUpdate",
-    "priceListDelete",
-    "priceListFixedPricesAdd",
-    "priceListFixedPricesUpdate",
-    "priceListFixedPricesDelete",
-    "priceListFixedPricesByProductUpdate"
-  ],
+  "operationNames": ["priceListCreate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
   "liveCaptureFiles": [

@@ -1,0 +1,10 @@
+mutation DelegateAccessTokenDestroyLocalLifecycle($token: String!) {
+  delegateAccessTokenDestroy(accessToken: $token) {
+    status
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

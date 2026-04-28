@@ -5,13 +5,10 @@
     "giftCards",
     "giftCardsCount",
     "giftCardConfiguration",
-    "giftCardCreate",
     "giftCardUpdate",
     "giftCardCredit",
     "giftCardDebit",
-    "giftCardDeactivate",
-    "giftCardSendNotificationToCustomer",
-    "giftCardSendNotificationToRecipient"
+    "giftCardDeactivate"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [

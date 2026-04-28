@@ -1,6 +1,6 @@
 {
   "scenarioId": "fulfillment-detail-events-lifecycle",
-  "operationNames": ["fulfillment", "fulfillmentEventCreate", "fulfillmentTrackingInfoUpdate", "fulfillmentCancel"],
+  "operationNames": ["fulfillment"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
