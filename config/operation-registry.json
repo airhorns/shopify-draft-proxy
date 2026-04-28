@@ -174,7 +174,7 @@
     "implemented": true,
     "matchNames": ["node", "Node"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support resolves locally modeled Product ids and the effective shop primaryDomain id through the generic Node interface. Unknown ids and unsupported resource families return null; broader type dispatch remains a declared gap until each resource serializer can be safely selected by GID type."
+    "supportNotes": "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers or direct serializers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "nodes",
@@ -184,7 +184,7 @@
     "implemented": true,
     "matchNames": ["nodes", "Nodes"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support applies local Product and effective primaryDomain Node resolution per input id while preserving input order. Missing ids and unsupported resource families return null entries; broader type dispatch remains a declared gap until each resource serializer can be safely selected by GID type."
+    "supportNotes": "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "job",
@@ -2023,7 +2023,7 @@
     "implemented": true,
     "matchNames": ["customerSavedSearches", "CustomerSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state."
+    "supportNotes": "HAR-312/HAR-402: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state. Customer saved-search creation is deprecated by Shopify and returns a local userError instead of staging a new customer saved search."
   },
   {
     "name": "orderSavedSearches",
@@ -2033,7 +2033,7 @@
     "implemented": true,
     "matchNames": ["orderSavedSearches", "OrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Order SavedSearch connections from effective local saved-search state with captured default-order saved-search shapes represented as records when hydrated or staged."
+    "supportNotes": "HAR-312/HAR-402: serves Order SavedSearch connections from effective local saved-search state while preserving the captured default order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "draftOrderSavedSearches",
@@ -2043,7 +2043,7 @@
     "implemented": true,
     "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves DraftOrder SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+    "supportNotes": "HAR-312/HAR-402: serves DraftOrder SavedSearch connections from effective local saved-search state while preserving the captured default draft-order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "fileSavedSearches",
@@ -2063,7 +2063,7 @@
     "implemented": true,
     "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "automaticDiscountSavedSearches",
@@ -2073,7 +2073,7 @@
     "implemented": true,
     "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "discountRedeemCodeSavedSearches",
@@ -2093,7 +2093,7 @@
     "implemented": true,
     "matchNames": ["savedSearchCreate", "SavedSearchCreate"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
+    "supportNotes": "HAR-312/HAR-402: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, returns Shopify's CUSTOMER deprecation userError, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
   },
   {
     "name": "savedSearchUpdate",

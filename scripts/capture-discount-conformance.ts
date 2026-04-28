@@ -19,7 +19,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'discounts');
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const adminOptions = {
   adminOrigin,

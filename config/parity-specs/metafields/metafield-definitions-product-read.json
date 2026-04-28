@@ -1,0 +1,61 @@
+{
+  "scenarioId": "metafield-definitions-product-read",
+  "operationNames": ["metafieldDefinition", "metafieldDefinitions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "connection-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definitions-product-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definitions-product-read.graphql",
+    "variablesPath": "config/parity-requests/metafields/metafield-definitions-product-read.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable strict snapshot parity for product-owned metafield definition detail and catalog reads. The fixture captures definition fields, pinned catalog ordering, namespace/key query filtering, and definition-scoped product metafields seeded from owner evidence in the same live response.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition metafields connection uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition metafields connection uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition catalog connection uses stable synthetic definition cursors."
+      },
+      {
+        "path": "$.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify returns opaque cursors while the local definition catalog connection uses stable synthetic definition cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "metafield-definition-by-identifier",
+        "capturePath": "$.response.data.byIdentifier",
+        "proxyPath": "$.data.byIdentifier",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "metafield-definitions-pinned-catalog",
+        "capturePath": "$.response.data.metafieldDefinitions",
+        "proxyPath": "$.data.metafieldDefinitions",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "metafield-definitions-filtered-query",
+        "capturePath": "$.response.data.filteredByQuery",
+        "proxyPath": "$.data.filteredByQuery",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "scenarioId": "online-store-content-search-filters",
+  "operationNames": ["articles", "blogs", "pages"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["search-query-parity", "payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-content-search-filters.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-content-search-filters.graphql",
+    "variablesCapturePath": "$.interactions[4].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-393 reviewer rework: live Shopify capture proves fielded online-store content search for article tag, article author, blog title, and page published-status/title filters. The runner hydrates the proxy from the captured baseline catalog edges, then replays the captured search request locally and compares the stable selected payloads. Opaque connection cursors are intentionally excluded.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "online-store fielded search filters match Shopify stable payloads",
+        "capturePath": "$.interactions[4].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.articlesByTag.nodes",
+          "$.articlesByTag.pageInfo.hasNextPage",
+          "$.articlesByTag.pageInfo.hasPreviousPage",
+          "$.articlesByAuthor.nodes",
+          "$.articlesByAuthor.pageInfo.hasNextPage",
+          "$.articlesByAuthor.pageInfo.hasPreviousPage",
+          "$.blogsByTitle.nodes",
+          "$.blogsByTitle.pageInfo.hasNextPage",
+          "$.blogsByTitle.pageInfo.hasPreviousPage",
+          "$.pagesByPublishedTitle.nodes",
+          "$.pagesByPublishedTitle.pageInfo.hasNextPage",
+          "$.pagesByPublishedTitle.pageInfo.hasPreviousPage"
+        ]
+      }
+    ]
+  }
+}

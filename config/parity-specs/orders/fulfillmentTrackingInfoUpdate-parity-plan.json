@@ -1,0 +1,52 @@
+{
+  "scenarioId": "fulfillment-tracking-info-update-live-parity",
+  "operationNames": ["fulfillmentTrackingInfoUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-tracking-info-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentTrackingInfoUpdate-parity-plan.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured HAR-187 happy-path `fulfillmentTrackingInfoUpdate` slice after fulfillment access was restored. The fixture records the safe live setup fulfillment, the tracking update mutation payload, and immediate downstream order fulfillment visibility.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.createdAt",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live fulfillment creation timestamp, while the local proxy keeps the seeded fulfillment timestamp nullable until creation staging is modeled."
+      },
+      {
+        "path": "$.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream fulfillment read compares the complete selected fulfillment resource; Shopify returns the live tracking update timestamp, while the proxy uses its deterministic staged timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-fulfillment",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.fulfillment",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.fulfillment"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.fulfillmentTrackingInfoUpdate.userErrors",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate.userErrors"
+      },
+      {
+        "name": "downstream-updated-fulfillment",
+        "capturePath": "$.downstreamRead.response.data.order.fulfillments[0]",
+        "proxyPath": "$.data.order.fulfillments[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-fulfillment-lifecycle-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "scenarioId": "products-search-read",
+  "operationNames": ["products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-search-read.graphql",
+    "variablesPath": "config/parity-requests/products/products-search-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for aliased products search reads: compares total count, vendor-filtered results, low-inventory results, selected fields, and pageInfo shape from the captured Shopify response.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "products-search-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

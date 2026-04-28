@@ -11,7 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'customers');
 const captureMode =
   process.env.SHOPIFY_CUSTOMER_MERGE_CAPTURE_MODE === 'attached-resources' ? 'attached-resources' : 'base';
 const capturesAttachedResources = captureMode === 'attached-resources';

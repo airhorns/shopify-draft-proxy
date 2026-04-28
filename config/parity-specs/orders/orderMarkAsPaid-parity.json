@@ -1,0 +1,46 @@
+{
+  "scenarioId": "orderMarkAsPaid-live-parity",
+  "operationNames": ["orderMarkAsPaid"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderMarkAsPaid-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderMarkAsPaid-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 orderMarkAsPaid conformance slice for HAR-120 local staging.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "financial-status",
+        "capturePath": "$.mutation.response.data.orderMarkAsPaid.order.displayFinancialStatus",
+        "proxyPath": "$.data.orderMarkAsPaid.order.displayFinancialStatus"
+      },
+      {
+        "name": "gateway-names",
+        "capturePath": "$.mutation.response.data.orderMarkAsPaid.order.paymentGatewayNames",
+        "proxyPath": "$.data.orderMarkAsPaid.order.paymentGatewayNames"
+      },
+      {
+        "name": "outstanding",
+        "capturePath": "$.mutation.response.data.orderMarkAsPaid.order.totalOutstandingSet",
+        "proxyPath": "$.data.orderMarkAsPaid.order.totalOutstandingSet"
+      },
+      {
+        "name": "transactions",
+        "capturePath": "$.mutation.response.data.orderMarkAsPaid.order.transactions",
+        "proxyPath": "$.data.orderMarkAsPaid.order.transactions"
+      },
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.orderMarkAsPaid.userErrors",
+        "proxyPath": "$.data.orderMarkAsPaid.userErrors"
+      }
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "scenarioId": "productUpdate-blank-title-parity",
+  "operationNames": ["productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUpdate-parity-plan.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured productUpdate blank-title userError, including the unchanged product payload.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-title-product-update-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -539,6 +539,14 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
   return result;
 }
 
+export function serializeFileNodeById(
+  id: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  const file = getEffectiveFileLikeRecord(id);
+  return file ? serializeFileSelectionSet(file, selections) : null;
+}
+
 function serializeFilesConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
   const files = store.listEffectiveFiles();
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(files, field, variables, (file) => file.id);

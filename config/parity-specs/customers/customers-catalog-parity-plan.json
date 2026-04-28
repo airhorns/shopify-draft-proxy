@@ -1,0 +1,26 @@
+{
+  "scenarioId": "customers-catalog-parity-plan",
+  "operationNames": ["customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customers-catalog-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/customers/customers-catalog-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison target covers the captured top-level `customers` pagination data for the merchant-facing customer card slice currently supported by the local overlay serializer. Shopify cost extensions remain outside this contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customers-catalog-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

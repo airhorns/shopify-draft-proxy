@@ -1,0 +1,92 @@
+{
+  "scenarioId": "discount-code-basic-buyer-context-lifecycle",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeDelete",
+    "discountNode",
+    "codeDiscountNodeByCode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "mutation-lifecycle", "buyer-context-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-buyer-context-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/discount-code-basic-lifecycle-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-code-basic-buyer-context-create.graphql",
+    "variablesCapturePath": "$.requests.codeCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-customer-context-create",
+        "capturePath": "$.codeCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount",
+          "$.discountCodeBasicCreate.userErrors"
+        ]
+      },
+      {
+        "name": "code-basic-segment-context-update",
+        "capturePath": "$.codeUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount",
+          "$.discountCodeBasicUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-basic-buyer-context-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.requests.codeUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-basic-segment-context-downstream-read",
+        "capturePath": "$.codeReadAfterUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountNode.discount", "$.codeDiscountNodeByCode.codeDiscount"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-basic-buyer-context-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "code": {
+              "fromCapturePath": "$.variables.updatedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-basic-buyer-context-delete-user-errors",
+        "capturePath": "$.cleanup.codeDelete.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountCodeDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-code-basic-buyer-context-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for native DiscountCodeBasic buyer context transitions. The capture creates a disposable customer and segment, creates a code-basic discount scoped to that customer, updates it to the segment, verifies downstream reads through discountNode and codeDiscountNodeByCode, and deletes all created resources. The parity contract compares the full selected codeDiscount object and userErrors while omitting only live-vs-synthetic discount owner IDs from selected paths."
+}

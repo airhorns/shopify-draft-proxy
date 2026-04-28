@@ -1,0 +1,36 @@
+{
+  "scenarioId": "file-delete-product-media-live-parity",
+  "operationNames": ["fileDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-delete-product-media-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/fileDelete-parity.graphql",
+    "variablesPath": null,
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured generic Files API `fileDelete` against a MediaImage that was first attached to a product through `productCreateMedia`; Shopify removes the associated `product.media` node from immediate downstream reads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileDelete-product-media-downstream-read.graphql",
+          "variablesCapturePath": "$.setup.productCreate.response.data.productCreate.product"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

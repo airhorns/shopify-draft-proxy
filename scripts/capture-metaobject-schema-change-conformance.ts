@@ -35,7 +35,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metaobjects');
 const outputPath = path.join(outputDir, 'metaobject-schema-change-lifecycle.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
@@ -47,12 +47,12 @@ const seed: SeedState = {
 };
 
 const requestPaths = {
-  definitionCreate: 'config/parity-requests/metaobject-schema-change-definition-create.graphql',
-  definitionUpdate: 'config/parity-requests/metaobject-schema-change-definition-update.graphql',
-  entryCreate: 'config/parity-requests/metaobject-schema-change-entry-create.graphql',
-  entryUpdate: 'config/parity-requests/metaobject-schema-change-entry-update.graphql',
-  entryDelete: 'config/parity-requests/metaobject-schema-change-entry-delete.graphql',
-  read: 'config/parity-requests/metaobject-schema-change-read.graphql',
+  definitionCreate: 'config/parity-requests/metaobjects/metaobject-schema-change-definition-create.graphql',
+  definitionUpdate: 'config/parity-requests/metaobjects/metaobject-schema-change-definition-update.graphql',
+  entryCreate: 'config/parity-requests/metaobjects/metaobject-schema-change-entry-create.graphql',
+  entryUpdate: 'config/parity-requests/metaobjects/metaobject-schema-change-entry-update.graphql',
+  entryDelete: 'config/parity-requests/metaobjects/metaobject-schema-change-entry-delete.graphql',
+  read: 'config/parity-requests/metaobjects/metaobject-schema-change-read.graphql',
 };
 
 const queries = Object.fromEntries(

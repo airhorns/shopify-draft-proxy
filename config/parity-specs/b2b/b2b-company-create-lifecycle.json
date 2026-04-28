@@ -1,0 +1,84 @@
+{
+  "scenarioId": "b2b-company-create-lifecycle",
+  "operationNames": ["companyCreate", "company"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-create-lifecycle.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-company-create-lifecycle.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+  "notes": "Executable parity coverage for a disposable B2B companyCreate success path and immediate downstream company(id:) read. The fixture records cleanup through companyDelete after capture; local proxy replay stages only in memory.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-payload",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable default location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "company-create-downstream-read",
+        "capturePath": "$.downstreamRead.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-create-lifecycle-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The downstream proxy read uses the locally staged company ID."
+          },
+          {
+            "path": "$.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The downstream proxy read uses the locally staged default location ID."
+          },
+          {
+            "path": "$.contactRoles.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The downstream proxy read uses locally staged system role IDs."
+          },
+          {
+            "path": "$.contactRoles.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The downstream proxy read uses locally staged system role IDs."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "admin-platform-supported-node-reads",
+  "operationNames": ["node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-supported-node-reads.graphql",
+    "variablesPath": "config/parity-requests/admin-platform/admin-platform-supported-node-reads.variables.json",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-418 executable parity coverage for generic Relay Node reads across representative locally supported resource families captured from the live conformance shop. The proxy harness seeds the captured Product, Collection, Customer, and Location payloads before replaying the same nodes(ids:) request locally; unsupported or absent GID families remain null-only behavior.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "supported-node-resource-payloads",
+        "capturePath": "$.captures.supportedNodes.result.payload.data.nodes",
+        "proxyPath": "$.data.nodes",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

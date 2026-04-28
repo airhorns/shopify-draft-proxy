@@ -14,7 +14,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'admin-platform');
 const outputPath = path.join(outputDir, 'admin-platform-utility-roots.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
@@ -33,6 +33,11 @@ async function runGraphqlCapture(query, variables = {}) {
 
 const rootTypeIntrospectionQuery = `#graphql
   query AdminPlatformUtilityRootTypes {
+    nodeInterface: __type(name: "Node") {
+      possibleTypes {
+        name
+      }
+    }
     queryRoot: __type(name: "QueryRoot") {
       fields {
         name
@@ -180,6 +185,66 @@ const taxonomyEmptySearchQuery = `#graphql
   }
 `;
 
+const supportedNodeSeedQuery = `#graphql
+  query SupportedNodeSeedRead {
+    products(first: 1) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    collections(first: 1) {
+      nodes {
+        id
+        title
+        handle
+      }
+    }
+    customers(first: 1) {
+      nodes {
+        id
+        displayName
+        email
+      }
+    }
+    locations(first: 1) {
+      nodes {
+        id
+        name
+        isActive
+      }
+    }
+  }
+`;
+
+const supportedNodesQuery = `#graphql
+  query SupportedNodeRead($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      ... on Node {
+        id
+      }
+      ... on Product {
+        title
+        handle
+      }
+      ... on Collection {
+        title
+        handle
+      }
+      ... on Customer {
+        displayName
+        email
+      }
+      ... on Location {
+        name
+        isActive
+      }
+    }
+  }
+`;
+
 const staffAccessBlockerQuery = `#graphql
   query StaffUtilityRead {
     staffMember {
@@ -288,6 +353,18 @@ const backupRegionUpdateInvalidMutation = `#graphql
 `;
 
 const introspection = await runGraphqlCapture(rootTypeIntrospectionQuery);
+function unwrapNamedType(type) {
+  let current = type;
+  while (current?.ofType) {
+    current = current.ofType;
+  }
+  return typeof current?.name === 'string' ? current.name : null;
+}
+
+function hasIdArgument(field) {
+  return field.args?.some((arg) => arg.name === 'id' && unwrapNamedType(arg.type) === 'ID') ?? false;
+}
+
 const utilityRootNames = new Set([
   'backupRegion',
   'backupRegionUpdate',
@@ -308,6 +385,34 @@ const rootTypes = {
   mutationRoot:
     introspection.payload.data?.mutationRoot?.fields?.filter((field) => utilityRootNames.has(field.name)) ?? [],
 };
+const nodePossibleTypeNames = new Set(
+  introspection.payload.data?.nodeInterface?.possibleTypes
+    ?.map((type) => type.name)
+    .filter((name) => typeof name === 'string') ?? [],
+);
+const nodeCandidateRootFields =
+  introspection.payload.data?.queryRoot?.fields
+    ?.filter((field) => {
+      const returnType = unwrapNamedType(field.type);
+      return hasIdArgument(field) && returnType !== null && nodePossibleTypeNames.has(returnType);
+    })
+    .map((field) => ({
+      name: field.name,
+      typeName: unwrapNamedType(field.type),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name)) ?? [];
+
+const supportedNodeSeed = {
+  query: supportedNodeSeedQuery,
+  result: await runGraphqlCapture(supportedNodeSeedQuery),
+};
+const supportedNodeSeedData = supportedNodeSeed.result.payload.data ?? {};
+const supportedNodeIds = [
+  supportedNodeSeedData.products?.nodes?.[0]?.id,
+  supportedNodeSeedData.collections?.nodes?.[0]?.id,
+  supportedNodeSeedData.customers?.nodes?.[0]?.id,
+  supportedNodeSeedData.locations?.nodes?.[0]?.id,
+].filter((id) => typeof id === 'string');
 
 const captures = {
   publicApiVersions: {
@@ -341,6 +446,16 @@ const captures = {
   taxonomyEmptySearch: {
     query: taxonomyEmptySearchQuery,
     result: await runGraphqlCapture(taxonomyEmptySearchQuery),
+  },
+  supportedNodeSeeds: supportedNodeSeed,
+  supportedNodes: {
+    query: supportedNodesQuery,
+    variables: {
+      ids: supportedNodeIds,
+    },
+    result: await runGraphqlCapture(supportedNodesQuery, {
+      ids: supportedNodeIds,
+    }),
   },
   staffAccessBlocker: {
     query: staffAccessBlockerQuery,
@@ -387,7 +502,15 @@ await writeFile(
       apiVersion,
       introspection: {
         status: introspection.status,
+        nodeInterface: introspection.payload.data?.nodeInterface ?? null,
+        nodeCandidateRootFields,
         rootTypes,
+      },
+      nodeSeeds: {
+        products: supportedNodeSeedData.products?.nodes ?? [],
+        collections: supportedNodeSeedData.collections?.nodes ?? [],
+        customers: supportedNodeSeedData.customers?.nodes ?? [],
+        locations: supportedNodeSeedData.locations?.nodes ?? [],
       },
       captures,
     },

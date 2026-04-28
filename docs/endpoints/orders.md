@@ -137,9 +137,9 @@ Local staged mutations:
 - Payment terms reads: `tests/integration/payment-terms-query-shapes.test.ts`
 - Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
 - Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`, `tests/integration/order-query-shapes.test.ts`
-- Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`
+- Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`
 - Order editing: `tests/integration/order-edit-flow.test.ts`
 - Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
 - Returns: `tests/integration/order-return-flow.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/order*.json`, `config/parity-specs/draftOrder*.json`, `config/parity-specs/draftOrders*.json`, `config/parity-specs/fulfillment*.json`, `config/parity-specs/refund*.json`, and matching files under `config/parity-requests/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.
+- Conformance fixtures and requests: `config/parity-specs/orders/order*.json`, `config/parity-specs/orders/draftOrder*.json`, `config/parity-specs/orders/draftOrders*.json`, `config/parity-specs/shipping-fulfillments/fulfillment*.json`, `config/parity-specs/orders/refund*.json`, and matching files under `config/parity-requests/orders/` or `config/parity-requests/shipping-fulfillments/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.
 - Residual draft-order helper capture: `corepack pnpm conformance:capture-draft-order-residual-helpers`

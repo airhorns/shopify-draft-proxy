@@ -1,0 +1,31 @@
+{
+  "scenarioId": "order-edit-begin-live-parity",
+  "operationNames": ["orderEditBegin"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable replacement for the old single-root `orderEditBegin` access-scope plan. It runs the local begin handler against the captured existing-order workflow fixture and compares stable selected original-order and userErrors semantics.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-original-order",
+        "capturePath": "$.mutation.response.data.orderEditBegin.calculatedOrder.originalOrder",
+        "proxyPath": "$.data.orderEditBegin.calculatedOrder.originalOrder"
+      },
+      {
+        "name": "begin-user-errors",
+        "capturePath": "$.mutation.response.data.orderEditBegin.userErrors",
+        "proxyPath": "$.data.orderEditBegin.userErrors"
+      }
+    ]
+  }
+}

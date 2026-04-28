@@ -14,7 +14,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'discounts');
 const outputPath = path.join(outputDir, 'discount-bxgy-lifecycle.json');
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const adminOptions = {

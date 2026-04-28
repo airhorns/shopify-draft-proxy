@@ -5,7 +5,7 @@ This endpoint group covers Admin GraphQL platform/utility roots that do not belo
 - queries: `publicApiVersions`, `node`, `nodes`, `job`, `taxonomy`, `domain`, `backupRegion`, `staffMember`, `staffMembers`
 - mutations: `backupRegionUpdate`, `flowGenerateSignature`, `flowTriggerReceive`
 
-HAR-315 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.
+HAR-315/HAR-418 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`.
 
 ## Current support and limitations
 
@@ -14,8 +14,9 @@ HAR-315 conformance evidence lives at `fixtures/conformance/harry-test-heelo.mys
 The local snapshot handler is intentionally conservative and only models shapes backed by the HAR-315 capture:
 
 - `publicApiVersions` returns the captured 2026-04 version window. Refresh the fixture and constant when Shopify rotates supported Admin API versions.
-- `node(id:)` resolves locally modeled Product ids and the effective snapshot shop `primaryDomain` id. Unknown ids and unsupported resource families return `null`.
-- `nodes(ids:)` applies the same local Product/primary Domain resolution per input id, preserves input order, and returns `null` entries for missing or unsupported ids.
+- `node(id:)` resolves locally modeled resource GIDs by dispatching the GID type to the existing local detail handler or direct serializer for that resource family. This includes product/catalog/inventory records, customer and payment-method records, B2B Company records, store/shop/location/business-entity records, Files API records, saved searches, payment terms templates/customizations, BulkOperation, metafield/metaobject definitions, order/fulfillment/return/draft-order records, GiftCard, DeliveryProfile, discount owner nodes, marketing/event/webhook/segment records, Market/MarketCatalog/PriceList records, and supported online-store content/integration records when those records are already present in local state.
+- `nodes(ids:)` applies the same GID-type dispatch per input id, preserves input order, and returns `null` entries for malformed, missing, or unsupported ids.
+- HAR-418 records the live Shopify `Node` interface `possibleTypes` in the admin-platform conformance fixture. `tests/unit/admin-platform-node-coverage.test.ts` verifies every locally supported resolver maps to a live Node implementor and snapshots unsupported implementors plus implemented singular roots that still intentionally return `null` through generic Node dispatch. HAR-424 tracks reducing that unsupported snapshot.
 - `job(id:)` mirrors the captured arbitrary-job behavior: a requested Job GID returns a completed job payload with that id and a selected `query { __typename }` QueryRoot link. The proxy does not model async job lifecycle state yet.
 - `domain(id:)` resolves the effective snapshot shop `primaryDomain` by id when one is present; unknown ids return `null`.
 - `backupRegion` returns the captured `MarketRegionCountry` slice for the current conformance shop. Broader shop-country-to-region id mapping remains a gap.
@@ -26,7 +27,7 @@ The local snapshot handler is intentionally conservative and only models shapes 
 
 - `staffMember` requires `read_users` access and additional Shopify app/store eligibility. The checked-in conformance fixture captures the current credential's `ACCESS_DENIED` response, so snapshot mode mirrors that blocker instead of inventing staff identities.
 - `staffMembers` is treated as the same restricted staff surface. The local handler returns `null` plus the captured access error until authorized staff catalog evidence and a staff state model exist.
-- Generic `node` / `nodes` dispatch is intentionally limited to resource families whose serializers already project local state through the requested selection set. Unsupported GID families return Shopify-like `null` entries rather than partially fabricated objects.
+- Generic `node` / `nodes` dispatch is intentionally limited to resource families whose serializers already project local state through the requested selection set. The admin-platform handler does not create new domain support by itself; unsupported GID families return Shopify-like `null` entries rather than partially fabricated objects. The unsupported list is executable test evidence, not a permanent support claim.
 
 ### Mutation Behavior
 
@@ -38,6 +39,7 @@ The local snapshot handler is intentionally conservative and only models shapes 
 
 ## Historical and developer notes
 
-- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.
+- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`.
 - HAR-400 expanded executable runtime coverage for local Product and primary Domain resolution through the generic `Node` interface.
-- Executable parity specs: `admin-platform-backup-region-update.json`, `admin-platform-flow-generate-signature.json`, and `admin-platform-flow-trigger-receive.json`.
+- HAR-418 expanded generic Node dispatch to existing supported local detail handlers/direct serializers, added executable parity for captured Product, Collection, Customer, and Location `nodes(ids:)` reads, and added an introspection-backed unsupported Node implementor snapshot. Follow-up HAR-424 tracks reducing the remaining unsupported Node list.
+- Executable parity specs: `admin-platform-supported-node-reads.json`, `admin-platform-utility-reads.json`, `admin-platform-backup-region-update.json`, `admin-platform-flow-generate-signature.json`, and `admin-platform-flow-trigger-receive.json`.

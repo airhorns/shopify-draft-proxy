@@ -25,7 +25,7 @@ Local staged mutations currently live under the orders group because they operat
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderRejectCancellationRequest`
 
-Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; HAR-233 adds request/cancellation lifecycle evidence backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-request-lifecycle.json`.
+Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/shipping-fulfillments/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; HAR-233 adds request/cancellation lifecycle evidence backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`.
 
 Top-level fulfillment and fulfillment-order reads are implemented as snapshot/local reads over the existing order graph:
 
@@ -52,8 +52,8 @@ quantities. `reverseDeliveryCreateWithShipping` stores reverse delivery line ite
 `reverseDeliveryShippingUpdate` updates that metadata. `reverseFulfillmentOrderDispose` records disposition type/location
 metadata, reduces remaining local quantities, and closes the reverse fulfillment order when all line work is disposed.
 These roots do not call carriers, create real labels, notify customers, move inventory, or mutate locations at runtime.
-Executable parity lives in `config/parity-specs/return-reverse-logistics-local-staging.json`; live 2026-04 introspection
-evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json`.
+Executable parity lives in `config/parity-specs/orders/return-reverse-logistics-local-staging.json`; live 2026-04 introspection
+evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json`.
 
 `fulfillmentEventCreate` stages local events against an existing order-backed fulfillment and makes them immediately visible in both top-level and nested fulfillment detail reads. Captured 2026-04 behavior showed an `IN_TRANSIT` event updating `Fulfillment.displayStatus`, `estimatedDeliveryAt`, and `inTransitAt`; local staging mirrors that captured shipment-milestone slice while preserving the original raw mutation for commit replay and without contacting Shopify at runtime.
 
@@ -61,7 +61,7 @@ evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/r
 
 `fulfillmentOrders` lists local order-graph fulfillment orders, excludes `CLOSED` records unless `includeClosed: true` is selected, and supports the captured local subset of ID/status sorting, `reverse`, cursor pagination, and `query` terms for `id`, `status`, and `request_status`. `manualHoldsFulfillmentOrders` returns held local fulfillment orders after staged `fulfillmentOrderHold` calls and otherwise returns the captured no-hold empty connection. `assignedFulfillmentOrders` exposes local order-backed records for staged request/cancellation workflows so tests can observe request-status transitions without an upstream fulfillment-service callback. The HAR-232 live fixture records that the active conformance credential receives `["The api_client is not associated with any fulfillment service."]` for live `assignedFulfillmentOrders`, so broader assignment-status and fulfillment-service scope behavior remains an explicit access-scoped gap rather than guessed behavior.
 
-HAR-234/HAR-367 add fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
+HAR-234/HAR-367 add fulfillment-order lifecycle staging backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`. Local support covers merchant-managed fulfillment orders already present on the local order graph:
 
 - `fulfillmentOrderHold` records app-created hold metadata, moves the selected work to `ON_HOLD`, exposes it through `fulfillmentHolds` and `manualHoldsFulfillmentOrders`, and creates an `OPEN` remaining fulfillment order for partial holds.
 - `fulfillmentOrderReleaseHold` clears local holds, restores `OPEN` status/actions for the held fulfillment order, re-expands the released line items to include the split remainder, and marks the partial-hold remainder order `CLOSED` with zero remaining quantity.
@@ -78,7 +78,7 @@ HAR-234/HAR-367 captured but does not mark full support for `fulfillmentOrderRes
 
 `fulfillmentOrderSubmitCancellationRequest` appends a `CANCELLATION_REQUEST` merchant request to an accepted fulfillment order while preserving Shopify's captured `requestStatus: ACCEPTED` immediately after submission. `fulfillmentOrderAcceptCancellationRequest` closes the fulfillment order with `requestStatus: CANCELLATION_ACCEPTED` and zeroes the modeled fulfillment-order line-item quantities. `fulfillmentOrderRejectCancellationRequest` keeps the order in progress with `requestStatus: CANCELLATION_REJECTED`. These supported roots append original raw mutations to the meta log and never call Shopify or fulfillment-service notification callbacks during normal runtime staging.
 
-Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/fulfillment-detail-events-lifecycle.json`. HAR-233 request/cancellation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-request-lifecycle.json` with parity coverage in `config/parity-specs/fulfillment-order-request-lifecycle.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts` and `tests/integration/order-fulfillment-flow.test.ts`.
+Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json`. HAR-233 request/cancellation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts` and `tests/integration/order-fulfillment-flow.test.ts`.
 
 Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
 
@@ -95,7 +95,7 @@ Delete support covers unknown-id userErrors and inventory actions at the local s
 
 Callback, stock fetch, tracking fetch, and fulfillment-order notification endpoints are never invoked by local staging. The proxy records callback URL and capability flags only as Shopify-like service metadata.
 
-Executable parity evidence for the fulfillment-service lifecycle lives in `config/parity-specs/fulfillment-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream `fulfillmentService(id:)` and `location(id:)` reads, after-delete absence, and validation branches through local proxy requests. It compares the created service/location directly instead of the full captured `shop.fulfillmentServices` catalog because the disposable live store contained unrelated pre-existing services that are not required preconditions for isolated local staging.
+Executable parity evidence for the fulfillment-service lifecycle lives in `config/parity-specs/shipping-fulfillments/fulfillment-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream `fulfillmentService(id:)` and `location(id:)` reads, after-delete absence, and validation branches through local proxy requests. It compares the created service/location directly instead of the full captured `shop.fulfillmentServices` catalog because the disposable live store contained unrelated pre-existing services that are not required preconditions for isolated local staging.
 
 Carrier service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they affect checkout rate-provider configuration:
 
@@ -118,7 +118,7 @@ Delete support is enabled because the 2026-04 schema exposes `carrierServiceDele
 
 Carrier-service callback URLs and service-discovery flags are recorded only as Shopify-like metadata for read-after-write behavior. Local staging never invokes rate callbacks, service-discovery callbacks, or any checkout-rate side effects.
 
-Executable parity evidence for the carrier-service lifecycle lives in `config/parity-specs/carrier-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream detail and active-filter catalog reads, after-delete absence, and validation branches through local proxy requests. It omits the captured opaque id-filter cursor branch from the replay comparison because the isolated proxy execution uses synthetic carrier-service IDs, while runtime coverage still exercises id-filter behavior directly.
+Executable parity evidence for the carrier-service lifecycle lives in `config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json`. The spec replays the captured create/update/delete lifecycle, downstream detail and active-filter catalog reads, after-delete absence, and validation branches through local proxy requests. It omits the captured opaque id-filter cursor branch from the replay comparison because the isolated proxy execution uses synthetic carrier-service IDs, while runtime coverage still exercises id-filter behavior directly.
 
 Delivery-profile reads are implemented as fixture-backed snapshot reads:
 
@@ -128,7 +128,7 @@ Delivery-profile reads are implemented as fixture-backed snapshot reads:
 - Snapshot mode does not invent shipping profiles. With no normalized delivery-profile fixtures, `deliveryProfiles` returns an empty connection and `deliveryProfile(id:)` returns `null`.
 - Nested profile detail serializes captured scalar counts, profile items, product/variant associations, profile location groups, locations, countries/provinces, zones, method definitions, rate providers, method conditions, selling-plan group connections, and unassigned locations when those fields exist in the normalized fixture.
 - Product, variant, and location associations are stored as ids and projected from the existing product/location state. A delivery profile fixture should not duplicate full product, variant, or location blobs.
-- Live read evidence for 2026-04 is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`. The capture used `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-delivery-profiles`; no access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
+- Live read evidence for 2026-04 is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profiles-read.json`. The capture used `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture-delivery-profiles`; no access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
 
 Delivery-profile writes are implemented for a deliberately bounded, conformance-backed custom-profile subset:
 
@@ -141,7 +141,7 @@ Delivery-profile writes are implemented for a deliberately bounded, conformance-
 - `deliveryProfileRemove(id:)` stages custom-profile removal locally and returns a Shopify-like asynchronous `Job` payload with `done: false`; downstream local reads treat the profile as removed immediately so tests can observe the staged graph without waiting for Shopify's background job.
 - Successful create/update/remove mutations append staged mutation-log entries with the original GraphQL request body for commit replay. Validation branches with no state change return local `userErrors` and are not added to the commit log.
 - Variant association moves the variant into the target local profile and removes it from other locally known delivery profiles so downstream `deliveryProfile` / `deliveryProfiles` reads stay single-owner for the modeled variant.
-- Captured 2026-04 write evidence is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json` and registered by `config/parity-specs/delivery-profile-lifecycle.json`. The capture covered blank-name validation, nested create, nested update, condition delete, variant dissociation, missing update/remove, default-profile removal denial, async removal job payload, and downstream null read after removal. No access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
+- Captured 2026-04 write evidence is checked in at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-writes.json` and registered by `config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json`. The capture covered blank-name validation, nested create, nested update, condition delete, variant dissociation, missing update/remove, default-profile removal denial, async removal job payload, and downstream null read after removal. No access-scope or manage-delivery-settings blocker was encountered for the current conformance credential.
 
 Delivery settings and promise settings have a narrow read-only snapshot slice:
 
@@ -250,12 +250,12 @@ Shipping-line order-edit roots:
 - Implemented shipping settings/package/pickup slice: `tests/integration/shipping-settings-flow.test.ts`
 - Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`
 - Implemented delivery-profile writes: `tests/integration/delivery-profile-lifecycle-flow.test.ts`
-- Existing fulfillment parity specs and requests: `config/parity-specs/fulfillment*.json` and matching files under `config/parity-requests/`
-- Fulfillment-order request/cancellation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-request-lifecycle.json`
-- Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/carrier-service-lifecycle.json` and `config/parity-specs/carrier-service-lifecycle.json`
-- Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profiles-read.json`
-- Delivery-profile write capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/delivery-profile-writes.json`
-- Delivery settings/customization/promise probe evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/delivery-customization-promise-settings-blockers.json`
-- Shipping settings/package/pickup/constraint evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-settings-package-pickup-constraints.json` and `config/parity-specs/shipping-settings-package-pickup-constraints.json`
+- Existing fulfillment parity specs and requests: `config/parity-specs/shipping-fulfillments/fulfillment*.json` and matching files under `config/parity-requests/shipping-fulfillments/`
+- Fulfillment-order request/cancellation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`
+- Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-lifecycle.json` and `config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json`
+- Delivery-profile read capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profiles-read.json`
+- Delivery-profile write capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-writes.json`
+- Delivery settings/customization/promise probe evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/delivery-customization-promise-settings-blockers.json`
+- Shipping settings/package/pickup/constraint evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/shipping-settings-package-pickup-constraints.json` and `config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
 - Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

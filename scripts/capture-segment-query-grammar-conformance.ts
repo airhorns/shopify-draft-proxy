@@ -19,7 +19,7 @@ type CapturedCase = {
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'segments');
 const outputPath = path.join(outputDir, 'segment-query-grammar-not-contains.json');
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,

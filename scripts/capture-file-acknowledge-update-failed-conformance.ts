@@ -47,7 +47,7 @@ type FileReadData = {
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'media');
 const outputFile = path.join(outputDir, 'file-acknowledge-update-failed-parity.json');
 const { runGraphql } = createAdminGraphqlClient({
   adminOrigin,

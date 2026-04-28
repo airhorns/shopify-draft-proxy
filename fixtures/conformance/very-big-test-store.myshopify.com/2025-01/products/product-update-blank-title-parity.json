@@ -1,0 +1,39 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/9257218801897",
+        "title": ""
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/9257218801897",
+            "title": "Hermes Product Conformance 1776550632328",
+            "handle": "hermes-product-conformance-1776550632328",
+            "status": "DRAFT",
+            "vendor": "HERMES",
+            "productType": "ACCESSORIES",
+            "tags": ["1776550632328", "conformance", "product-mutation"],
+            "descriptionHtml": "<p>Hermes product mutation conformance 1776550632328</p>",
+            "templateSuffix": "product-mutation-parity",
+            "seo": {
+              "title": "Hermes Product 1776550632328",
+              "description": "Hermes product mutation conformance 1776550632328"
+            },
+            "onlineStorePreviewUrl": "https://v58oon56ip2ba84y-63755419881.shopifypreview.com/products_preview?preview_key=2f0bc21b2c1f4b4ac387b19f560fb279&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaVoyWlhKNUxXSnBaeTEwWlhOMExYTjBiM0psTG0xNWMyaHZjR2xtZVM1amIyMEdPZ1pGVkE9PSIsImV4cCI6IjIwMjYtMDQtMThUMjM6MTc6MTYuNDQwWiIsInB1ciI6InBlcm1hbmVudF9wYXNzd29yZF9ieXBhc3MifX0=--60ef7ae138bce4d7735c412467a5e8fddf2947af"
+          },
+          "userErrors": [
+            {
+              "field": ["title"],
+              "message": "Title can't be blank"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sourceCapture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json#validation.blankTitle"
+}

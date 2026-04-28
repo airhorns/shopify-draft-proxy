@@ -14,7 +14,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'discounts');
 const validationOutputPath = path.join(outputDir, 'discount-validation-branches.json');
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const adminOptions = {
@@ -25,15 +25,15 @@ const adminOptions = {
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
 
 const discountValidationDocument = await readFile(
-  'config/parity-requests/discount-validation-branches.graphql',
+  'config/parity-requests/discounts/discount-validation-branches.graphql',
   'utf8',
 );
 const missingInputDocument = await readFile(
-  'config/parity-requests/discountCodeBasicCreate-missing-input.graphql',
+  'config/parity-requests/discounts/discountCodeBasicCreate-missing-input.graphql',
   'utf8',
 );
 const inlineNullInputDocument = await readFile(
-  'config/parity-requests/discountCodeBasicCreate-inline-null-input.graphql',
+  'config/parity-requests/discounts/discountCodeBasicCreate-inline-null-input.graphql',
   'utf8',
 );
 

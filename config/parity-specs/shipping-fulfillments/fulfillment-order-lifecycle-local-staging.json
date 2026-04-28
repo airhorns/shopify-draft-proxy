@@ -1,0 +1,537 @@
+{
+  "scenarioId": "fulfillment-order-lifecycle-local-staging",
+  "operationNames": [
+    "fulfillmentOrderHold",
+    "fulfillmentOrderReleaseHold",
+    "fulfillmentOrderMove",
+    "fulfillmentOrderReschedule",
+    "fulfillmentOrderReportProgress",
+    "fulfillmentOrderOpen",
+    "fulfillmentOrderClose",
+    "fulfillmentOrderCancel",
+    "fulfillmentOrderSplit",
+    "fulfillmentOrdersSetFulfillmentDeadline",
+    "fulfillmentOrderMerge"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-fulfillment-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-hold.graphql",
+    "variablesCapturePath": "$.workflows.holdRelease.hold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "hold-mutation-data",
+        "capturePath": "$.workflows.holdRelease.hold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-hold-order-read",
+        "capturePath": "$.workflows.holdRelease.afterHold.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.afterHold.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "release-hold-mutation-data",
+        "capturePath": "$.workflows.holdRelease.releaseHold.response.payload.data.fulfillmentOrderReleaseHold",
+        "proxyPath": "$.data.fulfillmentOrderReleaseHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-release-hold.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.releaseHold.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-release-hold-order-read",
+        "capturePath": "$.workflows.holdRelease.afterReleaseHold.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.holdRelease.afterReleaseHold.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "move-mutation-data",
+        "capturePath": "$.workflows.move.move.response.payload.data.fulfillmentOrderMove",
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-move.graphql",
+          "variablesCapturePath": "$.workflows.move.move.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.movedFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.movedFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.movedFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.originalFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.originalFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-move-order-read",
+        "capturePath": "$.workflows.move.afterMove.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.move.afterMove.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "reschedule-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.reschedule.response.payload.data.fulfillmentOrderReschedule",
+        "proxyPath": "$.data.fulfillmentOrderReschedule",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-reschedule.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.reschedule.variables"
+        }
+      },
+      {
+        "name": "after-reschedule-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterReschedule.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReschedule.orderRead.variables"
+        }
+      },
+      {
+        "name": "report-progress-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
+        "proxyPath": "$.data.fulfillmentOrderReportProgress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-report-progress.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.reportProgress.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-report-progress-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterReportProgress.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "open-mutation-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.open.response.payload.data.fulfillmentOrderOpen",
+        "proxyPath": "$.data.fulfillmentOrderOpen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-open.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.open.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-open-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterOpen.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "close-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.close.response.payload.data.fulfillmentOrderClose",
+        "proxyPath": "$.data.fulfillmentOrderClose",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-close.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.close.variables"
+        }
+      },
+      {
+        "name": "after-close-order-read",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.afterClose.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.afterClose.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "cancel-mutation-data",
+        "capturePath": "$.workflows.reroute.cancelAfterReroute.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-cancel.graphql",
+          "variablesCapturePath": "$.workflows.reroute.cancelAfterReroute.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.replacementFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.replacementFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-cancel-order-read",
+        "capturePath": "$.workflows.reroute.afterCancel.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.reroute.afterCancel.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "residual-split-mutation-data",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.split.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-split.graphql",
+          "variablesCapturePath": "$.workflows.residualSplitDeadlineMerge.split.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrderSplits[*].fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic line-item IDs for split fulfillment orders; Shopify returns store-assigned IDs in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-residual-split-order-read",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.afterSplit.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.residualSplitDeadlineMerge.afterSplit.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic line-item IDs for split fulfillment orders; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "residual-set-deadline-data",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.setFulfillmentDeadline.response.payload.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyPath": "$.data.fulfillmentOrdersSetFulfillmentDeadline",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-set-deadline.graphql",
+          "variables": {
+            "fulfillmentOrderIds": [
+              {
+                "fromProxyResponse": "residual-split-mutation-data",
+                "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].fulfillmentOrder.id"
+              },
+              {
+                "fromProxyResponse": "residual-split-mutation-data",
+                "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].remainingFulfillmentOrder.id"
+              }
+            ],
+            "fulfillmentDeadline": {
+              "fromCapturePath": "$.workflows.residualSplitDeadlineMerge.setFulfillmentDeadline.variables.fulfillmentDeadline"
+            }
+          }
+        }
+      },
+      {
+        "name": "after-residual-set-deadline-order-read",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.afterSetFulfillmentDeadline.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.residualSplitDeadlineMerge.afterSetFulfillmentDeadline.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for fulfillment-order objects created during local staging; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic line-item IDs for split fulfillment orders; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "residual-merge-mutation-data",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.merge.response.payload.data.fulfillmentOrderMerge",
+        "proxyPath": "$.data.fulfillmentOrderMerge",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-merge.graphql",
+          "variables": {
+            "fulfillmentOrderMergeInputs": [
+              {
+                "mergeIntents": [
+                  {
+                    "fulfillmentOrderId": {
+                      "fromProxyResponse": "residual-split-mutation-data",
+                      "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].fulfillmentOrder.id"
+                    }
+                  },
+                  {
+                    "fulfillmentOrderId": {
+                      "fromProxyResponse": "residual-split-mutation-data",
+                      "path": "$.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0].remainingFulfillmentOrder.id"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrderMerges[*].fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      },
+      {
+        "name": "after-residual-merge-order-read",
+        "capturePath": "$.workflows.residualSplitDeadlineMerge.afterMerge.orderRead.response.payload.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql",
+          "variablesCapturePath": "$.workflows.residualSplitDeadlineMerge.afterMerge.orderRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrders.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for split fulfillment-order siblings; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic line-item IDs for split fulfillment-order siblings; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrders.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-234/HAR-367 executable parity replay for local fulfillment-order lifecycle staging. The runner seeds the captured Shopify 2026-04 order/fulfillment-order preconditions, replays supported hold/release, move, report-progress/open, cancel, split, deadline, and merge mutations against the local proxy harness, and compares captured Shopify payload slices to proxy payload slices directly. Target-local expected differences are limited to synthetic IDs and timestamps for locally created staged records. Reroute, close, reschedule, and prepared-for-pickup remain documented as captured blocker/guardrail branches rather than full local support."
+}
