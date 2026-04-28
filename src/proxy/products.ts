@@ -1,6 +1,7 @@
 import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 import type { ReadMode } from '../config.js';
 import { getFieldArguments, getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { jsonValueSchema, type JsonValue } from '../json-schemas.js';
 import {
   applySearchQuery,
   matchesSearchQueryString,
@@ -15,6 +16,7 @@ import {
   getVariableDefinitionLocation,
   paginateConnectionItems,
   projectGraphqlObject,
+  projectGraphqlValue,
   readPlainObjectArray,
   serializeConnection,
   type GraphqlErrorLocation,
@@ -116,6 +118,11 @@ type ProductIdentifierCustomId = {
 
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
+}
+
+function readCapturedJsonValue(raw: unknown): JsonValue | undefined {
+  const result = jsonValueSchema.safeParse(raw);
+  return result.success ? structuredClone(result.data) : undefined;
 }
 
 function readProductIdentifierCustomId(identifier: Record<string, unknown>): ProductIdentifierCustomId | null {
@@ -4376,6 +4383,7 @@ function normalizeUpstreamVariant(productId: string, value: unknown): ProductVar
   const rawTaxable = value['taxable'];
   const rawInventoryPolicy = value['inventoryPolicy'];
   const rawInventoryQuantity = value['inventoryQuantity'];
+  const contextualPricing = readCapturedJsonValue(value['contextualPricing']);
 
   return {
     id: rawId,
@@ -4390,6 +4398,7 @@ function normalizeUpstreamVariant(productId: string, value: unknown): ProductVar
     inventoryQuantity: typeof rawInventoryQuantity === 'number' ? rawInventoryQuantity : null,
     selectedOptions,
     inventoryItem,
+    ...(contextualPricing === undefined ? {} : { contextualPricing }),
   };
 }
 
@@ -6412,6 +6421,13 @@ function serializeVariantSelectionSet(
       case 'inventoryItem':
         result[key] = serializeInventoryItemSelectionSet(variant, selection.selectionSet?.selections ?? [], variables);
         break;
+      case 'contextualPricing':
+        result[key] = projectGraphqlValue(
+          variant.contextualPricing,
+          selection.selectionSet?.selections ?? [],
+          new Map(),
+        );
+        break;
       case 'product': {
         const product = store.getEffectiveProductById(variant.productId);
         result[key] = serializeProduct(product, selection, {});
@@ -7678,6 +7694,8 @@ function serializeProductField(product: ProductRecord, field: FieldNode, variabl
     }
     case 'metafields':
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(product.id), field, variables);
+    case 'contextualPricing':
+      return projectGraphqlValue(product.contextualPricing, field.selectionSet?.selections ?? [], new Map());
     case 'sellingPlanGroups':
       return serializeSellingPlanGroupConnection(
         store.listEffectiveSellingPlanGroupsVisibleForProduct(product.id),
@@ -8827,6 +8845,7 @@ function normalizeUpstreamProduct(value: unknown): {
   const rawPublishedOnCurrentPublication = value['publishedOnCurrentPublication'];
   const rawAvailablePublicationsCount = value['availablePublicationsCount'];
   const rawResourcePublicationsCount = value['resourcePublicationsCount'];
+  const contextualPricing = readCapturedJsonValue(value['contextualPricing']);
   const hasOptions = hasOwnField(value, 'options');
   const hasVariants = hasOwnField(value, 'variants');
   const hasCollections = hasOwnField(value, 'collections');
@@ -8903,6 +8922,7 @@ function normalizeUpstreamProduct(value: unknown): {
               fullName: typeof rawCategory['fullName'] === 'string' ? rawCategory['fullName'] : null,
             }
           : null,
+      ...(contextualPricing === undefined ? {} : { contextualPricing }),
     },
     options,
     hasOptions,
