@@ -1623,13 +1623,19 @@ function makeCreatedVariantRecord(
   defaults: ProductVariantRecord | null = null,
 ): ProductVariantRecord {
   const selectedOptions = readVariantSelectedOptions(input, productId);
+  const defaultInventoryItem = defaults?.inventoryItem
+    ? {
+        ...structuredClone(defaults.inventoryItem),
+        id: makeSyntheticGid('InventoryItem'),
+      }
+    : null;
   return {
     id: makeSyntheticGid('ProductVariant'),
     productId,
     title: deriveVariantTitle(input['title'], selectedOptions, 'Default Title'),
     sku: readVariantSku(input, null),
     barcode: typeof input['barcode'] === 'string' ? input['barcode'] : null,
-    price: typeof input['price'] === 'string' ? input['price'] : null,
+    price: typeof input['price'] === 'string' ? input['price'] : (defaults?.price ?? null),
     compareAtPrice:
       typeof input['compareAtPrice'] === 'string' ? input['compareAtPrice'] : (defaults?.compareAtPrice ?? null),
     taxable: typeof input['taxable'] === 'boolean' ? input['taxable'] : (defaults?.taxable ?? null),
@@ -1637,7 +1643,9 @@ function makeCreatedVariantRecord(
       typeof input['inventoryPolicy'] === 'string' ? input['inventoryPolicy'] : (defaults?.inventoryPolicy ?? null),
     inventoryQuantity: readVariantInventoryQuantity(input, 0),
     selectedOptions,
-    inventoryItem: readInventoryItemInput(input['inventoryItem'], null),
+    inventoryItem: hasOwnField(input, 'inventoryItem')
+      ? readInventoryItemInput(input['inventoryItem'], null)
+      : defaultInventoryItem,
   };
 }
 
@@ -1709,22 +1717,21 @@ function createVariantsForOptionValueCombinations(
     return existingVariants;
   }
 
+  const existingVariantsWithSelections = fillMissingVariantOptionSelections(existingVariants, options);
   const variantsBySelectedOptions = new Map(
-    fillMissingVariantOptionSelections(existingVariants, options).map((variant) => [
-      selectedOptionsKey(variant.selectedOptions),
-      variant,
-    ]),
+    existingVariantsWithSelections.map((variant) => [selectedOptionsKey(variant.selectedOptions), variant]),
   );
   const defaultVariant = existingVariants[0] ?? null;
 
-  return combinations.map((selectedOptions) => {
-    const existingVariant = variantsBySelectedOptions.get(selectedOptionsKey(selectedOptions));
-    if (existingVariant) {
-      return existingVariant;
-    }
+  const createdVariants = combinations
+    .filter((selectedOptions) => !variantsBySelectedOptions.has(selectedOptionsKey(selectedOptions)))
+    .map((selectedOptions) => makeCreatedVariantRecord(productId, { selectedOptions }, defaultVariant));
 
-    return makeCreatedVariantRecord(productId, { selectedOptions }, defaultVariant);
-  });
+  return [...existingVariantsWithSelections, ...createdVariants];
+}
+
+function productHasStandaloneDefaultVariant(options: ProductOptionRecord[], variants: ProductVariantRecord[]): boolean {
+  return productUsesOnlyDefaultOptionState(options, variants) && variants[0]?.title === 'Default Title';
 }
 
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
@@ -12587,11 +12594,16 @@ export function handleProductMutation(
       const createdVariants = variantInputs.map((variant) =>
         makeCreatedVariantRecord(productId, variant, defaultVariant),
       );
-      const nextVariants = [...effectiveVariants, ...createdVariants];
+      const shouldRemoveStandaloneVariant =
+        variantInputs.length > 0 &&
+        effectiveVariants.length === 1 &&
+        (args['strategy'] === 'REMOVE_STANDALONE_VARIANT' ||
+          productHasStandaloneDefaultVariant(store.getEffectiveOptionsByProductId(productId), effectiveVariants));
+      const nextVariants = [...(shouldRemoveStandaloneVariant ? [] : effectiveVariants), ...createdVariants];
       store.replaceStagedVariantsForProduct(productId, nextVariants);
       store.replaceStagedOptionsForProduct(
         productId,
-        syncProductOptionsWithVariants(productId, undefined, nextVariants),
+        syncProductOptionsWithVariants(productId, shouldRemoveStandaloneVariant ? [] : undefined, nextVariants),
       );
       store.markVariantSearchLagged(productId);
       const product = syncProductInventorySummary(productId);

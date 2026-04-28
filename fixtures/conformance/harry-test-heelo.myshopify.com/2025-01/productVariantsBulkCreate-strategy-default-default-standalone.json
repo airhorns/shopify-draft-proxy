@@ -1,0 +1,222 @@
+{
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135440690",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316683570",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703533874",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366573362",
+              "title": "Default Title",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208206934322",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172135440690",
+      "strategy": "DEFAULT",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Title",
+              "name": "Default Blue"
+            }
+          ],
+          "price": "25.00",
+          "inventoryItem": {
+            "sku": "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+            "tracked": true,
+            "requiresShipping": true
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172135440690",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718316683570",
+                "name": "Title",
+                "position": 1,
+                "values": ["Default Blue"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979703566642",
+                    "name": "Default Blue",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105366606130",
+                  "title": "Default Blue",
+                  "sku": "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+                  "barcode": null,
+                  "price": "25.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Default Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208206967090",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366606130",
+              "title": "Default Blue",
+              "sku": "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208206967090",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135440690",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316683570",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Blue"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703566642",
+                "name": "Default Blue",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366606130",
+              "title": "Default Blue",
+              "sku": "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208206967090",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}
