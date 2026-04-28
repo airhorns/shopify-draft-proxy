@@ -165,16 +165,19 @@ Current customer-domain state deliberately stays narrower than the product model
 
 Localization state is also normalized for the first product-focused slice: available locales, shop locales, and translations live in dedicated state buckets, while `TranslatableResource` rows are derived from the effective product and product-metafield graph. Locale and translation endpoint-specific boundaries are documented in `docs/endpoints/localization.md`.
 
-Current B2B company-domain state is read-only and fixture-backed:
+Current B2B company-domain state is normalized and supports local lifecycle staging:
 
 - `B2BCompanyRecord`, `B2BCompanyContactRecord`, `B2BCompanyContactRoleRecord`,
   and `B2BCompanyLocationRecord` store captured scalar fields plus normalized
   company-to-contact/location/role IDs
 - snapshot reads support company catalog/count/detail roots and singular
   contact/role/location lookups, including empty/null behavior
-- B2B lifecycle mutations remain registry blockers until local create/update,
-  delete, assignment, revoke, address, tax, and side-effect behavior can be
-  staged with downstream read-after-write effects
+- staged company, contact, location, role-assignment, address, staff-assignment,
+  and tax-setting mutations write only to the in-memory staged state, preserve
+  original raw mutation requests for commit replay, and update downstream
+  company/contact/location/role reads without runtime Shopify writes
+- B2B email delivery side effects remain unsupported because local staging
+  cannot faithfully emulate outbound Shopify email delivery
 
 Marketing-domain state keeps activity/event records and engagement metrics together but separate:
 

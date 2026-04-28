@@ -9,7 +9,7 @@ import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
 import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
-import { handleB2BQuery } from './b2b.js';
+import { handleB2BMutation, handleB2BQuery } from './b2b.js';
 import {
   handleBulkOperationMutation,
   handleBulkOperationQuery,
@@ -2073,6 +2073,37 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'b2b',
     canHandle: (request) => request.capability.domain === 'b2b',
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const b2bMutation = handleB2BMutation(request.body.query, request.variables);
+      if (!b2bMutation) {
+        return false;
+      }
+
+      request.proxyLogger.debug(
+        {
+          operationName: request.capability.operationName,
+          operationType: request.parsed.type,
+          rootFields: request.parsed.rootFields,
+        },
+        b2bMutation.staged
+          ? 'staging supported B2B mutation locally'
+          : 'returning captured B2B validation response locally',
+      );
+
+      if (b2bMutation.staged) {
+        appendStagedMutationLog(request, {
+          stagedResourceIds: b2bMutation.stagedResourceIds,
+          notes: b2bMutation.notes,
+        });
+      }
+
+      setGraphQLResponse(request, 200, b2bMutation.response);
+      return true;
+    },
     async handleQuery(request) {
       if (request.capability.execution !== 'overlay-read') {
         return false;

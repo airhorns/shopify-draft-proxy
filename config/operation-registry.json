@@ -685,120 +685,120 @@
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companiesDelete", "CompaniesDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until local company/contact/location deletion semantics and downstream reads are modeled without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAddressDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAddressDelete", "CompanyAddressDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company address mutation scaffold only. Keep unsupported until company location billing/shipping address semantics are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAssignCustomerAsContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAssignCustomerAsContact", "CompanyAssignCustomerAsContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact assignment scaffold only. Keep unsupported until customer-to-company contact linkage and downstream company/customer reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAssignMainContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAssignMainContact", "CompanyAssignMainContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactAssignRole",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactAssignRole", "CompanyContactAssignRole"],
-    "runtimeTests": [],
-    "supportNotes": "B2B role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactAssignRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactAssignRoles", "CompanyContactAssignRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactCreate", "CompanyContactCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact creation, customer linkage, userErrors, and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactDelete", "CompanyContactDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRemoveFromCompany",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRemoveFromCompany", "CompanyContactRemoveFromCompany"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact membership mutation scaffold only. Keep unsupported until removing a contact from a company and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRevokeRole",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRevokeRole", "CompanyContactRevokeRole"],
-    "runtimeTests": [],
-    "supportNotes": "B2B role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRevokeRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactsDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactsDelete", "CompanyContactsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk contact deletion scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactSendWelcomeEmail",
@@ -815,150 +815,150 @@
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactUpdate", "CompanyContactUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact update semantics, userErrors, and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyCreate", "CompanyCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company creation, default roles/location behavior, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyDelete", "CompanyDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company deletion semantics and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignAddress",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignAddress", "CompanyLocationAssignAddress"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location address mutation scaffold only. Keep unsupported until billing/shipping address assignment and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location role assignment scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignStaffMembers",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignStaffMembers", "CompanyLocationAssignStaffMembers"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location staff assignment scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationCreate", "CompanyLocationCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location creation, address/tax defaults, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationDelete", "CompanyLocationDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationRemoveStaffMembers",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationRemoveStaffMembers", "CompanyLocationRemoveStaffMembers"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location staff removal scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationRevokeRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location role revocation scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationsDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationsDelete", "CompanyLocationsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk company location deletion scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationTaxSettingsUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationTaxSettingsUpdate", "CompanyLocationTaxSettingsUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location tax settings scaffold only. Keep unsupported until tax exemption/registration semantics and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationUpdate", "CompanyLocationUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location update semantics, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyRevokeMainContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyRevokeMainContact", "CompanyRevokeMainContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyUpdate", "CompanyUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company update semantics, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "cashManagementLocationSummary",
