@@ -122,6 +122,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 ### Planned local-staging posture
 
 - Definition mutation support does not yet migrate modeled entries or cascade definition deletes into entry state. Future definition/entry coupling needs conformance-backed migration and cascade behavior.
+- Metaobject relationship edges are not yet modeled. `referencedBy` stays an empty connection until live evidence proves the Admin GraphQL shape for `metaobject_reference`, `list.metaobject_reference`, `mixed_reference`, and reverse-reference reads; HAR-409 tracks that follow-up from the HAR-384 fidelity review.
 - Broader bulk delete selection semantics and Shopify async job timing need additional live conformance before widening beyond the local ids/type branches.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 
