@@ -1,0 +1,51 @@
+mutation SavedSearchResourceRootsDelete(
+  $product: SavedSearchDeleteInput!
+  $collection: SavedSearchDeleteInput!
+  $order: SavedSearchDeleteInput!
+  $draftOrder: SavedSearchDeleteInput!
+  $file: SavedSearchDeleteInput!
+  $discountRedeemCode: SavedSearchDeleteInput!
+) {
+  product: savedSearchDelete(input: $product) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  collection: savedSearchDelete(input: $collection) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  order: savedSearchDelete(input: $order) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  draftOrder: savedSearchDelete(input: $draftOrder) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  file: savedSearchDelete(input: $file) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+  discountRedeemCode: savedSearchDelete(input: $discountRedeemCode) {
+    deletedSavedSearchId
+    userErrors {
+      field
+      message
+    }
+  }
+}
