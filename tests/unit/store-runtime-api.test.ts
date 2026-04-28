@@ -174,11 +174,32 @@ describe('InMemoryStore runtime API', () => {
     const store = new InMemoryStore();
     seedEveryEnumerableStoreField(store);
 
+    expect(Object.keys(store.dumpRuntimeState().fields).sort()).toEqual(
+      Object.keys(store as unknown as StoreInternals).sort(),
+    );
+
     const restored = new InMemoryStore();
     restored.restoreRuntimeState(
       JSON.parse(JSON.stringify(store.dumpRuntimeState())) as ReturnType<InMemoryStore['dumpRuntimeState']>,
     );
 
     expect(normalizeStoreInternals(restored)).toEqual(normalizeStoreInternals(store));
+  });
+
+  it('dump/restore guard fails when an in-memory store state field is omitted', () => {
+    const store = new InMemoryStore();
+    seedEveryEnumerableStoreField(store);
+
+    const dump = JSON.parse(JSON.stringify(store.dumpRuntimeState())) as ReturnType<InMemoryStore['dumpRuntimeState']>;
+    const omittedKey = Object.keys(store as unknown as StoreInternals)[0];
+    if (!omittedKey) {
+      throw new Error('Expected InMemoryStore to have enumerable state fields');
+    }
+    delete dump.fields[omittedKey];
+
+    const restored = new InMemoryStore();
+    restored.restoreRuntimeState(dump);
+
+    expect(normalizeStoreInternals(restored)).not.toEqual(normalizeStoreInternals(store));
   });
 });

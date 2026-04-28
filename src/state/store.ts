@@ -113,38 +113,14 @@ interface MetaRuntimeState {
   stagedState: MetaStateSnapshot;
 }
 
+export interface InMemoryStoreStateFieldDumpV1 {
+  kind: 'plain' | 'map' | 'set';
+  value: unknown;
+}
+
 export interface InMemoryStoreStateDumpV1 {
   version: 1;
-  initial: {
-    baseState: StateSnapshot;
-    productSearchConnections: Record<string, ProductCatalogConnectionRecord>;
-    customerCatalogConnection: CustomerCatalogConnectionRecord | null;
-    customerSearchConnections: Record<string, CustomerCatalogConnectionRecord>;
-    orders: Record<string, OrderRecord>;
-    draftOrders: Record<string, DraftOrderRecord>;
-  };
-  runtime: {
-    baseState: StateSnapshot;
-    stagedState: StateSnapshot;
-    mutationLog: MutationLogEntry[];
-    stagedCollectionFamilies: string[];
-    stagedMediaFamilies: string[];
-    laggedTagSearchProductIds: [string, number][];
-    laggedVariantSearchProductIds: string[];
-    productSearchConnections: Record<string, ProductCatalogConnectionRecord>;
-    customerCatalogConnection: CustomerCatalogConnectionRecord | null;
-    customerSearchConnections: Record<string, CustomerCatalogConnectionRecord>;
-    orders: Record<string, OrderRecord>;
-    marketsRootPayloads: Record<string, unknown>;
-    segmentsRootPayloads: Record<string, unknown>;
-    stagedOrders: Record<string, OrderRecord>;
-    deletedOrderIds: string[];
-    calculatedOrders: Record<string, CalculatedOrderRecord>;
-    stagedDraftOrders: Record<string, DraftOrderRecord>;
-    deletedDraftOrderIds: string[];
-    orderMandatePayments: Record<string, OrderMandatePaymentRecord>;
-    stagedUploadContents: [string, string][];
-  };
+  fields: Record<string, InMemoryStoreStateFieldDumpV1>;
 }
 
 const EMPTY_SNAPSHOT: StateSnapshot = {
@@ -344,6 +320,51 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
   return structuredClone(snapshot);
+}
+
+function dumpStateField(value: unknown): InMemoryStoreStateFieldDumpV1 {
+  if (value instanceof Map) {
+    return {
+      kind: 'map',
+      value: [...value.entries()].map(([key, entryValue]) => [structuredClone(key), structuredClone(entryValue)]),
+    };
+  }
+
+  if (value instanceof Set) {
+    return {
+      kind: 'set',
+      value: [...value.values()].map((entry) => structuredClone(entry)),
+    };
+  }
+
+  return {
+    kind: 'plain',
+    value: structuredClone(value),
+  };
+}
+
+function restoreStateField(dump: InMemoryStoreStateFieldDumpV1): unknown {
+  if (dump.kind === 'map') {
+    if (!Array.isArray(dump.value)) {
+      throw new Error('Invalid in-memory store map field dump.');
+    }
+    return new Map(
+      (dump.value as Array<[unknown, unknown]>).map(([key, value]) => [structuredClone(key), structuredClone(value)]),
+    );
+  }
+
+  if (dump.kind === 'set') {
+    if (!Array.isArray(dump.value)) {
+      throw new Error('Invalid in-memory store set field dump.');
+    }
+    return new Set(dump.value.map((entry) => structuredClone(entry)));
+  }
+
+  if (dump.kind !== 'plain') {
+    throw new Error(`Invalid in-memory store field dump kind: ${String(dump.kind)}`);
+  }
+
+  return structuredClone(dump.value);
 }
 
 function buildMetaStateSnapshot(
@@ -802,42 +823,13 @@ export class InMemoryStore {
   }
 
   dumpRuntimeState(): InMemoryStoreStateDumpV1 {
+    const fields = Object.fromEntries(
+      Object.entries(this as Record<string, unknown>).map(([key, value]) => [key, dumpStateField(value)]),
+    );
+
     return {
       version: 1,
-      initial: {
-        baseState: cloneSnapshot(this.initialBaseState),
-        productSearchConnections: structuredClone(this.initialProductSearchConnections),
-        customerCatalogConnection: this.initialCustomerCatalogConnection
-          ? structuredClone(this.initialCustomerCatalogConnection)
-          : null,
-        customerSearchConnections: structuredClone(this.initialCustomerSearchConnections),
-        orders: structuredClone(this.initialBaseOrders),
-        draftOrders: structuredClone(this.initialDraftOrders),
-      },
-      runtime: {
-        baseState: cloneSnapshot(this.baseState),
-        stagedState: cloneSnapshot(this.stagedState),
-        mutationLog: this.getLog(),
-        stagedCollectionFamilies: [...this.stagedCollectionFamilies],
-        stagedMediaFamilies: [...this.stagedMediaFamilies],
-        laggedTagSearchProductIds: [...this.laggedTagSearchProductIds.entries()],
-        laggedVariantSearchProductIds: [...this.laggedVariantSearchProductIds],
-        productSearchConnections: structuredClone(this.baseProductSearchConnections),
-        customerCatalogConnection: this.baseCustomerCatalogConnection
-          ? structuredClone(this.baseCustomerCatalogConnection)
-          : null,
-        customerSearchConnections: structuredClone(this.baseCustomerSearchConnections),
-        orders: structuredClone(this.baseOrders),
-        marketsRootPayloads: structuredClone(this.baseMarketsRootPayloads),
-        segmentsRootPayloads: structuredClone(this.baseSegmentsRootPayloads),
-        stagedOrders: structuredClone(this.stagedOrders),
-        deletedOrderIds: [...this.deletedOrderIds],
-        calculatedOrders: structuredClone(this.calculatedOrders),
-        stagedDraftOrders: structuredClone(this.stagedDraftOrders),
-        deletedDraftOrderIds: [...this.deletedDraftOrderIds],
-        orderMandatePayments: structuredClone(this.orderMandatePayments),
-        stagedUploadContents: [...this.stagedUploadContents.entries()],
-      },
+      fields,
     };
   }
 
@@ -846,37 +838,19 @@ export class InMemoryStore {
       throw new Error(`Unsupported in-memory store state dump version: ${String(dump.version)}`);
     }
 
-    this.initialBaseState = cloneSnapshot(dump.initial.baseState);
-    this.initialProductSearchConnections = structuredClone(dump.initial.productSearchConnections);
-    this.initialCustomerCatalogConnection = dump.initial.customerCatalogConnection
-      ? structuredClone(dump.initial.customerCatalogConnection)
-      : null;
-    this.initialCustomerSearchConnections = structuredClone(dump.initial.customerSearchConnections);
-    this.initialBaseOrders = structuredClone(dump.initial.orders);
-    this.initialDraftOrders = structuredClone(dump.initial.draftOrders);
+    const targetFields = this as Record<string, unknown>;
+    const defaultFields = new InMemoryStore() as unknown as Record<string, unknown>;
 
-    this.baseState = cloneSnapshot(dump.runtime.baseState);
-    this.stagedState = cloneSnapshot(dump.runtime.stagedState);
-    this.mutationLog = structuredClone(dump.runtime.mutationLog);
-    this.stagedCollectionFamilies = new Set(dump.runtime.stagedCollectionFamilies);
-    this.stagedMediaFamilies = new Set(dump.runtime.stagedMediaFamilies);
-    this.laggedTagSearchProductIds = new Map(dump.runtime.laggedTagSearchProductIds);
-    this.laggedVariantSearchProductIds = new Set(dump.runtime.laggedVariantSearchProductIds);
-    this.baseProductSearchConnections = structuredClone(dump.runtime.productSearchConnections);
-    this.baseCustomerCatalogConnection = dump.runtime.customerCatalogConnection
-      ? structuredClone(dump.runtime.customerCatalogConnection)
-      : null;
-    this.baseCustomerSearchConnections = structuredClone(dump.runtime.customerSearchConnections);
-    this.baseOrders = structuredClone(dump.runtime.orders);
-    this.baseMarketsRootPayloads = structuredClone(dump.runtime.marketsRootPayloads);
-    this.baseSegmentsRootPayloads = structuredClone(dump.runtime.segmentsRootPayloads);
-    this.stagedOrders = structuredClone(dump.runtime.stagedOrders);
-    this.deletedOrderIds = new Set(dump.runtime.deletedOrderIds);
-    this.calculatedOrders = structuredClone(dump.runtime.calculatedOrders);
-    this.stagedDraftOrders = structuredClone(dump.runtime.stagedDraftOrders);
-    this.deletedDraftOrderIds = new Set(dump.runtime.deletedDraftOrderIds);
-    this.orderMandatePayments = structuredClone(dump.runtime.orderMandatePayments);
-    this.stagedUploadContents = new Map(dump.runtime.stagedUploadContents);
+    for (const [key, value] of Object.entries(defaultFields)) {
+      targetFields[key] = restoreStateField(dumpStateField(value));
+    }
+
+    for (const [key, fieldDump] of Object.entries(dump.fields)) {
+      if (!(key in targetFields)) {
+        continue;
+      }
+      targetFields[key] = restoreStateField(fieldDump);
+    }
   }
 
   private appendLog(entry: MutationLogEntry): void {
