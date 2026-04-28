@@ -28,7 +28,7 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
-import { handleB2BQuery } from '../src/proxy/b2b.js';
+import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
@@ -143,6 +143,7 @@ import type {
   SellingPlanGroupRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShopifyFunctionRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -1309,6 +1310,33 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'b2b') {
+    const b2bMutation = handleB2BMutation(document, variables);
+    if (!b2bMutation) {
+      throw new Error(`B2B-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (b2bMutation.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: b2bMutation.stagedResourceIds,
+        notes: b2bMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: b2bMutation.response,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'webhooks') {
     const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(document, variables);
     if (!webhookSubscriptionMutation) {
@@ -2218,6 +2246,33 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
 
   store.upsertBaseDiscounts([...discountsById.values()]);
   return true;
+}
+
+function seedShopifyFunctionPreconditions(capture: unknown): boolean {
+  const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedShopifyFunctions').filter(isPlainObject);
+  const functions: ShopifyFunctionRecord[] = seedNodes
+    .map((node): ShopifyFunctionRecord | null => {
+      const id = readStringField(node, 'id');
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        title: readNullableStringField(node, 'title'),
+        handle: readNullableStringField(node, 'handle'),
+        apiType: readNullableStringField(node, 'apiType'),
+        description: readNullableStringField(node, 'description') ?? undefined,
+        appKey: readNullableStringField(node, 'appKey') ?? undefined,
+      };
+    })
+    .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
+
+  for (const shopifyFunction of functions) {
+    store.upsertStagedShopifyFunction(shopifyFunction);
+  }
+
+  return functions.length > 0;
 }
 
 function readMoneySetField(
@@ -7122,6 +7177,11 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedDiscountCatalogPreconditions(capture)) {
+    seedShopifyFunctionPreconditions(capture);
+    return;
+  }
+
+  if (seedShopifyFunctionPreconditions(capture)) {
     return;
   }
 

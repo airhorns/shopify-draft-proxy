@@ -1,0 +1,19 @@
+mutation FileAcknowledgeUpdateFailedParity($fileIds: [ID!]!) {
+  fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+    files {
+      id
+      alt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

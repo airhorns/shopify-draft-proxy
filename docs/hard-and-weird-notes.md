@@ -1791,6 +1791,21 @@ Important distinction:
   richer Files API reads and ready-state locking still need dedicated capture
   evidence before they should become stricter
 
+The HAR-375 `fileAcknowledgeUpdateFailed` capture added a few Files API quirks:
+
+- Admin GraphQL 2026-04 exposes the mutation as
+  `fileAcknowledgeUpdateFailed(fileIds: [ID!]!)`, and the payload field is
+  `files`, not a singular `file`
+- unknown and deleted IDs return `files: null` with a `FILE_DOES_NOT_EXIST`
+  `FilesUserError` on `["fileIds"]`
+- a bad-source `fileCreate` can produce a `FAILED` file, but acknowledgement of
+  that failed-created file returns `NON_READY_STATE`; this root appears to be
+  for failed updates to otherwise READY files, not generic FAILED media cleanup
+- a safely staged bad-source `fileUpdate` on the capture shop stayed `READY`
+  with a null update image and could be acknowledged successfully, so the proxy
+  should model acknowledgement state separately from the public `fileStatus`
+  rather than inventing a visible `FAILED -> READY` transition
+
 Practical rule:
 
 1. model `inventoryItemUpdate` as a product-backed staged mutation over the effective variant inventory-item record, not as a separate detached inventory-item table

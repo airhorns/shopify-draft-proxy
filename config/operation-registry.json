@@ -685,120 +685,120 @@
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companiesDelete", "CompaniesDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until local company/contact/location deletion semantics and downstream reads are modeled without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAddressDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAddressDelete", "CompanyAddressDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company address mutation scaffold only. Keep unsupported until company location billing/shipping address semantics are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAssignCustomerAsContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAssignCustomerAsContact", "CompanyAssignCustomerAsContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact assignment scaffold only. Keep unsupported until customer-to-company contact linkage and downstream company/customer reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyAssignMainContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyAssignMainContact", "CompanyAssignMainContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactAssignRole",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactAssignRole", "CompanyContactAssignRole"],
-    "runtimeTests": [],
-    "supportNotes": "B2B role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactAssignRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactAssignRoles", "CompanyContactAssignRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk role assignment mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactCreate", "CompanyContactCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact creation, customer linkage, userErrors, and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactDelete", "CompanyContactDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRemoveFromCompany",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRemoveFromCompany", "CompanyContactRemoveFromCompany"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact membership mutation scaffold only. Keep unsupported until removing a contact from a company and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRevokeRole",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRevokeRole", "CompanyContactRevokeRole"],
-    "runtimeTests": [],
-    "supportNotes": "B2B role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactRevokeRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactRevokeRoles", "CompanyContactRevokeRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk role revocation mutation scaffold only. Keep unsupported until role assignment records and downstream contact/location role reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactsDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactsDelete", "CompanyContactsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk contact deletion scaffold only. Keep unsupported until contact deletion and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyContactSendWelcomeEmail",
@@ -815,150 +815,150 @@
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyContactUpdate", "CompanyContactUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B contact lifecycle mutation scaffold only. Keep unsupported until contact update semantics, userErrors, and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyCreate", "CompanyCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company creation, default roles/location behavior, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyDelete", "CompanyDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company deletion semantics and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignAddress",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignAddress", "CompanyLocationAssignAddress"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location address mutation scaffold only. Keep unsupported until billing/shipping address assignment and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignRoles", "CompanyLocationAssignRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location role assignment scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationAssignStaffMembers",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationAssignStaffMembers", "CompanyLocationAssignStaffMembers"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location staff assignment scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationCreate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationCreate", "CompanyLocationCreate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location creation, address/tax defaults, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationDelete", "CompanyLocationDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationRemoveStaffMembers",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationRemoveStaffMembers", "CompanyLocationRemoveStaffMembers"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location staff removal scaffold only. Keep unsupported until staff assignment records and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationRevokeRoles",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationRevokeRoles", "CompanyLocationRevokeRoles"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location role revocation scaffold only. Keep unsupported until location role assignment records and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationsDelete",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationsDelete", "CompanyLocationsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "B2B bulk company location deletion scaffold only. Keep unsupported until location deletion and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationTaxSettingsUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationTaxSettingsUpdate", "CompanyLocationTaxSettingsUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location tax settings scaffold only. Keep unsupported until tax exemption/registration semantics and downstream location reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyLocationUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyLocationUpdate", "CompanyLocationUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company location lifecycle mutation scaffold only. Keep unsupported until location update semantics, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyRevokeMainContact",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyRevokeMainContact", "CompanyRevokeMainContact"],
-    "runtimeTests": [],
-    "supportNotes": "B2B main-contact mutation scaffold only. Keep unsupported until main contact transitions and downstream company/contact reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "companyUpdate",
     "type": "mutation",
     "domain": "b2b",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["companyUpdate", "CompanyUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "B2B company lifecycle mutation scaffold only. Keep unsupported until company update semantics, userErrors, and downstream reads are modeled locally."
+    "runtimeTests": ["tests/integration/b2b-company-lifecycle-flow.test.ts"],
+    "supportNotes": "Stages B2B company lifecycle mutations locally in the normalized in-memory B2B draft store, including downstream company/contact/location/role reads and raw commit replay logging."
   },
   {
     "name": "cashManagementLocationSummary",
@@ -5481,50 +5481,57 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
-    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 keeps the broad code-bulk status root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
+    "runtimeTests": [
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount activation locally with a completed Job payload, meta state/log visibility, downstream status reads, and local refusal of missing, blank, or conflicting broad selectors."
   },
   {
     "name": "discountCodeBulkDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
     "runtimeTests": [
       "tests/integration/discount-mutation-validation.test.ts",
-      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
     ],
-    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount deactivation locally with a completed Job payload, meta state/log visibility, downstream status reads, and captured selector-conflict guardrails."
   },
   {
     "name": "discountCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
-    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 keeps the broad code-bulk delete root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
+    "runtimeTests": [
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and local refusal of missing, blank, or conflicting broad selectors."
   },
   {
     "name": "discountRedeemCodeBulkAdd",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
     "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 locally stages safe explicit-code add branches and records completed bulk-creation state, but keeps the root unimplemented until full async job lifecycle and conformance-backed failure semantics are modeled."
+    "supportNotes": "HAR-366 supports explicit-code redeem-code bulk add locally with a completed DiscountRedeemCodeBulkCreation payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering."
   },
   {
     "name": "discountCodeRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": [
       "discountCodeRedeemCodeBulkDelete",
       "DiscountCodeRedeemCodeBulkDelete",
@@ -5532,7 +5539,7 @@
       "DiscountRedeemCodeBulkDelete"
     ],
     "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 locally stages safe id-scoped delete branches and records completed job state, but keeps the root unimplemented until search/saved-search selectors, async lifecycle, and conformance-backed failure semantics are modeled."
+    "supportNotes": "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Search and saved-search redeem-code selectors remain locally refused to avoid broad code deletion without captured redeem-code matching semantics."
   },
   {
     "name": "discountAutomaticBasicCreate",
@@ -5631,53 +5638,57 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
     "runtimeTests": [
       "tests/integration/discount-mutation-validation.test.ts",
-      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
     ],
-    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped automatic-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and captured selector-conflict guardrails."
   },
   {
     "name": "discountCodeAppCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeAppCreate", "DiscountCodeAppCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages app-managed code discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts."
   },
   {
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed code discount updates locally for existing local DiscountCodeApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes."
   },
   {
     "name": "discountAutomaticAppCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed automatic discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts."
   },
   {
     "name": "discountAutomaticAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed automatic discount updates locally for existing local DiscountAutomaticApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes."
   },
   {
     "name": "marketingActivities",
@@ -6485,10 +6496,10 @@
     "type": "mutation",
     "domain": "media",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
-    "runtimeTests": [],
-    "supportNotes": "Explicitly unsupported because acknowledging upload failure is an external Files API side effect; this registry entry is a commitment to model failure state locally before support, not a permanent passthrough capability."
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Stages Files API update-failure acknowledgement locally for existing READY files, including FILE_DOES_NOT_EXIST and NON_READY_STATE userErrors plus downstream files read preservation. External upload storage and byte-transfer failure generation remain outside the supported boundary."
   },
   {
     "name": "fileCreate",
