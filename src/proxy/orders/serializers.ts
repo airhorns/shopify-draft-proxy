@@ -547,8 +547,17 @@ function serializeDraftOrderShippingLine(
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
+      case 'id':
+        result[key] = orderShippingLine.id ?? null;
+        break;
       case 'title':
         result[key] = shippingLine.title;
+        break;
+      case 'price':
+        result[key] = serializeShopMoneySet(selection, shippingLine.originalPriceSet ?? null);
+        break;
+      case 'stagedStatus':
+        result[key] = orderShippingLine.stagedStatus ?? 'UNCHANGED';
         break;
       case 'code':
         result[key] = shippingLine.code;
@@ -1656,6 +1665,12 @@ function serializeOrderDiscountApplicationValue(
 
 export function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLineItemRecord): Record<string, unknown> {
   const result: Record<string, unknown> = {};
+  const currencyCode = lineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const unitPrice = parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount);
+  const totalDiscount = parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount);
+  const discountedUnitPrice = formatDecimalAmount(
+    Math.max(0, unitPrice - totalDiscount / Math.max(1, lineItem.quantity)),
+  );
   for (const selection of getSelectedChildFields(field)) {
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
@@ -1700,8 +1715,84 @@ export function serializeOrderLineItemNode(field: FieldNode, lineItem: OrderLine
       case 'originalUnitPriceSet':
         result[key] = serializeShopMoneySet(selection, lineItem.originalUnitPriceSet ?? null);
         break;
+      case 'discountedUnitPriceSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          lineItem.discountedUnitPriceSet ?? makeOrderMoneyBag(discountedUnitPrice, currencyCode),
+        );
+        break;
+      case 'editableSubtotalSet':
+      case 'discountedTotalSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          makeOrderMoneyBag(
+            formatDecimalAmount(Math.max(0, unitPrice * lineItem.quantity - totalDiscount)),
+            currencyCode,
+          ),
+        );
+        break;
+      case 'uneditableSubtotalSet':
+        result[key] = serializeShopMoneySet(selection, normalizeZeroMoneyBag(currencyCode));
+        break;
+      case 'totalDiscountSet':
+        result[key] = serializeShopMoneySet(
+          selection,
+          lineItem.totalDiscountSet ?? normalizeZeroMoneyBag(currencyCode),
+        );
+        break;
+      case 'calculatedDiscountAllocations':
+      case 'discountAllocations':
+        result[key] = (lineItem.calculatedDiscountAllocations ?? []).map((allocation) =>
+          serializeCalculatedDiscountAllocation(selection, allocation),
+        );
+        break;
+      case 'hasStagedLineItemDiscount':
+        result[key] = (lineItem.calculatedDiscountAllocations ?? []).length > 0;
+        break;
+      case 'editableQuantity':
+      case 'editableQuantityBeforeChanges':
+        result[key] = lineItem.currentQuantity ?? lineItem.quantity;
+        break;
+      case 'restockable':
+      case 'restocking':
+        result[key] = false;
+        break;
+      case 'customAttributes':
+      case 'stagedChanges':
+        result[key] = [];
+        break;
+      case 'image':
+        result[key] = null;
+        break;
       case 'taxLines':
         result[key] = serializeOrderTaxLines(selection, lineItem.taxLines ?? []);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedDiscountAllocation(
+  field: FieldNode,
+  allocation: NonNullable<OrderLineItemRecord['calculatedDiscountAllocations']>[number],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+      case 'discountApplicationId':
+        result[key] = allocation.id;
+        break;
+      case 'allocatedAmountSet':
+      case 'amountSet':
+        result[key] = serializeShopMoneySet(selection, allocation.allocatedAmountSet);
+        break;
+      case 'description':
+        result[key] = allocation.description ?? null;
         break;
       default:
         result[key] = null;
@@ -3145,6 +3236,10 @@ function serializeOrderShippingLinesConnection(
   });
 }
 
+function serializeCalculatedShippingLines(field: FieldNode, shippingLines: OrderShippingLineRecord[]): unknown[] {
+  return shippingLines.map((shippingLine) => serializeDraftOrderShippingLine(field, shippingLine));
+}
+
 function deriveOrderTotalShippingPriceSet(order: OrderRecord): { shopMoney: MoneyV2Record } {
   const currencyCode = readOrderCurrencyCode(order);
   const amount = order.shippingLines.reduce(
@@ -3410,6 +3505,23 @@ export function serializeCalculatedOrder(
           selection,
           calculatedOrder.lineItems.filter((lineItem) => lineItem.isAdded === true),
         );
+        break;
+      case 'addedDiscountApplications':
+        result[key] = serializeConnection(selection, {
+          items: calculatedOrder.lineItems.flatMap((lineItem) => lineItem.calculatedDiscountAllocations ?? []),
+          hasNextPage: false,
+          hasPreviousPage: false,
+          getCursorValue: (allocation) => allocation.id,
+          serializeNode: (allocation, allocationSelection) =>
+            serializeCalculatedDiscountAllocation(allocationSelection, allocation),
+          pageInfoOptions: { includeCursors: false },
+        });
+        break;
+      case 'shippingLines':
+        result[key] = serializeCalculatedShippingLines(selection, calculatedOrder.shippingLines);
+        break;
+      case 'subtotalLineItemsQuantity':
+        result[key] = calculatedOrder.lineItems.reduce((sum, lineItem) => sum + lineItem.quantity, 0);
         break;
       default:
         result[key] = serializeOrderNode(

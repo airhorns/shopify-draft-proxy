@@ -1,0 +1,71 @@
+{
+  "scenarioId": "order-edit-residual-local-staging",
+  "recordedAt": "2026-04-28T02:28:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2025-01",
+  "runtimeTestFiles": ["tests/integration/order-edit-flow.test.ts"],
+  "coveredOperations": [
+    "orderEditAddCustomItem",
+    "orderEditAddLineItemDiscount",
+    "orderEditRemoveDiscount",
+    "orderEditAddShippingLine",
+    "orderEditRemoveShippingLine",
+    "orderEditUpdateShippingLine",
+    "orderDelete"
+  ],
+  "expected": {
+    "emptyOrdersCount": {
+      "count": 0,
+      "precision": "EXACT"
+    },
+    "residualEdit": {
+      "noUpstreamPassthrough": true,
+      "customItemSubtotalAfterAdd": {
+        "amount": "16.0",
+        "currencyCode": "CAD"
+      },
+      "lineDiscountAfterAdd": {
+        "amount": "2.0",
+        "currencyCode": "CAD"
+      },
+      "lineDiscountAfterRemove": {
+        "amount": "0.0",
+        "currencyCode": "CAD"
+      },
+      "shippingAfterAdd": {
+        "amount": "4.0",
+        "currencyCode": "CAD"
+      },
+      "committedLineItems": [
+        {
+          "title": "Original staged line item",
+          "quantity": 1
+        },
+        {
+          "title": "Gift wrap",
+          "quantity": 2
+        }
+      ],
+      "committedShippingLines": [],
+      "committedTotalPrice": {
+        "amount": "16.0",
+        "currencyCode": "CAD"
+      }
+    },
+    "orderDelete": {
+      "noUpstreamPassthrough": true,
+      "downstreamOrder": null,
+      "downstreamOrders": [],
+      "downstreamOrdersCount": {
+        "count": 0,
+        "precision": "EXACT"
+      },
+      "repeatDeleteUserErrors": [
+        {
+          "field": ["orderId"],
+          "message": "Order does not exist"
+        }
+      ]
+    }
+  }
+}

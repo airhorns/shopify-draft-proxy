@@ -158,6 +158,7 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCustomerRemove',
   'taxSummaryCreate',
   'orderCancel',
+  'orderDelete',
   'returnCreate',
   'returnRequest',
   'returnApproveRequest',
@@ -616,6 +617,12 @@ const ORDER_BACKED_LOCAL_FULFILLMENT_MUTATION_ROOTS = new Set([
   'fulfillmentOrderRejectCancellationRequest',
 ]);
 
+const ORDER_EDIT_SHIPPING_MUTATION_ROOTS = new Set([
+  'orderEditAddShippingLine',
+  'orderEditRemoveShippingLine',
+  'orderEditUpdateShippingLine',
+]);
+
 const LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS = new Set([
   'orderCreate',
   'refundCreate',
@@ -629,9 +636,16 @@ const LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS = new Set([
   'orderInvoiceSend',
   'taxSummaryCreate',
   'orderCancel',
+  'orderDelete',
   'orderEditBegin',
   'orderEditAddVariant',
+  'orderEditAddCustomItem',
+  'orderEditAddLineItemDiscount',
+  'orderEditAddShippingLine',
+  'orderEditRemoveDiscount',
+  'orderEditRemoveShippingLine',
   'orderEditSetQuantity',
+  'orderEditUpdateShippingLine',
   'orderEditCommit',
   'draftOrderComplete',
   'draftOrderUpdate',
@@ -667,11 +681,24 @@ const LIVE_HYBRID_ORDER_MUTATION_NOTES: Record<string, string> = {
   taxSummaryCreate:
     'Locally mirrored the captured taxSummaryCreate access-denied branch without proxying the mutation upstream.',
   orderCancel: 'Locally staged orderCancel in live-hybrid mode for a synthetic/local order.',
+  orderDelete: 'Locally staged orderDelete in live-hybrid mode for a synthetic/local order.',
   orderEditBegin:
     'Locally staged the first calculated-order edit session in live-hybrid mode for a synthetic/local order.',
   orderEditAddVariant: 'Locally staged a calculated-order variant add in live-hybrid mode for a synthetic/local order.',
+  orderEditAddCustomItem:
+    'Locally staged a calculated-order custom item add in live-hybrid mode for a synthetic/local order.',
+  orderEditAddLineItemDiscount:
+    'Locally staged a calculated-order line-item discount in live-hybrid mode for a synthetic/local order.',
+  orderEditAddShippingLine:
+    'Locally staged a calculated-order shipping-line add in live-hybrid mode for a synthetic/local order.',
+  orderEditRemoveDiscount:
+    'Locally staged a calculated-order discount removal in live-hybrid mode for a synthetic/local order.',
+  orderEditRemoveShippingLine:
+    'Locally staged a calculated-order shipping-line removal in live-hybrid mode for a synthetic/local order.',
   orderEditSetQuantity:
     'Locally staged a calculated-order quantity edit in live-hybrid mode for a synthetic/local order.',
+  orderEditUpdateShippingLine:
+    'Locally staged a calculated-order shipping-line update in live-hybrid mode for a synthetic/local order.',
   orderEditCommit: 'Locally committed a calculated-order edit back onto a synthetic/local order in live-hybrid mode.',
   draftOrderComplete:
     'Locally handled draftOrderComplete in live-hybrid mode for captured validation branches or a synthetic/local staged draft order.',
@@ -772,6 +799,10 @@ function isOrderBackedLocalFulfillmentMutation(rootField: string | null): boolea
   return rootField !== null && ORDER_BACKED_LOCAL_FULFILLMENT_MUTATION_ROOTS.has(rootField);
 }
 
+function isOrderEditShippingMutation(rootField: string | null): boolean {
+  return rootField !== null && ORDER_EDIT_SHIPPING_MUTATION_ROOTS.has(rootField);
+}
+
 function isOrderBackedReverseLogisticsMutation(rootField: string | null): boolean {
   return rootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(rootField);
 }
@@ -782,6 +813,7 @@ function shouldTryLocalOrderMutation(request: ProxyDispatchRequest): boolean {
     (request.capability.domain === 'orders' ||
       (request.capability.domain === 'shipping-fulfillments' &&
         (isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
+          isOrderEditShippingMutation(request.primaryRootField) ||
           isOrderBackedReverseLogisticsMutation(request.primaryRootField))))
   );
 }
@@ -923,7 +955,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const upstreamResponse = await proxyUpstreamGraphQL(request);
 
-      if (request.primaryRootField && PRODUCT_FEED_QUERY_ROOTS.has(request.primaryRootField)) {
+      if (
+        request.primaryRootField &&
+        PRODUCT_FEED_QUERY_ROOTS.has(request.primaryRootField) &&
+        !request.runtimeStore.hasStagedProducts()
+      ) {
         setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
         return true;
       }
@@ -1010,6 +1046,30 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
               ? 'Returned a captured fulfillment-order lifecycle guardrail locally without proxying upstream; full local lifecycle support remains unimplemented for this root.'
               : 'Staged locally in the in-memory fulfillment-order lifecycle draft store.',
         });
+        setGraphQLResponse(request, 200, responseBody);
+        return true;
+      }
+
+      if (request.primaryRootField && isOrderEditShippingMutation(request.primaryRootField)) {
+        const responseBody = handleOrderMutation(
+          request.body.query,
+          request.variables,
+          request.config.readMode,
+          request.config.shopifyAdminOrigin,
+        );
+        if (!responseBody) {
+          return false;
+        }
+
+        if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
+          request.recordStagedMutation({
+            operationName: request.primaryRootField,
+            responseBody,
+            notes:
+              LIVE_HYBRID_ORDER_MUTATION_NOTES[request.primaryRootField] ??
+              'Staged locally in the in-memory calculated-order shipping-line draft store.',
+          });
+        }
         setGraphQLResponse(request, 200, responseBody);
         return true;
       }
@@ -1368,7 +1428,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const canServeLocalOrderDetail =
           request.primaryRootField === 'order' &&
           liveHybridOrderId !== null &&
-          request.runtimeStore.getOrderById(liveHybridOrderId) !== null;
+          (request.runtimeStore.getOrderById(liveHybridOrderId) !== null ||
+            request.runtimeStore.hasDeletedOrder(liveHybridOrderId));
         const canServeLocalReturnDetail =
           request.primaryRootField === 'return' &&
           liveHybridOrderId !== null &&

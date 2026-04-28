@@ -211,6 +211,50 @@ describe('location query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns an empty top-level locations connection when no local locations exist', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('empty locations should resolve locally in snapshot mode');
+    });
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query EmptyLocations {
+          locations(first: 5) {
+            edges {
+              cursor
+              node { id }
+            }
+            nodes { id }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        locations: {
+          edges: [],
+          nodes: [],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: null,
+            endCursor: null,
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('serves location detail reads from the effective inventory-level graph in snapshot mode', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('location detail should resolve locally in snapshot mode');
@@ -832,6 +876,54 @@ describe('location query shapes', () => {
       {
         location: { id: 'gid://shopify/Location/2', name: 'Beta Warehouse' },
         quantities: [{ name: 'available', quantity: 10 }],
+      },
+    ]);
+
+    const catalogAfterDeactivateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query {
+          locations(first: 5) {
+            nodes {
+              id
+              name
+              isActive
+              activatable
+              deactivatable
+              deactivatedAt
+              deletable
+              fulfillsOnlineOrders
+              hasActiveInventory
+              shipsInventory
+            }
+          }
+        }`,
+      });
+
+    expect(catalogAfterDeactivateResponse.body.data.locations.nodes).toEqual([
+      {
+        id: 'gid://shopify/Location/1',
+        name: 'Alpha Warehouse',
+        isActive: false,
+        activatable: true,
+        deactivatable: false,
+        deactivatedAt: '2024-01-01T00:00:00.000Z',
+        deletable: true,
+        fulfillsOnlineOrders: false,
+        hasActiveInventory: false,
+        shipsInventory: false,
+      },
+      {
+        id: 'gid://shopify/Location/2',
+        name: 'Beta Warehouse',
+        isActive: true,
+        activatable: true,
+        deactivatable: true,
+        deactivatedAt: null,
+        deletable: false,
+        fulfillsOnlineOrders: true,
+        hasActiveInventory: true,
+        shipsInventory: true,
       },
     ]);
 

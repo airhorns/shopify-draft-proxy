@@ -22,6 +22,7 @@ import type {
   OrderReverseFulfillmentOrderRecord,
   OrderReturnLineItemRecord,
   OrderReturnRecord,
+  OrderShippingLineRecord,
 } from '../../state/types.js';
 import { getDocumentFragments, getFieldResponseKey, readNullableStringArgument } from '../graphql-helpers.js';
 import {
@@ -63,7 +64,9 @@ import {
   DRAFT_ORDER_SAVED_SEARCHES,
   duplicateDraftOrder,
   findOrderWithTransaction,
+  formatDecimalAmount,
   getSelectedChildFields,
+  makeOrderMoneyBag,
   markOrderAsPaid,
   type MutationUserError,
   normalizeDraftOrderAddress,
@@ -929,6 +932,69 @@ function serializeOrderEditSession(field: FieldNode, calculatedOrder: Calculated
   );
 }
 
+function serializeMoneySetSelection(
+  field: FieldNode,
+  moneySet: { shopMoney: MoneyV2Record } | null,
+): Record<string, unknown> | null {
+  if (!moneySet) {
+    return null;
+  }
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'shopMoney':
+      case 'presentmentMoney':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((moneySelection) => {
+            const moneyKey = getFieldResponseKey(moneySelection);
+            switch (moneySelection.name.value) {
+              case 'amount':
+                return [moneyKey, moneySet.shopMoney.amount];
+              case 'currencyCode':
+                return [moneyKey, moneySet.shopMoney.currencyCode];
+              default:
+                return [moneyKey, null];
+            }
+          }),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedShippingLinePayload(
+  field: FieldNode,
+  shippingLine: OrderShippingLineRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = shippingLine.id ?? null;
+        break;
+      case 'title':
+        result[key] = shippingLine.title;
+        break;
+      case 'price':
+        result[key] = serializeMoneySetSelection(selection, shippingLine.originalPriceSet);
+        break;
+      case 'stagedStatus':
+        result[key] = shippingLine.stagedStatus ?? 'ADDED';
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; message: string }> {
   return [
     {
@@ -936,6 +1002,170 @@ function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; mess
       message: "can't convert Integer[0] to a positive Integer to use as an untrusted id",
     },
   ];
+}
+
+function readMoneyInputAmount(raw: unknown): { amount: string; currencyCode: string } | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+  const input = raw as Record<string, unknown>;
+  const rawAmount = input['amount'];
+  const rawCurrencyCode = input['currencyCode'];
+  if ((typeof rawAmount !== 'string' && typeof rawAmount !== 'number') || typeof rawCurrencyCode !== 'string') {
+    return null;
+  }
+  return {
+    amount: formatDecimalAmount(parseDecimalAmount(rawAmount)),
+    currencyCode: rawCurrencyCode,
+  };
+}
+
+function recalculateCalculatedOrder(calculatedOrder: CalculatedOrderRecord): CalculatedOrderRecord {
+  const currencyCode =
+    calculatedOrder.currentTotalPriceSet?.shopMoney.currencyCode ??
+    calculatedOrder.subtotalPriceSet?.shopMoney.currencyCode ??
+    'CAD';
+  const totalDiscount = calculatedOrder.lineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount),
+    0,
+  );
+  return recalculateOrderTotals({
+    ...calculatedOrder,
+    totalDiscountsSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+    currentTotalDiscountsSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+  }) as CalculatedOrderRecord;
+}
+
+function buildCalculatedCustomLineItem(args: Record<string, unknown>): OrderLineItemRecord | null {
+  const title = typeof args['title'] === 'string' ? args['title'] : null;
+  const quantity = typeof args['quantity'] === 'number' ? args['quantity'] : null;
+  const price = readMoneyInputAmount(args['price']);
+  if (!title || quantity === null || quantity <= 0 || !price) {
+    return null;
+  }
+  const currencyCode = price.currencyCode;
+  return {
+    id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: null,
+    isAdded: true,
+    title,
+    quantity,
+    currentQuantity: quantity,
+    sku: null,
+    variantId: null,
+    variantTitle: null,
+    originalUnitPriceSet: makeOrderMoneyBag(price.amount, currencyCode),
+    discountedUnitPriceSet: makeOrderMoneyBag(price.amount, currencyCode),
+    totalDiscountSet: makeOrderMoneyBag(0, currencyCode),
+    calculatedDiscountAllocations: [],
+    taxLines: [],
+    requiresShipping: typeof args['requiresShipping'] === 'boolean' ? args['requiresShipping'] : true,
+    taxable: typeof args['taxable'] === 'boolean' ? args['taxable'] : true,
+  };
+}
+
+function buildCalculatedShippingLine(args: Record<string, unknown>): OrderShippingLineRecord | null {
+  const shippingLineInput =
+    typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
+      ? (args['shippingLine'] as Record<string, unknown>)
+      : null;
+  const title = typeof shippingLineInput?.['title'] === 'string' ? shippingLineInput['title'] : null;
+  const price = readMoneyInputAmount(shippingLineInput?.['price']);
+  if (!title || !price) {
+    return null;
+  }
+  return {
+    id: makeSyntheticGid('CalculatedShippingLine'),
+    title,
+    code: title,
+    source: 'shopify-draft-proxy',
+    originalPriceSet: makeOrderMoneyBag(price.amount, price.currencyCode),
+    taxLines: [],
+    stagedStatus: 'ADDED',
+  };
+}
+
+function applyLineItemDiscount(
+  calculatedOrder: CalculatedOrderRecord,
+  lineItemId: string,
+  discountInput: Record<string, unknown>,
+): { calculatedOrder: CalculatedOrderRecord; calculatedLineItem: OrderLineItemRecord } | null {
+  const targetLineItem = calculatedOrder.lineItems.find((lineItem) => lineItem.id === lineItemId) ?? null;
+  if (!targetLineItem) {
+    return null;
+  }
+  const currencyCode = targetLineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const fixedValue = readMoneyInputAmount(discountInput['fixedValue']);
+  const percentValue = typeof discountInput['percentValue'] === 'number' ? discountInput['percentValue'] : null;
+  const subtotal = parseDecimalAmount(targetLineItem.originalUnitPriceSet?.shopMoney.amount) * targetLineItem.quantity;
+  const discountAmount = fixedValue
+    ? parseDecimalAmount(fixedValue.amount) * targetLineItem.quantity
+    : percentValue !== null
+      ? (subtotal * percentValue) / 100
+      : 0;
+  const boundedDiscount = Math.min(subtotal, Math.max(0, discountAmount));
+  const allocation = {
+    id: makeSyntheticGid('CalculatedDiscountApplication'),
+    description: typeof discountInput['description'] === 'string' ? discountInput['description'] : null,
+    allocatedAmountSet: makeOrderMoneyBag(boundedDiscount, fixedValue?.currencyCode ?? currencyCode),
+  };
+  const updatedLineItem: OrderLineItemRecord = {
+    ...targetLineItem,
+    calculatedDiscountAllocations: [...(targetLineItem.calculatedDiscountAllocations ?? []), allocation],
+    totalDiscountSet: makeOrderMoneyBag(
+      parseDecimalAmount(targetLineItem.totalDiscountSet?.shopMoney.amount) + boundedDiscount,
+      currencyCode,
+    ),
+    discountedUnitPriceSet: makeOrderMoneyBag(
+      Math.max(
+        0,
+        parseDecimalAmount(targetLineItem.originalUnitPriceSet?.shopMoney.amount) -
+          boundedDiscount / Math.max(1, targetLineItem.quantity),
+      ),
+      currencyCode,
+    ),
+  };
+  return {
+    calculatedLineItem: updatedLineItem,
+    calculatedOrder: recalculateCalculatedOrder({
+      ...calculatedOrder,
+      lineItems: calculatedOrder.lineItems.map((lineItem) => (lineItem.id === lineItemId ? updatedLineItem : lineItem)),
+    }),
+  };
+}
+
+function removeCalculatedDiscount(
+  calculatedOrder: CalculatedOrderRecord,
+  discountApplicationId: string,
+): CalculatedOrderRecord | null {
+  let removed = false;
+  const lineItems = calculatedOrder.lineItems.map((lineItem) => {
+    const allocations = lineItem.calculatedDiscountAllocations ?? [];
+    const nextAllocations = allocations.filter((allocation) => allocation.id !== discountApplicationId);
+    if (nextAllocations.length === allocations.length) {
+      return lineItem;
+    }
+    removed = true;
+    const currencyCode = lineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+    const totalDiscount = nextAllocations.reduce(
+      (sum, allocation) => sum + parseDecimalAmount(allocation.allocatedAmountSet.shopMoney.amount),
+      0,
+    );
+    return {
+      ...lineItem,
+      calculatedDiscountAllocations: nextAllocations,
+      totalDiscountSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+      discountedUnitPriceSet: makeOrderMoneyBag(
+        Math.max(
+          0,
+          parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) -
+            totalDiscount / Math.max(1, lineItem.quantity),
+        ),
+        currencyCode,
+      ),
+    };
+  });
+  return removed ? recalculateCalculatedOrder({ ...calculatedOrder, lineItems }) : null;
 }
 
 function buildCommittedOrderLineItems(
@@ -4371,6 +4601,33 @@ export function handleOrderMutation(
       continue;
     }
 
+    if (field.name.value === 'orderDelete' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const args = getFieldArguments(field, variables);
+      const orderId = typeof args['orderId'] === 'string' ? args['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (orderId && order) {
+        store.deleteOrder(orderId);
+      }
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'deletedId':
+            payload[selectionKey] = order ? orderId : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = order ? [] : [{ field: ['orderId'], message: 'Order does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
     if (field.name.value === 'orderCreate') {
       const inlineOrderArgument = getOrderCreateInlineArgument(field);
 
@@ -5615,10 +5872,10 @@ export function handleOrderMutation(
 
       handled = true;
       const updatedCalculatedOrder = store.updateCalculatedOrder(
-        recalculateOrderTotals({
+        recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
-        }) as CalculatedOrderRecord,
+        }),
       );
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
@@ -5635,6 +5892,274 @@ export function handleOrderMutation(
             break;
           case 'userErrors':
             payload[selectionKey] = [];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditAddCustomItem' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder) {
+        continue;
+      }
+
+      handled = true;
+      const calculatedLineItem = buildCalculatedCustomLineItem(args);
+      const updatedCalculatedOrder = calculatedLineItem
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
+            }),
+          )
+        : calculatedOrder;
+      const userErrors = calculatedLineItem ? [] : [{ field: ['price'], message: 'Price must be present' }];
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = calculatedLineItem
+              ? serializeCalculatedOrder(selection, updatedCalculatedOrder)
+              : null;
+            break;
+          case 'calculatedLineItem':
+            payload[selectionKey] = calculatedLineItem
+              ? serializeOrderLineItemNode(selection, calculatedLineItem)
+              : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = userErrors;
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (
+      field.name.value === 'orderEditAddLineItemDiscount' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const lineItemId = typeof args['lineItemId'] === 'string' ? args['lineItemId'] : null;
+      const discountInput =
+        typeof args['discount'] === 'object' && args['discount'] !== null
+          ? (args['discount'] as Record<string, unknown>)
+          : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !lineItemId || !discountInput) {
+        continue;
+      }
+
+      handled = true;
+      const result = applyLineItemDiscount(calculatedOrder, lineItemId, discountInput);
+      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result.calculatedOrder) : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = result ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            break;
+          case 'calculatedLineItem':
+            payload[selectionKey] = result ? serializeOrderLineItemNode(selection, result.calculatedLineItem) : null;
+            break;
+          case 'addedDiscountStagedChange':
+            payload[selectionKey] = null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = result ? [] : [{ field: ['lineItemId'], message: 'Line item does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditRemoveDiscount' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const discountApplicationId =
+        typeof args['discountApplicationId'] === 'string' ? args['discountApplicationId'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !discountApplicationId) {
+        continue;
+      }
+
+      handled = true;
+      const result = removeCalculatedDiscount(calculatedOrder, discountApplicationId);
+      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result) : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = result
+              ? []
+              : [{ field: ['discountApplicationId'], message: 'Discount does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditAddShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder) {
+        continue;
+      }
+
+      handled = true;
+      const shippingLine = buildCalculatedShippingLine(args);
+      const updatedCalculatedOrder = shippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: [...calculatedOrder.shippingLines, shippingLine],
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = shippingLine ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            break;
+          case 'calculatedShippingLine':
+            payload[selectionKey] = shippingLine
+              ? serializeCalculatedShippingLinePayload(selection, shippingLine)
+              : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = shippingLine
+              ? []
+              : [{ field: ['shippingLine'], message: 'Shipping line is invalid' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditRemoveShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const shippingLineId = typeof args['shippingLineId'] === 'string' ? args['shippingLineId'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !shippingLineId) {
+        continue;
+      }
+
+      handled = true;
+      const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
+      const updatedCalculatedOrder = hadShippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: calculatedOrder.shippingLines.filter((shippingLine) => shippingLine.id !== shippingLineId),
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = hadShippingLine
+              ? []
+              : [{ field: ['shippingLineId'], message: 'Shipping line does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditUpdateShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const shippingLineId = typeof args['shippingLineId'] === 'string' ? args['shippingLineId'] : null;
+      const shippingLineInput =
+        typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
+          ? (args['shippingLine'] as Record<string, unknown>)
+          : {};
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !shippingLineId) {
+        continue;
+      }
+
+      handled = true;
+      const price = readMoneyInputAmount(shippingLineInput['price']);
+      const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
+      const updatedCalculatedOrder = hadShippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: calculatedOrder.shippingLines.map((shippingLine) =>
+                shippingLine.id === shippingLineId
+                  ? {
+                      ...shippingLine,
+                      title:
+                        typeof shippingLineInput['title'] === 'string'
+                          ? shippingLineInput['title']
+                          : shippingLine.title,
+                      code:
+                        typeof shippingLineInput['title'] === 'string' ? shippingLineInput['title'] : shippingLine.code,
+                      originalPriceSet: price
+                        ? makeOrderMoneyBag(price.amount, price.currencyCode)
+                        : shippingLine.originalPriceSet,
+                      stagedStatus: shippingLine.stagedStatus === 'ADDED' ? 'ADDED' : 'UPDATED',
+                    }
+                  : shippingLine,
+              ),
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = hadShippingLine
+              ? []
+              : [{ field: ['shippingLineId'], message: 'Shipping line does not exist' }];
             break;
           default:
             payload[selectionKey] = null;
@@ -5669,12 +6194,12 @@ export function handleOrderMutation(
 
       handled = true;
       const updatedCalculatedOrder = store.updateCalculatedOrder(
-        recalculateOrderTotals({
+        recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: calculatedOrder.lineItems.map((lineItem) =>
             lineItem.id === lineItemId ? { ...lineItem, quantity, currentQuantity: quantity } : lineItem,
           ),
-        }) as CalculatedOrderRecord,
+        }),
       );
       const updatedCalculatedLineItem =
         updatedCalculatedOrder.lineItems.find((lineItem) => lineItem.id === lineItemId) ?? targetLineItem;
@@ -5725,6 +6250,7 @@ export function handleOrderMutation(
           ...originalOrder,
           updatedAt: makeSyntheticTimestamp(),
           lineItems: buildCommittedOrderLineItems(originalOrder, calculatedOrder),
+          shippingLines: structuredClone(calculatedOrder.shippingLines),
         }),
       );
       store.discardCalculatedOrder(calculatedOrder.id);
