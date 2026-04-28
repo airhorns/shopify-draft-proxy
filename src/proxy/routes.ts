@@ -694,7 +694,7 @@ function appendBulkOperationImportLog(request: ProxyDispatchRequest, entry: Bulk
       primaryRootField: entry.rootField,
       capability: {
         operationName: entry.operationName,
-        domain: 'products',
+        domain: entry.domain,
         execution: 'stage-locally',
       },
       bulkOperationImport: {

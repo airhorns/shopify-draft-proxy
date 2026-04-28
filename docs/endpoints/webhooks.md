@@ -89,7 +89,7 @@ First viable slice:
 - `PRODUCTS_UPDATE` from staged product update/editing mutations once the changed product payload is conformance-backed.
 - `PRODUCTS_DELETE` from staged product deletion once deletion payload shape is captured.
 
-These topics match the project priority of products first, but they still require payload fixtures before implementation. Product-adjacent topics such as variant, collection, inventory, publication, media, and metafield events should not be inferred from product mutations until specific Shopify payload evidence exists and the local domain event can identify the affected resource precisely.
+These topics are the first viable webhook outbox slice, but they still require payload fixtures before implementation. Product-adjacent topics such as variant, collection, inventory, publication, media, and metafield events should not be inferred from product mutations until specific Shopify payload evidence exists and the local domain event can identify the affected resource precisely.
 
 Later slices should follow the same rule:
 

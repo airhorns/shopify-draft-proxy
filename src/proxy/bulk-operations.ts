@@ -16,6 +16,7 @@ import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '.
 import { store } from '../state/store.js';
 import type { BulkOperationRecord } from '../state/types.js';
 import { getOperationCapability } from './capabilities.js';
+import { handleCustomerMutation } from './customers.js';
 import {
   getFieldResponseKey,
   getNodeLocation,
@@ -57,6 +58,7 @@ type BulkOperationMutationOptions = {
 export type BulkOperationImportLogEntry = {
   operationName: string | null;
   rootField: string;
+  domain: string;
   query: string;
   variables: Record<string, unknown>;
   requestBody: Record<string, unknown>;
@@ -837,7 +839,7 @@ function hasMutationUserErrors(responseBody: unknown, rootField: string): boolea
 
 function isSupportedBulkImportInnerMutation(
   mutation: string,
-): { operationName: string | null; rootField: string } | null {
+): { operationName: string | null; rootField: string; domain: string } | null {
   let parsed: ReturnType<typeof parseOperation>;
   try {
     parsed = parseOperation(mutation);
@@ -849,14 +851,31 @@ function isSupportedBulkImportInnerMutation(
   }
 
   const capability = getOperationCapability(parsed);
-  if (capability.domain !== 'products' || capability.execution !== 'stage-locally') {
+  if (
+    capability.execution !== 'stage-locally' ||
+    (capability.domain !== 'products' && capability.domain !== 'customers')
+  ) {
     return null;
   }
 
   return {
     operationName: capability.operationName,
     rootField: parsed.rootFields[0]!,
+    domain: capability.domain,
   };
+}
+
+function handleSupportedBulkImportInnerMutation(
+  innerMutation: { domain: string },
+  mutation: string,
+  variables: Record<string, unknown>,
+  readMode: ReadMode,
+): GraphqlResponseBody {
+  if (innerMutation.domain === 'customers') {
+    return handleCustomerMutation(mutation, variables) as GraphqlResponseBody;
+  }
+
+  return handleProductMutation(mutation, variables, readMode) as GraphqlResponseBody;
 }
 
 function makeJsonl(rows: Array<Record<string, unknown>>): string {
@@ -920,7 +939,7 @@ function handleBulkOperationRunMutation(
         errors: [
           {
             message:
-              'bulkOperationRunMutation locally supports only single-root product mutations that are already staged by the proxy.',
+              'bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.',
           },
         ],
       },
@@ -964,7 +983,12 @@ function handleBulkOperationRunMutation(
       continue;
     }
 
-    const responseBody = handleProductMutation(mutation, parsedLine.variables, options.readMode);
+    const responseBody = handleSupportedBulkImportInnerMutation(
+      innerMutation,
+      mutation,
+      parsedLine.variables,
+      options.readMode,
+    );
     const stagedResourceIds = collectResponseGids(responseBody).filter((id) => {
       return isProxySyntheticGid(id) || store.getEffectiveProductById(id) !== null;
     });
@@ -981,6 +1005,7 @@ function handleBulkOperationRunMutation(
     innerMutationLogs.push({
       operationName: innerMutation.operationName,
       rootField: innerMutation.rootField,
+      domain: innerMutation.domain,
       query: mutation,
       variables: parsedLine.variables,
       requestBody: {
@@ -1015,7 +1040,7 @@ function handleBulkOperationRunMutation(
     innerMutationLogs: innerMutationLogs.map((entry) => ({ ...entry, bulkOperationId: operation.id })),
     notes: hasFatalLineError
       ? 'Handled bulkOperationRunMutation locally, but one or more JSONL variable lines failed before mutation staging.'
-      : 'Handled bulkOperationRunMutation locally by replaying supported product inner mutation lines into the in-memory draft store.',
+      : 'Handled bulkOperationRunMutation locally by replaying supported Admin API inner mutation lines into the in-memory draft store.',
   };
 }
 
