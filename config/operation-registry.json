@@ -3107,7 +3107,11 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryAdjustQuantities", "InventoryAdjustQuantities"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": [
+      "tests/integration/product-draft-flow.test.ts",
+      "tests/integration/inventory-quantity-roots.test.ts"
+    ],
+    "supportNotes": "Stages local inventory adjustments. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route while preserving 2025-01 fixture behavior."
   },
   {
     "name": "inventorySetQuantities",
@@ -3117,7 +3121,7 @@
     "implemented": true,
     "matchNames": ["inventorySetQuantities", "InventorySetQuantities"],
     "runtimeTests": ["tests/integration/inventory-quantity-roots.test.ts"],
-    "supportNotes": "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging."
+    "supportNotes": "Stages absolute inventory quantity writes locally over product-backed inventory levels. Captured 2025-01 behavior for available quantities uses compareQuantity/ignoreCompareQuantity, mirrors deltas into on_hand, updates variant/inventory-item quantity reads immediately, and leaves product totalInventory lagging. Captured 2026-04 request-contract tests require @idempotent and changeFromQuantity on the versioned route."
   },
   {
     "name": "inventoryMoveQuantities",

@@ -46,6 +46,7 @@
     "conformance:capture-product-variant-validations": "tsx ./scripts/capture-product-variant-validation-conformance.mts",
     "conformance:capture-inventory-item-mutations": "tsx ./scripts/capture-inventory-item-mutation-conformance.mts",
     "conformance:capture-inventory-linkage-mutations": "tsx ./scripts/capture-inventory-linkage-mutation-conformance.mts",
+    "conformance:capture-inventory-quantity-contracts-2026": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-inventory-quantity-contracts-2026.ts",
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts",
     "conformance:capture-product-metafield-mutations": "tsx ./scripts/capture-product-metafield-mutation-conformance.mts",
     "conformance:capture-metafield-definition-pinning": "tsx ./scripts/capture-metafield-definition-pinning-conformance.mts",

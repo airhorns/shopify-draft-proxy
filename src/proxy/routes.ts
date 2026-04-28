@@ -525,6 +525,7 @@ interface ProxyDispatchRequest {
   parsed: ParsedOperation;
   capability: OperationCapability;
   primaryRootField: string | null;
+  apiVersion: string | null;
   config: AppConfig;
   upstream: UpstreamGraphQLClient;
   proxyLogger: ProxyLogger;
@@ -936,7 +937,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const logEntryId = makeSyntheticGid('MutationLogEntry');
       const receivedAt = makeSyntheticTimestamp();
-      const responseBody = handleProductMutation(request.body.query, request.variables, request.config.readMode);
+      const responseBody = handleProductMutation(
+        request.body.query,
+        request.variables,
+        request.config.readMode,
+        request.apiVersion,
+      );
       appendStagedMutationLog(request, {
         id: logEntryId,
         receivedAt,
@@ -2187,6 +2193,8 @@ export function createProxyRouter(config: AppConfig): Router {
     const parsed = parseOperation(body.query);
     const capability = getOperationCapability(parsed);
     const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+    const routeParams = ctx['params'] as Record<string, unknown> | undefined;
+    const apiVersion = typeof routeParams?.['version'] === 'string' ? routeParams['version'] : null;
     const dispatchRequest: ProxyDispatchRequest = {
       ctx,
       body: { query: body.query },
@@ -2195,6 +2203,7 @@ export function createProxyRouter(config: AppConfig): Router {
       parsed,
       capability,
       primaryRootField,
+      apiVersion,
       config,
       upstream,
       proxyLogger,

@@ -929,6 +929,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
+  apiVersion = '2025-01',
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -965,7 +966,7 @@ async function executeGraphQLAgainstLocalProxy(
           id: makeSyntheticGid('MutationLogEntry'),
           receivedAt: makeSyntheticTimestamp(),
           operationName: capability.operationName,
-          path: '/admin/api/2025-01/graphql.json',
+          path: `/admin/api/${apiVersion}/graphql.json`,
           query: document,
           variables,
           status: 'staged',
@@ -985,7 +986,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -995,7 +996,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1011,7 +1012,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1021,7 +1022,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -7876,6 +7877,7 @@ export async function executeParityScenario({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
+    paritySpec.proxyRequest.apiVersion,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -7903,8 +7905,12 @@ export async function executeParityScenario({
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
-        executedOperations.push(operation),
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        document,
+        variables,
+        upstreamPayload,
+        (operation) => executedOperations.push(operation),
+        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;
