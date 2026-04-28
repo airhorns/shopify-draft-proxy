@@ -15,7 +15,7 @@ import { parseWriteScopeBlocker, renderWriteScopeBlockerNote } from './product-m
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'product-graph-mutation-conformance-scope-blocker.md');
 const { runGraphql } = createAdminGraphqlClient({

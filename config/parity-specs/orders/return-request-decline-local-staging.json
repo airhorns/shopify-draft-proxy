@@ -1,0 +1,47 @@
+{
+  "scenarioId": "return-request-decline-local-staging",
+  "operationNames": ["returnRequest", "returnDeclineRequest"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-reverse-local-staging.graphql",
+    "variablesCapturePath": "$.declineRequest.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-decline-request",
+        "capturePath": "$.expected.declineRequest",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-decline-request-local-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.returnRequest.return.id"
+              },
+              "declineReason": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineReason"
+              },
+              "declineNote": {
+                "fromCapturePath": "$.declineRequest.declineInput.declineNote"
+              },
+              "notifyCustomer": {
+                "fromCapturePath": "$.declineRequest.declineInput.notifyCustomer"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-370 return request decline handling. Notification side effects remain local-only boundaries; the scenario verifies staged DECLINED state and no upstream write."
+}

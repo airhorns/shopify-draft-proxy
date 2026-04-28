@@ -26,7 +26,7 @@ type CapturedDraftOrderSetup = CapturedMutation & {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
-const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphql } = createAdminGraphqlClient({
@@ -109,40 +109,46 @@ async function writeJson(relativePath: string, value: unknown): Promise<void> {
   await writeFile(absolutePath(relativePath), `${JSON.stringify(value, null, 2)}\n`);
 }
 
-const draftOrderCreateDocument = await readText('config/parity-requests/draftOrderCreate-parity-plan.graphql');
-const draftOrderCompleteDocument = await readText('config/parity-requests/draftOrderComplete-parity-plan.graphql');
+const draftOrderCreateDocument = await readText('config/parity-requests/orders/draftOrderCreate-parity-plan.graphql');
+const draftOrderCompleteDocument = await readText(
+  'config/parity-requests/orders/draftOrderComplete-parity-plan.graphql',
+);
 const draftOrderDownstreamReadDocument = await readText(
-  'config/parity-requests/draftOrderCreate-downstream-read.graphql',
+  'config/parity-requests/orders/draftOrderCreate-downstream-read.graphql',
 );
-const draftOrderDetailReadDocument = await readText('config/parity-requests/draftOrder-read-parity-plan.graphql');
+const draftOrderDetailReadDocument = await readText(
+  'config/parity-requests/orders/draftOrder-read-parity-plan.graphql',
+);
 const draftOrderCreateFromOrderDownstreamReadDocument = await readText(
-  'config/parity-requests/draftOrderCreateFromOrder-downstream-read.graphql',
+  'config/parity-requests/orders/draftOrderCreateFromOrder-downstream-read.graphql',
 );
-const orderDownstreamReadDocument = await readText('config/parity-requests/orderCreate-downstream-read.graphql');
-const draftOrderUpdateDocument = await readText('config/parity-requests/draftOrderUpdate-parity-plan.graphql');
-const draftOrderDuplicateDocument = await readText('config/parity-requests/draftOrderDuplicate-parity-plan.graphql');
-const draftOrderDeleteDocument = await readText('config/parity-requests/draftOrderDelete-parity-plan.graphql');
+const orderDownstreamReadDocument = await readText('config/parity-requests/orders/orderCreate-downstream-read.graphql');
+const draftOrderUpdateDocument = await readText('config/parity-requests/orders/draftOrderUpdate-parity-plan.graphql');
+const draftOrderDuplicateDocument = await readText(
+  'config/parity-requests/orders/draftOrderDuplicate-parity-plan.graphql',
+);
+const draftOrderDeleteDocument = await readText('config/parity-requests/orders/draftOrderDelete-parity-plan.graphql');
 const draftOrderCreateFromOrderDocument = await readText(
-  'config/parity-requests/draftOrderCreateFromOrder-parity-plan.graphql',
+  'config/parity-requests/orders/draftOrderCreateFromOrder-parity-plan.graphql',
 );
 
 const draftOrderCreateBaseVariables = await readJson(
-  'config/parity-requests/draftOrderCreate-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderCreate-parity-plan.variables.json',
 );
 const draftOrderCompleteBaseVariables = await readJson(
-  'config/parity-requests/draftOrderComplete-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderComplete-parity-plan.variables.json',
 );
 const draftOrderUpdateBaseVariables = await readJson(
-  'config/parity-requests/draftOrderUpdate-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderUpdate-parity-plan.variables.json',
 );
 const draftOrderDuplicateBaseVariables = await readJson(
-  'config/parity-requests/draftOrderDuplicate-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderDuplicate-parity-plan.variables.json',
 );
 const draftOrderDeleteBaseVariables = await readJson(
-  'config/parity-requests/draftOrderDelete-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderDelete-parity-plan.variables.json',
 );
 const draftOrderCreateFromOrderBaseVariables = await readJson(
-  'config/parity-requests/draftOrderCreateFromOrder-parity-plan.variables.json',
+  'config/parity-requests/orders/draftOrderCreateFromOrder-parity-plan.variables.json',
 );
 
 const stamp = Date.now();

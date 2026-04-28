@@ -1,0 +1,26 @@
+{
+  "scenarioId": "productDelete-unknown-id-parity",
+  "operationNames": ["productDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productDelete-parity-plan.graphql",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for a mutation no-data payload: deleting an unknown product returns a null deletedProductId and Shopify's resolver-level Product does not exist userError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-product-delete-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

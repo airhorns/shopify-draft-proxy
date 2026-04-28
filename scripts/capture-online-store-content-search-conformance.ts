@@ -23,7 +23,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'online-store');
 const outputPath = path.join(outputDir, 'online-store-content-search-filters.json');
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,

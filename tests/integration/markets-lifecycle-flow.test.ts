@@ -12,7 +12,7 @@ import { store } from '../support/runtime.js';
 import { withRuntimeContext } from '../support/runtime.js';
 
 const repoRoot = process.cwd();
-const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
+const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets';
 
 const config: AppConfig = {
   port: 3000,

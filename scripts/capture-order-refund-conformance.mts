@@ -32,7 +32,7 @@ interface CaptureScenarioOptions {
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 
 const partialFixturePath = path.join(fixtureDir, 'refund-create-partial-shipping-restock-parity.json');
 const fullFixturePath = path.join(fixtureDir, 'refund-create-full-parity.json');

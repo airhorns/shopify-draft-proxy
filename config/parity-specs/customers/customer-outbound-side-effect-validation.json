@@ -1,0 +1,30 @@
+{
+  "scenarioId": "customer-outbound-side-effect-validation-parity",
+  "operationNames": [
+    "customerGenerateAccountActivationUrl",
+    "customerSendAccountInviteEmail",
+    "customerPaymentMethodSendUpdateEmail"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-outbound-side-effect-validation-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-outbound-side-effect-validation.graphql",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers no-side-effect validation userErrors for customer activation URL, account invite email, and payment-method update email roots. Successful local buffering is covered by the integration runtime test because live success for outbound email roots can send customer-visible email.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

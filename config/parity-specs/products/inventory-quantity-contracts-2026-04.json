@@ -1,0 +1,40 @@
+{
+  "scenarioId": "inventory-quantity-contracts-2026-04",
+  "operationNames": ["inventorySetQuantities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "schema-contract",
+    "graphql-error-parity",
+    "idempotency-parity",
+    "payload-shape",
+    "route-version-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-quantity-roots.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-missing-set-change-from.graphql",
+    "variablesCapturePath": "$.missingSetChangeFromQuantity.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-missing-changeFromQuantity-errors",
+        "capturePath": "$.missingSetChangeFromQuantity.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      },
+      {
+        "name": "set-missing-changeFromQuantity-data",
+        "capturePath": "$.missingSetChangeFromQuantity.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "HAR-408 captures Admin GraphQL 2026-04 inventory quantity mutation contract drift. The live fixture records InventoryChangeInput/InventorySetQuantityInput schema fields, missing @idempotent behavior for inventoryAdjustQuantities and inventorySetQuantities, changeFromQuantity-required validation for adjust/set quantity inputs, legacy ignoreCompareQuantity rejection, and successful changeFromQuantity set/adjust writes against a disposable product. The parity runner strictly replays the missing changeFromQuantity set branch through a 2026-04 proxy request, and committed runtime tests replay the remaining fixture-backed branches through /admin/api/2026-04/graphql.json without runtime Shopify writes."
+}

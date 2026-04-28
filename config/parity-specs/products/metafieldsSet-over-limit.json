@@ -1,0 +1,46 @@
+{
+  "scenarioId": "metafields-set-over-limit",
+  "operationNames": ["metafieldsSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-over-limit-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Over-limit input count returns a deterministic userError and must not persist any of the submitted metafields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

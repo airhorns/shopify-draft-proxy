@@ -12,7 +12,7 @@ import { store } from '../support/runtime.js';
 import { withRuntimeContext } from '../support/runtime.js';
 
 const repoRoot = process.cwd();
-const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01';
+const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments';
 
 const config: AppConfig = {
   port: 3000,
@@ -36,8 +36,10 @@ describe('segment query shapes', () => {
   });
 
   it('serves captured segment catalog, detail, count, and metadata reads from local snapshot state', async () => {
-    const document = readText('config/parity-requests/segments-baseline-read.graphql');
-    const variables = readJson<Record<string, unknown>>('config/parity-requests/segments-baseline-read.variables.json');
+    const document = readText('config/parity-requests/segments/segments-baseline-read.graphql');
+    const variables = readJson<Record<string, unknown>>(
+      'config/parity-requests/segments/segments-baseline-read.variables.json',
+    );
     const fixture = readJson<{ data: Record<string, unknown>; errors: Array<Record<string, unknown>> }>(
       `${fixtureRoot}/segments-baseline.json`,
     );

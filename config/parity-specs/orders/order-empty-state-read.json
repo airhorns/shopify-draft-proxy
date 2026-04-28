@@ -1,0 +1,25 @@
+{
+  "scenarioId": "order-empty-state-read",
+  "operationNames": ["order", "orders", "ordersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "pagination-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-empty-state.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-empty-state-read.graphql",
+    "variablesPath": "config/parity-requests/orders/order-empty-state-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable read parity for direct missing-order null behavior plus merchant order catalog/count shape. The local overlay harness receives the captured Shopify response as its upstream live-read payload and must preserve the selected null order, catalog node, count, cursor, and pageInfo fields when no local order state is staged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-empty-state-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.response"
+      }
+    ]
+  }
+}

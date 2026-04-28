@@ -71,10 +71,21 @@ export function loadConformanceScenarioOverrides(repoRoot = defaultRepoRoot): Ma
 export function listConformanceParitySpecPaths(repoRoot = defaultRepoRoot): string[] {
   const absoluteDirectory = path.join(repoRoot, paritySpecDirectory);
 
-  return readdirSync(absoluteDirectory)
-    .filter((fileName) => fileName.endsWith('.json'))
+  function listJsonFiles(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return listJsonFiles(entryPath);
+      }
+
+      return entry.isFile() && entry.name.endsWith('.json') ? [entryPath] : [];
+    });
+  }
+
+  return listJsonFiles(absoluteDirectory)
+    .map((absolutePath) => path.relative(absoluteDirectory, absolutePath))
     .sort((left, right) => left.localeCompare(right))
-    .map((fileName) => path.join(paritySpecDirectory, fileName));
+    .map((relativePath) => path.join(paritySpecDirectory, relativePath));
 }
 
 export function loadConformanceScenarios(repoRoot = defaultRepoRoot): ConformanceScenario[] {

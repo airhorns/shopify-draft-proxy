@@ -10,7 +10,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'segments');
 const outputPath = path.join(outputDir, 'segments-baseline.json');
 const documentPath = path.join('config', 'parity-requests', 'segments-baseline-read.graphql');
 const variablesPath = path.join('config', 'parity-requests', 'segments-baseline-read.variables.json');

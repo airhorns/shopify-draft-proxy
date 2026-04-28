@@ -1,0 +1,25 @@
+{
+  "scenarioId": "markets-catalog-read",
+  "operationNames": ["markets"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape", "nested-market-configuration"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/markets-catalog.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/markets-catalog-read.graphql",
+    "variablesPath": "config/parity-requests/markets/markets-catalog-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify Markets catalog capture for Admin GraphQL 2026-04, including selected conditions, currencies, price inclusions, nested catalogs, nested web presences, and opaque Shopify cursors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "markets-catalog-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

@@ -33,7 +33,7 @@ const client = createAdminGraphqlClient({
   apiVersion,
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'saved-searches');
 
 function assertNoTopLevelErrors(result: ConformanceGraphqlResult, context: string): void {
   if (result.status < 200 || result.status >= 300 || result.payload.errors) {
@@ -103,7 +103,7 @@ function makeDeleteVariables(ids: Record<SavedSearchAlias, string>): Record<stri
 }
 
 async function readRequest(name: string): Promise<string> {
-  return await readFile(path.join('config', 'parity-requests', name), 'utf8');
+  return await readFile(path.join('config', 'parity-requests', 'saved-searches', name), 'utf8');
 }
 
 async function cleanupIndividually(ids: Record<SavedSearchAlias, string>): Promise<void> {
@@ -167,22 +167,22 @@ try {
       'The fixture includes cleanup delete responses and post-delete empty reads for all successfully created saved searches.',
     ],
     create: {
-      documentPath: 'config/parity-requests/saved-search-resource-roots-create.graphql',
+      documentPath: 'config/parity-requests/saved-searches/saved-search-resource-roots-create.graphql',
       variables: createVariables,
       response: create.payload,
     },
     readAfterCreate: {
-      documentPath: 'config/parity-requests/saved-search-resource-roots-read.graphql',
+      documentPath: 'config/parity-requests/saved-searches/saved-search-resource-roots-read.graphql',
       variables: queryVariables,
       response: readAfterCreate.payload,
     },
     cleanupDelete: {
-      documentPath: 'config/parity-requests/saved-search-resource-roots-delete.graphql',
+      documentPath: 'config/parity-requests/saved-searches/saved-search-resource-roots-delete.graphql',
       variables: deleteVariables,
       response: cleanupDelete.payload,
     },
     readAfterDelete: {
-      documentPath: 'config/parity-requests/saved-search-resource-roots-read.graphql',
+      documentPath: 'config/parity-requests/saved-searches/saved-search-resource-roots-read.graphql',
       variables: queryVariables,
       response: readAfterDelete.payload,
     },

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "order-merchant-detail-read",
+  "operationNames": ["order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "money-sets", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-merchant-detail-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-merchant-detail-read.graphql",
+    "variablesPath": "config/parity-requests/orders/order-merchant-detail-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Seeded snapshot-backed merchant order detail read for fields order-management apps commonly inspect after create, edit, fulfillment, payment, refund, and return flows. The fixture records Shopify-like null/empty shapes, money sets, nested fulfillment-order nodes, fulfillment arrays, line item/tax/shipping nodes, transactions, refunds, and returns without requiring a new live mutation during this task.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-detail",
+        "capturePath": "$.response.data.order",
+        "proxyPath": "$.data.order",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

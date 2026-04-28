@@ -1,0 +1,42 @@
+{
+  "scenarioId": "fulfillment-create-invalid-id-parity",
+  "operationNames": ["fulfillmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "resource-not-found-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-create-invalid-id.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/fulfillmentCreate-invalid-id-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/fulfillmentCreate-invalid-id-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "First fulfillment-domain increment: a captured `fulfillmentCreate` invalid-fulfillment-order validation slice that the proxy can mirror locally in snapshot mode without inventing successful fulfillment lifecycle semantics yet.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      },
+      {
+        "name": "error-path",
+        "capturePath": "$.mutation.response.errors[0].path",
+        "proxyPath": "$.errors[0].path"
+      }
+    ]
+  }
+}

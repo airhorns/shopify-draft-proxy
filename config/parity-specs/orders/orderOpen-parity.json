@@ -1,0 +1,34 @@
+{
+  "scenarioId": "orderOpen-live-parity",
+  "operationNames": ["orderOpen"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderOpen-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderOpen-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 orderOpen conformance slice for HAR-120 local staging.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-opened",
+        "capturePath": "$.mutation.response.data.orderOpen.order.closed",
+        "proxyPath": "$.data.orderOpen.order.closed"
+      },
+      {
+        "name": "mutation-closed-at",
+        "capturePath": "$.mutation.response.data.orderOpen.order.closedAt",
+        "proxyPath": "$.data.orderOpen.order.closedAt"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderOpen.userErrors",
+        "proxyPath": "$.data.orderOpen.userErrors"
+      }
+    ]
+  }
+}

@@ -21,7 +21,7 @@ const inventoryQuantityContracts202604 = JSON.parse(
   readFileSync(
     path.join(
       repoRoot,
-      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/inventory-quantity-contracts-2026-04.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json',
     ),
     'utf8',
   ),

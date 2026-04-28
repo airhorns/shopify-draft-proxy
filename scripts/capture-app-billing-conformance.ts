@@ -410,6 +410,7 @@ const outputPath = path.join(
   'conformance',
   storeDomain,
   apiVersion,
+  'apps',
   'app-billing-access-read.json',
 );
 

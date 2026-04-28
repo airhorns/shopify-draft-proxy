@@ -37,7 +37,10 @@ describe('pickCollectionCaptureSeed', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const detailFixture = JSON.parse(
       readFileSync(
-        resolve(repoRoot, 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/collection-detail.json'),
+        resolve(
+          repoRoot,
+          'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json',
+        ),
         'utf8',
       ),
     ) as {

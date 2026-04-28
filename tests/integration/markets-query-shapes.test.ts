@@ -12,8 +12,8 @@ import { store } from '../support/runtime.js';
 import { withRuntimeContext } from '../support/runtime.js';
 
 const repoRoot = process.cwd();
-const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
-const marketPriceListFixtureRoot = 'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04';
+const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets';
+const marketPriceListFixtureRoot = 'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets';
 
 const config: AppConfig = {
   port: 3000,
@@ -115,32 +115,32 @@ describe('Markets query shapes', () => {
   it.each([
     {
       name: 'markets catalog',
-      documentPath: 'config/parity-requests/markets-catalog-read.graphql',
-      variablesPath: 'config/parity-requests/markets-catalog-read.variables.json',
+      documentPath: 'config/parity-requests/markets/markets-catalog-read.graphql',
+      variablesPath: 'config/parity-requests/markets/markets-catalog-read.variables.json',
       fixturePath: `${fixtureRoot}/markets-catalog.json`,
     },
     {
       name: 'market detail',
-      documentPath: 'config/parity-requests/market-detail-read.graphql',
-      variablesPath: 'config/parity-requests/market-detail-read.variables.json',
+      documentPath: 'config/parity-requests/markets/market-detail-read.graphql',
+      variablesPath: 'config/parity-requests/markets/market-detail-read.variables.json',
       fixturePath: `${fixtureRoot}/market-detail.json`,
     },
     {
       name: 'market catalogs',
-      documentPath: 'config/parity-requests/market-catalogs-read.graphql',
-      variablesPath: 'config/parity-requests/market-catalogs-read.variables.json',
+      documentPath: 'config/parity-requests/markets/market-catalogs-read.graphql',
+      variablesPath: 'config/parity-requests/markets/market-catalogs-read.variables.json',
       fixturePath: `${fixtureRoot}/market-catalogs.json`,
     },
     {
       name: 'market web presences',
-      documentPath: 'config/parity-requests/market-web-presences-read.graphql',
-      variablesPath: 'config/parity-requests/market-web-presences-read.variables.json',
+      documentPath: 'config/parity-requests/markets/market-web-presences-read.graphql',
+      variablesPath: 'config/parity-requests/markets/market-web-presences-read.variables.json',
       fixturePath: `${fixtureRoot}/market-web-presences.json`,
     },
     {
       name: 'markets resolved values',
-      documentPath: 'config/parity-requests/markets-resolved-values-read.graphql',
-      variablesPath: 'config/parity-requests/markets-resolved-values-read.variables.json',
+      documentPath: 'config/parity-requests/markets/markets-resolved-values-read.graphql',
+      variablesPath: 'config/parity-requests/markets/markets-resolved-values-read.variables.json',
       fixturePath: `${fixtureRoot}/markets-resolved-values.json`,
     },
   ])('serves captured $name from local snapshot state', async ({ documentPath, variablesPath, fixturePath }) => {
@@ -166,8 +166,8 @@ describe('Markets query shapes', () => {
     withRuntimeContext((runtime) =>
       hydrateMarketsFromUpstreamResponse(
         runtime,
-        readText('config/parity-requests/markets-catalog-read.graphql'),
-        readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json'),
+        readText('config/parity-requests/markets/markets-catalog-read.graphql'),
+        readJson<Record<string, unknown>>('config/parity-requests/markets/markets-catalog-read.variables.json'),
         readJson(`${fixtureRoot}/markets-catalog.json`),
       ),
     );
@@ -348,26 +348,26 @@ describe('Markets query shapes', () => {
   it.each([
     {
       name: 'market catalog detail and count',
-      documentPath: 'config/parity-requests/market-catalog-detail-read.graphql',
-      variablesPath: 'config/parity-requests/market-catalog-detail-read.variables.json',
+      documentPath: 'config/parity-requests/markets/market-catalog-detail-read.graphql',
+      variablesPath: 'config/parity-requests/markets/market-catalog-detail-read.variables.json',
       fixturePath: `${marketPriceListFixtureRoot}/market-catalog-detail.json`,
     },
     {
       name: 'price list detail',
-      documentPath: 'config/parity-requests/price-list-detail-read.graphql',
-      variablesPath: 'config/parity-requests/price-list-detail-read.variables.json',
+      documentPath: 'config/parity-requests/markets/price-list-detail-read.graphql',
+      variablesPath: 'config/parity-requests/markets/price-list-detail-read.variables.json',
       fixturePath: `${marketPriceListFixtureRoot}/price-list-detail.json`,
     },
     {
       name: 'filtered price list prices',
-      documentPath: 'config/parity-requests/price-list-prices-filtered-read.graphql',
-      variablesPath: 'config/parity-requests/price-list-prices-filtered-read.variables.json',
+      documentPath: 'config/parity-requests/markets/price-list-prices-filtered-read.graphql',
+      variablesPath: 'config/parity-requests/markets/price-list-prices-filtered-read.variables.json',
       fixturePath: `${marketPriceListFixtureRoot}/price-list-prices-filtered.json`,
     },
     {
       name: 'price lists catalog',
-      documentPath: 'config/parity-requests/price-lists-read.graphql',
-      variablesPath: 'config/parity-requests/price-lists-read.variables.json',
+      documentPath: 'config/parity-requests/markets/price-lists-read.graphql',
+      variablesPath: 'config/parity-requests/markets/price-lists-read.variables.json',
       fixturePath: `${marketPriceListFixtureRoot}/price-lists.json`,
     },
   ])('serves captured $name roots from local snapshot state', async ({ documentPath, variablesPath, fixturePath }) => {
@@ -528,8 +528,10 @@ describe('Markets query shapes', () => {
   });
 
   it('applies Markets connection pagination, reverse ordering, and root filters from normalized state', async () => {
-    const document = readText('config/parity-requests/markets-catalog-read.graphql');
-    const variables = readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json');
+    const document = readText('config/parity-requests/markets/markets-catalog-read.graphql');
+    const variables = readJson<Record<string, unknown>>(
+      'config/parity-requests/markets/markets-catalog-read.variables.json',
+    );
     const fixture = readJson<MarketsCatalogFixture>(`${fixtureRoot}/markets-catalog.json`);
     withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
@@ -686,8 +688,10 @@ describe('Markets query shapes', () => {
   });
 
   it('applies captured Markets query filters from normalized state', async () => {
-    const document = readText('config/parity-requests/markets-catalog-read.graphql');
-    const variables = readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json');
+    const document = readText('config/parity-requests/markets/markets-catalog-read.graphql');
+    const variables = readJson<Record<string, unknown>>(
+      'config/parity-requests/markets/markets-catalog-read.variables.json',
+    );
     const fixture = readJson<MarketsCatalogFixture>(`${fixtureRoot}/markets-catalog.json`);
     withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
@@ -757,8 +761,10 @@ describe('Markets query shapes', () => {
   });
 
   it('applies catalog pagination, search filters, counts, and MarketCatalog nested market fields from normalized state', async () => {
-    const document = readText('config/parity-requests/market-catalogs-read.graphql');
-    const variables = readJson<Record<string, unknown>>('config/parity-requests/market-catalogs-read.variables.json');
+    const document = readText('config/parity-requests/markets/market-catalogs-read.graphql');
+    const variables = readJson<Record<string, unknown>>(
+      'config/parity-requests/markets/market-catalogs-read.variables.json',
+    );
     const fixture = readJson<MarketCatalogsFixture>(`${marketPriceListFixtureRoot}/market-catalogs.json`);
     withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
@@ -895,17 +901,19 @@ describe('Markets query shapes', () => {
   });
 
   it('applies price-list pagination and price filters while preserving product variant price relationships', async () => {
-    const detailDocument = readText('config/parity-requests/price-list-detail-read.graphql');
+    const detailDocument = readText('config/parity-requests/markets/price-list-detail-read.graphql');
     const detailVariables = readJson<Record<string, unknown>>(
-      'config/parity-requests/price-list-detail-read.variables.json',
+      'config/parity-requests/markets/price-list-detail-read.variables.json',
     );
     const detailFixture = readJson<PriceListFixture>(`${marketPriceListFixtureRoot}/price-list-detail.json`);
     withRuntimeContext((runtime) =>
       hydrateMarketsFromUpstreamResponse(runtime, detailDocument, detailVariables, detailFixture),
     );
 
-    const listDocument = readText('config/parity-requests/price-lists-read.graphql');
-    const listVariables = readJson<Record<string, unknown>>('config/parity-requests/price-lists-read.variables.json');
+    const listDocument = readText('config/parity-requests/markets/price-lists-read.graphql');
+    const listVariables = readJson<Record<string, unknown>>(
+      'config/parity-requests/markets/price-lists-read.variables.json',
+    );
     const listFixture = readJson<{ data: Record<string, unknown> }>(`${marketPriceListFixtureRoot}/price-lists.json`);
     withRuntimeContext((runtime) =>
       hydrateMarketsFromUpstreamResponse(runtime, listDocument, listVariables, listFixture),

@@ -1,0 +1,56 @@
+{
+  "scenarioId": "marketing-native-activity-lifecycle",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-log-parity"],
+  "operationNames": ["marketingActivityCreate", "marketingActivityUpdate"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-native-activity-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-native-activity-lifecycle.graphql",
+    "variables": {
+      "createInput": {
+        "marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/har-373-local-extension",
+        "status": "DRAFT"
+      },
+      "updateInput": {
+        "id": "gid://shopify/MarketingActivity/1",
+        "title": "HAR-373 Native Activity Active",
+        "status": "ACTIVE"
+      },
+      "invalidExtensionInput": {
+        "marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000",
+        "status": "DRAFT"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-373 captures the 2026-04 native/deprecated marketing activity schema shape and validation behavior. The live success path is blocked because the conformance app/store has no deprecated MarketingActivityExtension to create against; runtime tests cover local success staging, downstream native activity reads, engagement by native activity id, meta state, and mutation log behavior without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-extension-user-errors",
+        "capturePath": "$.operations.validation.invalidExtension.response.data.marketingActivityCreate.userErrors",
+        "proxyPath": "$.data.invalidExtension.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "read-native-updated-activity",
+        "capturePath": "$.localRuntimeExpectations.updatedActivity",
+        "proxyPath": "$.data.marketingActivity",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-native-activity-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.updateNative.marketingActivity.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

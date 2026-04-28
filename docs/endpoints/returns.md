@@ -77,11 +77,11 @@ Local staged mutations:
 ### Validation anchors
 
 - Runtime behavior: `tests/integration/order-return-flow.test.ts`
-- Executable parity: `config/parity-specs/return-lifecycle-local-staging.json`
+- Executable parity: `config/parity-specs/orders/return-lifecycle-local-staging.json`
 - HAR-370 executable parity:
-  `config/parity-specs/return-reverse-logistics-local-staging.json`,
-  `config/parity-specs/return-request-decline-local-staging.json`, and
-  `config/parity-specs/removeFromReturn-local-staging.json`
+  `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,
+  `config/parity-specs/orders/return-request-decline-local-staging.json`, and
+  `config/parity-specs/orders/removeFromReturn-local-staging.json`
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

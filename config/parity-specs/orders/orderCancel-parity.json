@@ -1,0 +1,46 @@
+{
+  "scenarioId": "orderCancel-live-parity",
+  "operationNames": ["orderCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderCancel-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCancel-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 orderCancel conformance slice. Shopify returns an immediate empty user-error payload and applies cancellation asynchronously; the local proxy stages the downstream cancelled state without passthrough.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "user-errors",
+        "capturePath": "$.mutation.response.data.orderCancel.orderCancelUserErrors",
+        "proxyPath": "$.data.orderCancel.orderCancelUserErrors"
+      },
+      {
+        "name": "downstream-closed",
+        "capturePath": "$.downstreamRead.response.data.order.closed",
+        "proxyPath": "$.data.order.closed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
+          "variables": {
+            "id": "gid://shopify/Order/6830646329577"
+          }
+        }
+      },
+      {
+        "name": "downstream-cancel-reason",
+        "capturePath": "$.downstreamRead.response.data.order.cancelReason",
+        "proxyPath": "$.data.order.cancelReason",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
+          "variables": {
+            "id": "gid://shopify/Order/6830646329577"
+          }
+        }
+      }
+    ]
+  }
+}

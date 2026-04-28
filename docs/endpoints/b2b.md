@@ -82,20 +82,20 @@ customer or staff catalog side effects from B2B assignment mutations.
 ### Evidence
 
 - Live capture:
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-roots-read.json`
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-roots-read.json`
 - Live lifecycle capture:
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b-company-create-lifecycle.json`
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-create-lifecycle.json`
 - Safe mutation validation capture:
-  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-mutation-validation.json`
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-mutation-validation.json`
 - Strict read parity scenario:
-  `config/parity-specs/b2b-company-roots-read.json`
+  `config/parity-specs/b2b/b2b-company-roots-read.json`
 - Lifecycle parity scenario:
-  `config/parity-specs/b2b-company-create-lifecycle.json`
+  `config/parity-specs/b2b/b2b-company-create-lifecycle.json`
 - Runtime coverage: `tests/integration/b2b-company-query-shapes.test.ts`
 - Lifecycle runtime coverage:
   `tests/integration/b2b-company-lifecycle-flow.test.ts`
 - Root inventory:
-  `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
+  `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
 The captured store had two companies, two company locations, per-company
 system contact roles, one company contact, and safe unknown-ID null branches for
