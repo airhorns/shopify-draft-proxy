@@ -4005,7 +4005,7 @@
     "implemented": true,
     "matchNames": ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
     "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
-    "supportNotes": "Stages mandate-payment jobs locally with session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways."
+    "supportNotes": "Stages mandate-payment jobs locally with current mandateId request-shape coverage, session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways or validating real mandate ownership."
   },
   {
     "name": "paymentCustomizationActivation",
@@ -4175,7 +4175,7 @@
     "implemented": true,
     "matchNames": ["transactionVoid", "TransactionVoid"],
     "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
-    "supportNotes": "Stages voids for uncaptured local authorization transactions and updates downstream capturable/financial fields without proxying the supported mutation upstream."
+    "supportNotes": "Stages voids for uncaptured local authorization transactions using the current parentTransactionId request shape, retains legacy id compatibility for older fixtures, and updates downstream capturable/financial fields without proxying the supported mutation upstream."
   },
   {
     "name": "orderCustomerSet",

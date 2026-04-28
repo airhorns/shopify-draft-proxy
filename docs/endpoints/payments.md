@@ -28,6 +28,7 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 - `paymentTermsCreate`
 - `paymentTermsUpdate`
 - `paymentTermsDelete`
+- `shopifyPaymentsAccount`
 
 Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
@@ -66,7 +67,7 @@ The current test store had no released `ShopifyFunction` nodes at capture time, 
 
 ### Finance, Risk, Disputes, And POS Cash
 
-HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
+HAR-316 records coverage scaffolds for the sensitive finance/risk roots `cashTrackingSession`, `cashTrackingSessions`, `financeAppAccessPolicy`, `financeKycInformation`, `pointOfSaleDevice`, `dispute`, `disputes`, `disputeEvidence`, `disputeEvidenceUpdate`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `tenderTransactions`.
 
 The checked-in capture `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json` deliberately avoids creating or exposing financial records. It records only root introspection, unknown-id or unknown-token reads, type-only connection nodes, access-denied credential blockers, an unknown-order `orderRiskAssessmentCreate` validation branch, and a non-executing missing-currency validation request for `shopifyPaymentsPayoutAlternateCurrencyCreate`.
 
@@ -75,12 +76,14 @@ Current 2025-01 implemented no-data coverage:
 - `cashTrackingSession(id:)`, `pointOfSaleDevice(id:)`, `dispute(id:)`, and `shopPayPaymentRequestReceipt(token:)` return `null` for unknown identifiers.
 - `cashTrackingSessions(first: 1)` and `shopPayPaymentRequestReceipts(first: 1)` return empty connections with false `pageInfo` flags on the current store.
 - `disputes(first: 1)` returns an empty connection.
+- `shopifyPaymentsAccount` returns `null` in the captured access-denied/no-account branch. When a normalized Business Entity fixture includes a Shopify Payments account, the direct root serializes only captured-safe account scalars and empty no-data account connections shared with `BusinessEntity.shopifyPaymentsAccount`.
 
 Still-blocked sensitive coverage:
 
 - `disputeEvidence(id:)` is denied without `read_shopify_payments_dispute_evidences`.
 - `financeAppAccessPolicy` is denied without the required valid finance app user session/client; `financeKycInformation` is denied without `read_financial_kyc_information` plus finance-app permission.
 - `disputeEvidenceUpdate` is denied without `write_shopify_payments_dispute_evidences` plus staff dispute/order permission.
+- `shopifyPaymentsAccount` non-empty balance, bank account, payout schedule, statement descriptor, dispute, payout, and balance-transaction details require `read_shopify_payments` / `read_shopify_payments_accounts` style access and scrubbed disposable-store fixtures before local support expands beyond captured-safe scalar/no-data behavior.
 - `tenderTransactions(first: 1)` may expose real transaction rows on the current store, so the capture selects only `__typename` and page flags. Do not add IDs, amounts, payment methods, remote references, users, or transaction details unless the fixture is deliberately scrubbed and justified.
 - `shopifyPaymentsPayoutAlternateCurrencyCreate` must remain unsupported until a local payout model exists; live happy paths can alter payout configuration or money movement.
 

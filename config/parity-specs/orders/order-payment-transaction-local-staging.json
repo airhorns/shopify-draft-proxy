@@ -118,7 +118,8 @@
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
-            }
+            },
+            "mandateId": "gid://shopify/PaymentMandate/har-397"
           }
         }
       }

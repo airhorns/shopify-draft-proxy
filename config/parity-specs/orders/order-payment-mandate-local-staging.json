@@ -26,6 +26,7 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
             },
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
             "idempotencyKey": "har-353-idempotent-payment",
             "amount": {
               "amount": "25.00",
@@ -44,6 +45,7 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
             },
+            "mandateId": "gid://shopify/PaymentMandate/har-397",
             "idempotencyKey": "har-353-idempotent-payment",
             "amount": {
               "amount": "25.00",
