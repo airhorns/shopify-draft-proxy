@@ -2360,6 +2360,7 @@ Access-scope trap:
 
 - selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
 - keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+- HAR-376 live web-presence delete parity used a disposable letters-only subfolder on `harry-test-heelo.myshopify.com`: `webPresenceDelete` returns only `deletedId` and `userErrors`, unknown and already-deleted IDs return `WEB_PRESENCE_NOT_FOUND`, and a failed setup attempt confirmed 2026-04 rejects subfolder suffixes containing digits or hyphens with `SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS`
 
 Safety rule:
 
