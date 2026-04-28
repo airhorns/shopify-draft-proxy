@@ -1,0 +1,16 @@
+mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {
+  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+    bulkCreation {
+      done
+      codesCount
+      importedCount
+      failedCount
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

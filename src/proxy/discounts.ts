@@ -2966,11 +2966,14 @@ function findCodeDiscountByCode(runtime: ProxyRuntimeContext, code: unknown): Di
     return null;
   }
 
+  const normalizedCode = code.toLowerCase();
   return (
     runtime.store
       .listEffectiveDiscounts()
       .find(
-        (discount) => discount.method === 'code' && getDiscountCodes(discount).some((entry) => entry.code === code),
+        (discount) =>
+          discount.method === 'code' &&
+          getDiscountCodes(discount).some((entry) => entry.code.toLowerCase() === normalizedCode),
       ) ?? null
   );
 }

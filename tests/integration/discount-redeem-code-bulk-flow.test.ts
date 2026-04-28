@@ -106,7 +106,7 @@ describe('discount redeem-code bulk staging', () => {
     const readAfterAdd = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
-        query: `query ReadCodes($id: ID!, $code: String!) {
+        query: `query ReadCodes($id: ID!, $code: String!, $lowerCode: String!) {
           codeDiscountNode(id: $id) {
             codeDiscount {
               ... on DiscountCodeBasic {
@@ -118,11 +118,13 @@ describe('discount redeem-code bulk staging', () => {
             }
           }
           codeDiscountNodeByCode(code: $code) { id }
+          lowerCaseLookup: codeDiscountNodeByCode(code: $lowerCode) { id }
           discountNodes(first: 10, query: "status:active") { nodes { id } }
         }`,
         variables: {
           id: 'gid://shopify/DiscountCodeNode/197001',
           code: 'HAR197ADD1',
+          lowerCode: 'har197add1',
         },
       });
 
@@ -145,6 +147,9 @@ describe('discount redeem-code bulk staging', () => {
       precision: 'EXACT',
     });
     expect(readAfterAdd.body.data.codeDiscountNodeByCode).toEqual({
+      id: 'gid://shopify/DiscountCodeNode/197001',
+    });
+    expect(readAfterAdd.body.data.lowerCaseLookup).toEqual({
       id: 'gid://shopify/DiscountCodeNode/197001',
     });
     expect(readAfterAdd.body.data.discountNodes.nodes).toEqual([{ id: 'gid://shopify/DiscountCodeNode/197001' }]);
