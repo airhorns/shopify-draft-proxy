@@ -1641,6 +1641,92 @@ function makeCreatedVariantRecord(
   };
 }
 
+function selectedOptionsKey(selectedOptions: ProductVariantRecord['selectedOptions']): string {
+  return selectedOptions.map((selectedOption) => `${selectedOption.name}\u0000${selectedOption.value}`).join('\u0001');
+}
+
+function buildSelectedOptionCombinations(options: ProductOptionRecord[]): ProductVariantRecord['selectedOptions'][] {
+  return options.reduce<ProductVariantRecord['selectedOptions'][]>(
+    (combinations, option) => {
+      const valueNames = option.optionValues
+        .map((optionValue) => optionValue.name)
+        .filter((valueName) => valueName.trim().length > 0);
+      if (valueNames.length === 0) {
+        return combinations;
+      }
+
+      return combinations.flatMap((combination) =>
+        valueNames.map((valueName) => [
+          ...combination,
+          {
+            name: option.name,
+            value: valueName,
+          },
+        ]),
+      );
+    },
+    [[]],
+  );
+}
+
+function fillMissingVariantOptionSelections(
+  variants: ProductVariantRecord[],
+  options: ProductOptionRecord[],
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedByName = new Map(
+      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption.value]),
+    );
+    const selectedOptions = options
+      .map((option) => {
+        const selectedValue = selectedByName.get(option.name) ?? option.optionValues[0]?.name ?? null;
+        return typeof selectedValue === 'string' && selectedValue.trim()
+          ? {
+              name: option.name,
+              value: selectedValue,
+            }
+          : null;
+      })
+      .filter(
+        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+      );
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
+function createVariantsForOptionValueCombinations(
+  productId: string,
+  options: ProductOptionRecord[],
+  existingVariants: ProductVariantRecord[],
+): ProductVariantRecord[] {
+  const combinations = buildSelectedOptionCombinations(options);
+  if (combinations.length === 0) {
+    return existingVariants;
+  }
+
+  const variantsBySelectedOptions = new Map(
+    fillMissingVariantOptionSelections(existingVariants, options).map((variant) => [
+      selectedOptionsKey(variant.selectedOptions),
+      variant,
+    ]),
+  );
+  const defaultVariant = existingVariants[0] ?? null;
+
+  return combinations.map((selectedOptions) => {
+    const existingVariant = variantsBySelectedOptions.get(selectedOptionsKey(selectedOptions));
+    if (existingVariant) {
+      return existingVariant;
+    }
+
+    return makeCreatedVariantRecord(productId, { selectedOptions }, defaultVariant);
+  });
+}
+
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
   const variant = makeCreatedVariantRecord(productId, input);
 
@@ -10679,7 +10765,9 @@ export function handleProductMutation(
       const existingOptions = store.getEffectiveOptionsByProductId(productId);
       const existingVariants = store.getEffectiveVariantsByProductId(productId);
       let nextOptions = existingOptions;
+      let nextVariants = existingVariants;
       const optionInputs = Array.isArray(args['options']) ? args['options'] : [];
+      const shouldCreateOptionVariants = args['variantStrategy'] === 'CREATE';
       const shouldReplaceDefaultOptionState = productUsesOnlyDefaultOptionState(existingOptions, existingVariants);
       if (shouldReplaceDefaultOptionState) {
         nextOptions = [];
@@ -10696,9 +10784,13 @@ export function handleProductMutation(
         );
       }
 
-      let nextVariants = existingVariants;
       if (shouldReplaceDefaultOptionState && existingVariants[0]) {
         nextVariants = [remapDefaultVariantToCreatedOptions(existingVariants[0], nextOptions)];
+        store.replaceStagedVariantsForProduct(productId, nextVariants);
+      }
+
+      if (shouldCreateOptionVariants) {
+        nextVariants = createVariantsForOptionValueCombinations(productId, nextOptions, nextVariants);
         store.replaceStagedVariantsForProduct(productId, nextVariants);
       }
 
