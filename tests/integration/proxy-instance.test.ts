@@ -1,8 +1,11 @@
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
+import { createApp as createRuntimeApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { createDraftProxy } from '../../src/proxy-instance.js';
+import { makeSyntheticGid } from '../../src/state/synthetic-identity.js';
+import { store as runtimeStore } from '../../src/state/store.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -137,5 +140,30 @@ describe('draft proxy public instance API', () => {
       path: '/admin/api/2025-01/graphql.json',
       status: 'staged',
     });
+  });
+
+  it('keeps default Koa app runtime state isolated by app instance', async () => {
+    const firstApp = createRuntimeApp(config).callback();
+    const secondApp = createRuntimeApp(config).callback();
+
+    const firstCreateResponse = await request(firstApp)
+      .post('/admin/api/2025-01/graphql.json')
+      .send(productCreateBodyWithTitle('First Server Hat'));
+
+    expect(firstCreateResponse.status).toBe(200);
+
+    const firstStateResponse = await request(firstApp).get('/__meta/state');
+    const secondStateResponse = await request(secondApp).get('/__meta/state');
+    const firstProductId = readProductCreateId(firstCreateResponse.body);
+
+    expect(firstStateResponse.status).toBe(200);
+    expect(secondStateResponse.status).toBe(200);
+    expect(Object.keys(firstStateResponse.body.stagedState.products)).toEqual([firstProductId]);
+    expect(secondStateResponse.body.stagedState.products).toEqual({});
+  });
+
+  it('fails direct runtime helper access outside a DraftProxy request context', () => {
+    expect(() => runtimeStore.getState()).toThrow('No DraftProxy runtime store is active');
+    expect(() => makeSyntheticGid('Product')).toThrow('No DraftProxy synthetic identity registry is active');
   });
 });

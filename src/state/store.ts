@@ -4863,22 +4863,21 @@ export class InMemoryStore {
   }
 }
 
-const defaultStore = new InMemoryStore();
 const storeContext = new AsyncLocalStorage<InMemoryStore>();
 
 export function getCurrentStore(): InMemoryStore {
-  return storeContext.getStore() ?? defaultStore;
-}
-
-export function getDefaultStore(): InMemoryStore {
-  return defaultStore;
+  const runtimeStore = storeContext.getStore();
+  if (!runtimeStore) {
+    throw new Error('No DraftProxy runtime store is active. Process requests through a DraftProxy instance.');
+  }
+  return runtimeStore;
 }
 
 export function runWithStore<T>(runtimeStore: InMemoryStore, callback: () => T): T {
   return storeContext.run(runtimeStore, callback);
 }
 
-export const store = new Proxy(defaultStore, {
+export const store = new Proxy({} as InMemoryStore, {
   get(_target, property) {
     const currentStore = getCurrentStore();
     const value = Reflect.get(currentStore, property);

@@ -95,8 +95,13 @@ import {
   handleWebhookSubscriptionQuery,
   hydrateWebhookSubscriptionsFromUpstreamResponse,
 } from '../src/proxy/webhooks.js';
-import { makeSyntheticGid, makeSyntheticTimestamp, resetSyntheticIdentity } from '../src/state/synthetic-identity.js';
-import { store } from '../src/state/store.js';
+import {
+  makeSyntheticGid,
+  makeSyntheticTimestamp,
+  runWithSyntheticIdentity,
+  SyntheticIdentityRegistry,
+} from '../src/state/synthetic-identity.js';
+import { InMemoryStore, runWithStore, store } from '../src/state/store.js';
 import type {
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
@@ -7724,6 +7729,33 @@ export async function executeParityScenario({
   comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
   operationNameValidation: OperationNameValidationResult;
 }> {
+  const runtimeStore = new InMemoryStore();
+  const syntheticIdentity = new SyntheticIdentityRegistry();
+  return runWithStore(runtimeStore, () =>
+    runWithSyntheticIdentity(syntheticIdentity, () =>
+      executeParityScenarioInRuntime({
+        repoRoot,
+        scenario,
+        paritySpec,
+      }),
+    ),
+  );
+}
+
+async function executeParityScenarioInRuntime({
+  repoRoot,
+  scenario,
+  paritySpec,
+}: {
+  repoRoot: string;
+  scenario: Scenario;
+  paritySpec: ParitySpec;
+}): Promise<{
+  ok: boolean;
+  primaryProxyStatus: number;
+  comparisons: Array<{ name: string; ok: boolean; differences: Difference[] }>;
+  operationNameValidation: OperationNameValidationResult;
+}> {
   if (!paritySpec.proxyRequest?.documentPath) {
     throw new Error(`Scenario ${scenario.id} does not define a proxy request.`);
   }
@@ -7737,7 +7769,6 @@ export async function executeParityScenario({
   }
 
   store.reset();
-  resetSyntheticIdentity();
 
   const capturePath = scenario.captureFiles?.[0] ?? paritySpec.liveCaptureFiles?.[0];
   if (typeof capturePath !== 'string') {

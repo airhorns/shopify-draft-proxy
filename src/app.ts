@@ -1,7 +1,7 @@
 import Koa from 'koa';
 import bodyParser from 'koa-bodyparser';
 import type { AppConfig } from './config.js';
-import { createDefaultStoreDraftProxy, type DraftProxy } from './proxy-instance.js';
+import { createDraftProxy, type DraftProxy } from './proxy-instance.js';
 
 async function readRequestText(ctx: Koa.Context): Promise<string> {
   const parsedBody = ctx.request.body;
@@ -22,7 +22,7 @@ async function readRequestText(ctx: Koa.Context): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-export function createApp(config: AppConfig, proxy: DraftProxy = createDefaultStoreDraftProxy(config)): Koa {
+export function createApp(config: AppConfig, proxy: DraftProxy = createDraftProxy(config)): Koa {
   const app = new Koa();
 
   app.use(bodyParser());

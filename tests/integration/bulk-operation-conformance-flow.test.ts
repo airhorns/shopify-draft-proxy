@@ -7,13 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { classifyParityScenarioState, type ParitySpec } from '../../scripts/conformance-parity-lib.js';
 import { loadConformanceScenarios } from '../../scripts/conformance-scenario-registry.js';
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { parseOperation } from '../../src/graphql/parse-operation.js';
 import { getOperationCapability } from '../../src/proxy/capabilities.js';
 import { findOperationRegistryEntry } from '../../src/proxy/operation-registry.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import { store } from '../../src/state/store.js';
+import { resetSyntheticIdentity } from '../support/runtime.js';
+import { store } from '../support/runtime.js';
 import type { BulkOperationRecord, ProductRecord, ProductVariantRecord } from '../../src/state/types.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');

@@ -4,11 +4,12 @@ import { resolve } from 'node:path';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { hydrateMarketsFromUpstreamResponse } from '../../src/proxy/markets.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import { store } from '../../src/state/store.js';
+import { resetSyntheticIdentity } from '../support/runtime.js';
+import { store } from '../support/runtime.js';
+import { withRuntimeContext } from '../support/runtime.js';
 
 const repoRoot = process.cwd();
 const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
@@ -1273,10 +1274,12 @@ describe('Markets lifecycle staging', () => {
   });
 
   it('stages webPresenceCreate and webPresenceUpdate locally with read-after-write and meta visibility', async () => {
-    hydrateMarketsFromUpstreamResponse(
-      'query SeedMarketsResolvedValues { marketsResolvedValues { webPresences { edges { node { id } } } } }',
-      {},
-      readJson(`${fixtureRoot}/markets-resolved-values.json`),
+    withRuntimeContext(() =>
+      hydrateMarketsFromUpstreamResponse(
+        'query SeedMarketsResolvedValues { marketsResolvedValues { webPresences { edges { node { id } } } } }',
+        {},
+        readJson(`${fixtureRoot}/markets-resolved-values.json`),
+      ),
     );
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('web presence staging must not proxy'));

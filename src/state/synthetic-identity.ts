@@ -28,15 +28,16 @@ export class SyntheticIdentityRegistry {
   }
 }
 
-const defaultSyntheticIdentity = new SyntheticIdentityRegistry();
 const syntheticIdentityContext = new AsyncLocalStorage<SyntheticIdentityRegistry>();
 
-export function getDefaultSyntheticIdentity(): SyntheticIdentityRegistry {
-  return defaultSyntheticIdentity;
-}
-
 export function getCurrentSyntheticIdentity(): SyntheticIdentityRegistry {
-  return syntheticIdentityContext.getStore() ?? defaultSyntheticIdentity;
+  const identity = syntheticIdentityContext.getStore();
+  if (!identity) {
+    throw new Error(
+      'No DraftProxy synthetic identity registry is active. Process requests through a DraftProxy instance.',
+    );
+  }
+  return identity;
 }
 
 export function runWithSyntheticIdentity<T>(identity: SyntheticIdentityRegistry, callback: () => T): T {

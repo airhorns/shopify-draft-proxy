@@ -130,6 +130,10 @@ const proxy = createDraftProxy(config);
 const app = createApp(config, proxy);
 ```
 
+When no proxy is supplied, `createApp(config)` creates a new isolated
+`DraftProxy` for that Koa app. The webservice does not share a process-wide
+runtime store with other embedded or server instances.
+
 ## Runtime modes
 
 `SHOPIFY_DRAFT_PROXY_READ_MODE` controls how reads are answered.

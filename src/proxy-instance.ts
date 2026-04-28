@@ -12,12 +12,8 @@ import {
 } from './meta/routes.js';
 import { processProxyGraphQLRequest } from './proxy/routes.js';
 import { loadNormalizedStateSnapshot } from './state/snapshot-loader.js';
-import { getDefaultStore, InMemoryStore, runWithStore } from './state/store.js';
-import {
-  getDefaultSyntheticIdentity,
-  runWithSyntheticIdentity,
-  SyntheticIdentityRegistry,
-} from './state/synthetic-identity.js';
+import { InMemoryStore, runWithStore } from './state/store.js';
+import { runWithSyntheticIdentity, SyntheticIdentityRegistry } from './state/synthetic-identity.js';
 
 export type DraftProxyHeaderValue = string | string[] | undefined;
 
@@ -336,11 +332,4 @@ export class DraftProxy {
 
 export function createDraftProxy(config: AppConfig, options?: DraftProxyOptions): DraftProxy {
   return new DraftProxy(config, options);
-}
-
-export function createDefaultStoreDraftProxy(config: AppConfig): DraftProxy {
-  return createDraftProxy(config, {
-    store: getDefaultStore(),
-    syntheticIdentity: getDefaultSyntheticIdentity(),
-  });
 }

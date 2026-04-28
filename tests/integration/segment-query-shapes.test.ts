@@ -4,11 +4,12 @@ import { resolve } from 'node:path';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { hydrateSegmentsFromUpstreamResponse } from '../../src/proxy/segments.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
-import { store } from '../../src/state/store.js';
+import { resetSyntheticIdentity } from '../support/runtime.js';
+import { store } from '../support/runtime.js';
+import { withRuntimeContext } from '../support/runtime.js';
 
 const repoRoot = process.cwd();
 const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2025-01';
@@ -40,7 +41,7 @@ describe('segment query shapes', () => {
     const fixture = readJson<{ data: Record<string, unknown>; errors: Array<Record<string, unknown>> }>(
       `${fixtureRoot}/segments-baseline.json`,
     );
-    hydrateSegmentsFromUpstreamResponse(document, variables, fixture);
+    withRuntimeContext(() => hydrateSegmentsFromUpstreamResponse(document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot segment reads must not fetch upstream'));
     const app = createApp(config);

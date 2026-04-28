@@ -3,12 +3,8 @@ import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
-import { store, type InMemoryStore } from '../state/store.js';
-import {
-  getCurrentSyntheticIdentity,
-  isProxySyntheticGid,
-  type SyntheticIdentityRegistry,
-} from '../state/synthetic-identity.js';
+import type { InMemoryStore } from '../state/store.js';
+import { isProxySyntheticGid, type SyntheticIdentityRegistry } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
 export interface CommitAttempt {
@@ -215,7 +211,7 @@ function renderMutationLogRows(entries: MutationLogEntry[]): string {
     .join('');
 }
 
-export function renderMetaWebUi(config: AppConfig, runtimeStore: InMemoryStore = store): string {
+export function renderMetaWebUi(config: AppConfig, runtimeStore: InMemoryStore): string {
   const log = { entries: runtimeStore.getLog() };
   const state = runtimeStore.getState();
 
@@ -661,19 +657,19 @@ export function getMetaConfig(config: AppConfig): Record<string, unknown> {
   };
 }
 
-export function getMetaLog(runtimeStore: InMemoryStore = store): { entries: MutationLogEntry[] } {
+export function getMetaLog(runtimeStore: InMemoryStore): { entries: MutationLogEntry[] } {
   return {
     entries: runtimeStore.getLog(),
   };
 }
 
-export function getMetaState(runtimeStore: InMemoryStore = store): ReturnType<typeof store.getState> {
+export function getMetaState(runtimeStore: InMemoryStore): ReturnType<InMemoryStore['getState']> {
   return runtimeStore.getState();
 }
 
 export function resetMetaState(
-  runtimeStore: InMemoryStore = store,
-  syntheticIdentity: SyntheticIdentityRegistry = getCurrentSyntheticIdentity(),
+  runtimeStore: InMemoryStore,
+  syntheticIdentity: SyntheticIdentityRegistry,
 ): MetaResetResponse {
   runtimeStore.restoreInitialState();
   syntheticIdentity.reset();
@@ -686,7 +682,7 @@ export function resetMetaState(
 export async function commitMetaState(
   config: AppConfig,
   requestContext: IncomingGraphQLRequestContext,
-  runtimeStore: InMemoryStore = store,
+  runtimeStore: InMemoryStore,
 ): Promise<MetaCommitResponse> {
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
   const pendingEntries = runtimeStore.getLog().filter(logEntryRequiresCommit);
@@ -761,12 +757,16 @@ export async function commitMetaState(
   };
 }
 
-export function createMetaRouter(config: AppConfig): Router {
+export function createMetaRouter(
+  config: AppConfig,
+  runtimeStore: InMemoryStore,
+  syntheticIdentity: SyntheticIdentityRegistry,
+): Router {
   const router = new Router();
 
   router.get('/__meta', (ctx: Koa.Context) => {
     ctx.type = 'html';
-    ctx.body = renderMetaWebUi(config);
+    ctx.body = renderMetaWebUi(config, runtimeStore);
   });
 
   router.get('/__meta/health', (ctx: Koa.Context) => {
@@ -778,17 +778,17 @@ export function createMetaRouter(config: AppConfig): Router {
   });
 
   router.get('/__meta/log', (ctx: Koa.Context) => {
-    ctx.body = getMetaLog();
+    ctx.body = getMetaLog(runtimeStore);
   });
 
   router.get('/__meta/state', (ctx: Koa.Context) => {
-    ctx.body = getMetaState();
+    ctx.body = getMetaState(runtimeStore);
   });
 
   router.get('/__meta/bulk-operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
     const params = ctx['params'] as Record<string, string | undefined>;
     const operationId = params['operationId'];
-    const operation = operationId ? store.getEffectiveBulkOperationById(operationId) : null;
+    const operation = operationId ? runtimeStore.getEffectiveBulkOperationById(operationId) : null;
 
     if (!operation?.resultJsonl) {
       ctx.status = 404;
@@ -810,7 +810,7 @@ export function createMetaRouter(config: AppConfig): Router {
     const encodedId = encodeURIComponent(targetId);
     const encodedFilename = encodeURIComponent(filename);
 
-    store.stageUploadContent(
+    runtimeStore.stageUploadContent(
       [
         key,
         `/staged-uploads/${encodedId}/${encodedFilename}`,
@@ -830,7 +830,7 @@ export function createMetaRouter(config: AppConfig): Router {
     const operationId = ctx['params']['operationId'];
     const jsonl =
       typeof operationId === 'string'
-        ? store.getEffectiveBulkOperationResultJsonl(`gid://shopify/BulkOperation/${operationId}`)
+        ? runtimeStore.getEffectiveBulkOperationResultJsonl(`gid://shopify/BulkOperation/${operationId}`)
         : null;
 
     if (jsonl === null) {
@@ -844,11 +844,11 @@ export function createMetaRouter(config: AppConfig): Router {
   });
 
   router.post('/__meta/reset', (ctx: Koa.Context) => {
-    ctx.body = resetMetaState();
+    ctx.body = resetMetaState(runtimeStore, syntheticIdentity);
   });
 
   router.post('/__meta/commit', async (ctx: Koa.Context) => {
-    ctx.body = await commitMetaState(config, ctx);
+    ctx.body = await commitMetaState(config, ctx, runtimeStore);
   });
 
   return router;
