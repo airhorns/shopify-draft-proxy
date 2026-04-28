@@ -47,6 +47,18 @@ Local staged mutations:
 
 - `customerPaymentMethodGetUpdateUrl`
 
+### HAR-386 fidelity review map
+
+The HAR-386 review checked Shopify Admin GraphQL docs, public GitHub usage, existing endpoint notes, runtime handlers, integration tests, parity specs, and capture scripts for customer account, consent, privacy, merge, tax exemption, and store-credit roots. Public GitHub usage was mostly generated client surfaces plus a few direct mutation snippets, so local fidelity continues to be grounded in Shopify docs and captured conformance fixtures rather than third-party behavior assumptions.
+
+- Customer Account page reads are executable through `customer-account-page-data-erasure`, which covers captured `customerAccountPages`/`customerAccountPage` payloads, a hydrated local account-page read, and null/empty snapshot behavior.
+- Customer data-erasure request/cancel roots are side-effect boundaries: the proxy stages request/cancel intents, records meta/log state, preserves raw mutations for commit replay, and does not erase or restore customer data locally. The same parity scenario covers success, unchanged downstream customer reads, unknown-customer userErrors, and repeat-cancel behavior.
+- Customer email/SMS consent roots are customer state changes. Their parity specs cover strict mutation payloads and downstream `customer` / `customerByIdentifier` / `customers` reads; integration tests cover the validation matrix that is too branch-heavy for one strict replay path.
+- Tax exemption roots stage only `Customer.taxExemptions`, not the separate `Customer.taxExempt` boolean. Add/remove/replace parity specs cover mutation payloads, downstream reads, de-duplication, empty-list behavior, unknown customers, and invalid enum coercion.
+- Merge evidence is split intentionally: `customerMerge-parity` covers the base lifecycle, source deletion, resulting-customer reads, preview/status shapes, and validation branches; `customerMerge-attached-resources-parity` covers the normalized attached-resource slice that has captured downstream evidence. Draft orders, gift cards, discounts, and other attached resources remain out of scope until captured downstream reads prove their behavior.
+- Store credit evidence is limited to seeded or existing normalized accounts. `store-credit-account-local-staging` covers credit/debit payloads and downstream direct account reads; runtime tests cover nested customer reads, currency/funds/userError branches, and the no-fabrication rule for absent accounts.
+- Outbound activation/invite/payment-method email roots are supported only as local validation/buffering boundaries. The parity fixture covers no-side-effect validation shapes, while integration tests cover successful buffering and raw mutation retention for commit-time replay.
+
 ### Behavior notes
 
 - Customer-domain state deliberately stays narrower than the product model, but it is still normalized.

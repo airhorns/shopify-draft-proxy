@@ -45,6 +45,7 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - Customer email/SMS marketing consent is already tracked under the customers endpoint group and HAR-153 through `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate`.
 - Legal policy body updates are already tracked under store properties and HAR-173 through `shopPolicyUpdate`.
 - `dataSaleOptOut` is present as a mutation root in the checked-in 2025-01 root introspection fixture. Fixture-backed parity coverage lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/data-sale-opt-out-parity.json`.
+- HAR-386 re-reviewed `dataSaleOptOut` alongside customer consent and erasure roots. The executable boundary remains intentionally narrow: `dataSaleOptOut` is a customer read-after-write mutation under the privacy registry domain, while shop-level privacy settings and consent-policy roots remain registry-only until their own local lifecycle behavior and conformance fixtures exist.
 
 ## Historical and developer notes
 
