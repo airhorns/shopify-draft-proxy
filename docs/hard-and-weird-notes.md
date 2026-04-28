@@ -107,6 +107,25 @@ Practical rule:
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
 
+### 5a. Inventory quantity mutation contracts drift by Admin API version
+
+The inventory quantity roots are especially version-sensitive. The checked-in local parity for
+`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` is anchored to
+2025-01 fixture evidence, where `inventoryAdjustQuantities` accepts a plain mutation call and
+`inventorySetQuantities` uses `compareQuantity` / `ignoreCompareQuantity` style inputs.
+
+Shopify's current 2026-04 docs show two traps that should not be papered over by generic local
+staging:
+
+- `inventoryAdjustQuantities` requires an `@idempotent` key in 2026-04.
+- `inventorySetQuantities` examples use `changeFromQuantity` rather than the older compare/ignore
+  fields.
+
+Practical rule:
+
+- keep the existing implementation documented as 2025-01-backed inventory parity until a dedicated
+  2026-04 capture updates the request contract, validation branches, and route-version behavior.
+
 ## 6. Product update semantics are mode-sensitive
 
 Current `productUpdate` behavior is intentionally split by runtime mode:
@@ -1223,6 +1242,14 @@ HAR-245's 2026-04 schema-change capture added several easy traps:
 - after a required display field is added, pre-existing rows return that field with `value: null`; `displayName` falls back to a titleized handle until the row is updated with the required display field.
 - immediate `metaobjects(type:)` catalog reads omitted rows that were missing the newly required field. After updating the pre-existing row with that field, it returned to the catalog.
 - rows created after publishable capability was disabled were still visible through `metaobject(id:)` and `metaobjectByHandle`, but the immediate captured catalog read did not include that newly created post-disable row.
+
+HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
+
+- `metaobjectCreate` against an unknown definition type returns `UNDEFINED_OBJECT_TYPE` with message `No metaobject definition exists for type "<type>"`.
+- `metaobjectCreate` with a duplicate requested handle succeeds by auto-suffixing the handle, while `metaobjectUpdate` to another row's handle returns `TAKEN`.
+- `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
+- unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
+- 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 

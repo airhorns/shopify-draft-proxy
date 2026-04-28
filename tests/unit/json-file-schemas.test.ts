@@ -71,6 +71,23 @@ describe('schemaful JSON files', () => {
     ).toBe(false);
   });
 
+  it('rejects parity specs that declare blocker metadata', () => {
+    expect(
+      paritySpecSchema.safeParse({
+        scenarioId: 'blocked-placeholder',
+        scenarioStatus: 'planned',
+        comparisonMode: 'planned',
+        blocker: {
+          kind: 'missing-live-scopes',
+          blockerPath: null,
+          details: {
+            linearIssue: 'HAR-204',
+          },
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it('validates every checked-in parity request variables file as GraphQL variables', () => {
     const variablesPaths = listFiles(path.join(repoRoot, 'config/parity-requests'), (filePath) =>
       filePath.endsWith('.variables.json'),

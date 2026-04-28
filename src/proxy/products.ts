@@ -108,8 +108,54 @@ type ProductFeedRecord = {
   status: 'ACTIVE' | 'INACTIVE';
 };
 
+type ProductIdentifierCustomId = {
+  namespace: string;
+  key: string;
+  value: string;
+};
+
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
+}
+
+function readProductIdentifierCustomId(identifier: Record<string, unknown>): ProductIdentifierCustomId | null {
+  const customId = readProductInput(identifier['customId']);
+  const namespace = customId['namespace'];
+  const key = customId['key'];
+  const value = customId['value'];
+  if (typeof namespace !== 'string' || typeof key !== 'string' || typeof value !== 'string') {
+    return null;
+  }
+
+  return { namespace, key, value };
+}
+
+function getProductCustomIdDefinition(customId: ProductIdentifierCustomId): MetafieldDefinitionRecord | null {
+  const definition = store.findEffectiveMetafieldDefinition({
+    ownerType: 'PRODUCT',
+    namespace: customId.namespace,
+    key: customId.key,
+  });
+
+  return definition?.type.name === 'id' ? definition : null;
+}
+
+function findEffectiveProductByCustomId(customId: ProductIdentifierCustomId): ProductRecord | null {
+  return (
+    store
+      .listEffectiveProducts()
+      .find((product) =>
+        store
+          .getEffectiveMetafieldsByProductId(product.id)
+          .some(
+            (metafield) =>
+              metafield.namespace === customId.namespace &&
+              metafield.key === customId.key &&
+              metafield.type === 'id' &&
+              metafield.value === customId.value,
+          ),
+      ) ?? null
+  );
 }
 
 function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
@@ -123,7 +169,23 @@ function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): 
     return findEffectiveProductByHandle(handle);
   }
 
+  const customId = readProductIdentifierCustomId(identifier);
+  if (customId && getProductCustomIdDefinition(customId)) {
+    return findEffectiveProductByCustomId(customId);
+  }
+
   return null;
+}
+
+function buildProductCustomIdDefinitionMissingError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Metafield definition of type 'id' is required when using custom ids.",
+    locations: getNodeLocation(field),
+    extensions: {
+      code: 'NOT_FOUND',
+    },
+    path: [getResponseKey(field)],
+  };
 }
 
 function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
@@ -12634,6 +12696,7 @@ export function handleProductQuery(
 ): Record<string, unknown> {
   const fields = getRootFields(document);
   const data: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
 
   for (const field of fields) {
     const args = getFieldArguments(field, variables);
@@ -12649,6 +12712,13 @@ export function handleProductQuery(
       }
       case 'productByIdentifier': {
         const identifier = readProductInput(args['identifier']);
+        const customId = readProductIdentifierCustomId(identifier);
+        if (customId && !getProductCustomIdDefinition(customId)) {
+          data[responseKey] = null;
+          errors.push(buildProductCustomIdDefinitionMissingError(field));
+          break;
+        }
+
         data[responseKey] = serializeProduct(findEffectiveProductByIdentifier(identifier), field, variables);
         break;
       }
@@ -12902,5 +12972,5 @@ export function handleProductQuery(
     }
   }
 
-  return { data };
+  return errors.length > 0 ? { errors, data } : { data };
 }

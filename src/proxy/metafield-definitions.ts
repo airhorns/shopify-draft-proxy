@@ -755,6 +755,7 @@ function buildEnabledStandardMetafieldDefinition(
     namespace: template.namespace,
     key: template.key,
   });
+  const pinnedPosition = readBoolean(args['pin']) ? getNextPinnedPosition(ownerType, existingDefinition) : null;
 
   return {
     id: existingDefinition?.id ?? makeSyntheticGid('MetafieldDefinition'),
@@ -771,7 +772,7 @@ function buildEnabledStandardMetafieldDefinition(
       key: null,
       values: [],
     },
-    pinnedPosition: readBoolean(args['pin']) ? 1 : null,
+    pinnedPosition,
     validationStatus: 'ALL_VALID',
   };
 }
@@ -976,12 +977,7 @@ function serializeDefinitionDeletePayload(
 function buildMetafieldDefinitionFromInput(definitionInput: Record<string, unknown>): MetafieldDefinitionRecord {
   const typeName = readString(definitionInput['type']) ?? 'single_line_text_field';
   const ownerType = readString(definitionInput['ownerType']) ?? 'PRODUCT';
-  const pinnedPosition = readBoolean(definitionInput['pin'])
-    ? listPinnedDefinitions(ownerType).reduce(
-        (highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0),
-        0,
-      ) + 1
-    : null;
+  const pinnedPosition = readBoolean(definitionInput['pin']) ? getNextPinnedPosition(ownerType) : null;
 
   return {
     id: makeSyntheticGid('MetafieldDefinition'),
@@ -1004,6 +1000,18 @@ function buildMetafieldDefinitionFromInput(definitionInput: Record<string, unkno
     pinnedPosition,
     validationStatus: 'ALL_VALID',
   };
+}
+
+function getNextPinnedPosition(ownerType: string, existingDefinition: MetafieldDefinitionRecord | null = null): number {
+  if (existingDefinition?.pinnedPosition !== null && existingDefinition?.pinnedPosition !== undefined) {
+    return existingDefinition.pinnedPosition;
+  }
+
+  return (
+    listPinnedDefinitions(ownerType)
+      .filter((candidate) => candidate.id !== existingDefinition?.id)
+      .reduce((highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0), 0) + 1
+  );
 }
 
 function serializeDefinitionCreateRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {

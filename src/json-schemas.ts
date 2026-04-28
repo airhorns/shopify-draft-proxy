@@ -128,42 +128,6 @@ export const parityComparisonModeSchema = z.enum([
 ]);
 export type ParityComparisonMode = z.infer<typeof parityComparisonModeSchema>;
 
-export const blockerDetailsSchema = z
-  .object({
-    requiredApproval: z.string().optional(),
-    requiredScopes: z.array(z.string()).optional(),
-    requiredPermissions: z.array(z.string()).optional(),
-    requiredTokenMode: z.string().optional(),
-    probeRoots: z.array(z.string()).optional(),
-    blockedFields: z.array(z.string()).optional(),
-    blockedMutations: z.array(z.string()).optional(),
-    failingMessage: z.string().optional(),
-    docsUrl: z.string().optional(),
-    manualStoreAuthStatus: z.string().optional(),
-    manualStoreAuthTokenPath: z.string().optional(),
-    manualStoreAuthCachedScopes: z.array(z.string()).optional(),
-    manualStoreAuthAssociatedUserScopes: z.array(z.string()).optional(),
-    appConfigPath: z.string().optional(),
-    appId: z.string().optional(),
-    appHandle: z.string().optional(),
-    publicationTargetStatus: z.string().optional(),
-    publicationTargetMessage: z.string().optional(),
-    publicationTargetRemediation: z.string().optional(),
-    shopifyAppCliAuthStatus: z.string().optional(),
-    shopifyAppCliAuthWorkdir: z.string().optional(),
-    shopifyAppDeployStatus: z.string().optional(),
-    shopifyAppDeployCommand: z.string().optional(),
-    shopifyAppDeployVersion: z.string().optional(),
-    channelConfigExtensionPath: z.string().optional(),
-    channelConfigHandle: z.string().optional(),
-    channelConfigCreateLegacyChannelOnAppInstall: z.boolean().optional(),
-    activeCredentialTokenFamily: z.string().optional(),
-    activeCredentialHeaderMode: z.string().optional(),
-    activeCredentialSummary: z.string().optional(),
-  })
-  .catchall(z.unknown());
-export type BlockerDetails = z.infer<typeof blockerDetailsSchema>;
-
 export const paritySpecSchema = z
   .strictObject({
     scenarioId: z.string().optional(),
@@ -176,13 +140,6 @@ export const paritySpecSchema = z
     liveCaptureFiles: z.array(z.string()).optional(),
     runtimeTestFiles: z.array(z.string()).optional(),
     notes: z.string().optional(),
-    blocker: z
-      .strictObject({
-        kind: z.string().optional(),
-        blockerPath: z.string().nullable().optional(),
-        details: blockerDetailsSchema.optional(),
-      })
-      .optional(),
   })
   .superRefine((spec, ctx) => {
     if (spec.scenarioStatus !== 'captured') {
