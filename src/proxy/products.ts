@@ -7701,7 +7701,7 @@ function serializeSelectionSet(
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
       const typeName = selection.typeCondition?.name.value;
-      if (typeName && typeName !== 'Product') {
+      if (typeName && typeName !== 'Product' && typeName !== 'Node') {
         continue;
       }
 
