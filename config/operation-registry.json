@@ -4338,10 +4338,10 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderMerge", "FulfillmentOrderMerge"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires merge eligibility, line-item aggregation, replacement/closed order identity behavior, and downstream fulfillmentOrdersForMerge parity before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-367 captured 2026-04 merge support after a local split/deadline flow: local staging aggregates split fulfillment-order line quantities back onto the first fulfillment order, preserves the staged deadline, marks merged siblings CLOSED with zero quantities in downstream order fulfillment-order reads, and never proxies supported merge attempts upstream."
   },
   {
     "name": "fulfillmentOrderMove",
@@ -4428,20 +4428,20 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrdersSetFulfillmentDeadline", "FulfillmentOrdersSetFulfillmentDeadline"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires fulfillBy/deadline mutation semantics and downstream fulfillment-order deadline reads before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-367 captured 2026-04 fulfillment deadline support for open merchant-managed fulfillment orders: local staging returns `success: true`, writes `fulfillBy` on each selected fulfillment order, exposes the deadline in downstream order reads, and returns captured top-level RESOURCE_NOT_FOUND errors for unknown IDs."
   },
   {
     "name": "fulfillmentOrderSplit",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fulfillmentOrderSplit", "FulfillmentOrderSplit"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires quantity-based line-item splitting, remaining fulfillment-order identity, and downstream line item totals before support."
+    "runtimeTests": ["tests/integration/order-fulfillment-flow.test.ts"],
+    "supportNotes": "HAR-367 captured 2026-04 quantity-based split support for open merchant-managed fulfillment orders: local staging keeps the original fulfillment order with reduced line-item quantities, creates a synthetic remaining fulfillment order for the split-off quantity, exposes MERGE/SPLIT supported-action changes, and preserves downstream read-after-write behavior without upstream writes."
   },
   {
     "name": "fulfillmentOrderSubmitCancellationRequest",

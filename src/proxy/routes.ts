@@ -184,7 +184,10 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
   'fulfillmentOrderReportProgress',
   'fulfillmentOrderReschedule',
   'fulfillmentOrderClose',
+  'fulfillmentOrderMerge',
+  'fulfillmentOrderSplit',
   'fulfillmentOrdersReroute',
+  'fulfillmentOrdersSetFulfillmentDeadline',
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
