@@ -204,7 +204,7 @@
     "implemented": true,
     "matchNames": ["taxonomy", "Taxonomy"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode no-data category connection support only: HAR-315 captured an unmatched taxonomy search returning empty nodes/edges and false/null pageInfo. The global non-empty taxonomy catalog is not modeled."
+    "supportNotes": "Snapshot-mode taxonomy category reads are modeled from captured 2026-04 catalog/search slices: unmatched search empty connections, non-empty root catalog pages, raw Shopify cursors/pageInfo for captured windows, simple term search over captured id/name/fullName fields, and selected hierarchy fields. The proxy does not claim exhaustive Shopify taxonomy catalog coverage beyond records present in snapshot/local state."
   },
   {
     "name": "domain",
@@ -3877,9 +3877,13 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/order-payment-transaction-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Stages manual payments locally for orders already present in the proxy state and preserves the captured 2026-04 access-denied branch for unhydrated/non-local orders. Live success capture remains blocked on the current conformance store because shop.plan.shopifyPlus is false."
   },
   {
     "name": "orderRiskAssessmentCreate",

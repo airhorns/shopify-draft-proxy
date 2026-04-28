@@ -14,6 +14,7 @@ import type {
   ProductRecord,
   SavedSearchRecord,
   ShopRecord,
+  TaxonomyCategoryRecord,
 } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
@@ -197,6 +198,160 @@ function makeAutomaticDiscount(id: string): DiscountRecord {
     codes: [],
   };
 }
+
+const capturedTaxonomyCategories: TaxonomyCategoryRecord[] = [
+  {
+    id: 'gid://shopify/TaxonomyCategory/ap',
+    cursor: 'eyJpZCI6MX0=',
+    name: 'Animals & Pet Supplies',
+    fullName: 'Animals & Pet Supplies',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: ['gid://shopify/TaxonomyCategory/ap-1', 'gid://shopify/TaxonomyCategory/ap-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/aa',
+    cursor: 'eyJpZCI6MTI2fQ==',
+    name: 'Apparel & Accessories',
+    fullName: 'Apparel & Accessories',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: [
+      'gid://shopify/TaxonomyCategory/aa-1',
+      'gid://shopify/TaxonomyCategory/aa-2',
+      'gid://shopify/TaxonomyCategory/aa-3',
+      'gid://shopify/TaxonomyCategory/aa-4',
+      'gid://shopify/TaxonomyCategory/aa-5',
+      'gid://shopify/TaxonomyCategory/aa-6',
+      'gid://shopify/TaxonomyCategory/aa-7',
+      'gid://shopify/TaxonomyCategory/aa-8',
+    ],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/ae',
+    cursor: 'eyJpZCI6MzUzfQ==',
+    name: 'Arts & Entertainment',
+    fullName: 'Arts & Entertainment',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: [
+      'gid://shopify/TaxonomyCategory/ae-1',
+      'gid://shopify/TaxonomyCategory/ae-2',
+      'gid://shopify/TaxonomyCategory/ae-3',
+    ],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/bt',
+    cursor: 'eyJpZCI6ODUyfQ==',
+    name: 'Baby & Toddler',
+    fullName: 'Baby & Toddler',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: ['gid://shopify/TaxonomyCategory/bt-1', 'gid://shopify/TaxonomyCategory/bt-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/bi',
+    cursor: 'eyJpZCI6OTM5fQ==',
+    name: 'Business & Industrial',
+    fullName: 'Business & Industrial',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: ['gid://shopify/TaxonomyCategory/bi-1', 'gid://shopify/TaxonomyCategory/bi-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/co',
+    cursor: 'eyJpZCI6MTE2M30=',
+    name: 'Cameras & Optics',
+    fullName: 'Cameras & Optics',
+    isRoot: true,
+    isLeaf: false,
+    level: 1,
+    parentId: null,
+    ancestorIds: [],
+    childrenIds: ['gid://shopify/TaxonomyCategory/co-1', 'gid://shopify/TaxonomyCategory/co-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+    cursor: 'eyJpZCI6MTE2MjJ9',
+    name: 'Pet Apparel',
+    fullName: 'Animals & Pet Supplies > Pet Supplies > Pet Apparel',
+    isRoot: false,
+    isLeaf: false,
+    level: 3,
+    parentId: 'gid://shopify/TaxonomyCategory/ap-2',
+    ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
+    childrenIds: ['gid://shopify/TaxonomyCategory/ap-2-6-1', 'gid://shopify/TaxonomyCategory/ap-2-6-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/sg-4-5-5',
+    cursor: 'eyJpZCI6NDk4MX0=',
+    name: 'Riding Apparel & Accessories',
+    fullName: 'Sporting Goods > Outdoor Recreation > Equestrian > Riding Apparel & Accessories',
+    isRoot: false,
+    isLeaf: false,
+    level: 4,
+    parentId: 'gid://shopify/TaxonomyCategory/sg-4-5',
+    ancestorIds: [
+      'gid://shopify/TaxonomyCategory/sg-4-5',
+      'gid://shopify/TaxonomyCategory/sg-4',
+      'gid://shopify/TaxonomyCategory/sg',
+    ],
+    childrenIds: ['gid://shopify/TaxonomyCategory/sg-4-5-5-1', 'gid://shopify/TaxonomyCategory/sg-4-5-5-2'],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+    cursor: 'eyJpZCI6NjB9',
+    name: 'Pet Apparel Hangers',
+    fullName: 'Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers',
+    isRoot: false,
+    isLeaf: true,
+    level: 3,
+    parentId: 'gid://shopify/TaxonomyCategory/ap-2',
+    ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
+    childrenIds: [],
+    isArchived: false,
+  },
+  {
+    id: 'gid://shopify/TaxonomyCategory/sg-4-4-4',
+    cursor: 'eyJpZCI6NDkzN30=',
+    name: 'Cycling Apparel & Accessories',
+    fullName: 'Sporting Goods > Outdoor Recreation > Cycling > Cycling Apparel & Accessories',
+    isRoot: false,
+    isLeaf: false,
+    level: 4,
+    parentId: 'gid://shopify/TaxonomyCategory/sg-4-4',
+    ancestorIds: [
+      'gid://shopify/TaxonomyCategory/sg-4-4',
+      'gid://shopify/TaxonomyCategory/sg-4',
+      'gid://shopify/TaxonomyCategory/sg',
+    ],
+    childrenIds: ['gid://shopify/TaxonomyCategory/sg-4-4-4-1', 'gid://shopify/TaxonomyCategory/sg-4-4-4-2'],
+    isArchived: false,
+  },
+];
 
 function makeShop(): ShopRecord {
   return {
@@ -413,6 +568,325 @@ describe('admin platform utility query shapes', () => {
             },
           },
         },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('serves captured taxonomy category catalog slices with hierarchy fields and raw cursors', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('taxonomy category catalog reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseTaxonomyCategories(capturedTaxonomyCategories);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query TaxonomyCatalogRead($after: String!) {
+          taxonomy {
+            firstPage: categories(first: 2) {
+              nodes {
+                __typename
+                id
+                name
+                fullName
+                isRoot
+                isLeaf
+                level
+                parentId
+                ancestorIds
+                childrenIds
+                isArchived
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  name
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            nextPage: categories(first: 2, after: $after) {
+              nodes {
+                id
+                name
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  name
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        }`,
+        variables: {
+          after: 'eyJpZCI6ODUyfQ==',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        taxonomy: {
+          firstPage: {
+            nodes: [
+              {
+                __typename: 'TaxonomyCategory',
+                id: 'gid://shopify/TaxonomyCategory/ap',
+                name: 'Animals & Pet Supplies',
+                fullName: 'Animals & Pet Supplies',
+                isRoot: true,
+                isLeaf: false,
+                level: 1,
+                parentId: null,
+                ancestorIds: [],
+                childrenIds: ['gid://shopify/TaxonomyCategory/ap-1', 'gid://shopify/TaxonomyCategory/ap-2'],
+                isArchived: false,
+              },
+              {
+                __typename: 'TaxonomyCategory',
+                id: 'gid://shopify/TaxonomyCategory/aa',
+                name: 'Apparel & Accessories',
+                fullName: 'Apparel & Accessories',
+                isRoot: true,
+                isLeaf: false,
+                level: 1,
+                parentId: null,
+                ancestorIds: [],
+                childrenIds: [
+                  'gid://shopify/TaxonomyCategory/aa-1',
+                  'gid://shopify/TaxonomyCategory/aa-2',
+                  'gid://shopify/TaxonomyCategory/aa-3',
+                  'gid://shopify/TaxonomyCategory/aa-4',
+                  'gid://shopify/TaxonomyCategory/aa-5',
+                  'gid://shopify/TaxonomyCategory/aa-6',
+                  'gid://shopify/TaxonomyCategory/aa-7',
+                  'gid://shopify/TaxonomyCategory/aa-8',
+                ],
+                isArchived: false,
+              },
+            ],
+            edges: [
+              {
+                cursor: 'eyJpZCI6MX0=',
+                node: {
+                  id: 'gid://shopify/TaxonomyCategory/ap',
+                  name: 'Animals & Pet Supplies',
+                },
+              },
+              {
+                cursor: 'eyJpZCI6MTI2fQ==',
+                node: {
+                  id: 'gid://shopify/TaxonomyCategory/aa',
+                  name: 'Apparel & Accessories',
+                },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: 'eyJpZCI6MX0=',
+              endCursor: 'eyJpZCI6MTI2fQ==',
+            },
+          },
+          nextPage: {
+            nodes: [
+              {
+                id: 'gid://shopify/TaxonomyCategory/bi',
+                name: 'Business & Industrial',
+              },
+              {
+                id: 'gid://shopify/TaxonomyCategory/co',
+                name: 'Cameras & Optics',
+              },
+            ],
+            edges: [
+              {
+                cursor: 'eyJpZCI6OTM5fQ==',
+                node: {
+                  id: 'gid://shopify/TaxonomyCategory/bi',
+                  name: 'Business & Industrial',
+                },
+              },
+              {
+                cursor: 'eyJpZCI6MTE2M30=',
+                node: {
+                  id: 'gid://shopify/TaxonomyCategory/co',
+                  name: 'Cameras & Optics',
+                },
+              },
+            ],
+            pageInfo: {
+              hasNextPage: true,
+              hasPreviousPage: false,
+              startCursor: 'eyJpZCI6OTM5fQ==',
+              endCursor: 'eyJpZCI6MTE2M30=',
+            },
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('filters captured taxonomy categories by search terms while preserving no-data behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('taxonomy category search reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseTaxonomyCategories(capturedTaxonomyCategories);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query TaxonomySearchRead {
+          taxonomy {
+            apparel: categories(first: 4, search: "apparel") {
+              nodes {
+                id
+                name
+                fullName
+                isRoot
+                isLeaf
+                level
+                parentId
+                ancestorIds
+                childrenIds
+                isArchived
+              }
+              edges {
+                cursor
+                node {
+                  id
+                  name
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            empty: categories(first: 2, search: "zzzzzz-no-match-har-315") {
+              nodes {
+                id
+              }
+              edges {
+                cursor
+                node {
+                  id
+                }
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.taxonomy.apparel).toEqual({
+      nodes: [
+        expect.objectContaining({
+          id: 'gid://shopify/TaxonomyCategory/aa',
+          name: 'Apparel & Accessories',
+          fullName: 'Apparel & Accessories',
+          isRoot: true,
+          isLeaf: false,
+          level: 1,
+          parentId: null,
+          ancestorIds: [],
+          isArchived: false,
+        }),
+        expect.objectContaining({
+          id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+          name: 'Pet Apparel',
+          fullName: 'Animals & Pet Supplies > Pet Supplies > Pet Apparel',
+          isRoot: false,
+          isLeaf: false,
+          level: 3,
+          parentId: 'gid://shopify/TaxonomyCategory/ap-2',
+          ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
+          isArchived: false,
+        }),
+        expect.objectContaining({
+          id: 'gid://shopify/TaxonomyCategory/sg-4-5-5',
+          name: 'Riding Apparel & Accessories',
+          fullName: 'Sporting Goods > Outdoor Recreation > Equestrian > Riding Apparel & Accessories',
+        }),
+        expect.objectContaining({
+          id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+          name: 'Pet Apparel Hangers',
+          fullName: 'Animals & Pet Supplies > Pet Supplies > Pet Apparel Hangers',
+          isLeaf: true,
+          childrenIds: [],
+        }),
+      ],
+      edges: [
+        {
+          cursor: 'eyJpZCI6MTI2fQ==',
+          node: {
+            id: 'gid://shopify/TaxonomyCategory/aa',
+            name: 'Apparel & Accessories',
+          },
+        },
+        {
+          cursor: 'eyJpZCI6MTE2MjJ9',
+          node: {
+            id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+            name: 'Pet Apparel',
+          },
+        },
+        {
+          cursor: 'eyJpZCI6NDk4MX0=',
+          node: {
+            id: 'gid://shopify/TaxonomyCategory/sg-4-5-5',
+            name: 'Riding Apparel & Accessories',
+          },
+        },
+        {
+          cursor: 'eyJpZCI6NjB9',
+          node: {
+            id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+            name: 'Pet Apparel Hangers',
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: true,
+        hasPreviousPage: false,
+        startCursor: 'eyJpZCI6MTI2fQ==',
+        endCursor: 'eyJpZCI6NjB9',
+      },
+    });
+    expect(response.body.data.taxonomy.empty).toEqual({
+      nodes: [],
+      edges: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();

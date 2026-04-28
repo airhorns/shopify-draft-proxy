@@ -220,6 +220,116 @@ describe('order payment capture, void, and mandate flows', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages orderCreateManualPayment locally and exposes downstream payment state', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('orderCreateManualPayment should not hit upstream in snapshot mode');
+    });
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await createOrder(app, []);
+    const orderId = createResponse.body.data.orderCreate.order.id;
+    const processedAt = '2026-04-28T13:31:00Z';
+
+    const manualPayment = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ManualPayment(
+          $id: ID!
+          $amount: MoneyInput
+          $paymentMethodName: String
+          $processedAt: DateTime
+        ) {
+          orderCreateManualPayment(
+            id: $id
+            amount: $amount
+            paymentMethodName: $paymentMethodName
+            processedAt: $processedAt
+          ) {
+            order ${paymentOrderSelection}
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: orderId,
+          amount: { amount: '10.00', currencyCode: 'CAD' },
+          paymentMethodName: 'HAR manual payment',
+          processedAt,
+        },
+      });
+
+    expect(manualPayment.status).toBe(200);
+    expect(manualPayment.body.data.orderCreateManualPayment.userErrors).toEqual([]);
+    expect(manualPayment.body.data.orderCreateManualPayment.order).toMatchObject({
+      displayFinancialStatus: 'PARTIALLY_PAID',
+      capturable: false,
+      totalCapturableSet: { shopMoney: { amount: '0.0', currencyCode: 'CAD' } },
+      totalOutstandingSet: { shopMoney: { amount: '15.0', currencyCode: 'CAD' } },
+      totalReceivedSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      paymentGatewayNames: ['HAR manual payment'],
+      transactions: [
+        expect.objectContaining({
+          kind: 'SALE',
+          status: 'SUCCESS',
+          gateway: 'HAR manual payment',
+          processedAt,
+          paymentId: expect.stringMatching(/^gid:\/\/shopify\/Payment\//u),
+          paymentReferenceId: expect.stringMatching(/^gid:\/\/shopify\/PaymentReference\//u),
+          amountSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+        }),
+      ],
+    });
+
+    const invalidManualPayment = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidManualPayment($id: ID!, $amount: MoneyInput) {
+          orderCreateManualPayment(id: $id, amount: $amount) {
+            order ${paymentOrderSelection}
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: orderId, amount: { amount: '0.00', currencyCode: 'CAD' } },
+      });
+
+    expect(invalidManualPayment.body.data.orderCreateManualPayment.userErrors).toEqual([
+      { field: ['amount'], message: 'Amount must be greater than zero' },
+    ]);
+
+    const downstreamRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query OrderAfterManualPayment($id: ID!) {
+          order(id: $id) ${paymentOrderSelection}
+        }`,
+        variables: { id: orderId },
+      });
+
+    expect(downstreamRead.body.data.order).toMatchObject({
+      displayFinancialStatus: 'PARTIALLY_PAID',
+      totalOutstandingSet: { shopMoney: { amount: '15.0', currencyCode: 'CAD' } },
+      totalReceivedSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+      transactions: [
+        expect.objectContaining({
+          kind: 'SALE',
+          gateway: 'HAR manual payment',
+          amountSet: { shopMoney: { amount: '10.0', currencyCode: 'CAD' } },
+        }),
+      ],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'orderCreate',
+      'orderCreateManualPayment',
+    ]);
+    expect(logResponse.body.entries[1].requestBody.variables).toEqual({
+      id: orderId,
+      amount: { amount: '10.00', currencyCode: 'CAD' },
+      paymentMethodName: 'HAR manual payment',
+      processedAt,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages transactionVoid locally and returns validation userErrors for invalid or already-voided transactions', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('transactionVoid should not hit upstream in snapshot mode');
