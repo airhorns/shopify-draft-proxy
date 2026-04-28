@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { type FieldNode } from 'graphql';
 
+import type { JsonValue } from '../json-schemas.js';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
   applySearchQuery,
@@ -31,6 +32,13 @@ import {
   serializeEmptyConnectionPageInfo,
   type FragmentMap,
 } from './graphql-helpers.js';
+import {
+  readMetafieldInputObjects,
+  serializeMetafieldSelection,
+  serializeMetafieldsConnection,
+  upsertOwnerMetafields,
+  type MetafieldRecordCore,
+} from './metafields.js';
 
 type OnlineStoreMutationResult = {
   response: Record<string, unknown>;
@@ -123,6 +131,100 @@ function emptyConnection(field: FieldNode): Record<string, unknown> {
 
 function recordData(record: OnlineStoreContentRecord): Record<string, unknown> {
   return structuredClone(record.data) as Record<string, unknown>;
+}
+
+function readArticleMetafields(record: OnlineStoreContentRecord): MetafieldRecordCore[] {
+  const metafields = record.data['metafields'];
+  if (!Array.isArray(metafields)) {
+    return [];
+  }
+
+  return metafields.flatMap((metafield): MetafieldRecordCore[] => {
+    if (!isPlainObject(metafield)) {
+      return [];
+    }
+    const id = typeof metafield['id'] === 'string' ? metafield['id'] : null;
+    const namespace = typeof metafield['namespace'] === 'string' ? metafield['namespace'] : null;
+    const key = typeof metafield['key'] === 'string' ? metafield['key'] : null;
+    if (!id || !namespace || !key) {
+      return [];
+    }
+    return [
+      {
+        id,
+        namespace,
+        key,
+        type: typeof metafield['type'] === 'string' ? metafield['type'] : null,
+        value: typeof metafield['value'] === 'string' ? metafield['value'] : null,
+        compareDigest: typeof metafield['compareDigest'] === 'string' ? metafield['compareDigest'] : null,
+        jsonValue: metafield['jsonValue'] as MetafieldRecordCore['jsonValue'],
+        createdAt: typeof metafield['createdAt'] === 'string' ? metafield['createdAt'] : null,
+        updatedAt: typeof metafield['updatedAt'] === 'string' ? metafield['updatedAt'] : null,
+        ownerType: typeof metafield['ownerType'] === 'string' ? metafield['ownerType'] : 'ARTICLE',
+      },
+    ];
+  });
+}
+
+function filterArticleMetafields(
+  metafields: MetafieldRecordCore[],
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): MetafieldRecordCore[] {
+  const args = getFieldArguments(field, variables);
+  const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+  const keys = Array.isArray(args['keys']) ? args['keys'].filter((key): key is string => typeof key === 'string') : [];
+  return metafields.filter(
+    (metafield) =>
+      (namespace === null || metafield.namespace === namespace) && (keys.length === 0 || keys.includes(metafield.key)),
+  );
+}
+
+function readArticleImage(
+  input: Record<string, unknown>,
+  existing: OnlineStoreContentRecord | null,
+): Record<string, JsonValue> | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(input, 'image')) {
+    const image = existing?.data['image'];
+    return isPlainObject(image)
+      ? (structuredClone(image) as Record<string, JsonValue>)
+      : image === null
+        ? null
+        : undefined;
+  }
+
+  const image = input['image'];
+  if (image === null) {
+    return null;
+  }
+  if (!isPlainObject(image)) {
+    return undefined;
+  }
+
+  return {
+    __typename: 'Image',
+    id: makeProxySyntheticGid('ArticleImage'),
+    altText: readOptionalString(image, 'altText') ?? null,
+    url: readOptionalString(image, 'url') ?? null,
+    width: null,
+    height: null,
+  };
+}
+
+function articleMetafieldsForStorage(metafields: Array<MetafieldRecordCore & { articleId: string }>): JsonValue[] {
+  return metafields.map((metafield) => ({
+    id: metafield.id,
+    namespace: metafield.namespace,
+    key: metafield.key,
+    type: metafield.type,
+    value: metafield.value,
+    compareDigest: metafield.compareDigest ?? null,
+    jsonValue: metafield.jsonValue ?? null,
+    createdAt: metafield.createdAt ?? null,
+    updatedAt: metafield.updatedAt ?? null,
+    ownerType: metafield.ownerType ?? 'ARTICLE',
+    articleId: metafield.articleId,
+  }));
 }
 
 function readIdArgument(field: FieldNode, variables: Record<string, unknown>): string | null {
@@ -376,8 +478,36 @@ function projectRecord(
         };
       }
 
-      if (fieldName === 'events' || fieldName === 'metafields') {
+      if (fieldName === 'events') {
         return { handled: true, value: emptyConnection(selectedField) };
+      }
+
+      if (fieldName === 'metafields' && record.kind === 'article') {
+        return {
+          handled: true,
+          value: serializeMetafieldsConnection(
+            filterArticleMetafields(readArticleMetafields(record), selectedField, variables),
+            selectedField,
+            variables,
+          ),
+        };
+      }
+
+      if (fieldName === 'metafields') {
+        return { handled: true, value: emptyConnection(selectedField) };
+      }
+
+      if (fieldName === 'metafield' && record.kind === 'article') {
+        const args = getFieldArguments(selectedField, variables);
+        const key = typeof args['key'] === 'string' ? args['key'] : null;
+        const namespace = typeof args['namespace'] === 'string' ? args['namespace'] : null;
+        const metafield =
+          key === null
+            ? null
+            : (readArticleMetafields(record).find(
+                (candidate) => candidate.key === key && (namespace === null || candidate.namespace === namespace),
+              ) ?? null);
+        return { handled: true, value: metafield ? serializeMetafieldSelection(metafield, selectedField) : null };
       }
 
       if (fieldName === 'metafield') {
@@ -548,6 +678,21 @@ function makeArticle(
   const id = existing?.id ?? makeProxySyntheticGid('Article');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
+  const image = readArticleImage(input, existing);
+  const existingMetafields = readArticleMetafields(
+    existing ?? {
+      id,
+      kind: 'article',
+      data: {},
+    },
+  );
+  const { metafields } = upsertOwnerMetafields(
+    'articleId',
+    id,
+    readMetafieldInputObjects(input['metafields']),
+    existingMetafields.map((metafield) => ({ ...metafield, articleId: id })),
+    { allowIdLookup: true, trimIdentity: true, ownerType: 'ARTICLE' },
+  );
   return {
     id,
     kind: 'article',
@@ -571,6 +716,8 @@ function makeArticle(
       createdAt,
       updatedAt,
       templateSuffix: readOptionalString(input, 'templateSuffix') ?? existing?.data['templateSuffix'] ?? null,
+      image: image ?? null,
+      metafields: articleMetafieldsForStorage(metafields),
     },
   };
 }
