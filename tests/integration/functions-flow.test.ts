@@ -314,4 +314,319 @@ describe('Shopify Function metadata flow', () => {
     expect(store.getLog()[2]?.requestBody).toEqual(createCartTransformBody);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('preserves app ownership metadata when function-backed resources reference known Functions', async () => {
+    store.upsertStagedShopifyFunction({
+      id: 'gid://shopify/ShopifyFunction/validation-owned',
+      title: 'Owned validation function',
+      handle: 'validation-owned',
+      apiType: 'VALIDATION',
+      description: 'Function metadata captured from the installed app',
+      appKey: 'validation-app-key',
+      app: {
+        __typename: 'App',
+        id: 'gid://shopify/App/validation-app',
+        title: 'Validation App',
+        handle: 'validation-app',
+        apiKey: 'validation-app-key',
+      },
+    });
+    store.upsertStagedShopifyFunction({
+      id: 'gid://shopify/ShopifyFunction/validation-owned-v2',
+      title: 'Second validation function',
+      handle: 'validation-owned-v2',
+      apiType: 'VALIDATION',
+      description: 'Replacement Function metadata from the installed app',
+      appKey: 'validation-app-key-v2',
+      app: {
+        __typename: 'App',
+        id: 'gid://shopify/App/validation-app-v2',
+        title: 'Validation App V2',
+        handle: 'validation-app-v2',
+        apiKey: 'validation-app-key-v2',
+      },
+    });
+    store.upsertStagedShopifyFunction({
+      id: 'gid://shopify/ShopifyFunction/cart-owned',
+      title: 'Owned cart function',
+      handle: 'cart-owned',
+      apiType: 'CART_TRANSFORM',
+      description: 'Cart transform Function metadata captured from the installed app',
+      appKey: 'cart-app-key',
+      app: {
+        __typename: 'App',
+        id: 'gid://shopify/App/cart-app',
+        title: 'Cart App',
+        handle: 'cart-app',
+        apiKey: 'cart-app-key',
+      },
+    });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('known Function ownership flow must not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createValidation = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateOwnedValidation($validation: ValidationCreateInput!) {
+          validationCreate(validation: $validation) {
+            validation {
+              id
+              functionId
+              functionHandle
+              shopifyFunction {
+                id
+                title
+                handle
+                apiType
+                description
+                appKey
+                app { __typename id title handle apiKey }
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          validation: {
+            functionId: 'gid://shopify/ShopifyFunction/validation-owned',
+            title: 'Owned validation',
+          },
+        },
+      });
+
+    expect(createValidation.status).toBe(200);
+    expect(createValidation.body.data.validationCreate.userErrors).toEqual([]);
+    const validation = createValidation.body.data.validationCreate.validation;
+    expect(validation).toMatchObject({
+      functionId: 'gid://shopify/ShopifyFunction/validation-owned',
+      functionHandle: 'validation-owned',
+      shopifyFunction: {
+        id: 'gid://shopify/ShopifyFunction/validation-owned',
+        title: 'Owned validation function',
+        handle: 'validation-owned',
+        apiType: 'VALIDATION',
+        description: 'Function metadata captured from the installed app',
+        appKey: 'validation-app-key',
+        app: {
+          __typename: 'App',
+          id: 'gid://shopify/App/validation-app',
+          title: 'Validation App',
+          handle: 'validation-app',
+          apiKey: 'validation-app-key',
+        },
+      },
+    });
+
+    const updateValidation = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateOwnedValidation($id: ID!, $validation: ValidationUpdateInput!) {
+          validationUpdate(id: $id, validation: $validation) {
+            validation {
+              id
+              functionId
+              functionHandle
+              shopifyFunction {
+                id
+                handle
+                appKey
+                app { title apiKey }
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: validation.id,
+          validation: {
+            functionHandle: 'validation-owned-v2',
+          },
+        },
+      });
+
+    expect(updateValidation.body.data.validationUpdate).toEqual({
+      validation: {
+        id: validation.id,
+        functionId: 'gid://shopify/ShopifyFunction/validation-owned-v2',
+        functionHandle: 'validation-owned-v2',
+        shopifyFunction: {
+          id: 'gid://shopify/ShopifyFunction/validation-owned-v2',
+          handle: 'validation-owned-v2',
+          appKey: 'validation-app-key-v2',
+          app: {
+            title: 'Validation App V2',
+            apiKey: 'validation-app-key-v2',
+          },
+        },
+      },
+      userErrors: [],
+    });
+
+    const createCartTransform = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateOwnedCartTransform($functionHandle: String!) {
+          cartTransformCreate(functionHandle: $functionHandle) {
+            cartTransform { id functionId functionHandle title }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { functionHandle: 'cart-owned' },
+      });
+
+    expect(createCartTransform.body.data.cartTransformCreate).toMatchObject({
+      cartTransform: {
+        functionId: 'gid://shopify/ShopifyFunction/cart-owned',
+        functionHandle: 'cart-owned',
+        title: 'Owned cart function',
+      },
+      userErrors: [],
+    });
+
+    const readFunctions = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadOwnedFunctions {
+          validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+            nodes { id handle appKey app { title apiKey } }
+          }
+          cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") {
+            id
+            handle
+            appKey
+            app { __typename title apiKey }
+          }
+        }`,
+      });
+
+    expect(readFunctions.body.data).toMatchObject({
+      validationFunctions: {
+        nodes: expect.arrayContaining([
+          {
+            id: 'gid://shopify/ShopifyFunction/validation-owned-v2',
+            handle: 'validation-owned-v2',
+            appKey: 'validation-app-key-v2',
+            app: {
+              title: 'Validation App V2',
+              apiKey: 'validation-app-key-v2',
+            },
+          },
+        ]),
+      },
+      cartFunction: {
+        id: 'gid://shopify/ShopifyFunction/cart-owned',
+        handle: 'cart-owned',
+        appKey: 'cart-app-key',
+        app: {
+          __typename: 'App',
+          title: 'Cart App',
+          apiKey: 'cart-app-key',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns local userErrors for invalid Function metadata operations without upstream writes', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('Function metadata validation must not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const missingValidationFunction = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingValidationFunction($validation: ValidationCreateInput!) {
+          validationCreate(validation: $validation) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { validation: { title: 'Missing function reference' } },
+      });
+
+    expect(missingValidationFunction.body.data.validationCreate).toEqual({
+      validation: null,
+      userErrors: [
+        {
+          field: ['validation', 'functionHandle'],
+          message: 'Function handle or function ID must be provided',
+          code: 'MISSING_FUNCTION',
+        },
+      ],
+    });
+
+    const missingCartFunction = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingCartFunction {
+          cartTransformCreate {
+            cartTransform { id }
+            userErrors { field message code }
+          }
+        }`,
+      });
+
+    expect(missingCartFunction.body.data.cartTransformCreate).toEqual({
+      cartTransform: null,
+      userErrors: [
+        {
+          field: ['functionHandle'],
+          message: 'Function handle or function ID must be provided',
+          code: 'MISSING_FUNCTION',
+        },
+      ],
+    });
+
+    const unknownValidationUpdate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateUnknownValidation {
+          validationUpdate(id: "gid://shopify/Validation/404", validation: { title: "Nope" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }`,
+      });
+
+    expect(unknownValidationUpdate.body.data.validationUpdate).toEqual({
+      validation: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'No function-backed resource exists with id gid://shopify/Validation/404',
+          code: 'NOT_FOUND',
+        },
+      ],
+    });
+
+    const unknownCartTransformDelete = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteUnknownCartTransform {
+          cartTransformDelete(id: "gid://shopify/CartTransform/404") {
+            deletedId
+            userErrors { field message code }
+          }
+        }`,
+      });
+
+    expect(unknownCartTransformDelete.body.data.cartTransformDelete).toEqual({
+      deletedId: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'No function-backed resource exists with id gid://shopify/CartTransform/404',
+          code: 'NOT_FOUND',
+        },
+      ],
+    });
+
+    expect(store.listEffectiveValidations()).toEqual([]);
+    expect(store.listEffectiveCartTransforms()).toEqual([]);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged', 'staged', 'staged']);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
