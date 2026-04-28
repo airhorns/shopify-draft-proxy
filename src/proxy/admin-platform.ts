@@ -61,6 +61,8 @@ const CAPTURED_BACKUP_REGION = {
   code: 'CA',
 } as const;
 
+// MarketRegionCountry GIDs are treated as shop-domain-scoped conformance evidence.
+// Do not reuse a country mapping for another shop unless that shop/country pair was captured.
 const BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE: Record<string, Record<string, BackupRegionRecord>> = {
   'harry-test-heelo.myshopify.com': {
     CA: CAPTURED_BACKUP_REGION,

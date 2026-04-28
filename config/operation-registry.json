@@ -224,7 +224,7 @@
     "implemented": true,
     "matchNames": ["backupRegion", "BackupRegion"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode utility read support returns staged/snapshot backupRegion first, then derives a MarketRegionCountry from effective shop myshopifyDomain + shopAddress.countryCodeV2 for conformance-backed domain/country pairs. HAR-315 backs harry-test-heelo.myshopify.com CA, market baseline captures add harry-test-heelo.myshopify.com AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX and very-big-test-store.myshopify.com CA/US. Effective shops outside that backed map return null instead of the captured Canada fixture; no-shop parity requests preserve the HAR-315 Canada fallback."
+    "supportNotes": "Snapshot-mode utility read support returns staged/snapshot backupRegion first, then derives a MarketRegionCountry from effective shop myshopifyDomain + shopAddress.countryCodeV2 for conformance-backed domain/country pairs. Captured MarketRegionCountry ids are treated as shop-domain-scoped evidence, not platform-global country ids. HAR-315 backs harry-test-heelo.myshopify.com CA, market baseline captures add harry-test-heelo.myshopify.com AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX and very-big-test-store.myshopify.com CA/US. Effective shops outside that backed map return null instead of the captured Canada fixture; no-shop parity requests preserve the HAR-315 Canada fallback."
   },
   {
     "name": "backupRegionUpdate",
