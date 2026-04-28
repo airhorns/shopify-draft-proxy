@@ -258,6 +258,7 @@ const registeredMutationOperationNames = new Set(
 );
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
+const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['orderCreateManualPayment', 'taxSummaryCreate']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -949,6 +950,18 @@ async function executeGraphQLAgainstLocalProxy(
       return {
         status: 200,
         body: discountMutation.response,
+      };
+    }
+
+    if (parsed.rootFields.some((rootField) => ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(rootField))) {
+      const body = handleOrderMutation(document, variables, 'snapshot');
+      if (!body) {
+        throw new Error(`Order guardrail parity request was not handled locally: ${parsed.rootFields.join(', ')}`);
+      }
+
+      return {
+        status: 200,
+        body,
       };
     }
   }
