@@ -45,6 +45,7 @@ export const productRecordSchema = z.strictObject({
   templateSuffix: nullableStringSchema,
   seo: productSeoRecordSchema,
   category: productCategoryRecordSchema.nullable(),
+  contextualPricing: jsonValueSchema.optional(),
 });
 export type ProductRecord = z.infer<typeof productRecordSchema>;
 
@@ -329,6 +330,7 @@ export const productVariantRecordSchema = z.strictObject({
   selectedOptions: z.array(productVariantSelectedOptionRecordSchema),
   inventoryItem: inventoryItemRecordSchema.nullable(),
   mediaIds: z.array(z.string()).optional(),
+  contextualPricing: jsonValueSchema.optional(),
 });
 export type ProductVariantRecord = z.infer<typeof productVariantRecordSchema>;
 
