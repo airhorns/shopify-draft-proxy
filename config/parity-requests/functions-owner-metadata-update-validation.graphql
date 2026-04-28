@@ -1,0 +1,27 @@
+mutation UpdateOwnedFunctionValidation($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+      title
+      enable
+      blockOnFailure
+      functionId
+      functionHandle
+      updatedAt
+      shopifyFunction {
+        id
+        handle
+        appKey
+        app {
+          title
+          apiKey
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

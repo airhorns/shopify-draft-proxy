@@ -1,0 +1,50 @@
+query ReadOwnedFunctionMetadata($validationId: ID!) {
+  validation(id: $validationId) {
+    id
+    title
+    enable
+    blockOnFailure
+    functionId
+    functionHandle
+    shopifyFunction {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+  }
+  validationFunctions: shopifyFunctions(first: 5, apiType: VALIDATION) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      appKey
+      app {
+        title
+        apiKey
+      }
+    }
+  }
+  cartFunction: shopifyFunction(id: "gid://shopify/ShopifyFunction/cart-owned") {
+    id
+    title
+    handle
+    apiType
+    appKey
+    app {
+      __typename
+      title
+      apiKey
+    }
+  }
+}
