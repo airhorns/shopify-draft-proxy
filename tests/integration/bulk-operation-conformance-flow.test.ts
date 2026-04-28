@@ -249,8 +249,8 @@ describe('BulkOperation conformance fixture and local model', () => {
         'currentBulkOperation',
         'bulkOperationCancel',
         'bulkOperationRunQuery',
-        'bulkOperationRunMutation',
       ],
+      runtimeBackedOperationNames: ['bulkOperationRunMutation'],
       captureFiles: [fixturePath],
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');

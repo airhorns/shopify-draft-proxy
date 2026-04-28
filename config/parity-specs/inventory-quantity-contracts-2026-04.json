@@ -1,6 +1,7 @@
 {
   "scenarioId": "inventory-quantity-contracts-2026-04",
-  "operationNames": ["inventoryAdjustQuantities", "inventorySetQuantities"],
+  "operationNames": ["inventorySetQuantities"],
+  "runtimeBackedOperationNames": ["inventoryAdjustQuantities"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "schema-contract",
