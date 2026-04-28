@@ -113,6 +113,16 @@ interface MetaRuntimeState {
   stagedState: MetaStateSnapshot;
 }
 
+export interface InMemoryStoreStateFieldDumpV1 {
+  kind: 'plain' | 'map' | 'set';
+  value: unknown;
+}
+
+export interface InMemoryStoreStateDumpV1 {
+  version: 1;
+  fields: Record<string, InMemoryStoreStateFieldDumpV1>;
+}
+
 const EMPTY_SNAPSHOT: StateSnapshot = {
   shop: null,
   products: {},
@@ -310,6 +320,51 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
 
 function cloneSnapshot(snapshot: StateSnapshot): StateSnapshot {
   return structuredClone(snapshot);
+}
+
+function dumpStateField(value: unknown): InMemoryStoreStateFieldDumpV1 {
+  if (value instanceof Map) {
+    return {
+      kind: 'map',
+      value: [...value.entries()].map(([key, entryValue]) => [structuredClone(key), structuredClone(entryValue)]),
+    };
+  }
+
+  if (value instanceof Set) {
+    return {
+      kind: 'set',
+      value: [...value.values()].map((entry) => structuredClone(entry)),
+    };
+  }
+
+  return {
+    kind: 'plain',
+    value: structuredClone(value),
+  };
+}
+
+function restoreStateField(dump: InMemoryStoreStateFieldDumpV1): unknown {
+  if (dump.kind === 'map') {
+    if (!Array.isArray(dump.value)) {
+      throw new Error('Invalid in-memory store map field dump.');
+    }
+    return new Map(
+      (dump.value as Array<[unknown, unknown]>).map(([key, value]) => [structuredClone(key), structuredClone(value)]),
+    );
+  }
+
+  if (dump.kind === 'set') {
+    if (!Array.isArray(dump.value)) {
+      throw new Error('Invalid in-memory store set field dump.');
+    }
+    return new Set(dump.value.map((entry) => structuredClone(entry)));
+  }
+
+  if (dump.kind !== 'plain') {
+    throw new Error(`Invalid in-memory store field dump kind: ${String(dump.kind)}`);
+  }
+
+  return structuredClone(dump.value);
 }
 
 function buildMetaStateSnapshot(
@@ -765,6 +820,37 @@ export class InMemoryStore {
       ok: true,
       message: 'state reset',
     };
+  }
+
+  dumpRuntimeState(): InMemoryStoreStateDumpV1 {
+    const fields = Object.fromEntries(
+      Object.entries(this as Record<string, unknown>).map(([key, value]) => [key, dumpStateField(value)]),
+    );
+
+    return {
+      version: 1,
+      fields,
+    };
+  }
+
+  restoreRuntimeState(dump: InMemoryStoreStateDumpV1): void {
+    if (dump.version !== 1) {
+      throw new Error(`Unsupported in-memory store state dump version: ${String(dump.version)}`);
+    }
+
+    const targetFields = this as Record<string, unknown>;
+    const defaultFields = new InMemoryStore() as unknown as Record<string, unknown>;
+
+    for (const [key, value] of Object.entries(defaultFields)) {
+      targetFields[key] = restoreStateField(dumpStateField(value));
+    }
+
+    for (const [key, fieldDump] of Object.entries(dump.fields)) {
+      if (!(key in targetFields)) {
+        continue;
+      }
+      targetFields[key] = restoreStateField(fieldDump);
+    }
   }
 
   private appendLog(entry: MutationLogEntry): void {
