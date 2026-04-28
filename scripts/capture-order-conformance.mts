@@ -106,17 +106,6 @@ function summarizeCredential(token) {
   };
 }
 
-async function readJsonIfExists(filePath) {
-  try {
-    return JSON.parse(await readFile(filePath, 'utf8'));
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      return null;
-    }
-    throw error;
-  }
-}
-
 async function readManualStoreAuthSummary() {
   try {
     const payload = JSON.parse(await readFile(manualStoreAuthTokenPath, 'utf8'));
@@ -181,56 +170,6 @@ function renderManualStoreAuthSection(manualStoreAuthSummary) {
 - interpretation: ${interpretation}`;
 }
 
-async function readOrderCreationParityMetadata(credential, manualStoreAuthSummary) {
-  const [
-    orderCreateSpec,
-    draftOrderCreateSpec,
-    draftOrderCompleteSpec,
-    draftOrdersSpec,
-    draftOrdersCountSpec,
-    fulfillmentTrackingInfoUpdateSpec,
-    fulfillmentCancelSpec,
-  ] = await Promise.all([
-    readJsonIfExists(path.join('config', 'parity-specs', 'orderCreate-parity-plan.json')),
-    readJsonIfExists(path.join('config', 'parity-specs', 'draftOrderCreate-parity-plan.json')),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'draftOrderComplete-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'draftOrders-read-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'draftOrdersCount-read-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'fulfillmentTrackingInfoUpdate-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-    refreshOrderDomainBlockerSpec(
-      path.join('config', 'parity-specs', 'fulfillmentCancel-parity-plan.json'),
-      credential,
-      manualStoreAuthSummary,
-    ),
-  ]);
-
-  return {
-    orderCreate: orderCreateSpec,
-    draftOrderCreate: draftOrderCreateSpec,
-    draftOrderComplete: draftOrderCompleteSpec,
-    draftOrders: draftOrdersSpec,
-    draftOrdersCount: draftOrdersCountSpec,
-    fulfillmentTrackingInfoUpdate: fulfillmentTrackingInfoUpdateSpec,
-    fulfillmentCancel: fulfillmentCancelSpec,
-  };
-}
-
 async function writeJson(filePath, payload) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
@@ -290,37 +229,6 @@ function findFulfillmentLifecycleCandidate(result) {
   }
 
   return null;
-}
-
-function mergeRuntimeBlockerDetails(existingDetails, credential, manualStoreAuthSummary) {
-  return {
-    ...existingDetails,
-    activeCredentialTokenFamily: credential.family,
-    activeCredentialHeaderMode: credential.headerMode,
-    activeCredentialSummary: credential.summary,
-    manualStoreAuthStatus: manualStoreAuthSummary.status,
-    manualStoreAuthTokenPath: manualStoreAuthSummary.tokenPath,
-    manualStoreAuthCachedScopes: manualStoreAuthSummary.cachedScopes,
-    manualStoreAuthAssociatedUserScopes: manualStoreAuthSummary.associatedUserScopes,
-  };
-}
-
-async function refreshOrderDomainBlockerSpec(specPath, credential, manualStoreAuthSummary) {
-  const spec = await readJsonIfExists(specPath);
-  if (!spec || typeof spec !== 'object' || !spec.blocker || typeof spec.blocker !== 'object') {
-    return spec;
-  }
-
-  const nextSpec = {
-    ...spec,
-    blocker: {
-      ...spec.blocker,
-      details: mergeRuntimeBlockerDetails(spec.blocker.details, credential, manualStoreAuthSummary),
-    },
-  };
-
-  await writeJson(specPath, nextSpec);
-  return nextSpec;
 }
 
 function getAuthFailureMessage(result) {
@@ -1501,7 +1409,6 @@ async function main() {
   const stamp = Date.now();
   const credential = summarizeCredential(adminAccessToken);
   const manualStoreAuthSummary = await readManualStoreAuthSummary();
-  const parityMetadata = await readOrderCreationParityMetadata(credential, manualStoreAuthSummary);
 
   const orderEmptyStateVariables = { missingOrderId: 'gid://shopify/Order/0', first: 1 };
   const orderUpdateUnknownIdVariables = {
@@ -2369,11 +2276,11 @@ async function main() {
   }
 
   const draftOrderCreateAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.draftOrderCreate?.blocker?.details,
+    undefined,
     draftOrderCreateResult.payload?.errors?.[0],
   );
   const draftOrderCompleteAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.draftOrderComplete?.blocker?.details,
+    undefined,
     draftOrderCompleteResult.payload?.errors?.[0],
   );
   const orderEditBeginAccessSummary = formatRequiredAccessSummary(undefined, orderEditBeginResult.payload?.errors?.[0]);
@@ -2390,11 +2297,11 @@ async function main() {
     orderEditCommitResult.payload?.errors?.[0],
   );
   const fulfillmentTrackingInfoUpdateAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.fulfillmentTrackingInfoUpdate?.blocker?.details,
+    undefined,
     fulfillmentTrackingInfoUpdateResult.payload?.errors?.[0],
   );
   const fulfillmentCancelAccessSummary = formatRequiredAccessSummary(
-    parityMetadata.fulfillmentCancel?.blocker?.details,
+    undefined,
     fulfillmentCancelResult.payload?.errors?.[0],
     'Shopify did not return a narrower required-scope string in the current payload',
   );
@@ -2437,7 +2344,7 @@ ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 
 ### \`draftOrderComplete\`
 - result on this run: auth-regressed before the root-specific completion blocker could be reprobed
-- last verified family-specific access-denied evidence: ${parityMetadata.draftOrderComplete?.blocker?.details?.failingMessage ?? 'missing blocker metadata'}
+- last verified family-specific access-denied evidence: not stored in parity scenario metadata; rerun after auth repair for fresh root-specific evidence
 - required access summary: ${draftOrderCompleteAccessSummary}
 
 ## Practical interpretation
@@ -2494,7 +2401,7 @@ ${
 ${
   completedDraftOrderId && completedOrderId
     ? `- checked-in happy-path fixture: \`${draftOrderCompleteParityFixturePath}\`\n- immediate downstream draft detail and order reads were captured`
-    : `- exact message: ${draftOrderCompleteResult.payload?.errors?.[0]?.message ?? parityMetadata.draftOrderComplete?.blocker?.details?.failingMessage ?? 'missing error payload'}\n- required access summary: ${draftOrderCompleteAccessSummary}`
+    : `- exact message: ${draftOrderCompleteResult.payload?.errors?.[0]?.message ?? 'missing error payload'}\n- required access summary: ${draftOrderCompleteAccessSummary}`
 }
 
 ## Repo impact
@@ -2690,12 +2597,12 @@ ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 
 ### \`fulfillmentTrackingInfoUpdate\`
 - result: access denied on the current repo credential
-- exact message: ${fulfillmentTrackingInfoUpdateResult.payload?.errors?.[0]?.message ?? parityMetadata.fulfillmentTrackingInfoUpdate?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${fulfillmentTrackingInfoUpdateResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${fulfillmentTrackingInfoUpdateAccessSummary}
 
 ### \`fulfillmentCancel\`
 - result: access denied on the current repo credential
-- exact message: ${fulfillmentCancelResult.payload?.errors?.[0]?.message ?? parityMetadata.fulfillmentCancel?.blocker?.details?.failingMessage ?? 'missing error payload'}
+- exact message: ${fulfillmentCancelResult.payload?.errors?.[0]?.message ?? 'missing error payload'}
 - required access summary: ${fulfillmentCancelAccessSummary}
 
 ## Practical interpretation
