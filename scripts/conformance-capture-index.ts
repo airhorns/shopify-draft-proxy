@@ -719,6 +719,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-addresses',
+    scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
+    purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-addresses-parity.json`,
+      'config/parity-specs/customerInputAddresses-parity.json',
+      'config/parity-requests/customer-input-addresses-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, records address-list create/update/read behavior, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     packageScript: 'conformance:capture-customer-account-page-data-erasure',
     scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
     purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
