@@ -70,6 +70,7 @@ import {
   updateOptionRecords,
 } from './products/options.js';
 import { serializeCountValue, serializeJobSelectionSet } from './products/serializers.js';
+import { serializeLocation as serializeStorePropertiesLocation } from './store-properties.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -5454,7 +5455,7 @@ function serializeInventoryTransferLocationSnapshot(
       case 'location': {
         const location = snapshot.id ? findKnownLocationById(snapshot.id) : null;
         result[key] = location
-          ? serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [])
+          ? serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [], {})
           : null;
         break;
       }
@@ -7025,38 +7026,9 @@ function serializeTopLevelCollectionsConnection(
 function serializeLocationSelectionSet(
   location: LocationRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  for (const selection of selections) {
-    if (selection.kind === Kind.INLINE_FRAGMENT) {
-      const typeName = selection.typeCondition?.name.value;
-      if (typeName && typeName !== 'Location') {
-        continue;
-      }
-
-      Object.assign(result, serializeLocationSelectionSet(location, selection.selectionSet.selections));
-      continue;
-    }
-
-    if (selection.kind !== Kind.FIELD) {
-      continue;
-    }
-
-    const key = selection.alias?.value ?? selection.name.value;
-    switch (selection.name.value) {
-      case 'id':
-        result[key] = location.id;
-        break;
-      case 'name':
-        result[key] = location.name;
-        break;
-      default:
-        result[key] = null;
-    }
-  }
-
-  return result;
+  return serializeStorePropertiesLocation(location, selections, variables);
 }
 
 function serializeTopLevelLocationsConnection(
@@ -7075,7 +7047,7 @@ function serializeTopLevelLocationsConnection(
     hasPreviousPage,
     getCursorValue: (location) => location.id,
     serializeNode: (location, selection) =>
-      serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? []),
+      serializeLocationSelectionSet(location, selection.selectionSet?.selections ?? [], variables),
   });
 }
 
