@@ -5,6 +5,7 @@ import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../support/runtime.js';
 import { store } from '../support/runtime.js';
+import type { CustomerRecord, SegmentRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -75,6 +76,20 @@ const automaticDetailSelection = `#graphql
         ... on DiscountBuyerSelectionAll {
           all
         }
+        ... on DiscountCustomers {
+          customers {
+            __typename
+            id
+            displayName
+          }
+        }
+        ... on DiscountCustomerSegments {
+          segments {
+            __typename
+            id
+            name
+          }
+        }
       }
       customerGets {
         value {
@@ -114,6 +129,42 @@ const automaticDetailSelection = `#graphql
     }
   }
 `;
+
+function makeContextCustomer(): CustomerRecord {
+  return {
+    id: 'gid://shopify/Customer/390101',
+    firstName: 'Auto',
+    lastName: 'Discount',
+    displayName: 'Auto Discount',
+    email: 'auto-discount@example.com',
+    legacyResourceId: '390101',
+    locale: 'en',
+    note: null,
+    canDelete: true,
+    verifiedEmail: true,
+    taxExempt: false,
+    taxExemptions: [],
+    state: 'ENABLED',
+    tags: [],
+    numberOfOrders: '0',
+    amountSpent: { amount: '0.00', currencyCode: 'USD' },
+    defaultEmailAddress: null,
+    defaultPhoneNumber: null,
+    defaultAddress: null,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  };
+}
+
+function makeContextSegment(): SegmentRecord {
+  return {
+    id: 'gid://shopify/Segment/390102',
+    name: 'HAR-390 Automatic Segment',
+    query: "number_of_orders >= '1'",
+    creationDate: '2024-01-01T00:00:00Z',
+    lastEditDate: '2024-01-01T00:00:00Z',
+  };
+}
 
 describe('automatic basic discount lifecycle staging', () => {
   beforeEach(() => {
@@ -693,6 +744,134 @@ describe('automatic basic discount lifecycle staging', () => {
       userErrors: expectedUserErrors,
     });
     expect(store.getLog()).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages customer and segment buyer context links for automatic discounts', async () => {
+    const customer = makeContextCustomer();
+    const segment = makeContextSegment();
+    store.upsertBaseCustomers([customer]);
+    store.upsertBaseSegments([segment]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('automatic discount customer/segment context should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const create = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateAutomaticCustomerContext($input: DiscountAutomaticBasicInput!) {
+            discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+              automaticDiscountNode {
+                ${automaticDetailSelection}
+              }
+              ${userErrorsSelection}
+            }
+          }
+        `,
+        variables: {
+          input: percentageInput({
+            title: 'HAR-390 automatic customer context',
+            context: {
+              customers: {
+                add: [customer.id],
+              },
+            },
+          }),
+        },
+      });
+
+    expect(create.status).toBe(200);
+    expect(create.body.data.discountAutomaticBasicCreate.userErrors).toEqual([]);
+    const discountId = create.body.data.discountAutomaticBasicCreate.automaticDiscountNode.id as string;
+    expect(create.body.data.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.context).toEqual({
+      __typename: 'DiscountCustomers',
+      customers: [
+        {
+          __typename: 'Customer',
+          id: customer.id,
+          displayName: 'Auto Discount',
+        },
+      ],
+    });
+
+    const update = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UpdateAutomaticSegmentContext($id: ID!, $input: DiscountAutomaticBasicInput!) {
+            discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+              automaticDiscountNode {
+                ${automaticDetailSelection}
+              }
+              ${userErrorsSelection}
+            }
+          }
+        `,
+        variables: {
+          id: discountId,
+          input: percentageInput({
+            title: 'HAR-390 automatic segment context',
+            context: {
+              customerSegments: {
+                add: [segment.id],
+              },
+            },
+          }),
+        },
+      });
+
+    expect(update.status).toBe(200);
+    expect(update.body.data.discountAutomaticBasicUpdate.userErrors).toEqual([]);
+    expect(update.body.data.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.context).toEqual({
+      __typename: 'DiscountCustomerSegments',
+      segments: [
+        {
+          __typename: 'Segment',
+          id: segment.id,
+          name: 'HAR-390 Automatic Segment',
+        },
+      ],
+    });
+
+    const read = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadAutomaticSegmentContext($id: ID!) {
+            automaticDiscountNode(id: $id) {
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticBasic {
+                  context {
+                    __typename
+                    ... on DiscountCustomerSegments {
+                      segments {
+                        id
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          id: discountId,
+        },
+      });
+
+    expect(read.body.data.automaticDiscountNode.automaticDiscount.context).toEqual({
+      __typename: 'DiscountCustomerSegments',
+      segments: [
+        {
+          id: segment.id,
+          name: 'HAR-390 Automatic Segment',
+        },
+      ],
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

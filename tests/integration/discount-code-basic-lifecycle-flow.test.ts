@@ -5,6 +5,7 @@ import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../support/runtime.js';
 import { store } from '../support/runtime.js';
+import type { CustomerRecord, SegmentRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -42,6 +43,20 @@ const discountFields = `#graphql
         __typename
         ... on DiscountBuyerSelectionAll {
           all
+        }
+        ... on DiscountCustomers {
+          customers {
+            __typename
+            id
+            displayName
+          }
+        }
+        ... on DiscountCustomerSegments {
+          segments {
+            __typename
+            id
+            name
+          }
         }
       }
       customerGets {
@@ -109,6 +124,42 @@ function basicPercentageInput(code: string): Record<string, unknown> {
         all: true,
       },
     },
+  };
+}
+
+function makeContextCustomer(): CustomerRecord {
+  return {
+    id: 'gid://shopify/Customer/390001',
+    firstName: 'Har',
+    lastName: 'Discount',
+    displayName: 'Har Discount',
+    email: 'har-discount@example.com',
+    legacyResourceId: '390001',
+    locale: 'en',
+    note: null,
+    canDelete: true,
+    verifiedEmail: true,
+    taxExempt: false,
+    taxExemptions: [],
+    state: 'ENABLED',
+    tags: [],
+    numberOfOrders: '0',
+    amountSpent: { amount: '0.00', currencyCode: 'USD' },
+    defaultEmailAddress: null,
+    defaultPhoneNumber: null,
+    defaultAddress: null,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  };
+}
+
+function makeContextSegment(): SegmentRecord {
+  return {
+    id: 'gid://shopify/Segment/390002',
+    name: 'HAR-390 Discount Segment',
+    query: "email_subscription_status = 'SUBSCRIBED'",
+    creationDate: '2024-01-01T00:00:00Z',
+    lastEditDate: '2024-01-01T00:00:00Z',
   };
 }
 
@@ -501,5 +552,129 @@ describe('discount code-basic lifecycle staging', () => {
     expect(replayVariables[2]?.['id']).toBe('gid://shopify/DiscountCodeNode/9001');
     expect(replayVariables[3]?.['id']).toBe('gid://shopify/DiscountCodeNode/9001');
     expect(replayVariables[4]?.['id']).toBe('gid://shopify/DiscountCodeNode/9001');
+  });
+
+  it('stages customer and segment buyer context links with downstream detail reads', async () => {
+    const customer = makeContextCustomer();
+    const segment = makeContextSegment();
+    store.upsertBaseCustomers([customer]);
+    store.upsertBaseSegments([segment]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('discount customer/segment context should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const create = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateCustomerContextCodeBasic($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode {
+              ${discountFields}
+            }
+            userErrors { field message code extraInfo }
+          }
+        }`,
+        variables: {
+          input: {
+            ...basicPercentageInput('HAR390CUSTOMER'),
+            title: 'HAR-390 customer context',
+            context: {
+              customers: {
+                add: [customer.id],
+              },
+            },
+          },
+        },
+      });
+
+    expect(create.status).toBe(200);
+    expect(create.body.data.discountCodeBasicCreate.userErrors).toEqual([]);
+    const discountId = create.body.data.discountCodeBasicCreate.codeDiscountNode.id as string;
+    expect(create.body.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.context).toEqual({
+      __typename: 'DiscountCustomers',
+      customers: [
+        {
+          __typename: 'Customer',
+          id: customer.id,
+          displayName: 'Har Discount',
+        },
+      ],
+    });
+
+    const update = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateSegmentContextCodeBasic($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode {
+              ${discountFields}
+            }
+            userErrors { field message code extraInfo }
+          }
+        }`,
+        variables: {
+          id: discountId,
+          input: {
+            ...basicPercentageInput('HAR390SEGMENT'),
+            title: 'HAR-390 segment context',
+            context: {
+              customerSegments: {
+                add: [segment.id],
+              },
+            },
+          },
+        },
+      });
+
+    expect(update.status).toBe(200);
+    expect(update.body.data.discountCodeBasicUpdate.userErrors).toEqual([]);
+    expect(update.body.data.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.context).toEqual({
+      __typename: 'DiscountCustomerSegments',
+      segments: [
+        {
+          __typename: 'Segment',
+          id: segment.id,
+          name: 'HAR-390 Discount Segment',
+        },
+      ],
+    });
+
+    const read = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadSegmentContextCodeBasic($id: ID!) {
+          discountNode(id: $id) {
+            discount {
+              __typename
+              ... on DiscountCodeBasic {
+                context {
+                  __typename
+                  ... on DiscountCustomerSegments {
+                    segments {
+                      id
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }`,
+        variables: {
+          id: discountId,
+        },
+      });
+
+    expect(read.body.data.discountNode.discount.context).toEqual({
+      __typename: 'DiscountCustomerSegments',
+      segments: [
+        {
+          id: segment.id,
+          name: 'HAR-390 Discount Segment',
+        },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

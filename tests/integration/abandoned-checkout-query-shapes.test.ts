@@ -49,6 +49,41 @@ function makeAbandonedCheckout(overrides: Partial<AbandonedCheckoutRecord> = {})
   };
 }
 
+function makeRecoveredAbandonedCheckout(): AbandonedCheckoutRecord {
+  return makeAbandonedCheckout({
+    id: 'gid://shopify/AbandonedCheckout/1002',
+    cursor: 'opaque-abandoned-checkout-cursor-2',
+    data: {
+      __typename: 'AbandonedCheckout',
+      id: 'gid://shopify/AbandonedCheckout/1002',
+      name: '#AC1002',
+      abandonedCheckoutUrl: 'https://example.myshopify.com/checkouts/recover/1002',
+      completedAt: '2026-04-21T12:00:00Z',
+      createdAt: '2026-04-21T10:00:00Z',
+      updatedAt: '2026-04-21T12:00:00Z',
+      email: 'recovered@example.com',
+      customer: {
+        id: 'gid://shopify/Customer/1002',
+        email: 'recovered@example.com',
+      },
+      totalPriceSet: {
+        shopMoney: {
+          amount: '99.95',
+          currencyCode: 'CAD',
+        },
+      },
+      lineItems: [
+        {
+          __typename: 'AbandonedCheckoutLineItem',
+          id: 'gid://shopify/AbandonedCheckoutLineItem/2',
+          title: 'Recovered lantern',
+          quantity: 1,
+        },
+      ],
+    },
+  });
+}
+
 function makeAbandonment(overrides: Partial<AbandonmentRecord> = {}): AbandonmentRecord {
   return {
     id: 'gid://shopify/Abandonment/2001',
@@ -84,6 +119,34 @@ function makeAbandonment(overrides: Partial<AbandonmentRecord> = {}): Abandonmen
     deliveryActivities: {},
     ...overrides,
   };
+}
+
+function makeRecoveredAbandonment(): AbandonmentRecord {
+  return makeAbandonment({
+    id: 'gid://shopify/Abandonment/2002',
+    abandonedCheckoutId: 'gid://shopify/AbandonedCheckout/1002',
+    data: {
+      __typename: 'Abandonment',
+      id: 'gid://shopify/Abandonment/2002',
+      abandonmentType: 'CHECKOUT',
+      mostRecentStep: 'CHECKOUT',
+      createdAt: '2026-04-21T10:35:00Z',
+      emailState: 'SENT',
+      emailSentAt: '2026-04-21T11:00:00Z',
+      abandonedCheckoutPayload: {
+        id: 'gid://shopify/AbandonedCheckout/1002',
+      },
+      productsAddedToCart: [
+        {
+          __typename: 'CustomerVisitProductInfo',
+          id: 'gid://shopify/CustomerVisitProductInfo/2',
+          title: 'Recovered lantern',
+        },
+      ],
+      productsViewed: [],
+    },
+    deliveryActivities: {},
+  });
 }
 
 describe('abandoned checkout and abandonment query shapes', () => {
@@ -241,6 +304,61 @@ describe('abandoned checkout and abandonment query shapes', () => {
     expect(response.body.data.abandonmentByAbandonedCheckoutId).toEqual({
       id: 'gid://shopify/Abandonment/2001',
       emailState: 'NOT_SENT',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('filters seeded abandoned checkouts with documented search terms in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('snapshot abandoned checkout query filters must not hit upstream');
+    });
+    store.upsertBaseAbandonedCheckouts([makeAbandonedCheckout(), makeRecoveredAbandonedCheckout()]);
+    store.upsertBaseAbandonments([makeAbandonment(), makeRecoveredAbandonment()]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query AbandonedCheckoutSearchFilters {
+          open: abandonedCheckouts(first: 5, query: "status:open") {
+            nodes { id name }
+          }
+          recovered: abandonedCheckouts(first: 5, query: "recovery_state:recovered email_state:sent") {
+            nodes { id name }
+          }
+          defaultText: abandonedCheckouts(first: 5, query: "lantern") {
+            nodes { id name }
+          }
+          idRange: abandonedCheckouts(first: 5, query: "id:>=1002") {
+            nodes { id name }
+          }
+          recentCount: abandonedCheckoutsCount(query: "created_at:>=2026-04-21") {
+            count
+            precision
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        open: {
+          nodes: [{ id: 'gid://shopify/AbandonedCheckout/1001', name: '#AC1001' }],
+        },
+        recovered: {
+          nodes: [{ id: 'gid://shopify/AbandonedCheckout/1002', name: '#AC1002' }],
+        },
+        defaultText: {
+          nodes: [{ id: 'gid://shopify/AbandonedCheckout/1002', name: '#AC1002' }],
+        },
+        idRange: {
+          nodes: [{ id: 'gid://shopify/AbandonedCheckout/1002', name: '#AC1002' }],
+        },
+        recentCount: {
+          count: 1,
+          precision: 'EXACT',
+        },
+      },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

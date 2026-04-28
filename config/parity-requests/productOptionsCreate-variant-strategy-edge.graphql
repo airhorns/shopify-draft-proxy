@@ -1,0 +1,48 @@
+mutation ProductOptionsCreateVariantStrategyEdge(
+  $productId: ID!
+  $options: [OptionCreateInput!]!
+  $variantStrategy: ProductOptionCreateVariantStrategy
+) {
+  productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+    product {
+      id
+      options {
+        id
+        name
+        position
+        values
+        optionValues {
+          id
+          name
+          hasVariants
+        }
+      }
+      totalInventory
+      tracksInventory
+      variants(first: 110) {
+        nodes {
+          id
+          title
+          sku
+          barcode
+          price
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
