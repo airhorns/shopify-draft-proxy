@@ -498,6 +498,11 @@ describe('location query shapes', () => {
           unknownIdentifier: locationByIdentifier(identifier: { id: $unknownId }) {
             id
           }
+          unknownCustomIdentifier: locationByIdentifier(
+            identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+          ) {
+            id
+          }
         }`,
         variables: {
           knownId: 'gid://shopify/Location/2',
@@ -518,6 +523,7 @@ describe('location query shapes', () => {
         },
         unknownLocation: null,
         unknownIdentifier: null,
+        unknownCustomIdentifier: null,
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
