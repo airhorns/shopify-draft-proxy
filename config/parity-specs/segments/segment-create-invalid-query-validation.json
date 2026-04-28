@@ -1,0 +1,26 @@
+{
+  "scenarioId": "segment-create-invalid-query-validation",
+  "operationNames": ["segmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-invalid-query-validation.graphql",
+    "variablesCapturePath": "$.cases[1].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify segment validation capture for Admin GraphQL 2025-01. Invalid ShopifyQL returns UserError entries without mutating segment state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-query-segment-create-data",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -1,0 +1,164 @@
+query SavedSearchResourceRootsRead {
+  products: productSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  collections: collectionSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  customers: customerSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  orders: orderSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  draftOrders: draftOrderSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  files: fileSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  codeDiscounts: codeDiscountSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  automaticDiscounts: automaticDiscountSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  redeemCodes: discountRedeemCodeSavedSearches(first: 20) {
+    nodes {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

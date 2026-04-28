@@ -1,0 +1,215 @@
+{
+  "scenarioId": "customer-input-addresses-parity",
+  "operationNames": ["customerCreate", "customerUpdate", "customer", "customerByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-addresses-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-input-addresses-create.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers CustomerInput.addresses on customerCreate, replacement-list customerUpdate with duplicate address input coalescing, and downstream customer/customerByIdentifier read-after-write behavior. The fixture is captured from a disposable customer and local replay materializes generated customer/address IDs without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customerCreate.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerCreate.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerCreate.customer.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerCreate.customer.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerCreate.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerCreate.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerUpdate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy updates the locally staged Customer GID created by the primary request."
+      },
+      {
+        "path": "$.customerUpdate.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput address replacement locally and returns a stable synthetic MailingAddress ID instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerUpdate.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput address replacement locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerUpdate.customer.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerUpdate.customer.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput address replacement locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customerUpdate.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerUpdate.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The downstream proxy read uses the local Customer GID created by the primary request."
+      },
+      {
+        "path": "$.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The downstream proxy read uses the local Customer GID created by the primary request."
+      },
+      {
+        "path": "$.customerByIdentifier.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.edges[*].cursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.edges[*].node.id",
+        "matcher": "any-string",
+        "reason": "The downstream proxy read observes locally staged CustomerInput address IDs."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customerByIdentifier.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-mutation-data",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "update-mutation-data",
+        "capturePath": "$.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-input-addresses-update.graphql",
+          "variables": {
+            "input": {
+              "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+              "addresses": [
+                {
+                  "firstName": "Hermes",
+                  "lastName": "Replacement",
+                  "address1": "20 Input Update Blvd",
+                  "city": "Vancouver",
+                  "countryCode": "CA",
+                  "provinceCode": "BC",
+                  "zip": "V6B 1A1",
+                  "phone": "+14155550124"
+                },
+                {
+                  "firstName": "Hermes",
+                  "lastName": "Replacement",
+                  "address1": "20 Input Update Blvd",
+                  "city": "Vancouver",
+                  "countryCode": "CA",
+                  "provinceCode": "BC",
+                  "zip": "V6B 1A1",
+                  "phone": "+14155550124"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-input-addresses-downstream-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "identifier": { "emailAddress": { "fromCapturePath": "$.create.variables.input.email" } }
+          }
+        }
+      }
+    ]
+  }
+}

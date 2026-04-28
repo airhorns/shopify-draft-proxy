@@ -66,7 +66,7 @@ Live success-path captures for billing approval, uninstall, app grant revocation
 
 ### Captured read evidence
 
-HAR-301 captured safe read evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/app-billing-access-read.json` through `corepack pnpm conformance:capture-app-billing`.
+HAR-301 captured safe read evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json` through `corepack pnpm conformance:capture-app-billing`.
 
 The capture records:
 
@@ -81,6 +81,6 @@ The capture records:
 - `tests/integration/app-billing-access-flow.test.ts`
 - `tests/integration/proxy-capability-classification.test.ts`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
-- `config/parity-specs/app-billing-access-local-staging.json`
+- `config/parity-specs/apps/app-billing-access-local-staging.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

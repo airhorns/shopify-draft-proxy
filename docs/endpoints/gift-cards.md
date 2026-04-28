@@ -43,7 +43,7 @@ Local staged mutations:
 
 ### Captured Evidence
 
-`fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-card-lifecycle.json` records:
+`fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json` records:
 
 - Admin GraphQL gift-card schema shape for the modeled fields and lifecycle payloads
 - active conformance access scopes
@@ -57,7 +57,7 @@ Local staged mutations:
 
 The fixture shows the current conformance credential can read gift cards, perform the core gift-card lifecycle with `read_gift_cards` and `write_gift_cards`, and exercise transaction reads/writes with `read_gift_card_transactions` and `write_gift_card_transactions`.
 
-`config/parity-specs/gift-card-lifecycle.json` now runs as captured-vs-proxy parity. The parity request seeds the live-created gift card and configuration from the capture, replays update/credit/debit/deactivate against the local proxy, and strictly compares stable payload, filtered empty read, transaction read-after-write, and filtered non-empty downstream read fields. Runtime integration coverage still verifies synthetic ID/timestamp behavior, explicit transaction `processedAt` preservation, `status:` read-after-write filters, recipient attributes projection, meta logging, raw mutation retention, local userErrors, and notification short-circuiting.
+`config/parity-specs/gift-cards/gift-card-lifecycle.json` now runs as captured-vs-proxy parity. The parity request seeds the live-created gift card and configuration from the capture, replays update/credit/debit/deactivate against the local proxy, and strictly compares stable payload, filtered empty read, transaction read-after-write, and filtered non-empty downstream read fields. Runtime integration coverage still verifies synthetic ID/timestamp behavior, explicit transaction `processedAt` preservation, `status:` read-after-write filters, recipient attributes projection, meta logging, raw mutation retention, local userErrors, and notification short-circuiting.
 
 ### Validation
 

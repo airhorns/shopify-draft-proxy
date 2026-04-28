@@ -108,7 +108,7 @@ This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscript
 
 ### Captured Evidence
 
-`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json` records:
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json` records:
 
 - empty/no-data `webhookSubscriptions` catalog behavior
 - empty and filtered `webhookSubscriptionsCount` behavior

@@ -80,7 +80,6 @@ import {
   readOrderCaptureInput,
   readRefundCreateInput,
   readString,
-  readTransactionVoidId,
   recalculateOrderTotals,
   serializeSelectedUserErrors,
   sumRefundedAmount,
@@ -139,6 +138,32 @@ function readInputObjectArgument(
 
   const fallback = variables[fallbackVariableName];
   return typeof fallback === 'object' && fallback !== null ? (fallback as Record<string, unknown>) : null;
+}
+
+function readTransactionVoidReference(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): { transactionId: string | null; fieldName: 'parentTransactionId' | 'id' } {
+  const args = getFieldArguments(field, variables);
+  if (typeof args['parentTransactionId'] === 'string') {
+    return { transactionId: args['parentTransactionId'], fieldName: 'parentTransactionId' };
+  }
+
+  if (typeof args['id'] === 'string') {
+    return { transactionId: args['id'], fieldName: 'id' };
+  }
+
+  const input =
+    typeof args['input'] === 'object' && args['input'] !== null ? (args['input'] as Record<string, unknown>) : null;
+  if (input && typeof input['parentTransactionId'] === 'string') {
+    return { transactionId: input['parentTransactionId'], fieldName: 'parentTransactionId' };
+  }
+
+  if (input && typeof input['id'] === 'string') {
+    return { transactionId: input['id'], fieldName: 'id' };
+  }
+
+  return { transactionId: null, fieldName: 'parentTransactionId' };
 }
 
 function normalizePaymentScheduleAmount(
@@ -4221,12 +4246,12 @@ export function handleOrderMutation(
 
     if (field.name.value === 'transactionVoid' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      const transactionId = readTransactionVoidId(variables);
+      const { transactionId, fieldName } = readTransactionVoidReference(field, variables);
       const match = transactionId ? findOrderWithTransaction(transactionId) : null;
 
       if (!match) {
         data[key] = serializeTransactionVoidPayload(field, null, [
-          { field: ['id'], message: 'Transaction does not exist' },
+          { field: [fieldName], message: 'Transaction does not exist' },
         ]);
         continue;
       }

@@ -1,0 +1,24 @@
+{
+  "mutation": {
+    "variables": {
+      "product": {
+        "id": "gid://shopify/Product/999999999999999",
+        "title": "Ghost Product"
+      }
+    },
+    "response": {
+      "data": {
+        "productUpdate": {
+          "product": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "sourceCapture": "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json#validation.unknownId"
+}

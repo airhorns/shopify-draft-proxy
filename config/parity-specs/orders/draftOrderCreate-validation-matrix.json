@@ -1,0 +1,27 @@
+{
+  "scenarioId": "draft-order-create-validation-matrix",
+  "operationNames": ["draftOrderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draft-order-create-validation-matrix.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderCreate-validation-matrix.graphql",
+    "variablesPath": "config/parity-requests/orders/draftOrderCreate-validation-matrix.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured draft-order create-time validation matrix covering no line items, unknown variant, missing custom title, zero quantity, paymentTerms without template id, negative custom line price, past reserve inventory timestamp, and invalid email. Exploratory probes also showed Shopify accepts variant line items that include custom title/originalUnitPrice fields, accepts missing custom originalUnitPrice as a zero-price line, and accepts shippingLine without title; those are documented as accepted combinations rather than validation failures.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-matrix-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

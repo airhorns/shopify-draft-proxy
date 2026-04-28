@@ -1,0 +1,26 @@
+{
+  "scenarioId": "publishableUnpublish-shop-count-parity",
+  "operationNames": ["publishableUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "store-property-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-unpublish-shop-count-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/publishableUnpublish-shop-count-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Direct live parity for product-scoped generic `publishableUnpublish` selecting `shop.publicationCount`. The fixture seeds Shopify's publication catalog so the local store-property count is compared against the captured shop-level publication count rather than only product aggregate publication fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publishable unpublish shop count payload",
+        "capturePath": "$.mutation.response.data.publishableUnpublish",
+        "proxyPath": "$.data.publishableUnpublish"
+      }
+    ]
+  }
+}

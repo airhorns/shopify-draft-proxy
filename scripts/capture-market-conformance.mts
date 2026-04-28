@@ -11,7 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'markets');
 
 const marketDetailOutputPath = path.join(outputDir, 'market-detail.json');
 const marketsCatalogOutputPath = path.join(outputDir, 'markets-catalog.json');

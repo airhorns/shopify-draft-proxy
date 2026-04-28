@@ -1,0 +1,64 @@
+{
+  "scenarioId": "data-sale-opt-out-parity",
+  "operationNames": ["dataSaleOptOut", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers dataSaleOptOut for an existing seeded customer, repeat idempotency, invalid-email userErrors, and downstream customer/customerByIdentifier/customers reads for Customer.dataSaleOptOut. The same fixture records Shopify's unknown-email behavior, which creates an opted-out customer; runtime tests cover that branch because the parity runner does not chain validation mutation output into later validation read variables.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/data-sale-opt-out-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.dataSaleOptOut.customerId"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.dataSaleOptOut.customerId"
+              }
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        }
+      },
+      {
+        "name": "repeat-mutation-data",
+        "capturePath": "$.validation.repeat.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.repeat.variables"
+        }
+      },
+      {
+        "name": "invalid-email-validation-data",
+        "capturePath": "$.validation.invalidEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+          "variablesCapturePath": "$.validation.invalidEmail.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "payment-terms-templates-read",
+  "operationNames": ["paymentTermsTemplates"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "filtering"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-terms-templates-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-templates-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for read_payment_terms template catalog behavior captured against harry-test-heelo.myshopify.com on 2026-04-27: the standard template list includes receipt, fulfillment, net, and fixed templates, and paymentTermsType: NET filters the list to only net templates.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "payment-terms-templates-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

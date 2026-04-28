@@ -11,7 +11,7 @@ import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
 
 const repoRoot = process.cwd();
-const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
+const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets';
 
 const config: AppConfig = {
   port: 3000,

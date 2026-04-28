@@ -1,0 +1,87 @@
+{
+  "scenarioId": "refund-create-full-parity",
+  "operationNames": ["refundCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-full-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/refundCreate-partial-shipping-restock-parity.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "refundCreate userErrors match",
+        "capturePath": "$.mutation.response.data.refundCreate.userErrors",
+        "proxyPath": "$.data.refundCreate.userErrors"
+      },
+      {
+        "name": "refundCreate order financial status reflects full refund",
+        "capturePath": "$.mutation.response.data.refundCreate.order.displayFinancialStatus",
+        "proxyPath": "$.data.refundCreate.order.displayFinancialStatus"
+      },
+      {
+        "name": "refundCreate order totalRefundedSet matches",
+        "capturePath": "$.mutation.response.data.refundCreate.order.totalRefundedSet",
+        "proxyPath": "$.data.refundCreate.order.totalRefundedSet"
+      },
+      {
+        "name": "refundCreate refund note matches",
+        "capturePath": "$.mutation.response.data.refundCreate.refund.note",
+        "proxyPath": "$.data.refundCreate.refund.note"
+      },
+      {
+        "name": "refundCreate refund totalRefundedSet matches",
+        "capturePath": "$.mutation.response.data.refundCreate.refund.totalRefundedSet",
+        "proxyPath": "$.data.refundCreate.refund.totalRefundedSet"
+      },
+      {
+        "name": "refundCreate refund line-item no-restock behavior matches",
+        "capturePath": "$.mutation.response.data.refundCreate.refund.refundLineItems.nodes[0].restockType",
+        "proxyPath": "$.data.refundCreate.refund.refundLineItems.nodes[0].restockType"
+      },
+      {
+        "name": "downstream order financial status matches",
+        "capturePath": "$.downstreamRead.response.data.order.displayFinancialStatus",
+        "proxyPath": "$.data.order.displayFinancialStatus",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream order totalRefundedSet matches",
+        "capturePath": "$.downstreamRead.response.data.order.totalRefundedSet",
+        "proxyPath": "$.data.order.totalRefundedSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream refund note matches",
+        "capturePath": "$.downstreamRead.response.data.order.refunds[0].note",
+        "proxyPath": "$.data.order.refunds[0].note",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      },
+      {
+        "name": "downstream returns empty connection matches",
+        "capturePath": "$.downstreamRead.response.data.order.returns",
+        "proxyPath": "$.data.order.returns",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live Shopify refundCreate full refund with no-restock line item and downstream order refund/return visibility."
+}

@@ -163,6 +163,48 @@ describe('shipping settings local staging', () => {
       },
     });
 
+    const downstreamAvailabilityResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `
+          query PickupDownstream {
+            availableCarrierServices {
+              carrierService { id }
+              locations { id localPickupSettingsV2 { pickupTime instructions } }
+            }
+            locationsAvailableForDeliveryProfilesConnection(first: 5) {
+              nodes { id localPickupSettingsV2 { pickupTime instructions } }
+            }
+          }
+        `,
+      });
+
+    expect(downstreamAvailabilityResponse.body.data.availableCarrierServices).toEqual([
+      {
+        carrierService: { id: 'gid://shopify/DeliveryCarrierService/10' },
+        locations: [
+          { id: 'gid://shopify/Location/10', localPickupSettingsV2: null },
+          {
+            id: 'gid://shopify/Location/20',
+            localPickupSettingsV2: {
+              pickupTime: 'TWO_HOURS',
+              instructions: 'Bring photo ID.',
+            },
+          },
+        ],
+      },
+    ]);
+    expect(downstreamAvailabilityResponse.body.data.locationsAvailableForDeliveryProfilesConnection.nodes).toEqual([
+      { id: 'gid://shopify/Location/10', localPickupSettingsV2: null },
+      {
+        id: 'gid://shopify/Location/20',
+        localPickupSettingsV2: {
+          pickupTime: 'TWO_HOURS',
+          instructions: 'Bring photo ID.',
+        },
+      },
+    ]);
+
     const disableResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
@@ -181,6 +223,30 @@ describe('shipping settings local staging', () => {
       locationId: 'gid://shopify/Location/20',
       userErrors: [],
     });
+
+    const readAfterDisableResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `
+          query PickupDownstreamAfterDisable {
+            availableCarrierServices {
+              locations { id localPickupSettingsV2 { pickupTime instructions } }
+            }
+            locationsAvailableForDeliveryProfilesConnection(first: 5) {
+              nodes { id localPickupSettingsV2 { pickupTime instructions } }
+            }
+          }
+        `,
+      });
+
+    expect(readAfterDisableResponse.body.data.availableCarrierServices[0].locations).toEqual([
+      { id: 'gid://shopify/Location/10', localPickupSettingsV2: null },
+      { id: 'gid://shopify/Location/20', localPickupSettingsV2: null },
+    ]);
+    expect(readAfterDisableResponse.body.data.locationsAvailableForDeliveryProfilesConnection.nodes).toEqual([
+      { id: 'gid://shopify/Location/10', localPickupSettingsV2: null },
+      { id: 'gid://shopify/Location/20', localPickupSettingsV2: null },
+    ]);
 
     const unknownEnableResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')

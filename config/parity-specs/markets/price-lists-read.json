@@ -1,0 +1,25 @@
+{
+  "scenarioId": "price-lists-read",
+  "operationNames": ["priceLists"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "pagination-shape"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-lists.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-lists-read.graphql",
+    "variablesPath": "config/parity-requests/markets/price-lists-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `priceLists(first:)` capture for Admin GraphQL 2026-04. The selected slice covers pagination, price-list identity, currency, fixedPricesCount, parent adjustment, and nullable catalog back-references.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-lists-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

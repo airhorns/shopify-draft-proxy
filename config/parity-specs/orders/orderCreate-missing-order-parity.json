@@ -1,0 +1,32 @@
+{
+  "scenarioId": "order-create-missing-order-invalid-variable",
+  "operationNames": ["orderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-create-missing-order.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-missing-order-parity.graphql",
+    "variablesPath": "config/parity-requests/orders/orderCreate-missing-order-parity.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `orderCreate` missing-order GraphQL validation slice: omitting the required `$order` variable fails at GraphQL coercion time with `INVALID_VARIABLE`, and snapshot-mode local parity now mirrors that branch without hitting upstream while the happy-path orderCreate flow remains blocked on offline-token-only live access.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "top-level-error-message",
+        "capturePath": "$.mutation.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "top-level-error-extensions",
+        "capturePath": "$.mutation.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
+  }
+}

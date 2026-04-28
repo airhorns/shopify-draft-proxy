@@ -1,0 +1,100 @@
+{
+  "scenarioId": "customer-merge-live-parity",
+  "operationNames": [
+    "customerMerge",
+    "customerMergePreview",
+    "customerMergeJobStatus",
+    "customer",
+    "customerByIdentifier",
+    "customersCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerMerge-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers the base staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/self/unknown validation branches for two customers without non-empty attached resources. Attached-resource merge behavior is covered separately by customer-merge-attached-resources-parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerMerge.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Customer merge jobs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.result.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream proxy read observes the deterministic local merge timestamp instead of Shopify's live write timestamp."
+      },
+      {
+        "path": "$.mergeStatus.jobId",
+        "matcher": "shopify-gid:Job",
+        "reason": "The downstream proxy job-status read uses the locally generated merge job ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.proxyVariables"
+        }
+      },
+      {
+        "name": "self-merge-validation-data",
+        "capturePath": "$.validation.selfMerge.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-parity.graphql",
+          "variablesCapturePath": "$.validation.selfMerge.variables"
+        }
+      },
+      {
+        "name": "unknown-customer-validation-data",
+        "capturePath": "$.validation.unknownCustomer.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-parity.graphql",
+          "variables": {
+            "one": {
+              "fromPrimaryProxyPath": "$.data.customerMerge.resultingCustomerId"
+            },
+            "two": "gid://shopify/Customer/999999999999999"
+          }
+        }
+      },
+      {
+        "name": "missing-argument-validation-message",
+        "capturePath": "$.validation.missingArgument.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-missing-argument.graphql",
+          "variablesCapturePath": "$.validation.missingArgument.variables"
+        }
+      },
+      {
+        "name": "missing-argument-validation-extensions",
+        "capturePath": "$.validation.missingArgument.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-missing-argument.graphql",
+          "variablesCapturePath": "$.validation.missingArgument.variables"
+        }
+      }
+    ]
+  }
+}

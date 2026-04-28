@@ -1,0 +1,28 @@
+{
+  "scenarioId": "webhook-subscription-catalog-read",
+  "operationNames": ["webhookSubscription", "webhookSubscriptions", "webhookSubscriptionsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "empty-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/webhook-subscription-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql",
+    "variablesCapturePath": "$.catalog.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict empty catalog/count/unknown-detail parity extracted from webhook-subscription-conformance so the lifecycle scenario can replay create/update/delete statefully from the same capture. This read-only contract compares the captured no-data webhookSubscriptions connection, webhookSubscriptionsCount precision, filtered count, and unknown webhookSubscription null behavior without seeding local webhook state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "webhook-empty-catalog-counts-and-unknown-detail",
+        "capturePath": "$.catalog.response.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

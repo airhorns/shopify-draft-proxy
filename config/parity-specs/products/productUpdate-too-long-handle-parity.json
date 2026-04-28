@@ -1,0 +1,26 @@
+{
+  "scenarioId": "productUpdate-too-long-handle-parity",
+  "operationNames": ["productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-validation-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUpdate-too-long-handle-parity.graphql",
+    "variablesCapturePath": "$.tooLongUpdate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured explicit productUpdate handle length validation, including preserving the unchanged product payload.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "too-long-handle-product-update-data",
+        "capturePath": "$.tooLongUpdate.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

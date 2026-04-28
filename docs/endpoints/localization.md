@@ -44,7 +44,7 @@ Market-specific `TranslationInput.marketId` / `translationsRemove(marketIds:)` f
 
 ### Conformance evidence
 
-Live Admin GraphQL 2026-04 evidence was captured against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization-locale-translation-fixture.json`.
+Live Admin GraphQL 2026-04 evidence was captured against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json`.
 
 The capture includes:
 

@@ -15,7 +15,7 @@ type CaptureCase = {
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metafields');
 const outputPath = path.join(outputDir, 'standard-metafield-definition-enable-validation.json');
 const { runGraphqlRaw } = createAdminGraphqlClient({
   adminOrigin,
