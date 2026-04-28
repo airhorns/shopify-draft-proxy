@@ -281,6 +281,15 @@ describe('getOperationCapability anonymous operations', () => {
       operationName: 'fileDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({ type: 'mutation', name: null, rootFields: ['fileAcknowledgeUpdateFailed'] }),
+    ).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'fileAcknowledgeUpdateFailed',
+      type: 'mutation',
+    });
   });
 
   it('classifies anonymous inventory adjustments by root field name', () => {

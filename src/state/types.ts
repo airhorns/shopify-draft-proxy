@@ -436,6 +436,7 @@ export const fileRecordSchema = z.strictObject({
   imageUrl: nullableStringSchema,
   imageWidth: nullableNumberSchema,
   imageHeight: nullableNumberSchema,
+  updateFailureAcknowledgedAt: nullableStringSchema.optional(),
 });
 export type FileRecord = z.infer<typeof fileRecordSchema>;
 

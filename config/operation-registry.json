@@ -6485,10 +6485,10 @@
     "type": "mutation",
     "domain": "media",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
-    "runtimeTests": [],
-    "supportNotes": "Explicitly unsupported because acknowledging upload failure is an external Files API side effect; this registry entry is a commitment to model failure state locally before support, not a permanent passthrough capability."
+    "runtimeTests": ["tests/integration/media-draft-flow.test.ts"],
+    "supportNotes": "Stages Files API update-failure acknowledgement locally for existing READY files, including FILE_DOES_NOT_EXIST and NON_READY_STATE userErrors plus downstream files read preservation. External upload storage and byte-transfer failure generation remain outside the supported boundary."
   },
   {
     "name": "fileCreate",
