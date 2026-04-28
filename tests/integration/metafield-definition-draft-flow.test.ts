@@ -497,4 +497,89 @@ describe('metafield definition draft flow', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('assigns standard enabled definitions the next owner-type pinned position', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('standard definition enablement must stay local'));
+    const server = createApp(config).callback();
+
+    const pinnedCustomDefinitionResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation {
+            metafieldDefinitionCreate(
+              definition: {
+                name: "Pinned custom definition"
+                namespace: "custom"
+                key: "pinned_custom"
+                ownerType: PRODUCT
+                type: "single_line_text_field"
+                pin: true
+              }
+            ) {
+              createdDefinition { id pinnedPosition }
+              userErrors { field message code }
+            }
+          }
+        `,
+      });
+
+    expect(pinnedCustomDefinitionResponse.status).toBe(200);
+    expect(pinnedCustomDefinitionResponse.body.data.metafieldDefinitionCreate).toEqual({
+      createdDefinition: {
+        id: 'gid://shopify/MetafieldDefinition/1',
+        pinnedPosition: 1,
+      },
+      userErrors: [],
+    });
+
+    const enabledStandardDefinitionResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation {
+            standardMetafieldDefinitionEnable(
+              ownerType: PRODUCT
+              id: "gid://shopify/StandardMetafieldDefinitionTemplate/2"
+              pin: true
+            ) {
+              createdDefinition { id namespace key pinnedPosition }
+              userErrors { field message code }
+            }
+          }
+        `,
+      });
+
+    expect(enabledStandardDefinitionResponse.status).toBe(200);
+    expect(enabledStandardDefinitionResponse.body.data.standardMetafieldDefinitionEnable).toEqual({
+      createdDefinition: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/MetafieldDefinition\//),
+        namespace: 'descriptors',
+        key: 'care_guide',
+        pinnedPosition: 2,
+      },
+      userErrors: [],
+    });
+
+    const pinnedCatalogResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query {
+            metafieldDefinitions(ownerType: PRODUCT, sortKey: PINNED_POSITION, pinnedStatus: PINNED, first: 5) {
+              nodes { namespace key pinnedPosition }
+            }
+          }
+        `,
+      });
+
+    expect(pinnedCatalogResponse.status).toBe(200);
+    expect(pinnedCatalogResponse.body.data.metafieldDefinitions.nodes).toEqual([
+      { namespace: 'descriptors', key: 'care_guide', pinnedPosition: 2 },
+      { namespace: 'custom', key: 'pinned_custom', pinnedPosition: 1 },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
