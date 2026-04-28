@@ -107,6 +107,7 @@ const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
+const ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS = new Set(['orderCreateManualPayment', 'taxSummaryCreate']);
 const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnCreate',
   'returnRequest',
@@ -605,11 +606,9 @@ const LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS = new Set([
   'orderClose',
   'orderOpen',
   'orderMarkAsPaid',
-  'orderCreateManualPayment',
   'orderCustomerSet',
   'orderCustomerRemove',
   'orderInvoiceSend',
-  'taxSummaryCreate',
   'orderCancel',
   'orderDelete',
   'orderEditBegin',
@@ -1394,6 +1393,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     canHandle: (request) =>
       request.capability.domain === 'orders' ||
       (request.capability.domain === 'payments' && ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')) ||
+      ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(request.primaryRootField ?? '') ||
       (request.capability.domain === 'shipping-fulfillments' &&
         (isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
           isOrderBackedReverseLogisticsMutation(request.primaryRootField))) ||
@@ -1512,6 +1512,24 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             responseBody,
             notes: 'Staged locally in the in-memory order payment draft store.',
           });
+        }
+
+        setGraphQLResponse(request, 200, responseBody);
+        return true;
+      }
+
+      if (
+        ORDER_ACCESS_DENIED_GUARDRAIL_MUTATION_ROOTS.has(request.primaryRootField ?? '') &&
+        (request.config.readMode === 'snapshot' || request.config.readMode === 'live-hybrid')
+      ) {
+        const responseBody = handleOrderMutation(
+          request.body.query,
+          request.variables,
+          request.config.readMode,
+          request.config.shopifyAdminOrigin,
+        );
+        if (!responseBody) {
+          return false;
         }
 
         setGraphQLResponse(request, 200, responseBody);
