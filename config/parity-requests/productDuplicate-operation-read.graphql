@@ -1,0 +1,24 @@
+query ProductDuplicateOperationRead($id: ID!) {
+  productOperation(id: $id) {
+    __typename
+    status
+    product {
+      id
+      title
+      handle
+    }
+    ... on ProductDuplicateOperation {
+      id
+      newProduct {
+        id
+        title
+        handle
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+}

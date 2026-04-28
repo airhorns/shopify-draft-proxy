@@ -32,6 +32,14 @@ const giftCardSelection = `#graphql
       amount
       currencyCode
     }
+    recipientAttributes {
+      message
+      preferredName
+      sendNotificationAt
+      recipient {
+        id
+      }
+    }
     transactions(first: 5) {
       nodes {
         id
@@ -88,7 +96,21 @@ describe('gift-card local staging', () => {
 
   it('serves empty and seeded gift-card reads locally in snapshot mode', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('gift-card reads must stay local'));
-    store.upsertBaseGiftCards([baseGiftCard()]);
+    store.upsertBaseGiftCards([
+      baseGiftCard(),
+      baseGiftCard({
+        id: 'gid://shopify/GiftCard/1002',
+        legacyResourceId: '1002',
+        lastCharacters: 'STOP',
+        maskedCode: '**** **** **** STOP',
+        enabled: false,
+        deactivatedAt: '2026-04-21T12:00:00.000Z',
+        balance: {
+          amount: '0.0',
+          currencyCode: 'CAD',
+        },
+      }),
+    ]);
     store.upsertBaseGiftCardConfiguration({
       issueLimit: {
         amount: '1000.0',
@@ -158,6 +180,22 @@ describe('gift-card local staging', () => {
             count
             precision
           }
+          enabledGiftCards: giftCards(first: 5, query: "status:enabled", sortKey: ID) {
+            nodes {
+              id
+              enabled
+            }
+          }
+          disabledGiftCards: giftCards(first: 5, query: "status:disabled", sortKey: ID) {
+            nodes {
+              id
+              enabled
+            }
+          }
+          disabledGiftCardsCount: giftCardsCount(query: "status:disabled") {
+            count
+            precision
+          }
           giftCardConfiguration {
             issueLimit {
               amount
@@ -206,6 +244,14 @@ describe('gift-card local staging', () => {
             currencyCode: 'CAD',
           },
         },
+        {
+          id: 'gid://shopify/GiftCard/1002',
+          lastCharacters: 'STOP',
+          balance: {
+            amount: '0.0',
+            currencyCode: 'CAD',
+          },
+        },
       ],
       edges: [
         {
@@ -214,15 +260,21 @@ describe('gift-card local staging', () => {
             id: 'gid://shopify/GiftCard/1001',
           },
         },
+        {
+          cursor: 'cursor:gid://shopify/GiftCard/1002',
+          node: {
+            id: 'gid://shopify/GiftCard/1002',
+          },
+        },
       ],
       pageInfo: {
         hasNextPage: false,
         hasPreviousPage: false,
         startCursor: 'cursor:gid://shopify/GiftCard/1001',
-        endCursor: 'cursor:gid://shopify/GiftCard/1001',
+        endCursor: 'cursor:gid://shopify/GiftCard/1002',
       },
     });
-    expect(response.body.data.giftCardsCount).toEqual({ count: 1, precision: 'EXACT' });
+    expect(response.body.data.giftCardsCount).toEqual({ count: 2, precision: 'EXACT' });
     expect(response.body.data.filteredEmptyGiftCards).toEqual({
       nodes: [],
       edges: [],
@@ -234,6 +286,9 @@ describe('gift-card local staging', () => {
       },
     });
     expect(response.body.data.filteredEmptyGiftCardsCount).toEqual({ count: 0, precision: 'EXACT' });
+    expect(response.body.data.enabledGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1001', enabled: true }]);
+    expect(response.body.data.disabledGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1002', enabled: false }]);
+    expect(response.body.data.disabledGiftCardsCount).toEqual({ count: 1, precision: 'EXACT' });
     expect(response.body.data.giftCardConfiguration).toEqual({
       issueLimit: {
         amount: '1000.0',
@@ -272,6 +327,12 @@ describe('gift-card local staging', () => {
             code: 'HAR310LOCALCARD',
             note: 'Local create',
             expiresOn: '2027-04-26',
+            recipientAttributes: {
+              id: 'gid://shopify/Customer/9001',
+              message: 'Enjoy this local card',
+              preferredName: 'Local Recipient',
+              sendNotificationAt: '2026-05-01T10:00:00Z',
+            },
           },
         },
       });
@@ -279,10 +340,10 @@ describe('gift-card local staging', () => {
     expect(createResponse.status).toBe(200);
     const createdGiftCard = createResponse.body.data.giftCardCreate.giftCard;
     expect(createResponse.body.data.giftCardCreate.userErrors).toEqual([]);
-    expect(createResponse.body.data.giftCardCreate.giftCardCode).toBe('HAR310LOCALCARD');
+    expect(createResponse.body.data.giftCardCreate.giftCardCode).toBe('har310localcard');
     expect(createdGiftCard).toMatchObject({
       lastCharacters: 'CARD',
-      maskedCode: '**** **** **** CARD',
+      maskedCode: '\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 CARD',
       enabled: true,
       note: 'Local create',
       expiresOn: '2027-04-26',
@@ -293,6 +354,14 @@ describe('gift-card local staging', () => {
       balance: {
         amount: '50.0',
         currencyCode: 'CAD',
+      },
+      recipientAttributes: {
+        message: 'Enjoy this local card',
+        preferredName: 'Local Recipient',
+        sendNotificationAt: '2026-05-01T10:00:00Z',
+        recipient: {
+          id: 'gid://shopify/Customer/9001',
+        },
       },
     });
 
@@ -306,6 +375,14 @@ describe('gift-card local staging', () => {
               note
               templateSuffix
               expiresOn
+              recipientAttributes {
+                message
+                preferredName
+                sendNotificationAt
+                recipient {
+                  id
+                }
+              }
               balance {
                 amount
                 currencyCode
@@ -323,6 +400,12 @@ describe('gift-card local staging', () => {
             note: 'Updated local card',
             templateSuffix: 'birthday',
             expiresOn: '2028-04-26',
+            recipientAttributes: {
+              id: 'gid://shopify/Customer/9001',
+              message: 'Updated gift-card message',
+              preferredName: 'Updated Recipient',
+              sendNotificationAt: '2026-05-02T10:00:00Z',
+            },
           },
         },
       });
@@ -333,6 +416,14 @@ describe('gift-card local staging', () => {
       note: 'Updated local card',
       templateSuffix: 'birthday',
       expiresOn: '2028-04-26',
+      recipientAttributes: {
+        message: 'Updated gift-card message',
+        preferredName: 'Updated Recipient',
+        sendNotificationAt: '2026-05-02T10:00:00Z',
+        recipient: {
+          id: 'gid://shopify/Customer/9001',
+        },
+      },
       balance: {
         amount: '50.0',
         currencyCode: 'CAD',
@@ -342,10 +433,11 @@ describe('gift-card local staging', () => {
     const creditResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
-        query: `mutation CreditGiftCard($id: ID!, $amount: MoneyInput!) {
-          giftCardCredit(id: $id, creditInput: { creditAmount: $amount, note: "Manual credit" }) {
+        query: `mutation CreditGiftCard($id: ID!, $amount: MoneyInput!, $processedAt: DateTime!) {
+          giftCardCredit(id: $id, creditInput: { creditAmount: $amount, note: "Manual credit", processedAt: $processedAt }) {
             giftCardCreditTransaction {
               note
+              processedAt
               amount {
                 amount
                 currencyCode
@@ -370,6 +462,7 @@ describe('gift-card local staging', () => {
             amount: '15.00',
             currencyCode: 'CAD',
           },
+          processedAt: '2026-04-21T12:34:56Z',
         },
       });
 
@@ -380,6 +473,7 @@ describe('gift-card local staging', () => {
     });
     expect(creditResponse.body.data.giftCardCredit.giftCardCreditTransaction).toMatchObject({
       note: 'Manual credit',
+      processedAt: '2026-04-21T12:34:56Z',
       amount: {
         amount: '15.0',
         currencyCode: 'CAD',
@@ -392,6 +486,7 @@ describe('gift-card local staging', () => {
         query: `mutation DebitGiftCard($id: ID!, $input: GiftCardDebitInput!) {
           giftCardDebit(id: $id, debitInput: $input) {
             giftCardDebitTransaction {
+              processedAt
               amount {
                 amount
                 currencyCode
@@ -417,6 +512,7 @@ describe('gift-card local staging', () => {
               amount: '20.00',
               currencyCode: 'CAD',
             },
+            processedAt: '2026-04-21T13:34:56Z',
           },
         },
       });
@@ -427,6 +523,7 @@ describe('gift-card local staging', () => {
       currencyCode: 'CAD',
     });
     expect(debitResponse.body.data.giftCardDebit.giftCardDebitTransaction).toMatchObject({
+      processedAt: '2026-04-21T13:34:56Z',
       amount: {
         amount: '-20.0',
         currencyCode: 'CAD',
@@ -501,6 +598,17 @@ describe('gift-card local staging', () => {
             count
             precision
           }
+          enabledGiftCards: giftCards(first: 2, query: "status:enabled", sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          disabledGiftCards: giftCards(first: 2, query: "status:disabled", sortKey: ID) {
+            nodes {
+              id
+              enabled
+            }
+          }
         }`,
         variables: { id: createdGiftCard.id },
       });
@@ -517,6 +625,10 @@ describe('gift-card local staging', () => {
     });
     expect(readAfterWriteResponse.body.data.giftCard.transactions.nodes).toHaveLength(2);
     expect(readAfterWriteResponse.body.data.giftCardsCount).toEqual({ count: 1, precision: 'EXACT' });
+    expect(readAfterWriteResponse.body.data.enabledGiftCards.nodes).toEqual([]);
+    expect(readAfterWriteResponse.body.data.disabledGiftCards.nodes).toEqual([
+      { id: createdGiftCard.id, enabled: false },
+    ]);
 
     const metaLogResponse = await request(app).get('/__meta/log');
     expect(metaLogResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
@@ -529,16 +641,117 @@ describe('gift-card local staging', () => {
     ]);
     expect(
       metaLogResponse.body.entries.map(
-        (entry: { interpreted: { rootFields: string[] } }) => entry.interpreted.rootFields[0],
+        (entry: { interpreted: { rootFields: string[] } }) => entry.interpreted.rootFields,
       ),
     ).toEqual([
-      'giftCardCreate',
-      'giftCardUpdate',
-      'giftCardCredit',
-      'giftCardDebit',
-      'giftCardSendNotificationToCustomer',
-      'giftCardDeactivate',
+      ['giftCardCreate'],
+      ['giftCardUpdate'],
+      ['giftCardCredit'],
+      ['giftCardDebit'],
+      ['giftCardSendNotificationToCustomer', 'giftCardSendNotificationToRecipient'],
+      ['giftCardDeactivate'],
     ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns local userErrors for unsupported gift-card lifecycle inputs', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('gift-card errors must stay local'));
+    store.upsertBaseGiftCards([baseGiftCard()]);
+    const app = createApp(config).callback();
+
+    const invalidCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidGiftCardCreate($input: GiftCardCreateInput!) {
+          giftCardCreate(input: $input) {
+            giftCard {
+              id
+            }
+            giftCardCode
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            initialValue: '0.00',
+          },
+        },
+      });
+
+    expect(invalidCreateResponse.status).toBe(200);
+    expect(invalidCreateResponse.body.data.giftCardCreate).toEqual({
+      giftCard: null,
+      giftCardCode: null,
+      userErrors: [
+        {
+          field: ['input', 'initialValue'],
+          message: 'Initial value must be greater than zero',
+        },
+      ],
+    });
+
+    const debitTooHighResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DebitTooHigh($id: ID!) {
+          giftCardDebit(id: $id, debitInput: { debitAmount: { amount: "30.00", currencyCode: CAD } }) {
+            giftCardDebitTransaction {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/GiftCard/1001',
+        },
+      });
+
+    expect(debitTooHighResponse.status).toBe(200);
+    expect(debitTooHighResponse.body.data.giftCardDebit).toEqual({
+      giftCardDebitTransaction: null,
+      userErrors: [
+        {
+          field: ['debitAmount'],
+          message: 'Insufficient balance',
+        },
+      ],
+    });
+
+    const missingNotificationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingGiftCardNotification($id: ID!) {
+          giftCardSendNotificationToRecipient(id: $id) {
+            giftCard {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/GiftCard/999999999999',
+        },
+      });
+
+    expect(missingNotificationResponse.status).toBe(200);
+    expect(missingNotificationResponse.body.data.giftCardSendNotificationToRecipient).toEqual({
+      giftCard: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Gift card does not exist',
+        },
+      ],
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

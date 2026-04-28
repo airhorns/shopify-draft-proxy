@@ -3097,17 +3097,17 @@ describe('product draft flow', () => {
             ],
           },
           {
-            title: 'Blue / Large',
-            selectedOptions: [
-              { name: 'Color', value: 'Blue' },
-              { name: 'Size', value: 'Large' },
-            ],
-          },
-          {
             title: 'Green / Small',
             selectedOptions: [
               { name: 'Color', value: 'Green' },
               { name: 'Size', value: 'Small' },
+            ],
+          },
+          {
+            title: 'Blue / Large',
+            selectedOptions: [
+              { name: 'Color', value: 'Blue' },
+              { name: 'Size', value: 'Large' },
             ],
           },
           {
@@ -3443,6 +3443,93 @@ describe('product draft flow', () => {
       count: 0,
       precision: 'EXACT',
     });
+  });
+
+  it('stages productVariantsBulkCreate standalone variant strategies from captured Shopify behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('productVariantsBulkCreate strategy handling should not hit upstream fetch');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const createProduct = async (title: string): Promise<string> => {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query:
+            'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }',
+          variables: { product: { title } },
+        });
+      return response.body.data.productCreate.product.id as string;
+    };
+    const bulkCreateQuery =
+      'mutation CreateVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $strategy: ProductVariantsBulkCreateStrategy) { productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) { product { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } productVariants { title selectedOptions { name value } } userErrors { field message } } }';
+
+    const defaultProductId = await createProduct('Default Standalone Strategy Hat');
+    const defaultStrategyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: bulkCreateQuery,
+        variables: {
+          productId: defaultProductId,
+          strategy: 'DEFAULT',
+          variants: [{ optionValues: [{ optionName: 'Title', name: 'Default Blue' }] }],
+        },
+      });
+
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.userErrors).toEqual([]);
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.product.variants.nodes).toEqual([
+      {
+        title: 'Default Blue',
+        selectedOptions: [{ name: 'Title', value: 'Default Blue' }],
+      },
+    ]);
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.product.options).toEqual([
+      {
+        name: 'Title',
+        values: ['Default Blue'],
+        optionValues: [{ name: 'Default Blue', hasVariants: true }],
+      },
+    ]);
+
+    const customProductId = await createProduct('Custom Standalone Strategy Hat');
+    const setupResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOption($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) { productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) { product { id } userErrors { field message } } }',
+        variables: {
+          productId: customProductId,
+          variantStrategy: 'LEAVE_AS_IS',
+          options: [{ name: 'Color', values: [{ name: 'Red' }] }],
+        },
+      });
+    expect(setupResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+
+    const removeStrategyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: bulkCreateQuery,
+        variables: {
+          productId: customProductId,
+          strategy: 'REMOVE_STANDALONE_VARIANT',
+          variants: [{ optionValues: [{ optionName: 'Color', name: 'Remove Blue' }] }],
+        },
+      });
+
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.userErrors).toEqual([]);
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.product.variants.nodes).toEqual([
+      {
+        title: 'Remove Blue',
+        selectedOptions: [{ name: 'Color', value: 'Remove Blue' }],
+      },
+    ]);
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.product.options).toEqual([
+      {
+        name: 'Color',
+        values: ['Remove Blue'],
+        optionValues: [{ name: 'Remove Blue', hasVariants: true }],
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages productVariantsBulkReorder locally with downstream variant connection order and raw log preservation', async () => {
@@ -5885,6 +5972,147 @@ describe('product draft flow', () => {
         },
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages asynchronous productDuplicate operations with downstream operation reads and raw log ordering', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('async duplicate should stay local'));
+    store.upsertBaseProducts([makeBaseProduct('gid://shopify/Product/102', 'Async Source Hat', 'async-source-hat')]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const duplicateQuery =
+      'mutation DuplicateProduct($productId: ID!, $newTitle: String!) { productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: false) { newProduct { id title } productDuplicateOperation { __typename id status product { id title handle } newProduct { id title handle status } userErrors { field message } } userErrors { field message } } }';
+
+    const duplicateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: duplicateQuery,
+        variables: {
+          productId: 'gid://shopify/Product/102',
+          newTitle: 'Async Copy Hat',
+        },
+      });
+
+    expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.data.productDuplicate).toEqual({
+      newProduct: null,
+      productDuplicateOperation: {
+        __typename: 'ProductDuplicateOperation',
+        id: expect.stringMatching(/^gid:\/\/shopify\/ProductDuplicateOperation\//),
+        status: 'CREATED',
+        product: {
+          id: 'gid://shopify/Product/102',
+          title: 'Async Source Hat',
+          handle: 'async-source-hat',
+        },
+        newProduct: null,
+        userErrors: [],
+      },
+      userErrors: [],
+    });
+
+    const operationId = duplicateResponse.body.data.productDuplicate.productDuplicateOperation.id as string;
+    const operationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOperation($id: ID!) { productOperation(id: $id) { __typename status product { id title handle } ... on ProductDuplicateOperation { id newProduct { id title handle status } userErrors { field message } } } }',
+        variables: { id: operationId },
+      });
+
+    expect(operationResponse.status).toBe(200);
+    expect(operationResponse.body.data.productOperation).toEqual({
+      __typename: 'ProductDuplicateOperation',
+      id: operationId,
+      status: 'COMPLETE',
+      product: {
+        id: 'gid://shopify/Product/102',
+        title: 'Async Source Hat',
+        handle: 'async-source-hat',
+      },
+      newProduct: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Product\//),
+        title: 'Async Copy Hat',
+        handle: 'async-copy-hat',
+        status: 'DRAFT',
+      },
+      userErrors: [],
+    });
+
+    const duplicatedProductId = operationResponse.body.data.productOperation.newProduct.id as string;
+    const productResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query Product($id: ID!) { product(id: $id) { id title handle status } }',
+        variables: { id: duplicatedProductId },
+      });
+
+    expect(productResponse.status).toBe(200);
+    expect(productResponse.body.data.product).toEqual({
+      id: duplicatedProductId,
+      title: 'Async Copy Hat',
+      handle: 'async-copy-hat',
+      status: 'DRAFT',
+    });
+
+    const missingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: duplicateQuery,
+        variables: {
+          productId: 'gid://shopify/Product/404',
+          newTitle: 'Missing Async Copy',
+        },
+      });
+
+    expect(missingResponse.status).toBe(200);
+    expect(missingResponse.body.data.productDuplicate).toMatchObject({
+      newProduct: null,
+      productDuplicateOperation: {
+        __typename: 'ProductDuplicateOperation',
+        status: 'CREATED',
+        product: null,
+        newProduct: null,
+        userErrors: [],
+      },
+      userErrors: [],
+    });
+
+    const missingOperationId = missingResponse.body.data.productDuplicate.productDuplicateOperation.id as string;
+    const missingOperationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOperation($id: ID!) { productOperation(id: $id) { __typename status product { id } ... on ProductDuplicateOperation { id newProduct { id } userErrors { field message } } } }',
+        variables: { id: missingOperationId },
+      });
+
+    expect(missingOperationResponse.status).toBe(200);
+    expect(missingOperationResponse.body.data.productOperation).toEqual({
+      __typename: 'ProductDuplicateOperation',
+      id: missingOperationId,
+      status: 'COMPLETE',
+      product: null,
+      newProduct: null,
+      userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries.map((entry: { query: string }) => entry.query)).toEqual([
+      duplicateQuery,
+      duplicateQuery,
+    ]);
+    expect(logResponse.body.entries.map((entry: { variables: unknown }) => entry.variables)).toEqual([
+      {
+        productId: 'gid://shopify/Product/102',
+        newTitle: 'Async Copy Hat',
+      },
+      {
+        productId: 'gid://shopify/Product/404',
+        newTitle: 'Missing Async Copy',
+      },
+    ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

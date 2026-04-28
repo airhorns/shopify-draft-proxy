@@ -454,20 +454,10 @@ describe('product query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps product resource feedback mutations registered but unsupported passthrough', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            bulkProductResourceFeedbackCreate: {
-              feedback: null,
-              userErrors: [{ field: ['feedbackInput', '0', 'productId'], message: 'Product does not exist' }],
-            },
-          },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      ),
-    );
+  it('keeps product resource feedback validation local without upstream passthrough', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('feedback validation should stay local'));
     const app = createApp({ ...config, readMode: 'snapshot' }).callback();
     const mutationQuery =
       'mutation Feedback($feedbackInput: [ProductResourceFeedbackInput!]!) { bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) { feedback { productId state } userErrors { field message } } }';
@@ -491,18 +481,19 @@ describe('product query shapes', () => {
     expect(response.body.data.bulkProductResourceFeedbackCreate.userErrors).toEqual([
       { field: ['feedbackInput', '0', 'productId'], message: 'Product does not exist' },
     ]);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
 
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries).toHaveLength(1);
     expect(logResponse.body.entries[0]).toMatchObject({
-      operationName: 'Feedback',
-      status: 'proxied',
+      operationName: 'bulkProductResourceFeedbackCreate',
+      status: 'staged',
       requestBody: { query: mutationQuery, variables },
       interpreted: {
-        registeredOperation: {
-          name: 'bulkProductResourceFeedbackCreate',
-          implemented: false,
+        capability: {
+          operationName: 'bulkProductResourceFeedbackCreate',
+          domain: 'products',
+          execution: 'stage-locally',
         },
       },
     });

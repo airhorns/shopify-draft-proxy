@@ -5,6 +5,7 @@ import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
+import type { ProductRecord, ShopRecord } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -17,6 +18,122 @@ const passthroughConfig: AppConfig = {
   shopifyAdminOrigin: 'https://example.myshopify.com',
   readMode: 'passthrough',
 };
+
+function makeProduct(id: string, title: string): ProductRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? null,
+    title,
+    handle: title.toLowerCase().replace(/\s+/gu, '-'),
+    status: 'ACTIVE',
+    publicationIds: [],
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: 0,
+    tracksInventory: false,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: {
+      title: null,
+      description: null,
+    },
+    category: null,
+  };
+}
+
+function makeShop(): ShopRecord {
+  return {
+    id: 'gid://shopify/Shop/400',
+    name: 'Node Test Shop',
+    myshopifyDomain: 'node-test-shop.myshopify.com',
+    url: 'https://node-test-shop.myshopify.com',
+    primaryDomain: {
+      id: 'gid://shopify/Domain/400',
+      host: 'node-test-shop.myshopify.com',
+      url: 'https://node-test-shop.myshopify.com',
+      sslEnabled: true,
+    },
+    contactEmail: 'owner@example.com',
+    email: 'owner@example.com',
+    currencyCode: 'USD',
+    enabledPresentmentCurrencies: ['USD'],
+    ianaTimezone: 'America/New_York',
+    timezoneAbbreviation: 'EDT',
+    timezoneOffset: '-0400',
+    timezoneOffsetMinutes: -240,
+    taxesIncluded: false,
+    taxShipping: false,
+    unitSystem: 'IMPERIAL_SYSTEM',
+    weightUnit: 'POUNDS',
+    shopAddress: {
+      id: 'gid://shopify/ShopAddress/400',
+      address1: '1 Main Street',
+      address2: null,
+      city: 'New York',
+      company: null,
+      coordinatesValidated: false,
+      country: 'United States',
+      countryCodeV2: 'US',
+      formatted: ['1 Main Street', 'New York NY 10001', 'United States'],
+      formattedArea: 'New York NY, United States',
+      latitude: null,
+      longitude: null,
+      phone: null,
+      province: 'New York',
+      provinceCode: 'NY',
+      zip: '10001',
+    },
+    plan: {
+      partnerDevelopment: true,
+      publicDisplayName: 'Development',
+      shopifyPlus: false,
+    },
+    resourceLimits: {
+      locationLimit: 1000,
+      maxProductOptions: 3,
+      maxProductVariants: 2048,
+      redirectLimitReached: false,
+    },
+    features: {
+      avalaraAvatax: false,
+      branding: 'SHOPIFY',
+      bundles: {
+        eligibleForBundles: true,
+        ineligibilityReason: null,
+        sellsBundles: false,
+      },
+      captcha: true,
+      cartTransform: {
+        eligibleOperations: {
+          expandOperation: true,
+          mergeOperation: true,
+          updateOperation: true,
+        },
+      },
+      dynamicRemarketing: false,
+      eligibleForSubscriptionMigration: false,
+      eligibleForSubscriptions: false,
+      giftCards: true,
+      harmonizedSystemCode: true,
+      legacySubscriptionGatewayEnabled: false,
+      liveView: true,
+      paypalExpressSubscriptionGatewayStatus: 'DISABLED',
+      reports: true,
+      sellsSubscriptions: false,
+      showMetrics: true,
+      storefront: true,
+      unifiedMarkets: true,
+    },
+    paymentSettings: {
+      supportedDigitalWallets: [],
+    },
+    shopPolicies: [],
+  };
+}
 
 describe('admin platform utility query shapes', () => {
   beforeEach(() => {
@@ -197,48 +314,338 @@ describe('admin platform utility query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('keeps Flow utility mutations as unsupported side-effect passthroughs', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ data: { flowTriggerReceive: null } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+  it('resolves locally modeled Node IDs while preserving missing and unsupported null entries', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('admin platform node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseProducts([makeProduct('gid://shopify/Product/400', 'Node Product')]);
+    store.upsertBaseShop(makeShop());
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query NodeResolution($ids: [ID!]!) {
+          node(id: "gid://shopify/Product/400") {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Product {
+              title
+              handle
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Product {
+              title
+            }
+            ... on Domain {
+              host
+              url
+              sslEnabled
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/Product/400',
+            'gid://shopify/Domain/400',
+            'gid://shopify/Product/404',
+            'gid://shopify/Customer/400',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        node: {
+          __typename: 'Product',
+          nodeId: 'gid://shopify/Product/400',
+          title: 'Node Product',
+          handle: 'node-product',
+        },
+        nodes: [
+          {
+            __typename: 'Product',
+            nodeId: 'gid://shopify/Product/400',
+            title: 'Node Product',
+          },
+          {
+            __typename: 'Domain',
+            nodeId: 'gid://shopify/Domain/400',
+            host: 'node-test-shop.myshopify.com',
+            url: 'https://node-test-shop.myshopify.com',
+            sslEnabled: true,
+          },
+          null,
+          null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages Flow utility mutations locally without external trigger delivery or signature leakage', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Flow utilities must not proxy'));
 
     const app = createApp(passthroughConfig).callback();
-    const response = await request(app)
+    const signatureResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation FlowGenerateSignature($payload: String!) {
+          flowGenerateSignature(id: "gid://shopify/FlowTrigger/374", payload: $payload) {
+            payload
+            signature
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          payload: '{"customer_id":374}',
+        },
+      });
+    const triggerResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation FlowTriggerReceive($payload: JSON) {
+          flowTriggerReceive(handle: "har-374-local-trigger", payload: $payload) {
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          payload: { customer_id: 374, action: 'created' },
+        },
+      });
+
+    expect(signatureResponse.status).toBe(200);
+    expect(signatureResponse.body.data.flowGenerateSignature).toEqual({
+      payload: '{"customer_id":374}',
+      signature: expect.any(String),
+      userErrors: [],
+    });
+    expect(signatureResponse.body.data.flowGenerateSignature.signature).toHaveLength(64);
+    expect(triggerResponse.status).toBe(200);
+    expect(triggerResponse.body.data.flowTriggerReceive.userErrors).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const log = store.getLog();
+    expect(log).toHaveLength(2);
+    expect(log.map((entry) => ({ operationName: entry.operationName, status: entry.status }))).toEqual([
+      { operationName: 'FlowGenerateSignature', status: 'staged' },
+      { operationName: 'FlowTriggerReceive', status: 'staged' },
+    ]);
+    expect(log[0]?.variables).toEqual({ payload: '{"customer_id":374}' });
+    expect(log[1]?.variables).toEqual({ payload: { customer_id: 374, action: 'created' } });
+    expect(JSON.stringify(log)).not.toContain(signatureResponse.body.data.flowGenerateSignature.signature);
+
+    const state = store.getState().stagedState;
+    expect(Object.values(state.adminPlatformFlowSignatures)).toEqual([
+      expect.objectContaining({
+        flowTriggerId: 'gid://shopify/FlowTrigger/374',
+        payloadSha256: expect.any(String),
+        signatureSha256: expect.any(String),
+      }),
+    ]);
+    expect(Object.values(state.adminPlatformFlowTriggers)).toEqual([
+      expect.objectContaining({
+        handle: 'har-374-local-trigger',
+        payloadBytes: expect.any(Number),
+        payloadSha256: expect.any(String),
+      }),
+    ]);
+    expect(JSON.stringify(state)).not.toContain(signatureResponse.body.data.flowGenerateSignature.signature);
+    expect(JSON.stringify(state)).not.toContain('customer_id');
+    expect(JSON.stringify(state)).not.toContain('"action"');
+  });
+
+  it('mirrors captured Flow validation branches locally without staging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Flow validation must not proxy'));
+
+    const app = createApp(passthroughConfig).callback();
+    const invalidHandleResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .set('x-shopify-access-token', 'shpat_test')
       .send({
         query: `mutation FlowTriggerReceive {
-          flowTriggerReceive(handle: "har-315", payload: "{}") {
+          flowTriggerReceive(handle: "har-374-missing", payload: { test: "value" }) {
             userErrors {
+              field
               message
+            }
+          }
+        }`,
+      });
+    const oversizeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation FlowTriggerReceive($payload: JSON) {
+          flowTriggerReceive(handle: "har-374-missing", payload: $payload) {
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          payload: { value: 'x'.repeat(50_001) },
+        },
+      });
+    const unknownSignatureResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation { flowGenerateSignature(id: "gid://shopify/FlowTrigger/0", payload: "{}") { signature userErrors { field message } } }`,
+      });
+
+    expect(invalidHandleResponse.status).toBe(200);
+    expect(invalidHandleResponse.body.data.flowTriggerReceive.userErrors).toEqual([
+      {
+        field: ['body'],
+        message: "Errors validating schema:\n  Invalid handle 'har-374-missing'.\n",
+      },
+    ]);
+    expect(oversizeResponse.status).toBe(200);
+    expect(oversizeResponse.body.data.flowTriggerReceive.userErrors).toEqual([
+      {
+        field: ['body'],
+        message: 'Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n',
+      },
+    ]);
+    expect(unknownSignatureResponse.status).toBe(200);
+    expect(unknownSignatureResponse.body).toMatchObject({
+      data: { flowGenerateSignature: null },
+      errors: [
+        {
+          message: 'Invalid id: gid://shopify/FlowTrigger/0',
+          extensions: { code: 'RESOURCE_NOT_FOUND' },
+          path: ['flowGenerateSignature'],
+        },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toEqual([]);
+    expect(store.getState().stagedState.adminPlatformFlowSignatureOrder).toEqual([]);
+    expect(store.getState().stagedState.adminPlatformFlowTriggerOrder).toEqual([]);
+  });
+
+  it('stages backupRegionUpdate locally and preserves backupRegion read-after-write', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('backupRegionUpdate must not proxy'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation BackupRegionUpdate {
+          backupRegionUpdate(region: { countryCode: CA }) {
+            backupRegion {
+              __typename
+              id
+              name
+              ... on MarketRegionCountry {
+                code
+              }
+            }
+            userErrors {
+              field
+              message
+              code
+            }
+          }
+        }`,
+      });
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    const expectedRegion = {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110417202',
+      name: 'Canada',
+      code: 'CA',
+    };
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegionUpdate).toEqual({
+      backupRegion: expectedRegion,
+      userErrors: [],
+    });
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.backupRegion).toEqual(expectedRegion);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toHaveLength(1);
+    expect(store.getLog()[0]).toMatchObject({
+      operationName: 'BackupRegionUpdate',
+      status: 'staged',
+      stagedResourceIds: ['gid://shopify/MarketRegionCountry/4062110417202'],
+      interpreted: {
+        capability: {
+          operationName: 'BackupRegionUpdate',
+          domain: 'admin-platform',
+          execution: 'stage-locally',
+        },
+      },
+    });
+    expect(store.getState().stagedState.backupRegion).toEqual(expectedRegion);
+  });
+
+  it('mirrors captured backupRegionUpdate REGION_NOT_FOUND validation without staging', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('backupRegion validation must not proxy'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation BackupRegionUpdate {
+          backupRegionUpdate(region: { countryCode: ZZ }) {
+            backupRegion {
+              __typename
+              id
+              name
+            }
+            userErrors {
+              field
+              message
+              code
             }
           }
         }`,
       });
 
     expect(response.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(store.getLog()).toHaveLength(1);
-    expect(store.getLog()[0]).toMatchObject({
-      operationName: 'FlowTriggerReceive',
-      status: 'proxied',
-      interpreted: {
-        registeredOperation: {
-          name: 'flowTriggerReceive',
-          domain: 'admin-platform',
-          execution: 'stage-locally',
-          implemented: false,
-        },
-        safety: {
-          classification: 'unsupported-flow-side-effect-mutation',
-          wouldProxyToShopify: true,
-        },
-      },
-      notes:
-        'Unsupported Flow utility mutation would be proxied to Shopify. Flow signature generation and trigger delivery require local signing/trigger semantics plus raw commit replay before support.',
+    expect(response.body.data.backupRegionUpdate).toEqual({
+      backupRegion: null,
+      userErrors: [{ field: ['region'], message: 'Region not found.', code: 'REGION_NOT_FOUND' }],
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toEqual([]);
   });
 });

@@ -1,0 +1,48 @@
+mutation ReverseDeliveryCreateWithShipping(
+  $reverseFulfillmentOrderId: ID!
+  $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+  $trackingInput: ReverseDeliveryTrackingInput
+  $labelInput: ReverseDeliveryLabelInput
+) {
+  reverseDeliveryCreateWithShipping(
+    reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+    reverseDeliveryLineItems: $reverseDeliveryLineItems
+    trackingInput: $trackingInput
+    labelInput: $labelInput
+    notifyCustomer: true
+  ) {
+    reverseDelivery {
+      id
+      reverseFulfillmentOrder {
+        id
+      }
+      reverseDeliveryLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          reverseFulfillmentOrderLineItem {
+            id
+            remainingQuantity
+          }
+        }
+      }
+      deliverable {
+        __typename
+        ... on ReverseDeliveryShippingDeliverable {
+          tracking {
+            number
+            url
+            company
+          }
+          label {
+            publicFileUrl
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

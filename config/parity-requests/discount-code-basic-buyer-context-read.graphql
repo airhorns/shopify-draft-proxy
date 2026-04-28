@@ -1,0 +1,39 @@
+query DiscountCodeBasicBuyerContextRead($id: ID!, $code: String!) {
+  discountNode(id: $id) {
+    id
+    discount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        context {
+          __typename
+          ... on DiscountCustomerSegments {
+            segments {
+              __typename
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        context {
+          __typename
+          ... on DiscountCustomerSegments {
+            segments {
+              __typename
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}

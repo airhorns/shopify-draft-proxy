@@ -1,0 +1,9 @@
+mutation {
+  flowGenerateSignature(id: "gid://shopify/FlowTrigger/0", payload: "{}") {
+    signature
+    userErrors {
+      field
+      message
+    }
+  }
+}

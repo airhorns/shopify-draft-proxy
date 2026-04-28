@@ -1,0 +1,33 @@
+mutation ReturnProcess($input: ReturnProcessInput!) {
+  returnProcess(input: $input) {
+    return {
+      id
+      status
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              id
+              remainingQuantity
+              dispositionType
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

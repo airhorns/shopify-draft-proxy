@@ -109,22 +109,26 @@ Practical rule:
 
 ### 5a. Inventory quantity mutation contracts drift by Admin API version
 
-The inventory quantity roots are especially version-sensitive. The checked-in local parity for
-`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` is anchored to
+The inventory quantity roots are especially version-sensitive. The broad checked-in local parity for
+`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` remains anchored to
 2025-01 fixture evidence, where `inventoryAdjustQuantities` accepts a plain mutation call and
 `inventorySetQuantities` uses `compareQuantity` / `ignoreCompareQuantity` style inputs.
 
-Shopify's current 2026-04 docs show two traps that should not be papered over by generic local
-staging:
+HAR-408 captured 2026-04 request-contract drift on `harry-test-heelo.myshopify.com`:
 
-- `inventoryAdjustQuantities` requires an `@idempotent` key in 2026-04.
-- `inventorySetQuantities` examples use `changeFromQuantity` rather than the older compare/ignore
-  fields.
+- `inventoryAdjustQuantities` requires `@idempotent(key:)` and each `InventoryChangeInput` includes
+  `changeFromQuantity`.
+- `inventorySetQuantities` also requires `@idempotent(key:)`, rejects `ignoreCompareQuantity` as an
+  undefined input field, and each `InventorySetQuantityInput` includes `changeFromQuantity`.
+- Missing `changeFromQuantity` fails as a top-level `INVALID_FIELD_ARGUMENTS` error before resolver
+  side effects.
+- Missing `@idempotent` fails as a top-level `BAD_REQUEST` error with `data.<root>: null` once the
+  submitted input shape is otherwise valid.
 
 Practical rule:
 
-- keep the existing implementation documented as 2025-01-backed inventory parity until a dedicated
-  2026-04 capture updates the request contract, validation branches, and route-version behavior.
+- keep lifecycle parity claims scoped to the older 2025-01 fixtures unless the specific branch is
+  covered by the 2026-04 contract fixture and route-version runtime tests.
 
 ## 6. Product update semantics are mode-sensitive
 
@@ -2375,6 +2379,7 @@ Access-scope trap:
 
 - selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
 - keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+- HAR-376 live web-presence delete parity used a disposable letters-only subfolder on `harry-test-heelo.myshopify.com`: `webPresenceDelete` returns only `deletedId` and `userErrors`, unknown and already-deleted IDs return `WEB_PRESENCE_NOT_FOUND`, and a failed setup attempt confirmed 2026-04 rejects subfolder suffixes containing digits or hyphens with `SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS`
 
 Safety rule:
 
@@ -2939,3 +2944,19 @@ Practical rule:
 - keep native activity staging separate from external activity staging; native creates should not invent nested `MarketingEvent` records without new evidence
 - current local success behavior is runtime-test-backed draft-proxy support for staged app-extension activity records, not a live Shopify success capture
 - if the conformance app later installs a deprecated marketing activity extension, re-capture native create/update success before broadening input/payload claims
+
+## 75. Async `productDuplicate` reports resolver errors through the completed operation
+
+HAR-407 captured `productDuplicate(synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- the mutation payload returns `newProduct: null` and `productDuplicateOperation.status: CREATED` for both a valid source product and a missing product ID
+- successful completion is observed through `productOperation(id:)`, which returns a `ProductDuplicateOperation` with `status: COMPLETE`, the source `product`, and the duplicated `newProduct`
+- the missing-product branch does not return mutation-level `userErrors`; the completed operation carries `userErrors[{ field: ["productId"], message: "Product does not exist" }]`, with both `product` and `newProduct` null
+- querying `productDuplicateJob(id:)` with a `ProductDuplicateOperation` GID returns a top-level `invalid id` error, so the async duplicate status helper is `productOperation(id:)`, not `productDuplicateJob(id:)`
+
+Practical rule:
+
+- model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
+- keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations

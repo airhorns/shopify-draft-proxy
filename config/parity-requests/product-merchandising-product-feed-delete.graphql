@@ -1,0 +1,10 @@
+mutation ProductFeedDelete($id: ID!) {
+  productFeedDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

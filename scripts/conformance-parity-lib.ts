@@ -10,6 +10,7 @@ import {
   type ComparisonContract,
   type ComparisonTarget,
   type ExpectedDifference,
+  type JsonValue,
   type Matcher,
   type ParitySpec,
   type ProxyRequestSpec,
@@ -27,7 +28,7 @@ import {
   handleCustomerQuery,
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
-import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAdminPlatformMutation, handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
@@ -144,6 +145,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopifyFunctionRecord,
+  SegmentRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -929,6 +931,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
+  apiVersion = '2025-01',
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -965,7 +968,7 @@ async function executeGraphQLAgainstLocalProxy(
           id: makeSyntheticGid('MutationLogEntry'),
           receivedAt: makeSyntheticTimestamp(),
           operationName: capability.operationName,
-          path: '/admin/api/2025-01/graphql.json',
+          path: `/admin/api/${apiVersion}/graphql.json`,
           query: document,
           variables,
           status: 'staged',
@@ -985,7 +988,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -995,7 +998,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1011,7 +1014,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1021,7 +1024,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1048,6 +1051,38 @@ async function executeGraphQLAgainstLocalProxy(
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'shipping-fulfillments' &&
+    parsed.rootFields.some((rootField) =>
+      ['reverseDeliveryCreateWithShipping', 'reverseDeliveryShippingUpdate', 'reverseFulfillmentOrderDispose'].includes(
+        rootField,
+      ),
+    )
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Reverse-logistics parity request was not handled locally: ${capability.operationName}`);
     }
 
     store.appendLog({
@@ -1122,6 +1157,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: handleFunctionMutation(document, variables),
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'admin-platform') {
+    const result = handleAdminPlatformMutation(document, variables);
+    if (!result) {
+      throw new Error(`Admin platform parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (result.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        stagedResourceIds: result.stagedResourceIds ?? [],
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        notes: result.notes ?? 'Staged locally in the conformance parity proxy harness.',
+      });
+    }
+
+    return {
+      status: 200,
+      body: result.response,
     };
   }
 
@@ -1696,6 +1758,8 @@ async function executeGraphQLAgainstLocalProxy(
           'fulfillmentOrders',
           'assignedFulfillmentOrders',
           'manualHoldsFulfillmentOrders',
+          'reverseDelivery',
+          'reverseFulfillmentOrder',
         ].includes(rootField),
       )
     ) {
@@ -1956,12 +2020,19 @@ function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | nul
   const initialValue = readMoneyRecord(readRecordField(source, 'initialValue'));
   const balance = readMoneyRecord(readRecordField(source, 'balance') ?? readRecordField(source, 'initialValue'));
   const transactionNodes = readArrayField(readRecordField(source, 'transactions'), 'nodes').filter(isPlainObject);
+  const recipientAttributesSource = readRecordField(source, 'recipientAttributes');
+  const recipientSource = readRecordField(recipientAttributesSource, 'recipient');
+  const recipientId =
+    readNullableStringField(recipientSource, 'id') ??
+    readNullableStringField(readRecordField(source, 'recipient'), 'id');
 
   return {
     id,
     legacyResourceId: readNullableStringField(source, 'legacyResourceId') ?? giftCardTail(id),
     lastCharacters,
-    maskedCode: readStringField(source, 'maskedCode') ?? `**** **** **** ${lastCharacters}`,
+    maskedCode:
+      readStringField(source, 'maskedCode') ??
+      `\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ${lastCharacters}`,
     enabled: readBooleanField(source, 'enabled') ?? true,
     deactivatedAt: readNullableStringField(source, 'deactivatedAt'),
     expiresOn: readNullableStringField(source, 'expiresOn'),
@@ -1972,7 +2043,15 @@ function makeSeedGiftCard(source: Record<string, unknown>): GiftCardRecord | nul
     initialValue,
     balance,
     customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
-    recipientId: readNullableStringField(readRecordField(source, 'recipient'), 'id'),
+    recipientId,
+    recipientAttributes: recipientAttributesSource
+      ? {
+          id: recipientId,
+          message: readNullableStringField(recipientAttributesSource, 'message'),
+          preferredName: readNullableStringField(recipientAttributesSource, 'preferredName'),
+          sendNotificationAt: readNullableStringField(recipientAttributesSource, 'sendNotificationAt'),
+        }
+      : null,
     transactions: transactionNodes.map((transaction) => {
       const amount = readMoneyRecord(readRecordField(transaction, 'amount'));
       return {
@@ -2572,6 +2651,16 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     defaultAddress: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+function makeSeedSegment(segmentId: string, source: Record<string, unknown> | null = null): SegmentRecord {
+  return {
+    id: segmentId,
+    name: readStringField(source, 'name'),
+    query: readStringField(source, 'query'),
+    creationDate: readStringField(source, 'creationDate'),
+    lastEditDate: readStringField(source, 'lastEditDate'),
   };
 }
 
@@ -5178,7 +5267,13 @@ function makeSeedProduct(
       description: readStringField(rawSeo, 'description'),
     },
     category: null,
+    ...readSeedContextualPricing(source),
   };
+}
+
+function readSeedContextualPricing(source: Record<string, unknown> | null): { contextualPricing?: JsonValue } {
+  const result = jsonValueSchema.safeParse(source?.['contextualPricing']);
+  return result.success ? { contextualPricing: structuredClone(result.data) } : {};
 }
 
 function makeSeedVariant(
@@ -5253,6 +5348,7 @@ function makeCapturedVariant(productId: string, source: Record<string, unknown>)
           inventoryLevels,
         }
       : null,
+    ...readSeedContextualPricing(source),
   };
 }
 
@@ -5303,6 +5399,38 @@ function readCapturedProductOptions(productId: string, product: Record<string, u
       };
     })
     .filter((option): option is ProductOptionRecord => option !== null);
+}
+
+function seedProductContextualPricingReadPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const product = readRecordField(data, 'product');
+  const variant = readRecordField(data, 'productVariant');
+  const productId = readStringField(product, 'id') ?? readStringField(readRecordField(variant, 'product'), 'id');
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const seedProduct = readArrayField(capture as Record<string, unknown>, 'seedProducts').find(
+    (candidate): candidate is Record<string, unknown> =>
+      isPlainObject(candidate) && readStringField(candidate, 'id') === productId,
+  );
+  store.upsertBaseProducts([makeSeedProduct(productId, product ?? seedProduct ?? null)]);
+
+  const variants: ProductVariantRecord[] = [];
+  if (variant) {
+    const capturedVariant = makeCapturedVariant(productId, variant);
+    if (capturedVariant) {
+      variants.push(capturedVariant);
+    }
+  }
+  if (variants.length === 0) {
+    variants.push(...readCapturedProductVariants(productId, seedProduct ?? null));
+  }
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
 }
 
 function readPreMutationProduct(capture: unknown, productId: string): Record<string, unknown> | null {
@@ -7013,6 +7141,28 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  const seedCustomers = readArrayField(capture as Record<string, unknown>, 'seedCustomers')
+    .filter(isPlainObject)
+    .map((customer): CustomerRecord | null => {
+      const customerId = readStringField(customer, 'id');
+      return customerId ? makeSeedCustomer(customerId, customer) : null;
+    })
+    .filter((customer): customer is CustomerRecord => customer !== null);
+  if (seedCustomers.length > 0) {
+    store.upsertBaseCustomers(seedCustomers);
+  }
+
+  const seedSegments = readArrayField(capture as Record<string, unknown>, 'seedSegments')
+    .filter(isPlainObject)
+    .map((segment): SegmentRecord | null => {
+      const segmentId = readStringField(segment, 'id');
+      return segmentId ? makeSeedSegment(segmentId, segment) : null;
+    })
+    .filter((segment): segment is SegmentRecord => segment !== null);
+  if (seedSegments.length > 0) {
+    store.upsertBaseSegments(seedSegments);
+  }
+
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
     const productId = readStringField(seedProduct, 'id');
@@ -7028,6 +7178,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (options.length > 0) {
       store.replaceBaseOptionsForProduct(productId, options);
     }
+  }
+  if (seedProductContextualPricingReadPreconditions(capture)) {
+    return;
   }
   const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
   for (const seedCollection of seedCollections) {
@@ -7535,16 +7688,32 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const isProductDeleteValidationProbe =
     mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
   const productUserErrors = readArrayField(payload, 'userErrors').filter(isPlainObject);
+  const duplicateOperationPayload = readRecordField(payload, 'productDuplicateOperation');
+  const duplicateOperationReadPayload = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'operationRead'), 'response'),
+    'data',
+  );
+  const duplicateOperationUserErrors = readArrayField(
+    readRecordField(duplicateOperationReadPayload, 'productOperation'),
+    'userErrors',
+  ).filter(isPlainObject);
   const isMissingProductValidationProbe =
-    (mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
-    productPayload === null &&
-    productUserErrors.some((userError) => {
-      const fieldPath = readArrayField(userError, 'field');
-      return (
-        (fieldPath.includes('id') || fieldPath.includes('productId')) &&
-        readStringField(userError, 'message') === 'Product does not exist'
-      );
-    });
+    ((mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
+      productPayload === null &&
+      productUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return (
+          (fieldPath.includes('id') || fieldPath.includes('productId')) &&
+          readStringField(userError, 'message') === 'Product does not exist'
+        );
+      })) ||
+    (mutationName === 'productDuplicate' &&
+      readRecordField(duplicateOperationPayload, 'product') === null &&
+      readRecordField(duplicateOperationPayload, 'newProduct') === null &&
+      duplicateOperationUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return fieldPath.includes('productId') && readStringField(userError, 'message') === 'Product does not exist';
+      }));
 
   const shouldSeedProduct =
     productId !== null &&
@@ -7586,22 +7755,31 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       mutationName === 'productVariantsBulkUpdate' ||
       mutationName === 'productVariantsBulkDelete'
     ) {
+      const preMutationProduct =
+        mutationName === 'productVariantsBulkCreate' ? readPreMutationProduct(capture, productId) : null;
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
         'product',
       );
       const variantsSource =
-        readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+        preMutationProduct ??
+        (readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload);
       const variants =
         mutationName === 'productVariantsBulkCreate'
-          ? readCapturedProductVariants(productId, variantsSource).filter(
-              (variant) => !readCapturedCreatedVariantIds(payload).has(variant.id),
+          ? readCapturedProductVariants(productId, variantsSource).filter((variant) =>
+              preMutationProduct ? true : !readCapturedCreatedVariantIds(payload).has(variant.id),
             )
           : mutationName === 'productVariantsBulkUpdate'
             ? readBulkUpdateSeedVariants(productId, variantsSource)
             : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
+      }
+      if (preMutationProduct) {
+        const options = readCapturedProductOptions(productId, preMutationProduct);
+        if (options.length > 0) {
+          store.replaceBaseOptionsForProduct(productId, options);
+        }
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
@@ -7876,6 +8054,7 @@ export async function executeParityScenario({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
+    paritySpec.proxyRequest.apiVersion,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -7903,8 +8082,12 @@ export async function executeParityScenario({
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
-        executedOperations.push(operation),
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        document,
+        variables,
+        upstreamPayload,
+        (operation) => executedOperations.push(operation),
+        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;

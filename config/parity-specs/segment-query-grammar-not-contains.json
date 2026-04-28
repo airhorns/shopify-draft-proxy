@@ -1,0 +1,110 @@
+{
+  "scenarioId": "segment-query-grammar-not-contains",
+  "operationNames": ["segmentCreate", "segment", "customerSegmentMembersQueryCreate", "segmentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "query-grammar", "downstream-read", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segment-query-grammar-not-contains.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-segment-member-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segment-query-grammar-not-contains-create.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-395 live evidence that `customer_tags NOT CONTAINS 'tag'` is accepted by segmentCreate and customerSegmentMembersQueryCreate. Strict parity covers local segmentCreate payload shape, downstream segment read, member-query job creation, and segmentDelete cleanup; runtime tests cover evaluated member inclusion/exclusion over staged customer state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-not-contains",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.segmentCreate.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy generates stable local segment IDs instead of Shopify's store-specific segment IDs."
+          },
+          {
+            "path": "$.segmentCreate.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segmentCreate.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "segment-read-created",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segment-query-grammar-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.segmentCreate.segment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The downstream read returns the locally staged segment ID from the primary proxy mutation."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic local timestamps while Shopify returns capture-time timestamps."
+          }
+        ]
+      },
+      {
+        "name": "member-query-create-not-contains",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customer-segment-members-query-create.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerSegmentMembersQueryCreate.customerSegmentMembersQuery.id",
+            "matcher": "shopify-gid:CustomerSegmentMembersQuery",
+            "reason": "The proxy generates stable local query-job IDs instead of Shopify's UUID-backed job IDs."
+          }
+        ]
+      },
+      {
+        "name": "segment-delete-cleanup",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segment-delete-unknown-id-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.segmentCreate.segment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.segmentDelete.deletedSegmentId",
+            "matcher": "shopify-gid:Segment",
+            "reason": "The proxy deletes the locally staged segment ID from the primary proxy mutation."
+          }
+        ]
+      }
+    ]
+  }
+}

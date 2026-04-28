@@ -1730,6 +1730,167 @@ describe('BulkOperation conformance fixture and local model', () => {
     ]);
   });
 
+  it('marks malformed JSONL mutation imports as failed jobs with inspectable result rows', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('malformed bulkOperationRunMutation imports should stay local'));
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/malformed-product-create.jsonl';
+    const validVariables = { product: { title: 'Bulk Valid Before Malformed', status: 'ACTIVE' } };
+    store.stageUploadContent([stagedUploadPath], `${JSON.stringify(validVariables)}\n{"product":\n`);
+
+    const innerMutation = `mutation ProductCreate($product: ProductCreateInput!) {
+      productCreate(product: $product) {
+        product {
+          id
+          title
+          handle
+          status
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              fileSize
+              url
+              partialDataUrl
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'FAILED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      partialDataUrl: null,
+      query: innerMutation,
+    });
+
+    const operation = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation as {
+      id: string;
+      url: string;
+      fileSize: string;
+    };
+    const resultResponse = await request(app).get(new URL(operation.url).pathname);
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(operation.fileSize).toBe(String(Buffer.byteLength(resultResponse.text, 'utf8')));
+    expect(resultRows).toHaveLength(2);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          productCreate: {
+            product: {
+              title: 'Bulk Valid Before Malformed',
+              handle: 'bulk-valid-before-malformed',
+              status: 'ACTIVE',
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+    expect(resultRows[1]).toMatchObject({
+      line: 2,
+      errors: [{ message: expect.stringContaining('Unexpected end of JSON input') }],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadFailedBulkMutation($id: ID!) {
+          byId: bulkOperation(id: $id) {
+            id
+            status
+            type
+            objectCount
+            rootObjectCount
+            url
+            partialDataUrl
+          }
+          failedMutations: bulkOperations(first: 5, query: "status:FAILED operation_type:MUTATION") {
+            nodes {
+              id
+              status
+              type
+            }
+          }
+          currentMutation: currentBulkOperation(type: MUTATION) {
+            id
+            status
+            type
+          }
+        }`,
+        variables: { id: operation.id },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      byId: {
+        id: operation.id,
+        status: 'FAILED',
+        type: 'MUTATION',
+        objectCount: '1',
+        rootObjectCount: '1',
+        url: operation.url,
+        partialDataUrl: null,
+      },
+      failedMutations: {
+        nodes: [{ id: operation.id, status: 'FAILED', type: 'MUTATION' }],
+      },
+      currentMutation: {
+        id: operation.id,
+        status: 'FAILED',
+        type: 'MUTATION',
+      },
+    });
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(logResponse.body.entries[0]).toMatchObject({
+      operationName: 'ProductCreate',
+      variables: validVariables,
+      interpreted: {
+        bulkOperationImport: {
+          bulkOperationId: operation.id,
+          lineNumber: 1,
+          stagedUploadPath,
+        },
+      },
+    });
+  });
+
   it('fails unsupported bulk mutation import roots locally without upstream passthrough', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

@@ -37,6 +37,7 @@ Local staged mutations:
 - `orderInvoiceSend`
 - `taxSummaryCreate`
 - `orderCancel`
+- `orderDelete`
 - `fulfillmentCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
@@ -68,6 +69,9 @@ Local staged mutations:
 - `draftOrderCreateFromOrder`
 - `orderEditBegin`
 - `orderEditAddVariant`
+- `orderEditAddCustomItem`
+- `orderEditAddLineItemDiscount`
+- `orderEditRemoveDiscount`
 - `orderEditSetQuantity`
 - `orderEditCommit`
 
@@ -89,7 +93,7 @@ Local staged mutations:
 - `draftOrderInvoicePreview` returns deterministic local preview subject/html for staged draft orders and never sends email or writes upstream. It mirrors the safe preview contract enough for tests that need a payload before deciding whether to send an invoice.
 - The `draft-order-invoice-send-safety` parity fixture is executable generic parity coverage rather than capture-only evidence. The runner replays the captured unknown-id, deleted-draft, open no-recipient, and completed no-recipient validation branches through the local proxy with strict JSON comparison while seeding only the disposable captured setup draft states; recipient-backed invoice sends remain runtime-blocked to avoid customer-visible email.
 - Abandoned checkout reads are modeled for snapshot/local state. Empty `abandonedCheckouts` returns an empty connection with false/null `pageInfo`, `abandonedCheckoutsCount` returns `{ count: 0, precision: "EXACT" }`, and missing `abandonment` / `abandonmentByAbandonedCheckoutId` lookups return `null`, matching the 2026-04-27 live capture against `harry-test-heelo.myshopify.com` on Admin GraphQL `2025-01`.
-- Representative non-empty abandoned checkout and abandonment reads serialize from seeded normalized records. The live conformance store had no abandoned checkout records during HAR-300, so non-empty runtime coverage is schema/introspection-backed rather than a live non-empty fixture. Future work should replace or supplement that seeded proof when a disposable store can produce real abandoned checkout data.
+- Representative non-empty abandoned checkout and abandonment reads serialize from seeded normalized records. Local `abandonedCheckouts(query:)` and `abandonedCheckoutsCount(query:)` use the shared Shopify search helpers for the documented `id`, `created_at`, `updated_at`, `status`, `recovery_state`, `email_state`, and default text/title slices. The live conformance store had no abandoned checkout records during HAR-300, so non-empty runtime coverage is schema/introspection-backed rather than a live non-empty fixture. Future work should replace or supplement that seeded proof when a disposable store can produce real abandoned checkout data.
 - `abandonmentUpdateActivitiesDeliveryStatuses` is local-only for seeded/snapshot abandonment records. Unknown IDs mirror the captured safe payload `abandonment: null` plus `userErrors[{ field: ["abandonmentId"], message: "abandonment_not_found" }]`. Known local records update the in-memory delivery activity map, surface `emailState` / `emailSentAt` changes on downstream local reads, append the original raw mutation to the meta log, and never send the runtime mutation to Shopify.
 - `draftOrderInvoiceSend` is treated as an outbound email side-effect root. Runtime support never sends the mutation upstream or emails a customer; it appends the original raw mutation to the meta log for explicit commit replay. Safe captured 2026-04 branches are mirrored locally for missing/unknown/deleted draft IDs, no-recipient drafts (`To can't be blank`), and completed no-recipient drafts (`To can't be blank` plus the already-paid error). For open local drafts with a recipient, the proxy returns an explicit local userError instead of pretending the invoice email was delivered.
 - `draftOrderTag` remains an explicit blocker rather than implemented support. HAR-318 live probing showed raw tag strings fail ID validation and guessed `gid://shopify/DraftOrderTag/<tag>` IDs return `null`; no exposed catalog in the current evidence produced a valid `DraftOrderTag` ID. The runtime can synthesize local staged tag IDs for internal helper reads, but the registry keeps the root unimplemented until a valid-ID capture exists.
@@ -98,7 +102,8 @@ Local staged mutations:
 - Local `Order.paymentTerms` and `DraftOrder.paymentTerms` reads preserve `null` for orders/drafts without terms. When normalized payment terms are present in the local graph, the serializer exposes selected scalar fields plus the nested `paymentSchedules` connection with shared cursor/window/pageInfo handling and schedule money fields (`amount`, `balanceDue`, `totalBalance`). The standalone `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` roots now stage against this same order/draft-order graph, so downstream reads observe creates, updates, and deletes immediately without runtime Shopify writes. The executable 2026-04 parity fixture uses a disposable draft order and confirms NET `dueAt` derivation, replacement schedule IDs on update, and null downstream terms after delete.
 - Shopify normalizes draft-order shipping lines created with `priceWithCurrency` to `code: "custom"`, `custom: true`, and matching `originalPriceSet` / `discountedPriceSet` shop-money amounts. The local serializer mirrors that shape and uses `null` for absent shipping lines after duplicate/create-from-order flows.
 - The captured DraftOrder detail read surface does not select `note`; local mutation payloads and downstream local reads still preserve staged note values, but live detail parity keeps note out of the strict object contract until Shopify exposes a selectable note field for this surface.
-- Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. The order-edit conformance anchors are the captured existing-order workflow specs plus executable single-root begin/add/set/commit parity slices backed by those same workflow fixtures, so stale access-scope-only plans should not be reintroduced as blockers.
+- Order edit operations use calculated-order state during the edit session and materialize changes on `orderEditCommit`. Current local staging covers variant additions, custom item additions, line-item discount add/remove, quantity edits, and shipping-line add/update/remove. The order-edit conformance anchors are the captured existing-order workflow specs, executable single-root begin/add/set/commit parity slices backed by those workflow fixtures, and the HAR-369 local-runtime residual edit/delete spec for roots that must not write to Shopify during runtime.
+- `orderDelete` stages an order tombstone locally. Downstream `order(id:)` returns `null`, and local `orders` / `ordersCount` omit the deleted order immediately. Repeated deletes return an `orderId` userError and do not append another staged-write log entry.
 - `refundCreate` stages refund records for downstream order reads and covers over-refund user-error behavior through parity fixtures.
 - Return staging is order-backed: `returnCreate` and `returnRequest` create local Return rows for known fulfilled order
   line items, while `returnCancel`, `returnClose`, and `returnReopen` update local return status. Top-level

@@ -1,4 +1,12 @@
-import { Kind, parse, type ASTNode, type FieldNode, type FragmentDefinitionNode, type SelectionNode } from 'graphql';
+import {
+  Kind,
+  parse,
+  type ASTNode,
+  type FieldNode,
+  type FragmentDefinitionNode,
+  type SelectionNode,
+  type ValueNode,
+} from 'graphql';
 
 import { getFieldArguments } from '../graphql/root-field.js';
 
@@ -54,6 +62,63 @@ export type SerializeConnectionOptions<T> = {
 
 export function getFieldResponseKey(field: FieldNode): string {
   return field.alias?.value ?? field.name.value;
+}
+
+export function resolveGraphQLValueNode(node: ValueNode, variables: Record<string, unknown>): unknown {
+  switch (node.kind) {
+    case Kind.NULL:
+      return null;
+    case Kind.STRING:
+    case Kind.ENUM:
+    case Kind.BOOLEAN:
+      return node.value;
+    case Kind.INT:
+      return Number.parseInt(node.value, 10);
+    case Kind.FLOAT:
+      return Number.parseFloat(node.value);
+    case Kind.LIST:
+      return node.values.map((value) => resolveGraphQLValueNode(value, variables));
+    case Kind.OBJECT:
+      return Object.fromEntries(
+        node.fields.map((field) => [field.name.value, resolveGraphQLValueNode(field.value, variables)]),
+      );
+    case Kind.VARIABLE:
+      return variables[node.name.value] ?? null;
+  }
+}
+
+export function readIdempotencyKey(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const directive = field.directives?.find((candidate) => candidate.name.value === 'idempotent') ?? null;
+  const keyArgument =
+    directive?.arguments?.find((argument) => argument.name.value === 'key') ??
+    directive?.arguments?.find((argument) => argument.name.value === 'idempotencyKey') ??
+    null;
+  if (!keyArgument) {
+    return null;
+  }
+
+  const key = resolveGraphQLValueNode(keyArgument.value, variables);
+  return typeof key === 'string' && key.trim().length > 0 ? key : null;
+}
+
+export function buildMissingIdempotencyKeyError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: 'The @idempotent directive is required for this mutation but was not provided.',
+    ...(field.loc
+      ? {
+          locations: [
+            {
+              line: field.loc.startToken.line,
+              column: field.loc.startToken.column,
+            },
+          ],
+        }
+      : {}),
+    path: [getFieldResponseKey(field)],
+    extensions: {
+      code: 'BAD_REQUEST',
+    },
+  };
 }
 
 export function getNodeLocation(node: ASTNode): GraphqlErrorLocation[] {
