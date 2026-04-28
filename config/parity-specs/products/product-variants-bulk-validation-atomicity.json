@@ -14,14 +14,7 @@
   "notes": "Replays the HAR-290 live validation and atomicity matrix against the local proxy. The fixture records before/after Shopify product state for each rejected branch with allAtomic: true; parity compares the mutation payloads while runtime tests assert no local partial writes to options, variants, inventory items, inventory quantities, or product inventory summaries.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$[*].userErrors[*].code",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The captured Shopify validation fixture selected ProductVariantsBulkUserError.code. The current product mutation serializers model the field/message validation surface and document code serialization as a remaining product-domain gap."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "create-unknown-product",
