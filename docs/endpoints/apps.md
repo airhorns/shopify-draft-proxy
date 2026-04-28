@@ -81,6 +81,6 @@ The capture records:
 - `tests/integration/app-billing-access-flow.test.ts`
 - `tests/integration/proxy-capability-classification.test.ts`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
-- `config/parity-specs/app-billing-access-local-staging.json`
+- `config/parity-specs/apps/app-billing-access-local-staging.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

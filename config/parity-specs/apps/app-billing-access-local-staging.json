@@ -22,11 +22,11 @@
     "no-upstream-passthrough",
     "secret-redaction"
   ],
-  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/app-billing-access-local-staging.json"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json"],
   "runtimeTestFiles": ["tests/integration/app-billing-access-flow.test.ts"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
-    "documentPath": "config/parity-requests/appSubscriptionCreate-local-lifecycle.graphql",
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
     "variables": {
       "lineItems": [
         {
@@ -74,7 +74,7 @@
         "capturePath": "$.evidence.parity.expected.oneTimeCreate.data.appPurchaseOneTimeCreate",
         "proxyPath": "$.data.appPurchaseOneTimeCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appPurchaseOneTimeCreate-local-lifecycle.graphql"
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-local-lifecycle.graphql"
         },
         "expectedDifferences": [
           {
@@ -94,7 +94,7 @@
         "capturePath": "$.evidence.parity.expected.lineItemUpdate.data.appSubscriptionLineItemUpdate",
         "proxyPath": "$.data.appSubscriptionLineItemUpdate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appSubscriptionLineItemUpdate-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/appSubscriptionLineItemUpdate-local-lifecycle.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
@@ -124,7 +124,7 @@
         "capturePath": "$.evidence.parity.expected.usageCreate.data.appUsageRecordCreate",
         "proxyPath": "$.data.appUsageRecordCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appUsageRecordCreate-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/appUsageRecordCreate-local-lifecycle.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
@@ -149,7 +149,7 @@
         "capturePath": "$.evidence.parity.expected.trialExtend.data.appSubscriptionTrialExtend",
         "proxyPath": "$.data.appSubscriptionTrialExtend",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appSubscriptionTrialExtend-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-local-lifecycle.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
@@ -169,7 +169,7 @@
         "capturePath": "$.evidence.parity.expected.cancel.data.appSubscriptionCancel",
         "proxyPath": "$.data.appSubscriptionCancel",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appSubscriptionCancel-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-local-lifecycle.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
@@ -189,7 +189,7 @@
         "capturePath": "$.evidence.parity.expected.billingRead.data.currentAppInstallation",
         "proxyPath": "$.data.currentAppInstallation",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/app-billing-local-read.graphql"
+          "documentPath": "config/parity-requests/apps/app-billing-local-read.graphql"
         },
         "expectedDifferences": [
           {
@@ -214,7 +214,7 @@
         "capturePath": "$.evidence.parity.expected.revoke.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appRevokeAccessScopes-local-lifecycle.graphql"
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-local-lifecycle.graphql"
         }
       },
       {
@@ -222,7 +222,7 @@
         "capturePath": "$.evidence.parity.expected.accessRead.data.currentAppInstallation",
         "proxyPath": "$.data.currentAppInstallation",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/app-access-scopes-local-read.graphql"
+          "documentPath": "config/parity-requests/apps/app-access-scopes-local-read.graphql"
         }
       },
       {
@@ -230,7 +230,7 @@
         "capturePath": "$.evidence.parity.expected.delegateCreate.data.delegateAccessTokenCreate",
         "proxyPath": "$.data.delegateAccessTokenCreate",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/delegateAccessTokenCreate-local-lifecycle.graphql"
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-local-lifecycle.graphql"
         },
         "expectedDifferences": [
           {
@@ -250,7 +250,7 @@
         "capturePath": "$.evidence.parity.expected.delegateDestroy.data.delegateAccessTokenDestroy",
         "proxyPath": "$.data.delegateAccessTokenDestroy",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/delegateAccessTokenDestroy-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-local-lifecycle.graphql",
           "variables": {
             "token": {
               "fromProxyResponse": "delegated-token-create-payload",
@@ -264,7 +264,7 @@
         "capturePath": "$.evidence.parity.expected.delegateDestroyRepeat.data.delegateAccessTokenDestroy",
         "proxyPath": "$.data.delegateAccessTokenDestroy",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/delegateAccessTokenDestroy-local-lifecycle.graphql",
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-local-lifecycle.graphql",
           "variables": {
             "token": {
               "fromProxyResponse": "delegated-token-create-payload",
@@ -278,7 +278,7 @@
         "capturePath": "$.evidence.unknownCancel.expected.data.appSubscriptionCancel",
         "proxyPath": "$.data.appSubscriptionCancel",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appSubscriptionCancel-unknown-local.graphql",
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-unknown-local.graphql",
           "variablesCapturePath": "$.evidence.unknownCancel.variables"
         }
       },
@@ -287,7 +287,7 @@
         "capturePath": "$.evidence.parity.expected.uninstall.data.appUninstall",
         "proxyPath": "$.data.appUninstall",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/appUninstall-local-lifecycle.graphql"
+          "documentPath": "config/parity-requests/apps/appUninstall-local-lifecycle.graphql"
         },
         "expectedDifferences": [
           {
@@ -302,7 +302,7 @@
         "capturePath": "$.evidence.parity.expected.afterUninstallRead.data.currentAppInstallation",
         "proxyPath": "$.data.currentAppInstallation",
         "proxyRequest": {
-          "documentPath": "config/parity-requests/app-installation-id-local-read.graphql"
+          "documentPath": "config/parity-requests/apps/app-installation-id-local-read.graphql"
         }
       }
     ]
