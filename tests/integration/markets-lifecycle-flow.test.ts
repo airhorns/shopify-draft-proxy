@@ -1403,7 +1403,7 @@ describe('Markets lifecycle staging', () => {
           input: {
             defaultLocale: 'fr',
             alternateLocales: ['en'],
-            subfolderSuffix: 'fr-ca',
+            subfolderSuffix: 'frca',
           },
         },
       });
@@ -1412,10 +1412,10 @@ describe('Markets lifecycle staging', () => {
     expect(updateResponse.body.data.webPresenceUpdate).toMatchObject({
       webPresence: {
         id: webPresenceId,
-        subfolderSuffix: 'fr-ca',
+        subfolderSuffix: 'frca',
         rootUrls: [
-          { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-fr-ca' },
-          { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-fr-ca' },
+          { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-frca' },
+          { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-frca' },
         ],
         markets: {
           nodes: [
@@ -1472,7 +1472,7 @@ describe('Markets lifecycle staging', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: webPresenceId,
-          subfolderSuffix: 'fr-ca',
+          subfolderSuffix: 'frca',
           defaultLocale: expect.objectContaining({ locale: 'fr' }),
           markets: {
             nodes: [
@@ -1486,10 +1486,10 @@ describe('Markets lifecycle staging', () => {
       ]),
     );
     expect(readResponse.body.data.market.webPresences.nodes).toEqual(
-      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'fr-ca', defaultLocale: { locale: 'fr' } }]),
+      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'frca', defaultLocale: { locale: 'fr' } }]),
     );
     expect(readResponse.body.data.marketsResolvedValues.webPresences.nodes).toEqual(
-      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'fr-ca' }]),
+      expect.arrayContaining([{ id: webPresenceId, subfolderSuffix: 'frca' }]),
     );
 
     const logResponse = await request(app).get('/__meta/log');
@@ -1507,15 +1507,140 @@ describe('Markets lifecycle staging', () => {
     const stateResponse = await request(app).get('/__meta/state');
     expect(stateResponse.body.stagedState.webPresences[webPresenceId].data).toMatchObject({
       id: webPresenceId,
-      subfolderSuffix: 'fr-ca',
+      subfolderSuffix: 'frca',
     });
     expect(stateResponse.body.stagedState.markets[marketId].data.webPresences.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           node: expect.objectContaining({
             id: webPresenceId,
-            subfolderSuffix: 'fr-ca',
+            subfolderSuffix: 'frca',
           }),
+        }),
+      ]),
+    );
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DeleteWebPresence($id: ID!) {
+            webPresenceDelete(id: $id) {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: { id: webPresenceId },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.webPresenceDelete).toEqual({
+      deletedId: webPresenceId,
+      userErrors: [],
+    });
+
+    const alreadyDeletedResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DeleteWebPresenceAgain($id: ID!) {
+            webPresenceDelete(id: $id) {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: { id: webPresenceId },
+      });
+
+    expect(alreadyDeletedResponse.status).toBe(200);
+    expect(alreadyDeletedResponse.body.data.webPresenceDelete).toEqual({
+      deletedId: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: "The market web presence wasn't found.",
+          code: 'WEB_PRESENCE_NOT_FOUND',
+        },
+      ],
+    });
+
+    const readAfterDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadWebPresenceAfterDelete($marketId: ID!) {
+            webPresences(first: 5) {
+              nodes {
+                id
+                subfolderSuffix
+              }
+            }
+            market(id: $marketId) {
+              id
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                }
+              }
+            }
+            marketsResolvedValues(buyerSignal: { countryCode: US }) {
+              webPresences(first: 5) {
+                nodes {
+                  id
+                  subfolderSuffix
+                }
+              }
+            }
+          }
+        `,
+        variables: { marketId },
+      });
+
+    expect(readAfterDeleteResponse.status).toBe(200);
+    expect(readAfterDeleteResponse.body.data.webPresences.nodes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: webPresenceId })]),
+    );
+    expect(readAfterDeleteResponse.body.data.market.webPresences.nodes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: webPresenceId })]),
+    );
+    expect(readAfterDeleteResponse.body.data.marketsResolvedValues.webPresences.nodes).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: webPresenceId })]),
+    );
+
+    const logAfterDeleteResponse = await request(app).get('/__meta/log');
+    expect(logAfterDeleteResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'webPresenceCreate',
+      'marketUpdate',
+      'webPresenceUpdate',
+      'webPresenceDelete',
+      'webPresenceDelete',
+    ]);
+    expect(logAfterDeleteResponse.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+      'staged',
+    ]);
+
+    const stateAfterDeleteResponse = await request(app).get('/__meta/state');
+    expect(stateAfterDeleteResponse.body.stagedState.webPresences[webPresenceId]).toBeUndefined();
+    expect(stateAfterDeleteResponse.body.stagedState.deletedWebPresenceIds).toEqual({ [webPresenceId]: true });
+    expect(stateAfterDeleteResponse.body.stagedState.markets[marketId].data.webPresences.edges).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          node: expect.objectContaining({ id: webPresenceId }),
         }),
       ]),
     );
@@ -1816,6 +1941,43 @@ describe('Markets lifecycle staging', () => {
       ],
     });
 
+    const invalidSuffixCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation InvalidWebPresenceSuffix($input: WebPresenceCreateInput!) {
+            webPresenceCreate(input: $input) {
+              webPresence {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            defaultLocale: 'en',
+            subfolderSuffix: 'ca-1',
+          },
+        },
+      });
+
+    expect(invalidSuffixCreateResponse.status).toBe(200);
+    expect(invalidSuffixCreateResponse.body.data.webPresenceCreate).toEqual({
+      webPresence: null,
+      userErrors: [
+        {
+          field: ['input', 'subfolderSuffix'],
+          message: 'Subfolder suffix must contain only letters',
+          code: 'SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS',
+        },
+      ],
+    });
+
     const unknownUpdateResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
@@ -1853,9 +2015,46 @@ describe('Markets lifecycle staging', () => {
       ],
     });
 
-    expect(store.getLog()).toHaveLength(2);
-    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged']);
-    expect(store.getLog().map((entry) => entry.operationName)).toEqual(['webPresenceCreate', 'webPresenceUpdate']);
+    const unknownDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation UnknownWebPresenceDelete($id: ID!) {
+            webPresenceDelete(id: $id) {
+              deletedId
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'gid://shopify/MarketWebPresence/999999999999',
+        },
+      });
+
+    expect(unknownDeleteResponse.status).toBe(200);
+    expect(unknownDeleteResponse.body.data.webPresenceDelete).toEqual({
+      deletedId: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: "The market web presence wasn't found.",
+          code: 'WEB_PRESENCE_NOT_FOUND',
+        },
+      ],
+    });
+
+    expect(store.getLog()).toHaveLength(4);
+    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged', 'staged', 'staged']);
+    expect(store.getLog().map((entry) => entry.operationName)).toEqual([
+      'webPresenceCreate',
+      'webPresenceCreate',
+      'webPresenceUpdate',
+      'webPresenceDelete',
+    ]);
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 

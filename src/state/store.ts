@@ -2920,6 +2920,16 @@ export class InMemoryStore {
     return structuredClone(webPresence);
   }
 
+  stageDeleteWebPresence(webPresenceId: string): void {
+    delete this.stagedState.webPresences[webPresenceId];
+    this.stagedState.webPresenceOrder = this.stagedState.webPresenceOrder.filter((id) => id !== webPresenceId);
+    this.stagedState.deletedWebPresenceIds[webPresenceId] = true;
+  }
+
+  isWebPresenceDeleted(webPresenceId: string): boolean {
+    return this.stagedState.deletedWebPresenceIds[webPresenceId] === true;
+  }
+
   getEffectiveWebPresenceRecordById(webPresenceId: string): WebPresenceRecord | null {
     if (this.stagedState.deletedWebPresenceIds[webPresenceId]) {
       return null;
