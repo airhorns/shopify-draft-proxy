@@ -3877,9 +3877,9 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
-    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+    "runtimeTests": []
   },
   {
     "name": "orderRiskAssessmentCreate",
@@ -4209,9 +4209,9 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["taxSummaryCreate", "TaxSummaryCreate"],
-    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+    "runtimeTests": []
   },
   {
     "name": "orderCancel",
