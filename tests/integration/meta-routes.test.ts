@@ -203,6 +203,8 @@ const emptySnapshot = {
   abandonments: {},
   abandonmentOrder: [],
   backupRegion: null,
+  taxonomyCategories: {},
+  taxonomyCategoryOrder: [],
   adminPlatformFlowSignatures: {},
   adminPlatformFlowSignatureOrder: [],
   adminPlatformFlowTriggers: {},
