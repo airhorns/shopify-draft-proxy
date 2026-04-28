@@ -589,6 +589,12 @@ function addProductsToCollection(
   };
 }
 
+function readCollectionProductIds(rawProductIds: unknown): string[] {
+  return Array.isArray(rawProductIds)
+    ? rawProductIds.filter((productId): productId is string => typeof productId === 'string')
+    : [];
+}
+
 function removeProductsFromCollection(collection: CollectionRecord, productIds: string[]): void {
   const normalizedProductIds = productIds.filter((productId, index) => productIds.indexOf(productId) === index);
 
@@ -10872,12 +10878,28 @@ export function handleProductMutation(
         };
       }
 
-      const collection = store.stageCreateCollection(makeCollectionRecord(input));
+      const collection = makeCollectionRecord(input);
+      const productIds = readCollectionProductIds(input['products']);
+      if (productIds.length > 0) {
+        const result = addProductsToCollection(collection, productIds);
+        if (result.userErrors.length > 0) {
+          return {
+            data: {
+              [responseKey]: {
+                collection: null,
+                userErrors: result.userErrors,
+              },
+            },
+          };
+        }
+      }
+
+      const stagedCollection = store.stageCreateCollection(collection);
       return {
         data: {
           [responseKey]: {
             collection: serializeCollectionObject(
-              collection,
+              stagedCollection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
             ),
@@ -11038,7 +11060,9 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds, { placement: 'prepend-reverse' });
+      const result = addProductsToCollection(existing, productIds, {
+        placement: existing.sortOrder === 'MANUAL' ? 'append' : 'prepend-reverse',
+      });
       const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
       return {
         data: {
