@@ -1,8 +1,14 @@
 {
   "scenarioId": "files-upload-local-runtime",
-  "operationNames": ["files", "fileSavedSearches", "fileCreate", "stagedUploadsCreate"],
+  "operationNames": ["files", "fileSavedSearches", "fileCreate", "fileUpdate", "stagedUploadsCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "empty-state-parity", "downstream-read-parity", "side-effect-boundary"],
+  "assertionKinds": [
+    "payload-shape",
+    "empty-state-parity",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "user-errors-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/files-upload-local-runtime.json",
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-create-delete-parity.json",
@@ -23,7 +29,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-313 extends captured Files API mutation evidence with executable local parity for top-level `files`, empty `fileSavedSearches`, and inert `stagedUploadsCreate` target metadata. The generic parity runner now executes the local file create/read/upload-metadata flow against the proxy with strict JSON targets; checked-in live captures continue to document Shopify file payload shapes and ready-state polling around create/update/delete. External upload storage allocation and upload failure acknowledgement remain explicit unsupported side effects until modeled locally.",
+  "notes": "HAR-313 extends captured Files API mutation evidence with executable local parity for top-level `files`, empty `fileSavedSearches`, and inert `stagedUploadsCreate` target metadata. HAR-379 adds executable user-error parity for rejecting `fileUpdate` inputs that try to replace both the original source and preview image source in one input. The generic parity runner now executes the local file create/read/upload-metadata/update-validation flow against the proxy with strict JSON targets; checked-in live captures continue to document Shopify file payload shapes and ready-state polling around create/update/delete. External upload storage allocation and upload failure acknowledgement remain explicit unsupported side effects until modeled locally.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -57,6 +63,26 @@
                 "mimeType": "text/plain",
                 "resource": "FILE",
                 "httpMethod": "POST"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "file-update-conflicting-sources-user-error",
+        "capturePath": "$.fileUpdateConflictingSources.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileUpdate-parity.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "originalSource": "https://cdn.example.com/source-replacement.jpg",
+                "previewImageSource": "https://cdn.example.com/preview-replacement.jpg"
               }
             ]
           }
