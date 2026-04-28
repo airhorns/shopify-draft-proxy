@@ -152,6 +152,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    packageScript: 'conformance:capture-product-option-variant-strategy-edges',
+    scriptPath: 'scripts/capture-product-option-variant-strategy-edge-conformance.mts',
+    purpose: 'product option variantStrategy and productVariantsBulkCreate.strategy edge behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-options-create-variant-strategy-*.json`,
+      `${CAPTURE_ROOT}productVariantsBulkCreate-strategy-*.json`,
+      'config/parity-specs/productOptionsCreate-variant-strategy-*.json',
+      'config/parity-specs/productVariantsBulkCreate-strategy-*.json',
+    ],
+    cleanupBehavior: 'Creates disposable products/options/variants and deletes products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     packageScript: 'conformance:capture-product-variant-mutations',
     scriptPath: 'scripts/capture-product-variant-mutation-conformance.mts',
     purpose: 'Product variant create/update/delete mutation family.',
