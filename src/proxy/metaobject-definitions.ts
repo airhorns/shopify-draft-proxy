@@ -27,6 +27,7 @@ import {
   isPlainObject,
   paginateConnectionItems,
   projectGraphqlObject,
+  type ProjectGraphqlFieldProjection,
   readBooleanValue,
   readGraphqlDataResponsePayload,
   readNumberValue,
@@ -46,6 +47,14 @@ type MetaobjectUserError = {
 type MetaobjectBulkDeleteJob = {
   id: string;
   done: boolean;
+};
+
+type MetaobjectReferenceRelation = {
+  key: string;
+  name: string;
+  namespace: string;
+  referencer: MetaobjectRecord;
+  cursorKey: string;
 };
 
 type RequiredArgumentValidation = {
@@ -554,7 +563,7 @@ function readMetaobjectJsonValue(typeName: string | null, value: string | null):
     return null;
   }
 
-  if (typeName !== 'json') {
+  if (typeName !== 'json' && typeName !== 'list.metaobject_reference') {
     return value;
   }
 
@@ -1297,6 +1306,33 @@ function buildSerializableMetaobjectField(field: MetaobjectFieldRecord): Record<
   };
 }
 
+function readMetaobjectReferenceIdsFromValue(
+  field: Pick<MetaobjectFieldRecord, 'type' | 'value' | 'jsonValue'>,
+): string[] {
+  if (field.type === 'metaobject_reference') {
+    return field.value ? [field.value] : [];
+  }
+
+  if (field.type !== 'list.metaobject_reference') {
+    return [];
+  }
+
+  if (Array.isArray(field.jsonValue)) {
+    return field.jsonValue.filter((value): value is string => typeof value === 'string');
+  }
+
+  if (!field.value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(field.value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<string, unknown> {
   const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
   const definition = store.findEffectiveMetaobjectDefinitionByType(projectedMetaobject.type);
@@ -1323,6 +1359,194 @@ function buildSerializableMetaobject(metaobject: MetaobjectRecord): Record<strin
     definition: definition ? buildSerializableDefinition(definition) : null,
     fields: projectedMetaobject.fields.map(buildSerializableMetaobjectField),
   };
+}
+
+function projectMetaobjectSerializableObject(
+  source: Record<string, unknown>,
+  selections: readonly SelectionNode[],
+  fragments: ReturnType<typeof getDocumentFragments>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return projectGraphqlObject(source, selections, fragments, {
+    projectFieldValue: ({ source: selectedSource, field, fieldName }) =>
+      projectMetaobjectFieldValue(selectedSource, field, fieldName, fragments, variables),
+  });
+}
+
+function serializeMetaobjectReferenceSelection(
+  metaobject: MetaobjectRecord,
+  selections: readonly SelectionNode[],
+  fragments: ReturnType<typeof getDocumentFragments>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  return projectMetaobjectSerializableObject(buildSerializableMetaobject(metaobject), selections, fragments, variables);
+}
+
+function serializeMetaobjectReferencesConnection(
+  field: FieldNode,
+  source: Record<string, unknown>,
+  fragments: ReturnType<typeof getDocumentFragments>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const type = readStringValue(source['type']);
+  if (type !== 'list.metaobject_reference') {
+    return null;
+  }
+
+  const referenceIds = readMetaobjectReferenceIdsFromValue({
+    type,
+    value: readStringValue(source['value']),
+    jsonValue: source['jsonValue'] as MetaobjectFieldRecord['jsonValue'],
+  });
+  const references = referenceIds.flatMap((referenceId) => {
+    const reference = store.getEffectiveMetaobjectById(referenceId);
+    return reference ? [reference] : [];
+  });
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    references,
+    field,
+    variables,
+    (reference) => reference.id,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (reference) => reference.id,
+    serializeNode: (reference, nodeField) =>
+      serializeMetaobjectReferenceSelection(reference, nodeField.selectionSet?.selections ?? [], fragments, variables),
+  });
+}
+
+function buildMetaobjectReferenceRelations(targetId: string): MetaobjectReferenceRelation[] {
+  return store.listEffectiveMetaobjects().flatMap((referencer) => {
+    const definition = store.findEffectiveMetaobjectDefinitionByType(referencer.type);
+    const projectedReferencer = projectMetaobjectThroughDefinition(referencer);
+
+    return projectedReferencer.fields.flatMap((field, fieldIndex) => {
+      if (!readMetaobjectReferenceIdsFromValue(field).includes(targetId)) {
+        return [];
+      }
+
+      const fieldDefinition = definition?.fieldDefinitions.find((candidate) => candidate.key === field.key);
+      return [
+        {
+          key: field.key,
+          name: fieldDefinition?.name ?? field.definition?.name ?? field.key,
+          namespace: referencer.type,
+          referencer: projectedReferencer,
+          cursorKey: `${referencer.id}:${field.key}:${fieldIndex}`,
+        },
+      ];
+    });
+  });
+}
+
+function buildSerializableMetaobjectReferenceRelation(relation: MetaobjectReferenceRelation): Record<string, unknown> {
+  return {
+    __typename: 'MetafieldRelation',
+    key: relation.key,
+    name: relation.name,
+    namespace: relation.namespace,
+    referencer: buildSerializableMetaobject(relation.referencer),
+  };
+}
+
+function serializeMetaobjectReferencedByConnection(
+  field: FieldNode,
+  metaobjectId: string,
+  fragments: ReturnType<typeof getDocumentFragments>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const relations = buildMetaobjectReferenceRelations(metaobjectId);
+  const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
+    relations,
+    field,
+    variables,
+    (relation) => relation.cursorKey,
+  );
+
+  return serializeConnection(field, {
+    items,
+    hasNextPage,
+    hasPreviousPage,
+    getCursorValue: (relation) => relation.cursorKey,
+    serializeNode: (relation, nodeField) =>
+      projectMetaobjectSerializableObject(
+        buildSerializableMetaobjectReferenceRelation(relation),
+        nodeField.selectionSet?.selections ?? [],
+        fragments,
+        variables,
+      ),
+  });
+}
+
+function projectMetaobjectFieldValue(
+  source: Record<string, unknown>,
+  field: FieldNode,
+  fieldName: string,
+  fragments: ReturnType<typeof getDocumentFragments>,
+  variables: Record<string, unknown>,
+): ProjectGraphqlFieldProjection {
+  if (source['__typename'] === 'Metaobject') {
+    if (fieldName === 'field') {
+      const key = readStringValue(getFieldArguments(field, variables)['key']);
+      const fields = Array.isArray(source['fields']) ? source['fields'].filter(isPlainObject) : [];
+      const selectedField = key ? fields.find((candidate) => candidate['key'] === key) : null;
+      return {
+        handled: true,
+        value: selectedField
+          ? projectMetaobjectSerializableObject(
+              selectedField,
+              field.selectionSet?.selections ?? [],
+              fragments,
+              variables,
+            )
+          : null,
+      };
+    }
+
+    if (fieldName === 'referencedBy') {
+      const metaobjectId = readStringValue(source['id']);
+      return {
+        handled: true,
+        value: metaobjectId
+          ? serializeMetaobjectReferencedByConnection(field, metaobjectId, fragments, variables)
+          : serializeEmptyReferencedByConnection(field),
+      };
+    }
+  }
+
+  if (source['__typename'] === 'MetaobjectField') {
+    if (fieldName === 'reference') {
+      if (readStringValue(source['type']) !== 'metaobject_reference') {
+        return { handled: true, value: null };
+      }
+
+      const referenceId = readMetaobjectReferenceIdsFromValue({
+        type: readStringValue(source['type']),
+        value: readStringValue(source['value']),
+        jsonValue: source['jsonValue'] as MetaobjectFieldRecord['jsonValue'],
+      })[0];
+      const reference = referenceId ? store.getEffectiveMetaobjectById(referenceId) : null;
+      return {
+        handled: true,
+        value: reference
+          ? serializeMetaobjectReferenceSelection(reference, field.selectionSet?.selections ?? [], fragments, variables)
+          : null,
+      };
+    }
+
+    if (fieldName === 'references') {
+      return {
+        handled: true,
+        value: serializeMetaobjectReferencesConnection(field, source, fragments, variables),
+      };
+    }
+  }
+
+  return { handled: false };
 }
 
 function serializeDefinitionSelection(
@@ -1352,37 +1576,12 @@ function serializeMetaobjectSelection(
   const fragments = getDocumentFragments(document);
   const projectedMetaobject = projectMetaobjectThroughDefinition(metaobject);
 
-  return projectGraphqlObject(buildSerializableMetaobject(projectedMetaobject), selections, fragments, {
-    projectFieldValue: ({ source, field, fieldName }) => {
-      if (source['__typename'] !== 'Metaobject') {
-        return { handled: false };
-      }
-
-      if (fieldName === 'field') {
-        const key = readStringValue(getFieldArguments(field, variables)['key']);
-        const selectedField = key ? projectedMetaobject.fields.find((candidate) => candidate.key === key) : null;
-        return {
-          handled: true,
-          value: selectedField
-            ? projectGraphqlObject(
-                buildSerializableMetaobjectField(selectedField),
-                field.selectionSet?.selections ?? [],
-                fragments,
-              )
-            : null,
-        };
-      }
-
-      if (fieldName === 'referencedBy') {
-        return {
-          handled: true,
-          value: serializeEmptyReferencedByConnection(field),
-        };
-      }
-
-      return { handled: false };
-    },
-  });
+  return projectMetaobjectSerializableObject(
+    buildSerializableMetaobject(projectedMetaobject),
+    selections,
+    fragments,
+    variables,
+  );
 }
 
 function readRootStringArgument(
