@@ -540,6 +540,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    packageScript: 'conformance:capture-discount-buyer-context',
+    scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',
+    purpose: 'Code and automatic basic discount customer/segment buyer context lifecycle behavior.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
+    fixtureOutputs: [`${CAPTURE_ROOT}discount-buyer-context-lifecycle.json`],
+    cleanupBehavior: 'Deletes created discounts, customer, and segment during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     packageScript: 'conformance:capture-discount-bxgy-lifecycle',
     scriptPath: 'scripts/capture-discount-bxgy-lifecycle-conformance.ts',
     purpose: 'Buy-X-get-Y code and automatic discount lifecycle behavior.',

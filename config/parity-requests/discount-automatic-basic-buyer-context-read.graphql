@@ -1,0 +1,21 @@
+query DiscountAutomaticBasicBuyerContextRead($id: ID!) {
+  automaticDiscountNode(id: $id) {
+    id
+    automaticDiscount {
+      __typename
+      ... on DiscountAutomaticBasic {
+        title
+        context {
+          __typename
+          ... on DiscountCustomerSegments {
+            segments {
+              __typename
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}
