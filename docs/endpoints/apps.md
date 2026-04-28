@@ -46,10 +46,18 @@ Current modeled behavior:
 - `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
 - `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
-- `delegateAccessTokenCreate` returns a synthetic delegated token once and stores only a SHA-256 hash plus redacted preview in meta-visible state.
+- `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
 
 The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
+
+### HAR-455 fidelity review notes
+
+Admin GraphQL 2026-04 billing docs and public app examples continue to treat billing create/update flows as confirmation-URL handoffs. The proxy's synthetic confirmation URLs intentionally prove the local lifecycle boundary without pretending that merchant approval, charge activation, subscription proration, usage-charge billing, or app-plan enforcement happened in Shopify.
+
+Delegate access token docs use the singular `delegateAccessScope` create input and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores only token hash/preview metadata, and still cannot emulate real bearer-token authorization effects.
+
+`appRevokeAccessScopes` and `appUninstall` are locally staged only as downstream app-installation state changes. Real app grant revocation and app uninstall side effects remain external Shopify/app-installation events that can only happen later through explicit commit replay or intentional live conformance work on a disposable shop.
 
 ### Safety notes
 

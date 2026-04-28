@@ -1,5 +1,5 @@
 mutation DelegateAccessTokenCreateLocalLifecycle {
-  delegateAccessTokenCreate(input: { accessScopes: ["read_products"], expiresIn: 3600 }) {
+  delegateAccessTokenCreate(input: { delegateAccessScope: "read_products", expiresIn: 3600 }) {
     delegateAccessToken {
       accessToken
       accessScopes
