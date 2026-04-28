@@ -4,7 +4,7 @@
 
 ### Supported reads
 
-HAR-302 adds narrow snapshot/parity support for these B2B Admin GraphQL roots:
+HAR-302 adds snapshot/parity support for these B2B Admin GraphQL roots:
 
 - `companies`
 - `companiesCount`
@@ -19,6 +19,18 @@ company locations as normalized in-memory records. Company catalog reads expose
 captured scalar fields, nested contact/location/role connections, count objects,
 `mainContact`, and `defaultRole`. Singular unknown-ID reads return `null`, and
 empty snapshot catalogs return empty connections/count zero.
+
+Snapshot-mode reads resolve locally from the effective B2B graph and use the
+shared connection helpers for `nodes`, `edges`, cursor windows, and selected
+`pageInfo` fields on top-level `companies` / `companyLocations` and nested
+company contact/location/role connections. The local cursor strings are stable
+synthetic cursors; captured Shopify cursors remain opaque and should not be
+treated as semantically meaningful.
+
+Live-hybrid B2B reads currently pass through to Shopify rather than hydrating a
+local B2B overlay. This preserves Shopify's access behavior for shops or tokens
+without B2B/read-companies access, including field-level `ACCESS_DENIED`
+responses, while snapshot mode remains the local no-upstream evidence path.
 
 ### Supported mutations
 
@@ -75,7 +87,8 @@ customer or staff catalog side effects from B2B assignment mutations.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b-company-create-lifecycle.json`
 - Safe mutation validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b-company-mutation-validation.json`
-- Strict parity scenario: `config/parity-specs/b2b-company-roots-read.json`
+- Strict read parity scenario:
+  `config/parity-specs/b2b-company-roots-read.json`
 - Lifecycle parity scenario:
   `config/parity-specs/b2b-company-create-lifecycle.json`
 - Runtime coverage: `tests/integration/b2b-company-query-shapes.test.ts`
@@ -87,6 +100,11 @@ customer or staff catalog side effects from B2B assignment mutations.
 The captured store had two companies, two company locations, per-company
 system contact roles, one company contact, and safe unknown-ID null branches for
 company/contact/role/location detail roots.
+
+HAR-404 refreshed read-fidelity evidence without broadening mutation support:
+runtime tests now cover B2B connection `edges`, stable local cursors,
+`first`/`after` windows, nested contact-role/location connections, and
+live-hybrid preservation of upstream access errors and forwarded auth headers.
 
 The checked-in validation capture records safe unknown-ID branches for
 `companyUpdate`, `companyLocationUpdate`, and `companyContactUpdate`. Shopify

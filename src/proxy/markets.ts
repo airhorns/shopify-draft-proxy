@@ -2748,12 +2748,29 @@ function readFixedPriceInputs(args: Record<string, unknown>, names: string[]): R
   return [];
 }
 
+function fixedPriceRawArgument(args: Record<string, unknown>, name: string): unknown {
+  const input = readInput(args['input']);
+  return args[name] ?? input[name];
+}
+
 function readFixedPriceVariantIds(args: Record<string, unknown>, names: string[]): string[] {
   const input = readInput(args['input']);
   for (const name of names) {
     const raw = args[name] ?? input[name];
     const values = readStringArray(raw);
     if (values.length > 0) {
+      return values;
+    }
+  }
+  return [];
+}
+
+function readFixedPriceProductIds(args: Record<string, unknown>, names: string[]): string[] {
+  const input = readInput(args['input']);
+  for (const name of names) {
+    const raw = args[name] ?? input[name];
+    const values = readStringArray(raw);
+    if (values.length > 0 || Array.isArray(raw)) {
       return values;
     }
   }
@@ -2834,6 +2851,16 @@ function fixedPriceVariantId(edge: ConnectionEdge): string | null {
   }
   const variant = isPlainObject(edge.node['variant']) ? edge.node['variant'] : null;
   return typeof variant?.['id'] === 'string' ? variant['id'] : null;
+}
+
+function productPayload(product: ProductRecord): Record<string, unknown> {
+  return {
+    __typename: 'Product',
+    id: product.id,
+    title: product.title,
+    handle: product.handle,
+    status: product.status,
+  };
 }
 
 function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
@@ -3776,14 +3803,100 @@ function handlePriceListFixedPricesByProductUpdate(
   const args = getFieldArguments(field, variables);
   const input = readInput(args['input']);
   const priceListId = readPriceListIdArgument(args);
+  const errors: MarketUserError[] = [];
+  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+
+  const productPriceInputs = readFixedPriceInputs(args, ['pricesToAdd']);
+  const productIdsToDelete = readFixedPriceProductIds(args, ['pricesToDeleteByProductIds']);
+  const usesProductLevelShape =
+    productPriceInputs.some((priceInput) => typeof priceInput['productId'] === 'string') ||
+    Array.isArray(fixedPriceRawArgument(args, 'pricesToDeleteByProductIds'));
+
+  if (usesProductLevelShape) {
+    if (!priceListId || !existingPriceList) {
+      errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
+    }
+
+    const fixedPrices: Record<string, unknown>[] = [];
+    const variantIdsToDelete: string[] = [];
+    const pricesToAddProducts: Record<string, unknown>[] = [];
+    const pricesToDeleteProducts: Record<string, unknown>[] = [];
+
+    if (existingPriceList) {
+      for (const [index, priceInput] of productPriceInputs.entries()) {
+        const productId = typeof priceInput['productId'] === 'string' ? priceInput['productId'] : null;
+        const product = productId ? store.getEffectiveProductById(productId) : null;
+        if (!product || !productId) {
+          errors.push(
+            priceListError(
+              ['pricesToAdd', String(index), 'productId'],
+              `Product ${productId ?? ''} in \`pricesToAdd\` does not exist.`,
+              'PRODUCT_DOES_NOT_EXIST',
+            ),
+          );
+          continue;
+        }
+
+        pricesToAddProducts.push(productPayload(product));
+        for (const variant of store.getEffectiveVariantsByProductId(productId)) {
+          fixedPrices.push({ ...priceInput, variantId: variant.id });
+        }
+      }
+
+      for (const [index, productId] of productIdsToDelete.entries()) {
+        const product = store.getEffectiveProductById(productId);
+        if (!product) {
+          errors.push(
+            priceListError(
+              ['pricesToDeleteByProductIds', String(index)],
+              `Product ${productId} in \`pricesToDeleteByProductIds\` does not exist.`,
+              'PRODUCT_DOES_NOT_EXIST',
+            ),
+          );
+          continue;
+        }
+
+        pricesToDeleteProducts.push(productPayload(product));
+        variantIdsToDelete.push(...store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id));
+      }
+    }
+
+    let priceList = existingPriceList;
+    let changedVariantIds: string[] = [];
+    let removedVariantIds: string[] = [];
+    if (existingPriceList && errors.length === 0) {
+      const upserted = upsertFixedPriceNodes(existingPriceList, fixedPrices, 'upsert', errors);
+      const deleted = deleteFixedPriceNodes(upserted.priceList, variantIdsToDelete, errors);
+      priceList = deleted.priceList;
+      changedVariantIds = upserted.changedVariantIds;
+      removedVariantIds = deleted.deletedVariantIds;
+    }
+
+    if (errors.length === 0 && priceList) {
+      store.stageUpdatePriceList(priceList);
+    }
+
+    return projectMutationPayload(
+      {
+        priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
+        pricesToAddProducts: errors.length === 0 ? pricesToAddProducts : null,
+        pricesToDeleteProducts: errors.length === 0 ? pricesToDeleteProducts : null,
+        fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
+        deletedFixedPriceVariantIds: errors.length === 0 ? removedVariantIds : [],
+        userErrors: errors,
+      },
+      field,
+      fragments,
+      variables,
+    );
+  }
+
   const productId =
     typeof args['productId'] === 'string'
       ? args['productId']
       : typeof input['productId'] === 'string'
         ? input['productId']
         : null;
-  const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
   const product = productId ? store.getEffectiveProductById(productId) : null;
 
   if (!priceListId || !existingPriceList) {

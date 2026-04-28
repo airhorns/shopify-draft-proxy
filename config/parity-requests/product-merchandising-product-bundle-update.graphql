@@ -1,0 +1,12 @@
+mutation ProductBundleUpdate($input: ProductBundleUpdateInput!) {
+  productBundleUpdate(input: $input) {
+    productBundleOperation {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

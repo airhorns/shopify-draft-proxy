@@ -446,6 +446,398 @@ describe('order fulfillment flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages fulfillment-order split, deadline, and merge with downstream reads and mutation log entries', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fulfillment-order residual lifecycle mutations must not hit upstream in snapshot mode');
+    });
+    const fulfillmentOrder = {
+      id: 'gid://shopify/FulfillmentOrder/residual',
+      status: 'OPEN',
+      requestStatus: 'UNSUBMITTED',
+      fulfillAt: '2026-04-28T02:00:00Z',
+      fulfillBy: null,
+      assignedLocation: {
+        name: 'My Custom Location',
+        locationId: 'gid://shopify/Location/source',
+      },
+      supportedActions: ['CREATE_FULFILLMENT', 'REPORT_PROGRESS', 'MOVE', 'HOLD', 'SPLIT'],
+      lineItems: [
+        {
+          id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+          lineItemId: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+          title: 'Fulfillment order residual item',
+          lineItemQuantity: 3,
+          lineItemFulfillableQuantity: 3,
+          totalQuantity: 3,
+          remainingQuantity: 3,
+        },
+      ],
+    };
+    const order = makeOrder('gid://shopify/Order/residual', { fulfillmentOrders: [fulfillmentOrder] });
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const splitResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Split($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                status
+                supportedActions { action }
+                lineItems(first: 10) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } }
+                }
+              }
+              remainingFulfillmentOrder {
+                id
+                status
+                supportedActions { action }
+                lineItems(first: 10) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } }
+                }
+              }
+              replacementFulfillmentOrder { id }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          fulfillmentOrderSplits: [
+            {
+              fulfillmentOrderId: fulfillmentOrder.id,
+              fulfillmentOrderLineItems: [
+                {
+                  id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+                  quantity: 1,
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+    expect(splitResponse.status).toBe(200);
+    const splitResult = splitResponse.body.data.fulfillmentOrderSplit.fulfillmentOrderSplits[0];
+    expect(splitResponse.body.data.fulfillmentOrderSplit.userErrors).toEqual([]);
+    expect(splitResult.fulfillmentOrder).toMatchObject({
+      id: fulfillmentOrder.id,
+      status: 'OPEN',
+      supportedActions: [
+        { action: 'CREATE_FULFILLMENT' },
+        { action: 'REPORT_PROGRESS' },
+        { action: 'MOVE' },
+        { action: 'HOLD' },
+        { action: 'SPLIT' },
+        { action: 'MERGE' },
+      ],
+      lineItems: {
+        nodes: [
+          {
+            id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+            totalQuantity: 2,
+            remainingQuantity: 2,
+            lineItem: {
+              id: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+              quantity: 3,
+              fulfillableQuantity: 3,
+            },
+          },
+        ],
+      },
+    });
+    expect(splitResult.remainingFulfillmentOrder).toMatchObject({
+      id: expect.stringMatching(/^gid:\/\/shopify\/FulfillmentOrder\//u),
+      status: 'OPEN',
+      supportedActions: [
+        { action: 'CREATE_FULFILLMENT' },
+        { action: 'REPORT_PROGRESS' },
+        { action: 'MOVE' },
+        { action: 'HOLD' },
+        { action: 'MERGE' },
+      ],
+      lineItems: {
+        nodes: [
+          {
+            id: expect.stringMatching(/^gid:\/\/shopify\/FulfillmentOrderLineItem\//u),
+            totalQuantity: 1,
+            remainingQuantity: 1,
+            lineItem: {
+              id: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+              quantity: 3,
+              fulfillableQuantity: 3,
+            },
+          },
+        ],
+      },
+    });
+    expect(splitResult.replacementFulfillmentOrder).toBeNull();
+
+    const splitOffFulfillmentOrderId = splitResult.remainingFulfillmentOrder.id as string;
+    const fulfillmentDeadline = '2026-05-02T02:16:59Z';
+    const deadlineResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Deadline($fulfillmentOrderIds: [ID!]!, $fulfillmentDeadline: DateTime!) {
+          fulfillmentOrdersSetFulfillmentDeadline(
+            fulfillmentOrderIds: $fulfillmentOrderIds
+            fulfillmentDeadline: $fulfillmentDeadline
+          ) {
+            success
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          fulfillmentOrderIds: [fulfillmentOrder.id, splitOffFulfillmentOrderId],
+          fulfillmentDeadline,
+        },
+      });
+
+    expect(deadlineResponse.body.data.fulfillmentOrdersSetFulfillmentDeadline).toEqual({
+      success: true,
+      userErrors: [],
+    });
+
+    const deadlineReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DeadlineRead($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 10) {
+              nodes { id fulfillBy lineItems(first: 5) { nodes { totalQuantity } } }
+            }
+          }
+        }`,
+        variables: { id: order.id },
+      });
+    expect(deadlineReadResponse.body.data.order.fulfillmentOrders.nodes).toEqual([
+      {
+        id: fulfillmentOrder.id,
+        fulfillBy: fulfillmentDeadline,
+        lineItems: { nodes: [{ totalQuantity: 2 }] },
+      },
+      {
+        id: splitOffFulfillmentOrderId,
+        fulfillBy: fulfillmentDeadline,
+        lineItems: { nodes: [{ totalQuantity: 1 }] },
+      },
+    ]);
+
+    const mergeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation Merge($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {
+          fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {
+            fulfillmentOrderMerges {
+              fulfillmentOrder {
+                id
+                status
+                fulfillBy
+                supportedActions { action }
+                lineItems(first: 10) {
+                  nodes { id totalQuantity remainingQuantity lineItem { id quantity fulfillableQuantity } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          fulfillmentOrderMergeInputs: [
+            {
+              mergeIntents: [
+                { fulfillmentOrderId: fulfillmentOrder.id },
+                { fulfillmentOrderId: splitOffFulfillmentOrderId },
+              ],
+            },
+          ],
+        },
+      });
+
+    expect(mergeResponse.body.data.fulfillmentOrderMerge.userErrors).toEqual([]);
+    expect(mergeResponse.body.data.fulfillmentOrderMerge.fulfillmentOrderMerges[0].fulfillmentOrder).toMatchObject({
+      id: fulfillmentOrder.id,
+      status: 'OPEN',
+      fulfillBy: fulfillmentDeadline,
+      supportedActions: [
+        { action: 'CREATE_FULFILLMENT' },
+        { action: 'REPORT_PROGRESS' },
+        { action: 'MOVE' },
+        { action: 'HOLD' },
+        { action: 'SPLIT' },
+      ],
+      lineItems: {
+        nodes: [
+          {
+            id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+            totalQuantity: 3,
+            remainingQuantity: 3,
+            lineItem: {
+              id: 'gid://shopify/LineItem/fulfillment-order-lifecycle',
+              quantity: 3,
+              fulfillableQuantity: 3,
+            },
+          },
+        ],
+      },
+    });
+
+    const mergedReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query MergedRead($id: ID!) {
+          order(id: $id) {
+            fulfillmentOrders(first: 10) {
+              nodes { id fulfillBy lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } } }
+            }
+          }
+        }`,
+        variables: { id: order.id },
+      });
+    expect(mergedReadResponse.body.data.order.fulfillmentOrders.nodes).toEqual([
+      {
+        id: fulfillmentOrder.id,
+        fulfillBy: fulfillmentDeadline,
+        lineItems: {
+          nodes: [
+            {
+              id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+              totalQuantity: 3,
+              remainingQuantity: 3,
+            },
+          ],
+        },
+      },
+      {
+        id: splitOffFulfillmentOrderId,
+        fulfillBy: fulfillmentDeadline,
+        lineItems: {
+          nodes: [
+            {
+              id: expect.stringMatching(/^gid:\/\/shopify\/FulfillmentOrderLineItem\//u),
+              totalQuantity: 0,
+              remainingQuantity: 0,
+            },
+          ],
+        },
+      },
+    ]);
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(
+      logResponse.body.entries.map((entry: { operationName: string; status: string }) => [
+        entry.operationName,
+        entry.status,
+      ]),
+    ).toEqual([
+      ['fulfillmentOrderSplit', 'staged'],
+      ['fulfillmentOrdersSetFulfillmentDeadline', 'staged'],
+      ['fulfillmentOrderMerge', 'staged'],
+    ]);
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.orders[order.id].fulfillmentOrders).toEqual([
+      expect.objectContaining({
+        id: fulfillmentOrder.id,
+        fulfillBy: fulfillmentDeadline,
+        lineItems: [
+          expect.objectContaining({
+            id: 'gid://shopify/FulfillmentOrderLineItem/residual',
+            totalQuantity: 3,
+            remainingQuantity: 3,
+          }),
+        ],
+      }),
+      expect.objectContaining({
+        id: splitOffFulfillmentOrderId,
+        fulfillBy: fulfillmentDeadline,
+        status: 'CLOSED',
+        lineItems: [
+          expect.objectContaining({
+            totalQuantity: 0,
+            remainingQuantity: 0,
+          }),
+        ],
+      }),
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('mirrors residual fulfillment-order invalid-id errors locally without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid residual fulfillment-order branches must not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidResidual(
+          $splits: [FulfillmentOrderSplitInput!]!
+          $merges: [FulfillmentOrderMergeInput!]!
+          $ids: [ID!]!
+          $deadline: DateTime!
+        ) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits { fulfillmentOrder { id } remainingFulfillmentOrder { id } }
+            userErrors { field message code }
+          }
+          fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $merges) {
+            fulfillmentOrderMerges { fulfillmentOrder { id } }
+            userErrors { field message code }
+          }
+          fulfillmentOrdersSetFulfillmentDeadline(fulfillmentOrderIds: $ids, fulfillmentDeadline: $deadline) {
+            success
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          splits: [
+            {
+              fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/0',
+              fulfillmentOrderLineItems: [{ id: 'gid://shopify/FulfillmentOrderLineItem/0', quantity: 1 }],
+            },
+          ],
+          merges: [{ mergeIntents: [{ fulfillmentOrderId: 'gid://shopify/FulfillmentOrder/0' }] }],
+          ids: ['gid://shopify/FulfillmentOrder/0'],
+          deadline: '2026-05-02T02:16:59Z',
+        },
+      });
+
+    expect(response.body.data).toEqual({
+      fulfillmentOrderSplit: null,
+      fulfillmentOrderMerge: null,
+      fulfillmentOrdersSetFulfillmentDeadline: null,
+    });
+    expect(response.body.errors).toEqual([
+      expect.objectContaining({
+        message: 'invalid id',
+        extensions: { code: 'RESOURCE_NOT_FOUND' },
+        path: ['fulfillmentOrderSplit'],
+      }),
+      expect.objectContaining({
+        message: 'invalid id',
+        extensions: { code: 'RESOURCE_NOT_FOUND' },
+        path: ['fulfillmentOrderMerge'],
+      }),
+      expect.objectContaining({
+        message: 'invalid id',
+        extensions: { code: 'RESOURCE_NOT_FOUND' },
+        path: ['fulfillmentOrdersSetFulfillmentDeadline'],
+      }),
+    ]);
+    const logResponse = await request(app).get('/__meta/log');
+    expect(
+      logResponse.body.entries.map((entry: { operationName: string; status: string }) => [
+        entry.operationName,
+        entry.status,
+      ]),
+    ).toEqual([['fulfillmentOrderSplit', 'staged']]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors the captured fulfillmentTrackingInfoUpdate missing-fulfillmentId variable error in snapshot mode without hitting upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error(
