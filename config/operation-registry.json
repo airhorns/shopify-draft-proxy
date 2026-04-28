@@ -94,7 +94,7 @@
     "implemented": true,
     "matchNames": ["productOperation", "ProductOperation"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false); unknown operation IDs return null."
+    "supportNotes": "Resolves locally staged ProductSetOperation records created by asynchronous productSet(synchronous: false) and ProductDuplicateOperation records created by asynchronous productDuplicate(synchronous: false); unknown operation IDs return null."
   },
   {
     "name": "productDuplicateJob",
@@ -104,7 +104,7 @@
     "implemented": true,
     "matchNames": ["productDuplicateJob", "ProductDuplicateJob"],
     "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. productDuplicate itself remains locally synchronous and does not create a long-running job."
+    "supportNotes": "Models Shopify's observed unknown ProductDuplicateJob shape as done: true with the requested id. Async productDuplicate status is exposed through productOperation(id:) as a ProductDuplicateOperation, matching current Admin API helper behavior."
   },
   {
     "name": "productResourceFeedback",
@@ -1753,7 +1753,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productDuplicate", "ProductDuplicate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Stages synchronous duplicate payloads and asynchronous productDuplicate(synchronous: false) ProductDuplicateOperation records locally without runtime Shopify writes; async operation completion is observable through productOperation(id:)."
   },
   {
     "name": "productSet",

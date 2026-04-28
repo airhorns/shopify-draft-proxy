@@ -2944,3 +2944,19 @@ Practical rule:
 - keep native activity staging separate from external activity staging; native creates should not invent nested `MarketingEvent` records without new evidence
 - current local success behavior is runtime-test-backed draft-proxy support for staged app-extension activity records, not a live Shopify success capture
 - if the conformance app later installs a deprecated marketing activity extension, re-capture native create/update success before broadening input/payload claims
+
+## 75. Async `productDuplicate` reports resolver errors through the completed operation
+
+HAR-407 captured `productDuplicate(synchronous: false)` on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- the mutation payload returns `newProduct: null` and `productDuplicateOperation.status: CREATED` for both a valid source product and a missing product ID
+- successful completion is observed through `productOperation(id:)`, which returns a `ProductDuplicateOperation` with `status: COMPLETE`, the source `product`, and the duplicated `newProduct`
+- the missing-product branch does not return mutation-level `userErrors`; the completed operation carries `userErrors[{ field: ["productId"], message: "Product does not exist" }]`, with both `product` and `newProduct` null
+- querying `productDuplicateJob(id:)` with a `ProductDuplicateOperation` GID returns a top-level `invalid id` error, so the async duplicate status helper is `productOperation(id:)`, not `productDuplicateJob(id:)`
+
+Practical rule:
+
+- model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
+- keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations

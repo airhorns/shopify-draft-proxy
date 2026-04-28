@@ -359,8 +359,9 @@ export type ProductOperationUserErrorRecord = z.infer<typeof productOperationUse
 
 export const productOperationRecordSchema = z.strictObject({
   id: z.string(),
-  typeName: z.enum(['ProductSetOperation', 'ProductBundleOperation']),
+  typeName: z.enum(['ProductDuplicateOperation', 'ProductSetOperation', 'ProductBundleOperation']),
   productId: nullableStringSchema,
+  newProductId: nullableStringSchema.optional(),
   status: z.string(),
   userErrors: z.array(productOperationUserErrorRecordSchema).default([]),
 });

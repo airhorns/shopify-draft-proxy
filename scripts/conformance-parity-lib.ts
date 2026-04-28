@@ -7640,16 +7640,32 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const isProductDeleteValidationProbe =
     mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
   const productUserErrors = readArrayField(payload, 'userErrors').filter(isPlainObject);
+  const duplicateOperationPayload = readRecordField(payload, 'productDuplicateOperation');
+  const duplicateOperationReadPayload = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'operationRead'), 'response'),
+    'data',
+  );
+  const duplicateOperationUserErrors = readArrayField(
+    readRecordField(duplicateOperationReadPayload, 'productOperation'),
+    'userErrors',
+  ).filter(isPlainObject);
   const isMissingProductValidationProbe =
-    (mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
-    productPayload === null &&
-    productUserErrors.some((userError) => {
-      const fieldPath = readArrayField(userError, 'field');
-      return (
-        (fieldPath.includes('id') || fieldPath.includes('productId')) &&
-        readStringField(userError, 'message') === 'Product does not exist'
-      );
-    });
+    ((mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
+      productPayload === null &&
+      productUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return (
+          (fieldPath.includes('id') || fieldPath.includes('productId')) &&
+          readStringField(userError, 'message') === 'Product does not exist'
+        );
+      })) ||
+    (mutationName === 'productDuplicate' &&
+      readRecordField(duplicateOperationPayload, 'product') === null &&
+      readRecordField(duplicateOperationPayload, 'newProduct') === null &&
+      duplicateOperationUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return fieldPath.includes('productId') && readStringField(userError, 'message') === 'Product does not exist';
+      }));
 
   const shouldSeedProduct =
     productId !== null &&
