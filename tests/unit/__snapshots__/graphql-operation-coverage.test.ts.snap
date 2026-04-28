@@ -138,7 +138,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "webPixelCreate",
     "webPixelDelete",
     "webPixelUpdate",
-    "webPresenceDelete",
   ],
   "unregistered": [
     "backupRegionUpdate",
@@ -364,6 +363,5 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "webPixelCreate",
   "webPixelDelete",
   "webPixelUpdate",
-  "webPresenceDelete",
 ]
 `;
