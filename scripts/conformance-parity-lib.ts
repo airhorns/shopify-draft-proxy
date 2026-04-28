@@ -2340,6 +2340,7 @@ function seedShopifyFunctionPreconditions(capture: unknown): boolean {
       if (!id) {
         return null;
       }
+      const app = readRecordField(node, 'app');
 
       return {
         id,
@@ -2348,6 +2349,7 @@ function seedShopifyFunctionPreconditions(capture: unknown): boolean {
         apiType: readNullableStringField(node, 'apiType'),
         description: readNullableStringField(node, 'description') ?? undefined,
         appKey: readNullableStringField(node, 'appKey') ?? undefined,
+        ...(app ? { app: app as ShopifyFunctionRecord['app'] } : {}),
       };
     })
     .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);

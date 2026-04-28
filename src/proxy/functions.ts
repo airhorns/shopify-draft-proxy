@@ -13,6 +13,7 @@ import {
   getFieldResponseKey,
   getSelectedChildFields,
   paginateConnectionItems,
+  projectGraphqlValue,
   serializeConnection,
 } from './graphql-helpers.js';
 
@@ -73,19 +74,54 @@ function titleFromHandle(handle: string): string {
     .join(' ');
 }
 
+function findExistingShopifyFunction(input: {
+  functionId: string | null;
+  functionHandle: string | null;
+}): ShopifyFunctionRecord | null {
+  if (input.functionId) {
+    return store.getEffectiveShopifyFunctionById(input.functionId);
+  }
+
+  if (!input.functionHandle) {
+    return null;
+  }
+
+  const functionHandle = input.functionHandle;
+  const normalizedHandle = normalizeFunctionHandle(functionHandle);
+  const handleBasedId = shopifyFunctionIdFromHandle(functionHandle);
+  return (
+    store
+      .listEffectiveShopifyFunctions()
+      .find(
+        (candidate) =>
+          candidate.handle === functionHandle ||
+          candidate.handle === normalizedHandle ||
+          candidate.id === handleBasedId,
+      ) ?? null
+  );
+}
+
 function ensureShopifyFunction(input: {
   functionId: string | null;
   functionHandle: string | null;
   apiType: string;
   fallbackTitle: string;
 }): ShopifyFunctionRecord {
-  const id = input.functionId ?? (input.functionHandle ? shopifyFunctionIdFromHandle(input.functionHandle) : null);
-  const title = input.functionHandle ? titleFromHandle(input.functionHandle) : input.fallbackTitle;
+  const existing = findExistingShopifyFunction(input);
+  const id =
+    existing?.id ??
+    input.functionId ??
+    (input.functionHandle ? shopifyFunctionIdFromHandle(input.functionHandle) : null);
+  const handle = input.functionHandle ?? existing?.handle ?? null;
+  const title = existing?.title ?? (handle ? titleFromHandle(handle) : input.fallbackTitle);
   const shopifyFunction: ShopifyFunctionRecord = {
     id: id ?? makeSyntheticGid('ShopifyFunction'),
     title,
-    handle: input.functionHandle,
+    handle,
     apiType: input.apiType,
+    ...(existing?.description !== undefined ? { description: existing.description } : {}),
+    ...(existing?.appKey !== undefined ? { appKey: existing.appKey } : {}),
+    ...(existing?.app !== undefined ? { app: existing.app } : {}),
   };
   store.upsertStagedShopifyFunction(shopifyFunction);
   return shopifyFunction;
@@ -142,7 +178,9 @@ function serializeShopifyFunction(shopifyFunction: ShopifyFunctionRecord, field:
         result[key] = shopifyFunction.appKey ?? null;
         break;
       case 'app':
-        result[key] = null;
+        result[key] = shopifyFunction.app
+          ? projectGraphqlValue(shopifyFunction.app, selection.selectionSet?.selections ?? [], new Map())
+          : null;
         break;
       default:
         result[key] = null;
@@ -452,7 +490,7 @@ function createValidation(field: FieldNode, variables: Record<string, unknown>):
     enable: readBoolean(input['enable']) ?? readBoolean(input['enabled']) ?? true,
     blockOnFailure: readBoolean(input['blockOnFailure']) ?? false,
     functionId,
-    ...(functionHandle ? { functionHandle } : {}),
+    functionHandle: functionHandle ?? shopifyFunction.handle ?? undefined,
     shopifyFunctionId: shopifyFunction.id,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -488,8 +526,9 @@ function updateValidation(field: FieldNode, variables: Record<string, unknown>):
     title: readString(input['title']) ?? current.title,
     enable: readBoolean(input['enable']) ?? readBoolean(input['enabled']) ?? current.enable,
     blockOnFailure: readBoolean(input['blockOnFailure']) ?? current.blockOnFailure,
-    functionId: functionId ?? current.functionId,
-    ...(functionHandle !== null ? { functionHandle } : {}),
+    functionId: functionId ?? (functionHandle !== null ? null : current.functionId),
+    functionHandle:
+      functionHandle ?? (functionId !== null ? (shopifyFunction?.handle ?? undefined) : current.functionHandle),
     shopifyFunctionId: shopifyFunction?.id ?? current.shopifyFunctionId,
     updatedAt: makeSyntheticTimestamp(),
   };
@@ -531,7 +570,7 @@ function createCartTransform(field: FieldNode, variables: Record<string, unknown
     title: readString(input['title']) ?? shopifyFunction.title,
     blockOnFailure: readBoolean(input['blockOnFailure']) ?? false,
     functionId,
-    ...(functionHandle ? { functionHandle } : {}),
+    functionHandle: functionHandle ?? shopifyFunction.handle ?? undefined,
     shopifyFunctionId: shopifyFunction.id,
     createdAt: timestamp,
     updatedAt: timestamp,
