@@ -6,6 +6,7 @@ import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-ide
 import { store } from '../state/store.js';
 import type { BackupRegionRecord, ShopDomainRecord } from '../state/types.js';
 import { serializeConnection } from './graphql-helpers.js';
+import { serializeProductBulkSelection } from './products.js';
 
 interface GraphQLResponseError {
   message: string;
@@ -160,7 +161,7 @@ function serializeJob(field: FieldNode, variables: Record<string, unknown>): Rec
   const result: Record<string, unknown> = {};
   for (const selection of field.selectionSet?.selections ?? []) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      if (!selection.typeCondition?.name.value || selection.typeCondition.name.value === 'Job') {
+      if (typeConditionApplies(selection.typeCondition?.name.value, 'Job')) {
         Object.assign(result, serializeJobSelection(id, selection.selectionSet.selections));
       }
       continue;
@@ -209,7 +210,7 @@ function serializeDomain(domain: ShopDomainRecord, selections: readonly Selectio
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
-      if (!selection.typeCondition?.name.value || selection.typeCondition.name.value === 'Domain') {
+      if (typeConditionApplies(selection.typeCondition?.name.value, 'Domain')) {
         Object.assign(result, serializeDomain(domain, selection.selectionSet.selections));
       }
       continue;
@@ -246,9 +247,14 @@ function serializeDomain(domain: ShopDomainRecord, selections: readonly Selectio
   return result;
 }
 
-function serializeDomainRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+function readIdArgument(field: FieldNode, variables: Record<string, unknown>): string | null {
   const args = getFieldArguments(field, variables);
-  const id = typeof args['id'] === 'string' && args['id'].length > 0 ? args['id'] : null;
+  const id = args['id'];
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+function serializeDomainRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+  const id = readIdArgument(field, variables);
   const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
   if (!id || !primaryDomain || primaryDomain.id !== id) {
     return null;
@@ -296,6 +302,33 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
   }
 
   return result;
+}
+
+function serializeLocalNodeById(
+  id: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (id.startsWith('gid://shopify/Product/')) {
+    const product = store.getEffectiveProductById(id);
+    return product ? serializeProductBulkSelection(product, selections, variables) : null;
+  }
+
+  if (id.startsWith('gid://shopify/Domain/')) {
+    const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+    return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
+  }
+
+  return null;
+}
+
+function serializeNode(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+  const id = readIdArgument(field, variables);
+  if (!id) {
+    return null;
+  }
+
+  return serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables);
 }
 
 function fieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
@@ -511,10 +544,12 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'node':
-        data[key] = null;
+        data[key] = serializeNode(field, variables);
         break;
       case 'nodes':
-        data[key] = readIdListArgument(field, variables).map(() => null);
+        data[key] = readIdListArgument(field, variables).map((id) =>
+          serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables),
+        );
         break;
       case 'job':
         data[key] = serializeJob(field, variables);
