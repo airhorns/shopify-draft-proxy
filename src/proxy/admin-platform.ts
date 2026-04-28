@@ -451,6 +451,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'DiscountAutomaticNode',
     handler: handleDiscountQuery,
   },
+  DiscountNode: { rootField: 'discountNode', typename: 'DiscountNode', handler: handleDiscountQuery },
 
   MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
   MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
@@ -515,6 +516,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
       serializeSavedSearchNodeById(id, syntheticNodeField(selectedFields), fragments),
   },
 };
+const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 
 function syntheticNodeField(selectedFields: readonly FieldNode[]): FieldNode {
   return {
@@ -591,6 +593,31 @@ function collectApplicableNodeFields(
   });
 }
 
+function hasExplicitNodeTypeSelection(
+  selections: readonly SelectionNode[],
+  typeName: string,
+  fragments: FragmentMap,
+): boolean {
+  return selections.some((selection) => {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return (
+        selection.typeCondition?.name.value === typeName ||
+        hasExplicitNodeTypeSelection(selection.selectionSet.selections, typeName, fragments)
+      );
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      return (
+        fragment?.typeCondition.name.value === typeName ||
+        (fragment ? hasExplicitNodeTypeSelection(fragment.selectionSet.selections, typeName, fragments) : false)
+      );
+    }
+
+    return false;
+  });
+}
+
 function applySelectedTypename(
   payload: Record<string, unknown>,
   fields: readonly FieldNode[],
@@ -604,23 +631,13 @@ function applySelectedTypename(
   return payload;
 }
 
-function serializeLocalNodeById(
+function serializeLocalNodeWithResolver(
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
   fragments: FragmentMap,
+  resolver: AdminPlatformNodeResolver,
 ): Record<string, unknown> | null {
-  if (id.startsWith('gid://shopify/Domain/')) {
-    const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
-    return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
-  }
-
-  const gidType = readShopifyGidType(id);
-  const resolver = gidType ? LOCAL_NODE_RESOLVERS[gidType] : undefined;
-  if (!resolver) {
-    return null;
-  }
-
   const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
   if (selectedFields.length === 0) {
     return {};
@@ -640,6 +657,35 @@ function serializeLocalNodeById(
       ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
       : null;
   return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
+}
+
+function serializeLocalNodeById(
+  id: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> | null {
+  if (id.startsWith('gid://shopify/Domain/')) {
+    const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+    return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
+  }
+
+  const gidType = readShopifyGidType(id);
+  const resolver = gidType ? LOCAL_NODE_RESOLVERS[gidType] : undefined;
+  if (!resolver) {
+    return null;
+  }
+
+  if (
+    (gidType === 'DiscountCodeNode' || gidType === 'DiscountAutomaticNode') &&
+    hasExplicitNodeTypeSelection(selections, 'DiscountNode', fragments)
+  ) {
+    return DISCOUNT_NODE_RESOLVER
+      ? serializeLocalNodeWithResolver(id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
+      : null;
+  }
+
+  return serializeLocalNodeWithResolver(id, selections, variables, fragments, resolver);
 }
 
 function serializeNode(
