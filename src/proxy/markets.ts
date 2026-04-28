@@ -2012,6 +2012,27 @@ function syncMarketWebPresenceNodes(webPresence: WebPresenceRecord): void {
   }
 }
 
+function removeWebPresenceFromMarkets(webPresenceId: string): void {
+  for (const market of store.listEffectiveMarkets()) {
+    const edges = readConnectionEdges(market.data['webPresences']);
+    const nextEdges = edges.filter(
+      (edge) => !(isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === webPresenceId),
+    );
+
+    if (nextEdges.length === edges.length) {
+      continue;
+    }
+
+    store.stageUpdateMarket({
+      ...market,
+      data: {
+        ...structuredClone(market.data),
+        webPresences: connectionFromEdges(nextEdges) as JsonValue,
+      },
+    });
+  }
+}
+
 function normalizeLocale(rawLocale: unknown): string | null {
   if (typeof rawLocale !== 'string') {
     return null;
@@ -2090,9 +2111,14 @@ function normalizeSubfolderSuffix(rawSuffix: unknown, errors: MarketUserError[])
   }
 
   const suffix = rawSuffix.trim().toLowerCase();
-  const isAscii = [...suffix].every((character) => character.charCodeAt(0) <= 0x7f);
-  if (!isAscii || !/^[a-z0-9][a-z0-9-]*$/u.test(suffix)) {
-    errors.push(marketError(['input', 'subfolderSuffix'], 'Subfolder suffix is invalid', 'INVALID'));
+  if (!/^[a-z]+$/u.test(suffix)) {
+    errors.push(
+      marketError(
+        ['input', 'subfolderSuffix'],
+        'Subfolder suffix must contain only letters',
+        'SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS',
+      ),
+    );
     return suffix;
   }
 
@@ -4073,6 +4099,36 @@ function handleWebPresenceUpdate(
   );
 }
 
+function handleWebPresenceDelete(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const errors: MarketUserError[] = [];
+  const existingWebPresence = id ? store.getEffectiveWebPresenceRecordById(id) : null;
+
+  if (!id || !existingWebPresence) {
+    errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
+  }
+
+  if (errors.length === 0 && id) {
+    store.stageDeleteWebPresence(id);
+    removeWebPresenceFromMarkets(id);
+  }
+
+  return projectMutationPayload(
+    {
+      deletedId: errors.length === 0 ? id : null,
+      userErrors: errors,
+    },
+    field,
+    fragments,
+    variables,
+  );
+}
+
 function validateMarketLocalizationResource(resourceId: unknown): {
   resource: MarketLocalizableResourceRecord | null;
   errors: MarketUserError[];
@@ -4464,6 +4520,10 @@ function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[]
       continue;
     }
 
+    if (store.isWebPresenceDeleted(edge.node['id'])) {
+      continue;
+    }
+
     const effectiveWebPresence = store.getEffectiveWebPresenceRecordById(edge.node['id']);
     webPresencesById.set(
       edge.node['id'],
@@ -4757,6 +4817,9 @@ export function handleMarketMutation(document: string, variables: Record<string,
         break;
       case 'webPresenceUpdate':
         data[key] = handleWebPresenceUpdate(field, variables, fragments);
+        break;
+      case 'webPresenceDelete':
+        data[key] = handleWebPresenceDelete(field, variables, fragments);
         break;
       case 'marketLocalizationsRegister':
         data[key] = handleMarketLocalizationsRegister(field, variables, fragments);
