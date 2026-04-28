@@ -31,10 +31,6 @@ export interface DraftProxyOptions {
   syntheticIdentity?: SyntheticIdentityRegistry;
 }
 
-export interface DraftProxyHealth {
-  message: string;
-}
-
 export interface DraftProxyConfigSnapshot {
   runtime: {
     readMode: AppConfig['readMode'];
@@ -197,7 +193,13 @@ export class DraftProxy {
       {
         methods: ['GET'],
         match: exactPath('/__meta/health'),
-        handle: () => ({ status: 200, body: { ok: true, ...this.health() } }),
+        handle: () => ({
+          status: 200,
+          body: {
+            ok: true,
+            message: 'shopify-draft-proxy is running',
+          },
+        }),
       },
       {
         methods: ['GET'],
@@ -367,13 +369,6 @@ export class DraftProxy {
     );
   }
 
-  /** Returns liveness metadata for embedded health checks. */
-  health(): DraftProxyHealth {
-    return {
-      message: 'shopify-draft-proxy is running',
-    };
-  }
-
   /** Returns the sanitized runtime configuration exposed by `GET /__meta/config`. */
   getConfig(): DraftProxyConfigSnapshot {
     return {
@@ -406,11 +401,6 @@ export class DraftProxy {
     this.runtimeStore.resetRuntimeState(this.syntheticIdentity);
   }
 
-  /** Alias for `reset()` for callers that prefer cache-style terminology. */
-  clear(): void {
-    this.reset();
-  }
-
   /** Replays staged raw mutations to upstream Shopify in original order. */
   async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
     const result = await commitMetaState(
@@ -430,11 +420,6 @@ export class DraftProxy {
       stopIndex: null,
       attempts: result.attempts,
     };
-  }
-
-  /** Alias for `commit()` for callers that treat staged mutations as a flush queue. */
-  flush(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
-    return this.commit(headers);
   }
 }
 

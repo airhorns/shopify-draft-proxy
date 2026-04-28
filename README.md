@@ -117,14 +117,14 @@ adapter.
 - `processGraphQLRequest(body, { apiVersion, path, headers })`: convenience
   wrapper for a versioned Admin GraphQL `POST`; returns the same HTTP-shaped
   result as `processRequest`.
-- `health()`, `getConfig()`, `getLog()`, and `getState()`: meta API equivalents
-  for inspection.
-- `reset()` / `clear()`: discard staged state, logs, and generated IDs while
-  restoring the startup snapshot baseline. These methods return `void`; the
+- `getConfig()`, `getLog()`, and `getState()`: meta API equivalents for
+  inspection.
+- `reset()`: discard staged state, logs, and generated IDs while restoring the
+  startup snapshot baseline. This method returns `void`; the
   HTTP meta reset route converts success into `{ ok: true, message: ... }`.
-- `commit(headers)` / `flush(headers)`: replay pending staged mutations to
-  Shopify in original order using the supplied auth/request headers. These
-  methods return a commit report when all replay attempts succeed and throw
+- `commit(headers)`: replay pending staged mutations to Shopify in original
+  order using the supplied auth/request headers. This method returns a commit
+  report when all replay attempts succeed and throws
   `DraftProxyCommitError` with the partial report when replay stops on a
   failure; the HTTP meta commit route converts that into its legacy `{ ok,
 stopIndex, attempts }` response body.

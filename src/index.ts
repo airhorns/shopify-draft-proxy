@@ -8,7 +8,6 @@ export {
   type DraftProxyConfigSnapshot,
   type DraftProxyGraphQLRequestOptions,
   type DraftProxyHeaderValue,
-  type DraftProxyHealth,
   type DraftProxyHttpResponse,
   type DraftProxyLogSnapshot,
   type DraftProxyOptions,

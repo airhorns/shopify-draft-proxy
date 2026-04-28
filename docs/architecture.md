@@ -68,8 +68,7 @@ Koa server -> DraftProxy instance
 - owns the runtime `AppConfig`, in-memory store, and synthetic ID/timestamp
   registry for that instance
 - exposes request-form processing for versioned Shopify Admin GraphQL routes
-  plus public meta-equivalent methods for health, config, log, state, reset,
-  and commit/flush
+  plus public meta-equivalent methods for config, log, state, reset, and commit
 - provides the public object used by the Koa webservice adapter
 
 ### `src/logger.ts`
@@ -165,7 +164,7 @@ Current implementation note:
 - Each `createDraftProxy(config)` call creates an isolated in-memory runtime
   store, mutation log, and synthetic identity registry. Embedded callers should
   treat the returned `DraftProxy` object as the owner of runtime APIs such as
-  request processing, state/log inspection, reset/clear, and commit/flush.
+  request processing, state/log inspection, reset, and commit.
 - The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
   is called, unless the caller explicitly provides one to mount. The server does
   not use a process-wide runtime store or proxy singleton.

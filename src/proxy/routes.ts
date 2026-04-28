@@ -543,6 +543,7 @@ interface ProxyDispatchRequest {
   syntheticIdentity: SyntheticIdentityRegistry;
   upstream: UpstreamGraphQLClient;
   proxyLogger: ProxyLogger;
+  recordStagedMutation(options: StagedMutationLogOptions): void;
 }
 
 interface DomainDispatcher {
@@ -685,26 +686,6 @@ function setGraphQLResponse(request: ProxyDispatchRequest, status: number, respo
   request.ctx.body = responseBody;
 }
 
-function appendStagedMutationLog(request: ProxyDispatchRequest, options: StagedMutationLogOptions): void {
-  request.runtimeStore.recordMutationLogEntry({
-    id: options.id ?? request.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
-    receivedAt: options.receivedAt ?? request.syntheticIdentity.makeSyntheticTimestamp(),
-    operationName: options.operationName ?? request.capability.operationName,
-    path: request.ctx.path,
-    query: request.body.query,
-    variables: request.variables,
-    requestBody: request.requestBody,
-    ...(options.stagedResourceIds !== undefined
-      ? { stagedResourceIds: options.stagedResourceIds }
-      : options.responseBody !== undefined
-        ? { stagedResourceIds: collectProxySyntheticGids(options.responseBody) }
-        : {}),
-    status: options.status ?? 'staged',
-    interpreted: options.interpreted ?? interpretMutationLogEntry(request.parsed, request.capability),
-    ...(options.notes ? { notes: options.notes } : {}),
-  });
-}
-
 function appendBulkOperationImportLog(request: ProxyDispatchRequest, entry: BulkOperationImportLogEntry): void {
   request.runtimeStore.recordMutationLogEntry({
     id: request.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
@@ -791,7 +772,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (discountMutation.staged) {
         const discountLogMetadata = buildLocalDiscountMutationLogMetadata(request.parsed, request.capability);
-        appendStagedMutationLog(request, {
+        request.recordStagedMutation({
           operationName: discountLogMetadata.operationName,
           interpreted: discountLogMetadata.interpreted,
           stagedResourceIds: discountMutation.stagedResourceIds,
@@ -843,14 +824,14 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (request.primaryRootField === 'bulkOperationRunMutation') {
         if ((bulkOperationMutation.innerMutationLogs ?? []).length === 0) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             stagedResourceIds: bulkOperationMutation.stagedResourceIds,
             status: 'failed',
             notes: bulkOperationMutation.notes,
           });
         }
       } else {
-        appendStagedMutationLog(request, {
+        request.recordStagedMutation({
           stagedResourceIds: bulkOperationMutation.stagedResourceIds,
           notes: bulkOperationMutation.notes,
         });
@@ -929,7 +910,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (inventoryShipmentMutation.staged) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
             notes: inventoryShipmentMutation.notes,
           });
@@ -952,7 +933,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
       const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
       const responseBody = handleProductMutation(request.body.query, request.variables, request.config.readMode);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         id: logEntryId,
         receivedAt,
         responseBody,
@@ -980,7 +961,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           return false;
         }
 
-        appendStagedMutationLog(request, {
+        request.recordStagedMutation({
           operationName: request.primaryRootField,
           responseBody,
           notes:
@@ -1019,7 +1000,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
         const responseBody = handleStorePropertiesMutation(request.body.query, request.variables);
         if (!isShippingSettingsMutation || !hasLocalMutationErrors(responseBody)) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             responseBody,
             notes: isShippingSettingsMutation
               ? 'Staged locally in the in-memory shipping settings draft store; no Shopify delivery settings or package configuration are mutated at runtime.'
@@ -1053,7 +1034,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (deliveryProfileMutation.staged) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
             notes: deliveryProfileMutation.notes,
           });
@@ -1189,7 +1170,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
       const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
       const responseBody = handleCustomerMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         id: logEntryId,
         receivedAt,
         responseBody,
@@ -1210,7 +1191,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         notes: 'Staged locally in the in-memory media draft store.',
       });
       setGraphQLResponse(request, 200, handleMediaMutation(request.body.query, request.variables));
@@ -1257,7 +1238,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleMetafieldDefinitionMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes: 'Staged locally in the in-memory metafield definition draft store.',
       });
@@ -1304,7 +1285,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleMetaobjectDefinitionMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes: 'Staged locally in the in-memory metaobject definition/entry draft store.',
       });
@@ -1423,7 +1404,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
         const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1449,7 +1430,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         ) ?? { data: {} };
 
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1483,7 +1464,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
         const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1516,7 +1497,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          appendStagedMutationLog(request, {
+          request.recordStagedMutation({
             operationName: request.primaryRootField,
             responseBody,
             notes:
@@ -1535,7 +1516,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handlePaymentMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes:
           'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
@@ -1619,7 +1600,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleLocalizationMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes: 'Staged locally in the in-memory localization draft store.',
       });
@@ -1661,7 +1642,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleMarketMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes: 'Staged locally in the in-memory Markets draft store.',
       });
@@ -1716,7 +1697,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleSegmentMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes: 'Staged locally in the in-memory segment draft store.',
       });
@@ -1767,7 +1748,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         stagedResourceIds: savedSearchMutation.stagedResourceIds,
         notes:
           'Staged locally in the in-memory saved-search draft store; URL redirect saved-search branches remain blocked until online-store navigation conformance is captured.',
@@ -1819,7 +1800,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (marketingMutation.shouldLog) {
-        appendStagedMutationLog(request, {
+        request.recordStagedMutation({
           stagedResourceIds: marketingMutation.stagedResourceIds,
           notes: marketingMutation.notes,
         });
@@ -1873,7 +1854,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (webhookSubscriptionMutation.staged) {
-        appendStagedMutationLog(request, {
+        request.recordStagedMutation({
           stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
           notes: webhookSubscriptionMutation.notes,
         });
@@ -1918,7 +1899,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleFunctionMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes:
           request.primaryRootField === 'taxAppConfigure'
@@ -1962,7 +1943,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       const responseBody = handleGiftCardMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes:
           request.primaryRootField === 'giftCardSendNotificationToCustomer' ||
@@ -2015,7 +1996,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         stagedResourceIds: onlineStoreMutation.stagedResourceIds,
         notes: 'Staged locally in the in-memory online-store content draft store.',
       });
@@ -2081,7 +2062,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       );
 
       const responseBody = handleStorePropertiesMutation(request.body.query, request.variables);
-      appendStagedMutationLog(request, {
+      request.recordStagedMutation({
         responseBody,
         notes:
           request.primaryRootField === 'shopPolicyUpdate'
@@ -2193,14 +2174,15 @@ async function processProxyGraphQLRequestWithRuntime(
     };
   }
 
+  const query = body.query;
   const variables = readVariables(body.variables);
   const requestBody = readOriginalRequestBody(body);
-  const parsed = parseOperation(body.query);
+  const parsed = parseOperation(query);
   const capability = getOperationCapability(parsed);
   const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
   const dispatchRequest: ProxyDispatchRequest = {
     ctx,
-    body: { query: body.query },
+    body: { query },
     variables,
     requestBody,
     parsed,
@@ -2211,6 +2193,25 @@ async function processProxyGraphQLRequestWithRuntime(
     syntheticIdentity: runtime.syntheticIdentity,
     upstream,
     proxyLogger,
+    recordStagedMutation(options: StagedMutationLogOptions): void {
+      runtime.store.recordMutationLogEntry({
+        id: options.id ?? runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+        receivedAt: options.receivedAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
+        operationName: options.operationName ?? capability.operationName,
+        path: ctx.path,
+        query,
+        variables,
+        requestBody,
+        ...(options.stagedResourceIds !== undefined
+          ? { stagedResourceIds: options.stagedResourceIds }
+          : options.responseBody !== undefined
+            ? { stagedResourceIds: collectProxySyntheticGids(options.responseBody) }
+            : {}),
+        status: options.status ?? 'staged',
+        interpreted: options.interpreted ?? interpretMutationLogEntry(parsed, capability),
+        ...(options.notes ? { notes: options.notes } : {}),
+      });
+    },
   };
 
   for (const dispatcher of DOMAIN_DISPATCHERS) {
