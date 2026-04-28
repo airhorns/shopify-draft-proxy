@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createApp } from '../support/runtime.js';
 import { createApp as createRuntimeApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
-import { createDraftProxy } from '../../src/proxy-instance.js';
+import { createDraftProxy, DRAFT_PROXY_STATE_DUMP_SCHEMA, type DraftProxyStateDump } from '../../src/proxy-instance.js';
 import type { MutationLogEntry } from '../../src/state/types.js';
 
 const config: AppConfig = {
@@ -22,6 +22,11 @@ const productCreateBody = {
       status: 'DRAFT',
     },
   },
+};
+
+const productQuery = {
+  query: 'query ReadProduct($id: ID!) { product(id: $id) { id title } }',
+  operationName: 'ReadProduct',
 };
 
 function productCreateBodyWithTitle(title: string): typeof productCreateBody {
@@ -45,6 +50,17 @@ function readProductCreateId(responseBody: unknown): string {
   }
 
   return id;
+}
+
+function readProductTitle(responseBody: unknown): string {
+  const data = (responseBody as { data?: { product?: { title?: unknown } } }).data;
+  const title = data?.product?.title;
+
+  if (typeof title !== 'string') {
+    throw new Error('Expected product.title in response body');
+  }
+
+  return title;
 }
 
 function comparableLogEntry(entry: MutationLogEntry): Omit<MutationLogEntry, 'id' | 'receivedAt'> {
@@ -186,5 +202,88 @@ describe('draft proxy public instance API', () => {
       throw new Error('Expected both proxy paths to record a mutation log entry');
     }
     expect(comparableLogEntry(directEntry)).toEqual(comparableLogEntry(httpEntry));
+  });
+
+  it('dumps and restores staged proxy state through a JSON-compatible envelope', async () => {
+    const snapshotConfig: AppConfig = {
+      ...config,
+      readMode: 'snapshot',
+    };
+    const proxy = createDraftProxy(snapshotConfig);
+
+    const createResponse = await proxy.processGraphQLRequest(productCreateBodyWithTitle('Restored Library Hat'), {
+      apiVersion: '2025-01',
+    });
+    expect(createResponse.status).toBe(200);
+    const productId = readProductCreateId(createResponse.body);
+
+    const dump = proxy.dumpState();
+    expect(dump).toMatchObject({
+      schema: DRAFT_PROXY_STATE_DUMP_SCHEMA,
+      version: 1,
+      store: { version: 1 },
+      syntheticIdentity: { version: 1 },
+      extensions: {},
+    });
+
+    const jsonRoundTrip = JSON.parse(JSON.stringify(dump)) as DraftProxyStateDump;
+    expect(jsonRoundTrip).toEqual(dump);
+
+    const restoredProxy = createDraftProxy(snapshotConfig, { state: jsonRoundTrip });
+    expect(restoredProxy.getLog()).toEqual(proxy.getLog());
+    expect(restoredProxy.getState().stagedState.products[productId]?.title).toBe('Restored Library Hat');
+
+    const readResponse = await restoredProxy.processGraphQLRequest(
+      {
+        ...productQuery,
+        variables: { id: productId },
+      },
+      { apiVersion: '2025-01' },
+    );
+
+    expect(readResponse.status).toBe(200);
+    expect(readProductTitle(readResponse.body)).toBe('Restored Library Hat');
+
+    const restoredSecondCreate = await restoredProxy.processGraphQLRequest(
+      productCreateBodyWithTitle('Restored Second Hat'),
+      { apiVersion: '2025-01' },
+    );
+    const restoredSecondProductId = readProductCreateId(restoredSecondCreate.body);
+
+    expect(proxy.getState().stagedState.products[restoredSecondProductId]).toBeUndefined();
+
+    const originalSecondCreate = await proxy.processGraphQLRequest(productCreateBodyWithTitle('Original Second Hat'), {
+      apiVersion: '2025-01',
+    });
+    expect(readProductCreateId(originalSecondCreate.body)).toBe(restoredSecondProductId);
+    expect(proxy.getState().stagedState.products[restoredSecondProductId]?.title).toBe('Original Second Hat');
+    expect(restoredProxy.getState().stagedState.products[restoredSecondProductId]?.title).toBe('Restored Second Hat');
+
+    restoredProxy.reset();
+    expect(restoredProxy.getLog().entries).toEqual([]);
+    expect(restoredProxy.getState().stagedState.products).toEqual({});
+  });
+
+  it('restores dumps with extension fields while ignoring unknown top-level metadata', async () => {
+    const snapshotConfig: AppConfig = {
+      ...config,
+      readMode: 'snapshot',
+    };
+    const proxy = createDraftProxy(snapshotConfig);
+    const createResponse = await proxy.processGraphQLRequest(productCreateBodyWithTitle('Forward Compatible Hat'), {
+      apiVersion: '2025-01',
+    });
+    const productId = readProductCreateId(createResponse.body);
+    const dump = JSON.parse(JSON.stringify(proxy.dumpState())) as DraftProxyStateDump & {
+      futureMetadata?: Record<string, unknown>;
+    };
+
+    delete dump.extensions;
+    dump.futureMetadata = { ignored: true };
+
+    const restoredProxy = createDraftProxy(snapshotConfig);
+    restoredProxy.restoreState(dump);
+
+    expect(restoredProxy.getState().stagedState.products[productId]?.title).toBe('Forward Compatible Hat');
   });
 });

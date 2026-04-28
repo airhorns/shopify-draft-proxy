@@ -112,6 +112,40 @@ interface MetaRuntimeState {
   stagedState: MetaStateSnapshot;
 }
 
+export interface InMemoryStoreStateDumpV1 {
+  version: 1;
+  initial: {
+    baseState: StateSnapshot;
+    productSearchConnections: Record<string, ProductCatalogConnectionRecord>;
+    customerCatalogConnection: CustomerCatalogConnectionRecord | null;
+    customerSearchConnections: Record<string, CustomerCatalogConnectionRecord>;
+    orders: Record<string, OrderRecord>;
+    draftOrders: Record<string, DraftOrderRecord>;
+  };
+  runtime: {
+    baseState: StateSnapshot;
+    stagedState: StateSnapshot;
+    mutationLog: MutationLogEntry[];
+    stagedCollectionFamilies: string[];
+    stagedMediaFamilies: string[];
+    laggedTagSearchProductIds: [string, number][];
+    laggedVariantSearchProductIds: string[];
+    productSearchConnections: Record<string, ProductCatalogConnectionRecord>;
+    customerCatalogConnection: CustomerCatalogConnectionRecord | null;
+    customerSearchConnections: Record<string, CustomerCatalogConnectionRecord>;
+    orders: Record<string, OrderRecord>;
+    marketsRootPayloads: Record<string, unknown>;
+    segmentsRootPayloads: Record<string, unknown>;
+    stagedOrders: Record<string, OrderRecord>;
+    deletedOrderIds: string[];
+    calculatedOrders: Record<string, CalculatedOrderRecord>;
+    stagedDraftOrders: Record<string, DraftOrderRecord>;
+    deletedDraftOrderIds: string[];
+    orderMandatePayments: Record<string, OrderMandatePaymentRecord>;
+    stagedUploadContents: [string, string][];
+  };
+}
+
 const EMPTY_SNAPSHOT: StateSnapshot = {
   shop: null,
   products: {},
@@ -762,6 +796,84 @@ export class InMemoryStore {
       ok: true,
       message: 'state reset',
     };
+  }
+
+  dumpRuntimeState(): InMemoryStoreStateDumpV1 {
+    return {
+      version: 1,
+      initial: {
+        baseState: cloneSnapshot(this.initialBaseState),
+        productSearchConnections: structuredClone(this.initialProductSearchConnections),
+        customerCatalogConnection: this.initialCustomerCatalogConnection
+          ? structuredClone(this.initialCustomerCatalogConnection)
+          : null,
+        customerSearchConnections: structuredClone(this.initialCustomerSearchConnections),
+        orders: structuredClone(this.initialBaseOrders),
+        draftOrders: structuredClone(this.initialDraftOrders),
+      },
+      runtime: {
+        baseState: cloneSnapshot(this.baseState),
+        stagedState: cloneSnapshot(this.stagedState),
+        mutationLog: this.getLog(),
+        stagedCollectionFamilies: [...this.stagedCollectionFamilies],
+        stagedMediaFamilies: [...this.stagedMediaFamilies],
+        laggedTagSearchProductIds: [...this.laggedTagSearchProductIds.entries()],
+        laggedVariantSearchProductIds: [...this.laggedVariantSearchProductIds],
+        productSearchConnections: structuredClone(this.baseProductSearchConnections),
+        customerCatalogConnection: this.baseCustomerCatalogConnection
+          ? structuredClone(this.baseCustomerCatalogConnection)
+          : null,
+        customerSearchConnections: structuredClone(this.baseCustomerSearchConnections),
+        orders: structuredClone(this.baseOrders),
+        marketsRootPayloads: structuredClone(this.baseMarketsRootPayloads),
+        segmentsRootPayloads: structuredClone(this.baseSegmentsRootPayloads),
+        stagedOrders: structuredClone(this.stagedOrders),
+        deletedOrderIds: [...this.deletedOrderIds],
+        calculatedOrders: structuredClone(this.calculatedOrders),
+        stagedDraftOrders: structuredClone(this.stagedDraftOrders),
+        deletedDraftOrderIds: [...this.deletedDraftOrderIds],
+        orderMandatePayments: structuredClone(this.orderMandatePayments),
+        stagedUploadContents: [...this.stagedUploadContents.entries()],
+      },
+    };
+  }
+
+  restoreRuntimeState(dump: InMemoryStoreStateDumpV1): void {
+    if (dump.version !== 1) {
+      throw new Error(`Unsupported in-memory store state dump version: ${String(dump.version)}`);
+    }
+
+    this.initialBaseState = cloneSnapshot(dump.initial.baseState);
+    this.initialProductSearchConnections = structuredClone(dump.initial.productSearchConnections);
+    this.initialCustomerCatalogConnection = dump.initial.customerCatalogConnection
+      ? structuredClone(dump.initial.customerCatalogConnection)
+      : null;
+    this.initialCustomerSearchConnections = structuredClone(dump.initial.customerSearchConnections);
+    this.initialBaseOrders = structuredClone(dump.initial.orders);
+    this.initialDraftOrders = structuredClone(dump.initial.draftOrders);
+
+    this.baseState = cloneSnapshot(dump.runtime.baseState);
+    this.stagedState = cloneSnapshot(dump.runtime.stagedState);
+    this.mutationLog = structuredClone(dump.runtime.mutationLog);
+    this.stagedCollectionFamilies = new Set(dump.runtime.stagedCollectionFamilies);
+    this.stagedMediaFamilies = new Set(dump.runtime.stagedMediaFamilies);
+    this.laggedTagSearchProductIds = new Map(dump.runtime.laggedTagSearchProductIds);
+    this.laggedVariantSearchProductIds = new Set(dump.runtime.laggedVariantSearchProductIds);
+    this.baseProductSearchConnections = structuredClone(dump.runtime.productSearchConnections);
+    this.baseCustomerCatalogConnection = dump.runtime.customerCatalogConnection
+      ? structuredClone(dump.runtime.customerCatalogConnection)
+      : null;
+    this.baseCustomerSearchConnections = structuredClone(dump.runtime.customerSearchConnections);
+    this.baseOrders = structuredClone(dump.runtime.orders);
+    this.baseMarketsRootPayloads = structuredClone(dump.runtime.marketsRootPayloads);
+    this.baseSegmentsRootPayloads = structuredClone(dump.runtime.segmentsRootPayloads);
+    this.stagedOrders = structuredClone(dump.runtime.stagedOrders);
+    this.deletedOrderIds = new Set(dump.runtime.deletedOrderIds);
+    this.calculatedOrders = structuredClone(dump.runtime.calculatedOrders);
+    this.stagedDraftOrders = structuredClone(dump.runtime.stagedDraftOrders);
+    this.deletedDraftOrderIds = new Set(dump.runtime.deletedDraftOrderIds);
+    this.orderMandatePayments = structuredClone(dump.runtime.orderMandatePayments);
+    this.stagedUploadContents = new Map(dump.runtime.stagedUploadContents);
   }
 
   private appendLog(entry: MutationLogEntry): void {

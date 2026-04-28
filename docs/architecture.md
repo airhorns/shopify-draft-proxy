@@ -165,6 +165,13 @@ Current implementation note:
   store, mutation log, and synthetic identity registry. Embedded callers should
   treat the returned `DraftProxy` object as the owner of runtime APIs such as
   request processing, state/log inspection, reset, and commit.
+- Embedded callers can persist an instance with `DraftProxy.dumpState()` and
+  rehydrate it with `DraftProxy.restoreState(...)` or
+  `createDraftProxy(config, { state })`. The dump is a plain JSON-compatible,
+  versioned envelope containing the instance-owned store state, mutation log,
+  snapshot/reset baselines, runtime-only caches, and synthetic identity cursor.
+  Unknown envelope metadata is ignored by v1 restore so future dump writers can
+  add extension data without invalidating the current reader.
 - The Koa server creates a fresh `DraftProxy` instance when `createApp(config)`
   is called, unless the caller explicitly provides one to mount. The server does
   not use a process-wide runtime store or proxy singleton.
