@@ -472,4 +472,100 @@ describe('marketing activity external lifecycle flow', () => {
     expect(stateResponse.body.stagedState.marketingActivities).toEqual({});
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('updates an external activity by UTM selector without proxying to Shopify', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('marketing update stays local'));
+    const app = createApp(config).callback();
+    const utm = {
+      campaign: 'har-394-utm-selector',
+      source: 'newsletter',
+      medium: 'email',
+    };
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateMarketing($input: MarketingActivityCreateExternalInput!) {
+          marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title utmParameters { campaign source medium } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            title: 'HAR-394 UTM Selector Campaign',
+            remoteId: 'har-394-utm-selector',
+            status: 'ACTIVE',
+            remoteUrl: 'https://example.com/har-394-utm-selector',
+            tactic: 'NEWSLETTER',
+            marketingChannelType: 'EMAIL',
+            utm,
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const createdActivity = createResponse.body.data.marketingActivityCreateExternal.marketingActivity;
+    expect(createdActivity.utmParameters).toEqual(utm);
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateMarketingByUtm($utm: UTMInput!, $input: MarketingActivityUpdateExternalInput!) {
+          marketingActivityUpdateExternal(utm: $utm, input: $input) {
+            marketingActivity {
+              id
+              title
+              status
+              statusLabel
+              utmParameters { campaign source medium }
+              marketingEvent { id description }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          utm,
+          input: {
+            title: 'HAR-394 UTM Selector Campaign Sent',
+            status: 'INACTIVE',
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.marketingActivityUpdateExternal).toMatchObject({
+      marketingActivity: {
+        id: createdActivity.id,
+        title: 'HAR-394 UTM Selector Campaign Sent',
+        status: 'INACTIVE',
+        statusLabel: 'Sent',
+        utmParameters: utm,
+        marketingEvent: {
+          description: 'HAR-394 UTM Selector Campaign Sent',
+        },
+      },
+      userErrors: [],
+    });
+
+    const downstreamRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadMarketing($id: ID!) {
+          marketingActivity(id: $id) {
+            id
+            title
+            status
+          }
+        }`,
+        variables: { id: createdActivity.id },
+      });
+
+    expect(downstreamRead.body.data.marketingActivity).toEqual({
+      id: createdActivity.id,
+      title: 'HAR-394 UTM Selector Campaign Sent',
+      status: 'INACTIVE',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
