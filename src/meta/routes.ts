@@ -1,13 +1,11 @@
-import Router from '@koa/router';
-import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
-import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
-import { store } from '../state/store.js';
-import { isProxySyntheticGid, resetSyntheticIdentity } from '../state/synthetic-identity.js';
+import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
+import type { InMemoryStore } from '../state/store.js';
+import { isProxySyntheticGid } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
-interface CommitAttempt {
+export interface CommitAttempt {
   logEntryId: string;
   operationName: string | null;
   path: string;
@@ -17,6 +15,12 @@ interface CommitAttempt {
   upstreamBody: unknown;
   upstreamError: { message: string } | null;
   responseBody: unknown;
+}
+
+export interface MetaCommitResponse {
+  ok: boolean;
+  stopIndex: number | null;
+  attempts: CommitAttempt[];
 }
 
 function logEntryRequiresCommit(entry: MutationLogEntry): boolean {
@@ -127,25 +131,6 @@ function recordCommitIdMappings(entry: MutationLogEntry, responseBody: unknown, 
   }
 }
 
-async function readRequestText(ctx: Koa.Context): Promise<string> {
-  const parsedBody = ctx.request.body;
-  if (typeof parsedBody === 'string') {
-    return parsedBody;
-  }
-  if (Buffer.isBuffer(parsedBody)) {
-    return parsedBody.toString('utf8');
-  }
-  if (parsedBody && typeof parsedBody === 'object' && Object.keys(parsedBody).length > 0) {
-    return JSON.stringify(parsedBody);
-  }
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of ctx.req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -195,9 +180,9 @@ function renderMutationLogRows(entries: MutationLogEntry[]): string {
     .join('');
 }
 
-function renderMetaWebUi(config: AppConfig): string {
-  const log = { entries: store.getLog() };
-  const state = store.getState();
+export function renderMetaWebUi(config: AppConfig, runtimeStore: InMemoryStore): string {
+  const log = { entries: runtimeStore.getLog() };
+  const state = runtimeStore.getState();
 
   return `<!doctype html>
 <html lang="en">
@@ -618,187 +603,80 @@ function renderMetaWebUi(config: AppConfig): string {
 </html>`;
 }
 
-export function createMetaRouter(config: AppConfig): Router {
-  const router = new Router();
+export async function commitMetaState(
+  config: AppConfig,
+  requestContext: IncomingGraphQLRequestContext,
+  runtimeStore: InMemoryStore,
+): Promise<MetaCommitResponse> {
   const upstream = createUpstreamGraphQLClient(config.shopifyAdminOrigin);
+  const pendingEntries = runtimeStore.getLog().filter(logEntryRequiresCommit);
+  const attempts: CommitAttempt[] = [];
+  const syntheticIdMap = new Map<string, string>();
+  let stopIndex: number | null = null;
 
-  router.get('/__meta', (ctx: Koa.Context) => {
-    ctx.type = 'html';
-    ctx.body = renderMetaWebUi(config);
-  });
+  for (const [index, entry] of pendingEntries.entries()) {
+    try {
+      const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
+      const response = await requestUpstreamGraphQL(upstream, requestContext, {
+        path: entry.path,
+        body: replayBody,
+      });
+      const responseBody = await response.json();
+      const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
+      const nextStatus: MutationLogEntry['status'] = failed ? 'failed' : 'committed';
 
-  router.get('/__meta/health', (ctx: Koa.Context) => {
-    ctx.body = {
-      ok: true,
-      message: 'shopify-draft-proxy is running',
-    };
-  });
+      if (!failed) {
+        recordCommitIdMappings(entry, responseBody, syntheticIdMap);
+      }
 
-  router.get('/__meta/config', (ctx: Koa.Context) => {
-    ctx.body = {
-      runtime: {
-        readMode: config.readMode,
-      },
-      proxy: {
-        port: config.port,
-        shopifyAdminOrigin: config.shopifyAdminOrigin,
-      },
-      snapshot: {
-        enabled: Boolean(config.snapshotPath),
-        path: config.snapshotPath ?? null,
-      },
-    };
-  });
+      runtimeStore.updateLogEntry(entry.id, {
+        status: nextStatus,
+        notes: failed
+          ? 'Commit replay failed against upstream Shopify.'
+          : 'Committed to upstream Shopify via __meta/commit replay.',
+      });
 
-  router.get('/__meta/log', (ctx: Koa.Context) => {
-    ctx.body = {
-      entries: store.getLog(),
-    };
-  });
+      attempts.push({
+        logEntryId: entry.id,
+        operationName: entry.operationName,
+        path: entry.path,
+        success: !failed,
+        status: nextStatus,
+        upstreamStatus: response.status,
+        upstreamBody: responseBody,
+        upstreamError: null,
+        responseBody,
+      });
 
-  router.get('/__meta/state', (ctx: Koa.Context) => {
-    ctx.body = store.getState();
-  });
-
-  router.get('/__meta/bulk-operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
-    const params = ctx['params'] as Record<string, string | undefined>;
-    const operationId = params['operationId'];
-    const operation = operationId ? store.getEffectiveBulkOperationById(operationId) : null;
-
-    if (!operation?.resultJsonl) {
-      ctx.status = 404;
-      ctx.body = 'Bulk operation result not found';
-      return;
-    }
-
-    ctx.type = 'application/jsonl';
-    ctx.body = operation.resultJsonl;
-  });
-
-  async function handleStagedUpload(ctx: Koa.Context): Promise<void> {
-    const captures = (ctx as Koa.Context & { captures?: string[] }).captures ?? [];
-    const params = ctx['params'] as Record<string, string | undefined>;
-    const targetId = decodeURIComponent(params[0] ?? captures[0] ?? '');
-    const filename = decodeURIComponent(params[1] ?? captures[1] ?? '');
-    const content = await readRequestText(ctx);
-    const key = `shopify-draft-proxy/${targetId}/${filename}`;
-    const encodedId = encodeURIComponent(targetId);
-    const encodedFilename = encodeURIComponent(filename);
-
-    store.stageUploadContent(
-      [
-        key,
-        `/staged-uploads/${encodedId}/${encodedFilename}`,
-        `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
-      ],
-      content,
-    );
-
-    ctx.status = 201;
-    ctx.body = { ok: true, key };
-  }
-
-  router.post(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
-  router.put(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
-
-  router.get('/__bulk_operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
-    const operationId = ctx['params']['operationId'];
-    const jsonl =
-      typeof operationId === 'string'
-        ? store.getEffectiveBulkOperationResultJsonl(`gid://shopify/BulkOperation/${operationId}`)
-        : null;
-
-    if (jsonl === null) {
-      ctx.status = 404;
-      ctx.body = 'Bulk operation result not found';
-      return;
-    }
-
-    ctx.type = 'application/jsonl';
-    ctx.body = jsonl;
-  });
-
-  router.post('/__meta/reset', (ctx: Koa.Context) => {
-    store.restoreInitialState();
-    resetSyntheticIdentity();
-    ctx.body = {
-      ok: true,
-      message: 'state reset',
-    };
-  });
-
-  router.post('/__meta/commit', async (ctx: Koa.Context) => {
-    const pendingEntries = store.getLog().filter(logEntryRequiresCommit);
-    const attempts: CommitAttempt[] = [];
-    const syntheticIdMap = new Map<string, string>();
-    let stopIndex: number | null = null;
-
-    for (const [index, entry] of pendingEntries.entries()) {
-      try {
-        const replayBody = replaceMappedSyntheticGids(buildCommitReplayBody(entry), syntheticIdMap);
-        const response = await requestUpstreamGraphQL(upstream, ctx, {
-          path: entry.path,
-          body: replayBody,
-        });
-        const responseBody = await response.json();
-        const failed = response.status >= 400 || responseBodyHasGraphQLErrors(responseBody);
-        const nextStatus: MutationLogEntry['status'] = failed ? 'failed' : 'committed';
-
-        if (!failed) {
-          recordCommitIdMappings(entry, responseBody, syntheticIdMap);
-        }
-
-        store.updateLogEntry(entry.id, {
-          status: nextStatus,
-          notes: failed
-            ? 'Commit replay failed against upstream Shopify.'
-            : 'Committed to upstream Shopify via __meta/commit replay.',
-        });
-
-        attempts.push({
-          logEntryId: entry.id,
-          operationName: entry.operationName,
-          path: entry.path,
-          success: !failed,
-          status: nextStatus,
-          upstreamStatus: response.status,
-          upstreamBody: responseBody,
-          upstreamError: null,
-          responseBody,
-        });
-
-        if (failed) {
-          stopIndex = index;
-          break;
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        store.updateLogEntry(entry.id, {
-          status: 'failed',
-          notes: `Commit replay failed before an upstream response was received: ${message}`,
-        });
-        attempts.push({
-          logEntryId: entry.id,
-          operationName: entry.operationName,
-          path: entry.path,
-          success: false,
-          status: 'failed',
-          upstreamStatus: null,
-          upstreamBody: null,
-          upstreamError: { message },
-          responseBody: { errors: [{ message }] },
-        });
+      if (failed) {
         stopIndex = index;
         break;
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      runtimeStore.updateLogEntry(entry.id, {
+        status: 'failed',
+        notes: `Commit replay failed before an upstream response was received: ${message}`,
+      });
+      attempts.push({
+        logEntryId: entry.id,
+        operationName: entry.operationName,
+        path: entry.path,
+        success: false,
+        status: 'failed',
+        upstreamStatus: null,
+        upstreamBody: null,
+        upstreamError: { message },
+        responseBody: { errors: [{ message }] },
+      });
+      stopIndex = index;
+      break;
     }
+  }
 
-    ctx.body = {
-      ok: stopIndex === null,
-      stopIndex,
-      attempts,
-    };
-  });
-
-  return router;
+  return {
+    ok: stopIndex === null,
+    stopIndex,
+    attempts,
+  };
 }

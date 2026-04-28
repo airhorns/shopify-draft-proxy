@@ -4,6 +4,14 @@
   "private": true,
   "description": "High-fidelity Shopify Admin GraphQL draft proxy for test environments",
   "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js"
+    }
+  },
   "scripts": {
     "dev": "NODE_ENV=development tsx watch --no-experimental-require-module src/server.ts",
     "start": "node dist/src/server.js",

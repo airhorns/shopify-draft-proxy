@@ -1,11 +1,10 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
 import { parseSearchQuery, type SearchQueryNode, type SearchQueryTerm } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { makeSyntheticGid } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   MetafieldDefinitionCapabilitiesRecord,
   MetafieldDefinitionConstraintValueRecord,
@@ -378,14 +377,17 @@ function sortDefinitions(
   return readBoolean(reverse) ? sorted.reverse() : sorted;
 }
 
-function getProductMetafieldsForDefinition(definition: MetafieldDefinitionRecord): ProductMetafieldRecord[] {
+function getProductMetafieldsForDefinition(
+  runtime: ProxyRuntimeContext,
+  definition: MetafieldDefinitionRecord,
+): ProductMetafieldRecord[] {
   if (definition.ownerType !== 'PRODUCT') {
     return [];
   }
 
-  return store
+  return runtime.store
     .listEffectiveProducts()
-    .flatMap((product) => store.getEffectiveMetafieldsByProductId(product.id))
+    .flatMap((product) => runtime.store.getEffectiveMetafieldsByProductId(product.id))
     .filter((metafield) => metafield.namespace === definition.namespace && metafield.key === definition.key)
     .sort((left, right) => compareShopifyResourceIds(left.id, right.id));
 }
@@ -495,17 +497,19 @@ function serializeConstraints(
 }
 
 function serializeDefinitionMetafieldsConnection(
+  runtime: ProxyRuntimeContext,
   definition: MetafieldDefinitionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const metafields = getProductMetafieldsForDefinition(definition);
+  const metafields = getProductMetafieldsForDefinition(runtime, definition);
   const args = getFieldArguments(field, variables);
   const orderedMetafields = readBoolean(args['reverse']) ? [...metafields].reverse() : metafields;
   return serializeMetafieldsConnection(orderedMetafields, field, variables);
 }
 
 function serializeDefinitionSelectionSet(
+  runtime: ProxyRuntimeContext,
   definition: MetafieldDefinitionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -561,10 +565,10 @@ function serializeDefinitionSelectionSet(
         result[key] = definition.validationStatus;
         break;
       case 'metafieldsCount':
-        result[key] = getProductMetafieldsForDefinition(definition).length;
+        result[key] = getProductMetafieldsForDefinition(runtime, definition).length;
         break;
       case 'metafields':
-        result[key] = serializeDefinitionMetafieldsConnection(definition, selection, variables);
+        result[key] = serializeDefinitionMetafieldsConnection(runtime, definition, selection, variables);
         break;
       default:
         result[key] = null;
@@ -607,6 +611,7 @@ function serializeStandardMetafieldDefinitionEnableUserError(
 }
 
 function serializeStandardMetafieldDefinitionEnablePayload(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   createdDefinition: MetafieldDefinitionRecord | null,
@@ -619,7 +624,12 @@ function serializeStandardMetafieldDefinitionEnablePayload(
     switch (selection.name.value) {
       case 'createdDefinition':
         result[key] = createdDefinition
-          ? serializeDefinitionSelectionSet(createdDefinition, selection.selectionSet?.selections ?? [], variables)
+          ? serializeDefinitionSelectionSet(
+              runtime,
+              createdDefinition,
+              selection.selectionSet?.selections ?? [],
+              variables,
+            )
           : null;
         break;
       case 'userErrors':
@@ -746,19 +756,22 @@ function buildDefinitionAccess(
 }
 
 function buildEnabledStandardMetafieldDefinition(
+  runtime: ProxyRuntimeContext,
   args: Record<string, unknown>,
   template: StandardMetafieldDefinitionTemplate,
 ): MetafieldDefinitionRecord {
   const ownerType = readString(args['ownerType']) ?? template.ownerTypes[0] ?? 'PRODUCT';
-  const existingDefinition = store.findEffectiveMetafieldDefinition({
+  const existingDefinition = runtime.store.findEffectiveMetafieldDefinition({
     ownerType,
     namespace: template.namespace,
     key: template.key,
   });
-  const pinnedPosition = readBoolean(args['pin']) ? getNextPinnedPosition(ownerType, existingDefinition) : null;
+  const pinnedPosition = readBoolean(args['pin'])
+    ? getNextPinnedPosition(runtime, ownerType, existingDefinition)
+    : null;
 
   return {
-    id: existingDefinition?.id ?? makeSyntheticGid('MetafieldDefinition'),
+    id: existingDefinition?.id ?? runtime.syntheticIdentity.makeSyntheticGid('MetafieldDefinition'),
     name: template.name,
     namespace: template.namespace,
     key: template.key,
@@ -778,18 +791,19 @@ function buildEnabledStandardMetafieldDefinition(
 }
 
 function serializeStandardMetafieldDefinitionEnableMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const { template, userErrors } = findStandardMetafieldDefinitionTemplate(args);
   if (!template) {
-    return serializeStandardMetafieldDefinitionEnablePayload(field, variables, null, userErrors);
+    return serializeStandardMetafieldDefinitionEnablePayload(runtime, field, variables, null, userErrors);
   }
 
-  const definition = buildEnabledStandardMetafieldDefinition(args, template);
-  store.upsertStagedMetafieldDefinitions([definition]);
-  return serializeStandardMetafieldDefinitionEnablePayload(field, variables, definition, []);
+  const definition = buildEnabledStandardMetafieldDefinition(runtime, args, template);
+  runtime.store.upsertStagedMetafieldDefinitions([definition]);
+  return serializeStandardMetafieldDefinitionEnablePayload(runtime, field, variables, definition, []);
 }
 
 function inferDefinitionTypeCategory(typeName: string): string | null {
@@ -882,6 +896,7 @@ function serializeDefinitionUserErrors(
 }
 
 function serializeDefinitionMutationPayload(
+  runtime: ProxyRuntimeContext,
   definitionFieldName: 'createdDefinition' | 'updatedDefinition',
   definition: MetafieldDefinitionRecord | null,
   userErrors: MetafieldDefinitionUserError[],
@@ -895,7 +910,7 @@ function serializeDefinitionMutationPayload(
     switch (selection.name.value) {
       case definitionFieldName:
         result[key] = definition
-          ? serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables)
+          ? serializeDefinitionSelectionSet(runtime, definition, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       case 'userErrors':
@@ -974,13 +989,16 @@ function serializeDefinitionDeletePayload(
   return result;
 }
 
-function buildMetafieldDefinitionFromInput(definitionInput: Record<string, unknown>): MetafieldDefinitionRecord {
+function buildMetafieldDefinitionFromInput(
+  runtime: ProxyRuntimeContext,
+  definitionInput: Record<string, unknown>,
+): MetafieldDefinitionRecord {
   const typeName = readString(definitionInput['type']) ?? 'single_line_text_field';
   const ownerType = readString(definitionInput['ownerType']) ?? 'PRODUCT';
-  const pinnedPosition = readBoolean(definitionInput['pin']) ? getNextPinnedPosition(ownerType) : null;
+  const pinnedPosition = readBoolean(definitionInput['pin']) ? getNextPinnedPosition(runtime, ownerType) : null;
 
   return {
-    id: makeSyntheticGid('MetafieldDefinition'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('MetafieldDefinition'),
     name: readString(definitionInput['name']) ?? '',
     namespace: readString(definitionInput['namespace']) ?? '',
     key: readString(definitionInput['key']) ?? '',
@@ -1002,32 +1020,41 @@ function buildMetafieldDefinitionFromInput(definitionInput: Record<string, unkno
   };
 }
 
-function getNextPinnedPosition(ownerType: string, existingDefinition: MetafieldDefinitionRecord | null = null): number {
+function getNextPinnedPosition(
+  runtime: ProxyRuntimeContext,
+  ownerType: string,
+  existingDefinition: MetafieldDefinitionRecord | null = null,
+): number {
   if (existingDefinition?.pinnedPosition !== null && existingDefinition?.pinnedPosition !== undefined) {
     return existingDefinition.pinnedPosition;
   }
 
   return (
-    listPinnedDefinitions(ownerType)
+    listPinnedDefinitions(runtime, ownerType)
       .filter((candidate) => candidate.id !== existingDefinition?.id)
       .reduce((highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0), 0) + 1
   );
 }
 
-function serializeDefinitionCreateRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeDefinitionCreateRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const definitionInput = readDefinitionInput(getFieldArguments(field, variables));
   const inputErrors = validateProductOwnerDefinitionInput(definitionInput, 'create');
   if (inputErrors.length > 0) {
-    return serializeDefinitionMutationPayload('createdDefinition', null, inputErrors, field, variables);
+    return serializeDefinitionMutationPayload(runtime, 'createdDefinition', null, inputErrors, field, variables);
   }
 
-  const existingDefinition = store.findEffectiveMetafieldDefinition({
+  const existingDefinition = runtime.store.findEffectiveMetafieldDefinition({
     ownerType: readString(definitionInput['ownerType']) ?? 'PRODUCT',
     namespace: readString(definitionInput['namespace']) ?? '',
     key: readString(definitionInput['key']) ?? '',
   });
   if (existingDefinition) {
     return serializeDefinitionMutationPayload(
+      runtime,
       'createdDefinition',
       null,
       [
@@ -1042,25 +1069,30 @@ function serializeDefinitionCreateRoot(field: FieldNode, variables: Record<strin
     );
   }
 
-  const definition = buildMetafieldDefinitionFromInput(definitionInput);
-  store.upsertStagedMetafieldDefinitions([definition]);
-  return serializeDefinitionMutationPayload('createdDefinition', definition, [], field, variables);
+  const definition = buildMetafieldDefinitionFromInput(runtime, definitionInput);
+  runtime.store.upsertStagedMetafieldDefinitions([definition]);
+  return serializeDefinitionMutationPayload(runtime, 'createdDefinition', definition, [], field, variables);
 }
 
-function serializeDefinitionUpdateRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeDefinitionUpdateRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const definitionInput = readDefinitionInput(getFieldArguments(field, variables));
   const inputErrors = validateProductOwnerDefinitionInput(definitionInput, 'update');
   if (inputErrors.length > 0) {
-    return serializeDefinitionMutationPayload('updatedDefinition', null, inputErrors, field, variables);
+    return serializeDefinitionMutationPayload(runtime, 'updatedDefinition', null, inputErrors, field, variables);
   }
 
-  const existingDefinition = store.findEffectiveMetafieldDefinition({
+  const existingDefinition = runtime.store.findEffectiveMetafieldDefinition({
     ownerType: readString(definitionInput['ownerType']) ?? 'PRODUCT',
     namespace: readString(definitionInput['namespace']) ?? '',
     key: readString(definitionInput['key']) ?? '',
   });
   if (!existingDefinition) {
     return serializeDefinitionMutationPayload(
+      runtime,
       'updatedDefinition',
       null,
       [makeDefinitionUserError(['definition'], 'Definition not found.', 'NOT_FOUND')],
@@ -1072,6 +1104,7 @@ function serializeDefinitionUpdateRoot(field: FieldNode, variables: Record<strin
   const requestedType = readString(definitionInput['type']);
   if (requestedType && requestedType !== existingDefinition.type.name) {
     return serializeDefinitionMutationPayload(
+      runtime,
       'updatedDefinition',
       null,
       [makeDefinitionUserError(['definition', 'type'], "Type can't be changed.", 'IMMUTABLE')],
@@ -1097,32 +1130,39 @@ function serializeDefinitionUpdateRoot(field: FieldNode, variables: Record<strin
       : existingDefinition.capabilities,
   };
 
-  store.upsertStagedMetafieldDefinitions([updatedDefinition]);
-  return serializeDefinitionMutationPayload('updatedDefinition', updatedDefinition, [], field, variables);
+  runtime.store.upsertStagedMetafieldDefinitions([updatedDefinition]);
+  return serializeDefinitionMutationPayload(runtime, 'updatedDefinition', updatedDefinition, [], field, variables);
 }
 
-function deleteProductMetafieldsForDefinition(definition: MetafieldDefinitionRecord): void {
-  store.deleteProductMetafieldsForDefinition(definition);
+function deleteProductMetafieldsForDefinition(
+  runtime: ProxyRuntimeContext,
+  definition: MetafieldDefinitionRecord,
+): void {
+  runtime.store.deleteProductMetafieldsForDefinition(definition);
 }
 
-function stageDeleteDefinition(definition: MetafieldDefinitionRecord): void {
+function stageDeleteDefinition(runtime: ProxyRuntimeContext, definition: MetafieldDefinitionRecord): void {
   if (definition.pinnedPosition !== null) {
     const removedPosition = definition.pinnedPosition;
-    const compactedDefinitions = listPinnedDefinitions(definition.ownerType)
+    const compactedDefinitions = listPinnedDefinitions(runtime, definition.ownerType)
       .filter((candidate) => candidate.id !== definition.id && (candidate.pinnedPosition ?? 0) > removedPosition)
       .map((candidate) => ({
         ...candidate,
         pinnedPosition: (candidate.pinnedPosition ?? 1) - 1,
       }));
-    updatePinnedDefinitions(compactedDefinitions);
+    updatePinnedDefinitions(runtime, compactedDefinitions);
   }
 
-  store.stageDeleteMetafieldDefinition(definition.id);
+  runtime.store.stageDeleteMetafieldDefinition(definition.id);
 }
 
-function serializeDefinitionDeleteRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeDefinitionDeleteRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const definition = findDefinitionFromMutationArgs(args);
+  const definition = findDefinitionFromMutationArgs(runtime, args);
   if (!definition) {
     return serializeDefinitionDeletePayload(
       null,
@@ -1132,9 +1172,9 @@ function serializeDefinitionDeleteRoot(field: FieldNode, variables: Record<strin
   }
 
   if (readBoolean(args['deleteAllAssociatedMetafields'])) {
-    deleteProductMetafieldsForDefinition(definition);
+    deleteProductMetafieldsForDefinition(runtime, definition);
   }
-  stageDeleteDefinition(definition);
+  stageDeleteDefinition(runtime, definition);
 
   return serializeDefinitionDeletePayload(definition, [], field);
 }
@@ -1168,14 +1208,17 @@ function getDefinitionReferenceField(args: Record<string, unknown>): string[] {
   return ['identifier'];
 }
 
-function findDefinitionFromMutationArgs(args: Record<string, unknown>): MetafieldDefinitionRecord | null {
+function findDefinitionFromMutationArgs(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): MetafieldDefinitionRecord | null {
   const definitionId = readString(args['definitionId']) ?? readString(args['id']);
   if (definitionId) {
-    return store.getEffectiveMetafieldDefinitionById(definitionId);
+    return runtime.store.getEffectiveMetafieldDefinitionById(definitionId);
   }
 
   const identifier = readDefinitionIdentifier(args);
-  return identifier ? store.findEffectiveMetafieldDefinition(identifier) : null;
+  return identifier ? runtime.store.findEffectiveMetafieldDefinition(identifier) : null;
 }
 
 function serializeUserError(
@@ -1209,24 +1252,24 @@ function serializeUserError(
   return result;
 }
 
-function listPinnedDefinitions(ownerType: string): MetafieldDefinitionRecord[] {
-  return store
+function listPinnedDefinitions(runtime: ProxyRuntimeContext, ownerType: string): MetafieldDefinitionRecord[] {
+  return runtime.store
     .listEffectiveMetafieldDefinitions()
     .filter((definition) => definition.ownerType === ownerType && definition.pinnedPosition !== null);
 }
 
-function updatePinnedDefinitions(definitions: MetafieldDefinitionRecord[]): void {
+function updatePinnedDefinitions(runtime: ProxyRuntimeContext, definitions: MetafieldDefinitionRecord[]): void {
   if (definitions.length > 0) {
-    store.upsertStagedMetafieldDefinitions(definitions);
+    runtime.store.upsertStagedMetafieldDefinitions(definitions);
   }
 }
 
-function pinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+function pinDefinition(runtime: ProxyRuntimeContext, definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
   if (definition.pinnedPosition !== null) {
     return definition;
   }
 
-  const highestPinnedPosition = listPinnedDefinitions(definition.ownerType).reduce(
+  const highestPinnedPosition = listPinnedDefinitions(runtime, definition.ownerType).reduce(
     (highest, candidate) => Math.max(highest, candidate.pinnedPosition ?? 0),
     0,
   );
@@ -1234,12 +1277,15 @@ function pinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefiniti
     ...definition,
     pinnedPosition: highestPinnedPosition + 1,
   };
-  store.upsertStagedMetafieldDefinitions([pinnedDefinition]);
+  runtime.store.upsertStagedMetafieldDefinitions([pinnedDefinition]);
 
   return pinnedDefinition;
 }
 
-function unpinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefinitionRecord {
+function unpinDefinition(
+  runtime: ProxyRuntimeContext,
+  definition: MetafieldDefinitionRecord,
+): MetafieldDefinitionRecord {
   if (definition.pinnedPosition === null) {
     return definition;
   }
@@ -1249,19 +1295,20 @@ function unpinDefinition(definition: MetafieldDefinitionRecord): MetafieldDefini
     ...definition,
     pinnedPosition: null,
   };
-  const compactedDefinitions = listPinnedDefinitions(definition.ownerType)
+  const compactedDefinitions = listPinnedDefinitions(runtime, definition.ownerType)
     .filter((candidate) => candidate.id !== definition.id && (candidate.pinnedPosition ?? 0) > removedPosition)
     .map((candidate) => ({
       ...candidate,
       pinnedPosition: (candidate.pinnedPosition ?? 1) - 1,
     }));
 
-  updatePinnedDefinitions([unpinnedDefinition, ...compactedDefinitions]);
+  updatePinnedDefinitions(runtime, [unpinnedDefinition, ...compactedDefinitions]);
 
   return unpinnedDefinition;
 }
 
 function serializePinningPayload(
+  runtime: ProxyRuntimeContext,
   payloadFieldName: 'pinnedDefinition' | 'unpinnedDefinition',
   definition: MetafieldDefinitionRecord | null,
   userErrors: Array<{ field: string[]; message: string; code: string }>,
@@ -1275,7 +1322,7 @@ function serializePinningPayload(
     switch (selection.name.value) {
       case payloadFieldName:
         result[key] = definition
-          ? serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables)
+          ? serializeDefinitionSelectionSet(runtime, definition, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       case 'userErrors':
@@ -1290,11 +1337,16 @@ function serializePinningPayload(
   return result;
 }
 
-function serializeDefinitionPinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeDefinitionPinRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const definition = findDefinitionFromMutationArgs(args);
+  const definition = findDefinitionFromMutationArgs(runtime, args);
   if (!definition) {
     return serializePinningPayload(
+      runtime,
       'pinnedDefinition',
       null,
       [
@@ -1309,14 +1361,19 @@ function serializeDefinitionPinRoot(field: FieldNode, variables: Record<string, 
     );
   }
 
-  return serializePinningPayload('pinnedDefinition', pinDefinition(definition), [], field, variables);
+  return serializePinningPayload(runtime, 'pinnedDefinition', pinDefinition(runtime, definition), [], field, variables);
 }
 
-function serializeDefinitionUnpinRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeDefinitionUnpinRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const definition = findDefinitionFromMutationArgs(args);
+  const definition = findDefinitionFromMutationArgs(runtime, args);
   if (!definition) {
     return serializePinningPayload(
+      runtime,
       'unpinnedDefinition',
       null,
       [
@@ -1331,34 +1388,43 @@ function serializeDefinitionUnpinRoot(field: FieldNode, variables: Record<string
     );
   }
 
-  return serializePinningPayload('unpinnedDefinition', unpinDefinition(definition), [], field, variables);
+  return serializePinningPayload(
+    runtime,
+    'unpinnedDefinition',
+    unpinDefinition(runtime, definition),
+    [],
+    field,
+    variables,
+  );
 }
 
 function serializeMetafieldDefinitionRoot(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> | null {
   const args = getFieldArguments(field, variables);
   const id = readString(args['id']);
   const definition = id
-    ? store.getEffectiveMetafieldDefinitionById(id)
+    ? runtime.store.getEffectiveMetafieldDefinitionById(id)
     : (() => {
         const identifier = readDefinitionIdentifier(args);
-        return identifier ? store.findEffectiveMetafieldDefinition(identifier) : null;
+        return identifier ? runtime.store.findEffectiveMetafieldDefinition(identifier) : null;
       })();
 
   return definition
-    ? serializeDefinitionSelectionSet(definition, field.selectionSet?.selections ?? [], variables)
+    ? serializeDefinitionSelectionSet(runtime, definition, field.selectionSet?.selections ?? [], variables)
     : null;
 }
 
 function serializeMetafieldDefinitionsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const definitions = sortDefinitions(
-    applyDefinitionFilters(store.listEffectiveMetafieldDefinitions(), args),
+    applyDefinitionFilters(runtime.store.listEffectiveMetafieldDefinitions(), args),
     args['sortKey'],
     args['reverse'],
   );
@@ -1375,7 +1441,7 @@ function serializeMetafieldDefinitionsConnection(
     switch (selection.name.value) {
       case 'nodes':
         result[key] = items.map((definition) =>
-          serializeDefinitionSelectionSet(definition, selection.selectionSet?.selections ?? [], variables),
+          serializeDefinitionSelectionSet(runtime, definition, selection.selectionSet?.selections ?? [], variables),
         );
         break;
       case 'edges':
@@ -1389,6 +1455,7 @@ function serializeMetafieldDefinitionsConnection(
                 break;
               case 'node':
                 edge[edgeKey] = serializeDefinitionSelectionSet(
+                  runtime,
                   definition,
                   edgeSelection.selectionSet?.selections ?? [],
                   variables,
@@ -1421,6 +1488,7 @@ function serializeMetafieldDefinitionsConnection(
 }
 
 export function handleMetafieldDefinitionQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -1430,10 +1498,10 @@ export function handleMetafieldDefinitionQuery(
     const responseKey = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'metafieldDefinition':
-        data[responseKey] = serializeMetafieldDefinitionRoot(field, variables);
+        data[responseKey] = serializeMetafieldDefinitionRoot(runtime, field, variables);
         break;
       case 'metafieldDefinitions':
-        data[responseKey] = serializeMetafieldDefinitionsConnection(field, variables);
+        data[responseKey] = serializeMetafieldDefinitionsConnection(runtime, field, variables);
         break;
       default:
         data[responseKey] = null;
@@ -1445,6 +1513,7 @@ export function handleMetafieldDefinitionQuery(
 }
 
 export function handleMetafieldDefinitionMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -1454,22 +1523,22 @@ export function handleMetafieldDefinitionMutation(
     const responseKey = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'metafieldDefinitionCreate':
-        data[responseKey] = serializeDefinitionCreateRoot(field, variables);
+        data[responseKey] = serializeDefinitionCreateRoot(runtime, field, variables);
         break;
       case 'metafieldDefinitionUpdate':
-        data[responseKey] = serializeDefinitionUpdateRoot(field, variables);
+        data[responseKey] = serializeDefinitionUpdateRoot(runtime, field, variables);
         break;
       case 'metafieldDefinitionDelete':
-        data[responseKey] = serializeDefinitionDeleteRoot(field, variables);
+        data[responseKey] = serializeDefinitionDeleteRoot(runtime, field, variables);
         break;
       case 'standardMetafieldDefinitionEnable':
-        data[responseKey] = serializeStandardMetafieldDefinitionEnableMutation(field, variables);
+        data[responseKey] = serializeStandardMetafieldDefinitionEnableMutation(runtime, field, variables);
         break;
       case 'metafieldDefinitionPin':
-        data[responseKey] = serializeDefinitionPinRoot(field, variables);
+        data[responseKey] = serializeDefinitionPinRoot(runtime, field, variables);
         break;
       case 'metafieldDefinitionUnpin':
-        data[responseKey] = serializeDefinitionUnpinRoot(field, variables);
+        data[responseKey] = serializeDefinitionUnpinRoot(runtime, field, variables);
         break;
       default:
         data[responseKey] = null;

@@ -1,11 +1,12 @@
-import { makeSyntheticGid } from '../../state/synthetic-identity.js';
-import { store } from '../../state/store.js';
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import type { ProductOptionRecord, ProductRecord, ProductVariantRecord } from '../../state/types.js';
 import { isObject } from './helpers.js';
 
-export function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantRecord['inventoryItem']> {
+export function makeDefaultInventoryItemRecord(
+  runtime: ProxyRuntimeContext,
+): NonNullable<ProductVariantRecord['inventoryItem']> {
   return {
-    id: makeSyntheticGid('InventoryItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('InventoryItem'),
     tracked: false,
     requiresShipping: true,
     measurement: null,
@@ -16,9 +17,9 @@ export function makeDefaultInventoryItemRecord(): NonNullable<ProductVariantReco
   };
 }
 
-export function makeDefaultVariantRecord(product: ProductRecord): ProductVariantRecord {
+export function makeDefaultVariantRecord(runtime: ProxyRuntimeContext, product: ProductRecord): ProductVariantRecord {
   return {
-    id: makeSyntheticGid('ProductVariant'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductVariant'),
     productId: product.id,
     title: 'Default Title',
     sku: null,
@@ -29,19 +30,19 @@ export function makeDefaultVariantRecord(product: ProductRecord): ProductVariant
     inventoryPolicy: null,
     inventoryQuantity: 0,
     selectedOptions: [],
-    inventoryItem: makeDefaultInventoryItemRecord(),
+    inventoryItem: makeDefaultInventoryItemRecord(runtime),
   };
 }
 
-export function makeDefaultOptionRecord(product: ProductRecord): ProductOptionRecord {
+export function makeDefaultOptionRecord(runtime: ProxyRuntimeContext, product: ProductRecord): ProductOptionRecord {
   return {
-    id: makeSyntheticGid('ProductOption'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductOption'),
     productId: product.id,
     name: 'Title',
     position: 1,
     optionValues: [
       {
-        id: makeSyntheticGid('ProductOptionValue'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
         name: 'Default Title',
         hasVariants: true,
       },
@@ -72,7 +73,10 @@ export function normalizeOptionPositions(options: ProductOptionRecord[]): Produc
   }));
 }
 
-function readOptionValueCreateInput(raw: unknown): ProductOptionRecord['optionValues'][number] | null {
+function readOptionValueCreateInput(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+): ProductOptionRecord['optionValues'][number] | null {
   if (!isObject(raw)) {
     return null;
   }
@@ -83,28 +87,35 @@ function readOptionValueCreateInput(raw: unknown): ProductOptionRecord['optionVa
   }
 
   return {
-    id: makeSyntheticGid('ProductOptionValue'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
     name: rawName,
     hasVariants: false,
   };
 }
 
-export function readOptionValueCreateInputs(raw: unknown): ProductOptionRecord['optionValues'] {
+export function readOptionValueCreateInputs(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+): ProductOptionRecord['optionValues'] {
   if (!Array.isArray(raw)) {
     return [];
   }
 
   return raw
-    .map((value) => readOptionValueCreateInput(value))
+    .map((value) => readOptionValueCreateInput(runtime, value))
     .filter((value): value is ProductOptionRecord['optionValues'][number] => value !== null);
 }
 
-export function makeCreatedOptionRecord(productId: string, input: Record<string, unknown>): ProductOptionRecord {
+export function makeCreatedOptionRecord(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  input: Record<string, unknown>,
+): ProductOptionRecord {
   const rawName = input['name'];
-  const optionValues = readOptionValueCreateInputs(input['values']);
+  const optionValues = readOptionValueCreateInputs(runtime, input['values']);
 
   return {
-    id: makeSyntheticGid('ProductOption'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('ProductOption'),
     productId,
     name: typeof rawName === 'string' && rawName.trim() ? rawName : 'Option',
     position: 0,
@@ -173,15 +184,16 @@ export function remapDefaultVariantToCreatedOptions(
 }
 
 export function restoreDefaultOptionState(
+  runtime: ProxyRuntimeContext,
   product: ProductRecord,
   variants: ProductVariantRecord[],
 ): {
   options: ProductOptionRecord[];
   variants: ProductVariantRecord[];
 } {
-  const baseVariant = variants[0] ? structuredClone(variants[0]) : makeDefaultVariantRecord(product);
+  const baseVariant = variants[0] ? structuredClone(variants[0]) : makeDefaultVariantRecord(runtime, product);
   return {
-    options: [makeDefaultOptionRecord(product)],
+    options: [makeDefaultOptionRecord(runtime, product)],
     variants: [
       {
         ...baseVariant,
@@ -241,6 +253,7 @@ export function reorderVariantSelectionsForOptions(
 }
 
 export function updateOptionRecords(
+  runtime: ProxyRuntimeContext,
   productId: string,
   options: ProductOptionRecord[],
   variants: ProductVariantRecord[],
@@ -300,7 +313,7 @@ export function updateOptionRecords(
     }
   }
 
-  const optionValuesToAdd = readOptionValueCreateInputs(optionValuesToAddRaw);
+  const optionValuesToAdd = readOptionValueCreateInputs(runtime, optionValuesToAddRaw);
   if (optionValuesToAdd.length > 0) {
     target.optionValues = [...target.optionValues, ...optionValuesToAdd];
   }
@@ -338,8 +351,12 @@ export function deleteOptionRecords(
   };
 }
 
-export function buildProductSetOptionRecords(productId: string, rawOptions: unknown): ProductOptionRecord[] {
-  const existingOptions = store.getEffectiveOptionsByProductId(productId);
+export function buildProductSetOptionRecords(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  rawOptions: unknown,
+): ProductOptionRecord[] {
+  const existingOptions = runtime.store.getEffectiveOptionsByProductId(productId);
   const existingOptionsById = new Map(existingOptions.map((option) => [option.id, option]));
 
   if (!Array.isArray(rawOptions)) {
@@ -352,7 +369,7 @@ export function buildProductSetOptionRecords(productId: string, rawOptions: unkn
       .map((value, index) => {
         const rawId = value['id'];
         const existing = typeof rawId === 'string' ? (existingOptionsById.get(rawId) ?? null) : null;
-        const created = makeCreatedOptionRecord(productId, value);
+        const created = makeCreatedOptionRecord(runtime, productId, value);
         const optionValuesInput = Array.isArray(value['values']) ? value['values'] : [];
         const existingValuesById = new Map(
           (existing?.optionValues ?? []).map((optionValue) => [optionValue.id, optionValue]),
@@ -364,7 +381,7 @@ export function buildProductSetOptionRecords(productId: string, rawOptions: unkn
             const rawValueName = entry['name'];
             const existingValue = typeof rawValueId === 'string' ? (existingValuesById.get(rawValueId) ?? null) : null;
             return {
-              id: existingValue?.id ?? makeSyntheticGid('ProductOptionValue'),
+              id: existingValue?.id ?? runtime.syntheticIdentity.makeSyntheticGid('ProductOptionValue'),
               name:
                 typeof rawValueName === 'string' && rawValueName.trim()
                   ? rawValueName

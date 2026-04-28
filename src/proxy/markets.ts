@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -20,8 +21,6 @@ import {
   serializeConnection,
   type FragmentMap,
 } from './graphql-helpers.js';
-import { store } from '../state/store.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import type { JsonValue } from '../json-schemas.js';
 import type {
   CatalogRecord,
@@ -385,9 +384,12 @@ function serializeCountSelection(field: FieldNode, count: number, precision = 'E
   return result;
 }
 
-function connectionFromNodes(nodes: unknown[]): Record<string, unknown> {
+function connectionFromNodes(runtime: ProxyRuntimeContext, nodes: unknown[]): Record<string, unknown> {
   const edges = nodes.map((node) => {
-    const id = isPlainObject(node) && typeof node['id'] === 'string' ? node['id'] : makeSyntheticGid('Cursor');
+    const id =
+      isPlainObject(node) && typeof node['id'] === 'string'
+        ? node['id']
+        : runtime.syntheticIdentity.makeSyntheticGid('Cursor');
     return {
       cursor: id,
       node,
@@ -429,6 +431,7 @@ function marketTypeConditionApplies(source: Record<string, unknown>, typeConditi
 }
 
 function projectMarketValue(
+  runtime: ProxyRuntimeContext,
   value: unknown,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
@@ -445,7 +448,8 @@ function projectMarketValue(
         return {
           handled: true,
           value: projectConnectionPayload(
-            catalogConnectionForMarket(source['id'], source['catalogs']),
+            runtime,
+            catalogConnectionForMarket(runtime, source['id'], source['catalogs']),
             field,
             fragments,
             variables,
@@ -464,6 +468,7 @@ function projectMarketValue(
           return {
             handled: true,
             value: projectMarketValue(
+              runtime,
               source['operations'] ?? [],
               field.selectionSet?.selections ?? [],
               fragments,
@@ -477,14 +482,14 @@ function projectMarketValue(
         if (fieldName === 'prices') {
           return {
             handled: true,
-            value: projectPriceListPricesConnection(source['prices'], field, fragments, variables),
+            value: projectPriceListPricesConnection(runtime, source['prices'], field, fragments, variables),
           };
         }
         if (fieldName === 'quantityRules') {
           const quantityRules = isPlainObject(source['quantityRules']) ? source['quantityRules'] : emptyConnection();
           return {
             handled: true,
-            value: projectConnectionPayload(quantityRules, field, fragments, variables),
+            value: projectConnectionPayload(runtime, quantityRules, field, fragments, variables),
           };
         }
       }
@@ -493,7 +498,7 @@ function projectMarketValue(
       if (isPlainObject(value) && Array.isArray(value['edges'])) {
         return {
           handled: true,
-          value: projectConnectionPayload(value, field, fragments, variables),
+          value: projectConnectionPayload(runtime, value, field, fragments, variables),
         };
       }
 
@@ -539,6 +544,7 @@ function priceListPriceNodeMatchesQuery(node: unknown, rawQuery: unknown): boole
 }
 
 function projectPriceListPricesConnection(
+  runtime: ProxyRuntimeContext,
   value: unknown,
   selection: FieldNode,
   fragments: FragmentMap,
@@ -547,7 +553,7 @@ function projectPriceListPricesConnection(
   const args = getFieldArguments(selection, variables);
   const originType = typeof args['originType'] === 'string' ? args['originType'] : null;
   if (originType === null && (typeof args['query'] !== 'string' || !args['query'].trim()) && isPlainObject(value)) {
-    return projectConnectionPayload(value, selection, fragments, variables);
+    return projectConnectionPayload(runtime, value, selection, fragments, variables);
   }
 
   const edges = readConnectionEdges(value).filter((edge) => {
@@ -559,7 +565,7 @@ function projectPriceListPricesConnection(
       priceListPriceNodeMatchesQuery(edge.node, args['query'])
     );
   });
-  return projectConnectionPayload({ edges }, selection, fragments, variables);
+  return projectConnectionPayload(runtime, { edges }, selection, fragments, variables);
 }
 
 type ConnectionEdge = {
@@ -587,6 +593,7 @@ function readConnectionEdges(value: unknown): ConnectionEdge[] {
 }
 
 function projectConnectionPayload(
+  runtime: ProxyRuntimeContext,
   value: Record<string, unknown>,
   selection: FieldNode,
   fragments: FragmentMap,
@@ -610,13 +617,14 @@ function projectConnectionPayload(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (edge) => edge.cursor,
     serializeNode: (edge, nodeSelection) =>
-      projectMarketValue(edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(runtime, edge.node, nodeSelection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
     serializePageInfo: (pageInfoSelection) =>
       preservesCapturedPageInfo
         ? (projectMarketValue(
+            runtime,
             value['pageInfo'],
             pageInfoSelection.selectionSet?.selections ?? [],
             fragments,
@@ -885,6 +893,7 @@ function marketsResolvedValuesPayloadKeyFromDocument(document: string, variables
 }
 
 export function hydrateMarketsFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   upstreamPayload: unknown,
@@ -908,20 +917,23 @@ export function hydrateMarketsFromUpstreamResponse(
       continue;
     }
 
-    store.setBaseMarketsRootPayload(rootField, rootPayload);
+    runtime.store.setBaseMarketsRootPayload(rootField, rootPayload);
     if (rootField === 'marketsResolvedValues') {
-      store.setBaseMarketsRootPayload(marketsResolvedValuesPayloadKeyFromDocument(document, variables), rootPayload);
+      runtime.store.setBaseMarketsRootPayload(
+        marketsResolvedValuesPayloadKeyFromDocument(document, variables),
+        rootPayload,
+      );
     }
-    store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
-    store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
-    store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
+    runtime.store.upsertBaseWebPresences(collectWebPresenceNodes(rootPayload));
+    runtime.store.upsertBaseCatalogs(collectCatalogNodes(rootPayload));
+    runtime.store.upsertBasePriceLists(collectPriceListNodes(rootPayload));
 
     if (rootField === 'markets' || rootField === 'catalogs' || rootField === 'webPresences') {
-      store.upsertBaseMarkets(collectMarketNodes(rootPayload));
+      runtime.store.upsertBaseMarkets(collectMarketNodes(rootPayload));
     } else if (rootField === 'market') {
-      store.upsertBaseMarkets([rootPayload]);
+      runtime.store.upsertBaseMarkets([rootPayload]);
     } else if (rootField === 'marketsResolvedValues') {
-      store.upsertBaseMarkets(collectMarketNodes(rootPayload));
+      runtime.store.upsertBaseMarkets(collectMarketNodes(rootPayload));
     }
   }
 }
@@ -1083,7 +1095,11 @@ function catalogReferencesMarket(catalog: CatalogRecord, marketId: string): bool
   );
 }
 
-function catalogConnectionForMarket(marketId: string, existingConnection: unknown): Record<string, unknown> {
+function catalogConnectionForMarket(
+  runtime: ProxyRuntimeContext,
+  marketId: string,
+  existingConnection: unknown,
+): Record<string, unknown> {
   const edgesById = new Map<string, ConnectionEdge>();
 
   for (const edge of readConnectionEdges(existingConnection)) {
@@ -1092,7 +1108,7 @@ function catalogConnectionForMarket(marketId: string, existingConnection: unknow
     }
   }
 
-  for (const catalog of store.listEffectiveCatalogs()) {
+  for (const catalog of runtime.store.listEffectiveCatalogs()) {
     if (!catalogReferencesMarket(catalog, marketId)) {
       continue;
     }
@@ -1199,10 +1215,14 @@ function compareCatalogsBySortKey(left: CatalogRecord, right: CatalogRecord, raw
   }
 }
 
-function listCatalogsForConnection(field: FieldNode, variables: Record<string, unknown>): CatalogRecord[] {
+function listCatalogsForConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): CatalogRecord[] {
   const args = getFieldArguments(field, variables);
   const filteredCatalogs = applyCatalogsQuery(
-    store.listEffectiveCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
+    runtime.store.listEffectiveCatalogs().filter((catalog) => catalogHasType(catalog, args['type'])),
     args['query'],
   );
   const sortedCatalogs = [...filteredCatalogs].sort((left, right) =>
@@ -1217,11 +1237,12 @@ function catalogCursor(catalog: CatalogRecord): string {
 }
 
 function serializeCatalogsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
-  const catalogs = listCatalogsForConnection(field, variables);
+  const catalogs = listCatalogsForConnection(runtime, field, variables);
   const window = paginateConnectionItems(catalogs, field, variables, catalogCursor);
   return serializeConnection(field, {
     items: window.items,
@@ -1229,16 +1250,20 @@ function serializeCatalogsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: catalogCursor,
     serializeNode: (catalog, selection) =>
-      projectMarketValue(catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(runtime, catalog.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
   });
 }
 
-function serializeCatalogsCount(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeCatalogsCount(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const count = listCatalogsForConnection(field, variables).length;
+  const count = listCatalogsForConnection(runtime, field, variables).length;
   const rawLimit = args['limit'];
   const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
   const visibleCount = limit === null ? count : Math.min(count, limit);
@@ -1257,9 +1282,13 @@ function comparePriceListsBySortKey(left: PriceListRecord, right: PriceListRecor
   }
 }
 
-function listPriceListsForConnection(field: FieldNode, variables: Record<string, unknown>): PriceListRecord[] {
+function listPriceListsForConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): PriceListRecord[] {
   const args = getFieldArguments(field, variables);
-  const sortedPriceLists = [...store.listEffectivePriceLists()].sort((left, right) =>
+  const sortedPriceLists = [...runtime.store.listEffectivePriceLists()].sort((left, right) =>
     comparePriceListsBySortKey(left, right, args['sortKey']),
   );
   return args['reverse'] === true ? sortedPriceLists.reverse() : sortedPriceLists;
@@ -1270,11 +1299,12 @@ function priceListCursor(priceList: PriceListRecord): string {
 }
 
 function serializePriceListsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
-  const priceLists = listPriceListsForConnection(field, variables);
+  const priceLists = listPriceListsForConnection(runtime, field, variables);
   const window = paginateConnectionItems(priceLists, field, variables, priceListCursor);
   return serializeConnection(field, {
     items: window.items,
@@ -1282,7 +1312,7 @@ function serializePriceListsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: priceListCursor,
     serializeNode: (priceList, selection) =>
-      projectMarketValue(priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(runtime, priceList.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -1305,15 +1335,18 @@ function translationError(field: string[], message: string, code: string): Marke
   return { field, message, code };
 }
 
-function listMarketLocalizableMetafields(): ProductMetafieldRecord[] {
-  return store
+function listMarketLocalizableMetafields(runtime: ProxyRuntimeContext): ProductMetafieldRecord[] {
+  return runtime.store
     .listEffectiveProducts()
-    .flatMap((product) => store.getEffectiveMetafieldsByProductId(product.id))
+    .flatMap((product) => runtime.store.getEffectiveMetafieldsByProductId(product.id))
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function findMarketLocalizableMetafield(resourceId: string): ProductMetafieldRecord | null {
-  return listMarketLocalizableMetafields().find((metafield) => metafield.id === resourceId) ?? null;
+function findMarketLocalizableMetafield(
+  runtime: ProxyRuntimeContext,
+  resourceId: string,
+): ProductMetafieldRecord | null {
+  return listMarketLocalizableMetafields(runtime).find((metafield) => metafield.id === resourceId) ?? null;
 }
 
 function localizableResourceFromMetafield(metafield: ProductMetafieldRecord): MarketLocalizableResourceRecord {
@@ -1329,22 +1362,27 @@ function localizableResourceFromMetafield(metafield: ProductMetafieldRecord): Ma
   };
 }
 
-function readMarketLocalizableResource(resourceId: string): MarketLocalizableResourceRecord | null {
-  const metafield = findMarketLocalizableMetafield(resourceId);
+function readMarketLocalizableResource(
+  runtime: ProxyRuntimeContext,
+  resourceId: string,
+): MarketLocalizableResourceRecord | null {
+  const metafield = findMarketLocalizableMetafield(runtime, resourceId);
   return metafield ? localizableResourceFromMetafield(metafield) : null;
 }
 
 function serializeMarketLocalizationMarket(
+  runtime: ProxyRuntimeContext,
   marketId: string,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
-  const market = store.getEffectiveMarketById(marketId);
-  return projectMarketValue(market, selections, fragments, variables);
+  const market = runtime.store.getEffectiveMarketById(marketId);
+  return projectMarketValue(runtime, market, selections, fragments, variables);
 }
 
 function serializeMarketLocalization(
+  runtime: ProxyRuntimeContext,
   localization: MarketLocalizationRecord,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
@@ -1372,6 +1410,7 @@ function serializeMarketLocalization(
         break;
       case 'market':
         result[key] = serializeMarketLocalizationMarket(
+          runtime,
           localization.marketId,
           selection.selectionSet?.selections ?? [],
           fragments,
@@ -1416,6 +1455,7 @@ function serializeMarketLocalizableContent(
 }
 
 function serializeMarketLocalizableResource(
+  runtime: ProxyRuntimeContext,
   resource: MarketLocalizableResourceRecord | null,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
@@ -1442,9 +1482,17 @@ function serializeMarketLocalizableResource(
       case 'marketLocalizations': {
         const args = getFieldArguments(selection, variables);
         const marketId = typeof args['marketId'] === 'string' ? args['marketId'] : null;
-        const localizations = marketId ? store.listEffectiveMarketLocalizations(resource.resourceId, marketId) : [];
+        const localizations = marketId
+          ? runtime.store.listEffectiveMarketLocalizations(resource.resourceId, marketId)
+          : [];
         result[key] = localizations.map((localization) =>
-          serializeMarketLocalization(localization, selection.selectionSet?.selections ?? [], fragments, variables),
+          serializeMarketLocalization(
+            runtime,
+            localization,
+            selection.selectionSet?.selections ?? [],
+            fragments,
+            variables,
+          ),
         );
         break;
       }
@@ -1456,6 +1504,7 @@ function serializeMarketLocalizableResource(
 }
 
 function listMarketLocalizableResources(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): MarketLocalizableResourceRecord[] {
@@ -1465,11 +1514,12 @@ function listMarketLocalizableResources(
     return [];
   }
 
-  const resources = listMarketLocalizableMetafields().map(localizableResourceFromMetafield);
+  const resources = listMarketLocalizableMetafields(runtime).map(localizableResourceFromMetafield);
   return args['reverse'] === true ? resources.reverse() : resources;
 }
 
 function listMarketLocalizableResourcesByIds(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): MarketLocalizableResourceRecord[] {
@@ -1478,7 +1528,10 @@ function listMarketLocalizableResourcesByIds(
     ? args['resourceIds'].filter((id): id is string => typeof id === 'string')
     : [];
   const resourcesById = new Map(
-    listMarketLocalizableMetafields().map((metafield) => [metafield.id, localizableResourceFromMetafield(metafield)]),
+    listMarketLocalizableMetafields(runtime).map((metafield) => [
+      metafield.id,
+      localizableResourceFromMetafield(metafield),
+    ]),
   );
   const resources = resourceIds.flatMap((resourceId) => {
     const resource = resourcesById.get(resourceId);
@@ -1492,6 +1545,7 @@ function marketLocalizableResourceCursor(resource: MarketLocalizableResourceReco
 }
 
 function serializeMarketLocalizableResourcesConnection(
+  runtime: ProxyRuntimeContext,
   resources: MarketLocalizableResourceRecord[],
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1504,7 +1558,13 @@ function serializeMarketLocalizableResourcesConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: marketLocalizableResourceCursor,
     serializeNode: (resource, selection) =>
-      serializeMarketLocalizableResource(resource, selection.selectionSet?.selections ?? [], fragments, variables),
+      serializeMarketLocalizableResource(
+        runtime,
+        resource,
+        selection.selectionSet?.selections ?? [],
+        fragments,
+        variables,
+      ),
   });
 }
 
@@ -1512,13 +1572,14 @@ function readInput(raw: unknown): Record<string, unknown> {
   return isPlainObject(raw) ? raw : {};
 }
 
-function marketHandleInUse(handle: string, excludedMarketId?: string): boolean {
-  return store
+function marketHandleInUse(runtime: ProxyRuntimeContext, handle: string, excludedMarketId?: string): boolean {
+  return runtime.store
     .listEffectiveMarkets()
     .some((market) => market.data['handle'] === handle && market.id !== excludedMarketId);
 }
 
 function normalizeMarketHandle(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   excludedMarketId?: string,
 ): { handle: string; errors: MarketUserError[] } {
@@ -1532,7 +1593,7 @@ function normalizeMarketHandle(
     errors.push(marketError(['input', 'handle'], 'Handle is invalid', 'INVALID'));
   }
 
-  if (marketHandleInUse(normalizedHandle, excludedMarketId)) {
+  if (marketHandleInUse(runtime, normalizedHandle, excludedMarketId)) {
     errors.push(marketError(['input', 'handle'], `Handle '${normalizedHandle}' has already been taken`, 'TAKEN'));
   }
 
@@ -1584,6 +1645,7 @@ function readStringArray(value: unknown): string[] {
 }
 
 function buildRegionsCondition(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   errors: MarketUserError[],
 ): Record<string, unknown> | null {
@@ -1623,7 +1685,7 @@ function buildRegionsCondition(
     return [
       {
         __typename: 'MarketRegionCountry',
-        id: makeSyntheticGid('MarketRegionCountry'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('MarketRegionCountry'),
         name: COUNTRY_NAMES[countryCode] ?? countryCode,
         code: countryCode,
         currency: currencySetting(currencyCode),
@@ -1641,11 +1703,12 @@ function buildRegionsCondition(
 
   return {
     applicationLevel,
-    regions: connectionFromNodes(regionNodes),
+    regions: connectionFromNodes(runtime, regionNodes),
   };
 }
 
 function buildIdCondition(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   idField: 'companyLocationIds' | 'locationIds',
   nodeType: 'CompanyLocation' | 'Location',
@@ -1658,11 +1721,12 @@ function buildIdCondition(
 
   return {
     applicationLevel,
-    [nodeType === 'CompanyLocation' ? 'companyLocations' : 'locations']: connectionFromNodes(nodes),
+    [nodeType === 'CompanyLocation' ? 'companyLocations' : 'locations']: connectionFromNodes(runtime, nodes),
   };
 }
 
 function buildConditions(
+  runtime: ProxyRuntimeContext,
   rawConditions: unknown,
   existing: Record<string, unknown> | null,
   errors: MarketUserError[],
@@ -1688,17 +1752,23 @@ function buildConditions(
   }
 
   if (isPlainObject(directInput['regionsCondition'])) {
-    result['regionsCondition'] = buildRegionsCondition(directInput['regionsCondition'], errors);
+    result['regionsCondition'] = buildRegionsCondition(runtime, directInput['regionsCondition'], errors);
   }
   if (isPlainObject(directInput['companyLocationsCondition'])) {
     result['companyLocationsCondition'] = buildIdCondition(
+      runtime,
       directInput['companyLocationsCondition'],
       'companyLocationIds',
       'CompanyLocation',
     );
   }
   if (isPlainObject(directInput['locationsCondition'])) {
-    result['locationsCondition'] = buildIdCondition(directInput['locationsCondition'], 'locationIds', 'Location');
+    result['locationsCondition'] = buildIdCondition(
+      runtime,
+      directInput['locationsCondition'],
+      'locationIds',
+      'Location',
+    );
   }
 
   if (isPlainObject(deleteInput['regionsCondition'])) {
@@ -1827,7 +1897,12 @@ function buildPriceInclusions(input: Record<string, unknown>, existing: Record<s
   };
 }
 
-function addIdsToConnection(existing: unknown, ids: string[], typeName: string): Record<string, unknown> {
+function addIdsToConnection(
+  runtime: ProxyRuntimeContext,
+  existing: unknown,
+  ids: string[],
+  typeName: string,
+): Record<string, unknown> {
   const edges = readConnectionEdges(existing);
   const knownIds = new Set(
     edges.flatMap((edge) => (isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [])),
@@ -1839,10 +1914,14 @@ function addIdsToConnection(existing: unknown, ids: string[], typeName: string):
     }
     nodes.push({ __typename: typeName, id });
   }
-  return connectionFromNodes(nodes);
+  return connectionFromNodes(runtime, nodes);
 }
 
-function addWebPresenceIdsToConnection(existing: unknown, ids: string[]): Record<string, unknown> {
+function addWebPresenceIdsToConnection(
+  runtime: ProxyRuntimeContext,
+  existing: unknown,
+  ids: string[],
+): Record<string, unknown> {
   const edges = readConnectionEdges(existing);
   const knownIds = new Set(
     edges.flatMap((edge) => (isPlainObject(edge.node) && typeof edge.node['id'] === 'string' ? [edge.node['id']] : [])),
@@ -1852,7 +1931,7 @@ function addWebPresenceIdsToConnection(existing: unknown, ids: string[]): Record
       return edge.node;
     }
 
-    return store.getEffectiveWebPresenceById(edge.node['id']) ?? edge.node;
+    return runtime.store.getEffectiveWebPresenceById(edge.node['id']) ?? edge.node;
   });
 
   for (const id of ids) {
@@ -1860,21 +1939,26 @@ function addWebPresenceIdsToConnection(existing: unknown, ids: string[]): Record
       continue;
     }
 
-    nodes.push(store.getEffectiveWebPresenceById(id) ?? { __typename: 'MarketWebPresence', id });
+    nodes.push(runtime.store.getEffectiveWebPresenceById(id) ?? { __typename: 'MarketWebPresence', id });
   }
 
-  return connectionFromNodes(nodes);
+  return connectionFromNodes(runtime, nodes);
 }
 
-function removeIdsFromConnection(existing: unknown, ids: string[]): Record<string, unknown> {
+function removeIdsFromConnection(
+  runtime: ProxyRuntimeContext,
+  existing: unknown,
+  ids: string[],
+): Record<string, unknown> {
   const deletedIds = new Set(ids);
   const nodes = readConnectionEdges(existing)
     .map((edge) => edge.node)
     .filter((node) => !(isPlainObject(node) && typeof node['id'] === 'string' && deletedIds.has(node['id'])));
-  return connectionFromNodes(nodes);
+  return connectionFromNodes(runtime, nodes);
 }
 
 function buildMarketRecord(
+  runtime: ProxyRuntimeContext,
   id: string,
   input: Record<string, unknown>,
   existingMarket: MarketRecord | null,
@@ -1882,6 +1966,7 @@ function buildMarketRecord(
 ): MarketRecord {
   const existing = existingMarket?.data ?? null;
   const handleResolution = normalizeMarketHandle(
+    runtime,
     { name: existing?.['name'] ?? input['name'], ...input },
     existingMarket?.id,
   );
@@ -1890,13 +1975,13 @@ function buildMarketRecord(
   const statusResolution = readStatusAndEnabled(input, existing ?? undefined);
   errors.push(...statusResolution.errors);
 
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const conditions =
     input['conditions'] !== undefined
-      ? buildConditions(input['conditions'], existing, errors)
+      ? buildConditions(runtime, input['conditions'], existing, errors)
       : isPlainObject(existing?.['conditions'])
         ? structuredClone(existing['conditions'] as Record<string, unknown>)
-        : buildConditions({}, null, errors);
+        : buildConditions(runtime, {}, null, errors);
   const data: Record<string, unknown> = {
     ...(existing ? structuredClone(existing) : {}),
     id,
@@ -1918,16 +2003,18 @@ function buildMarketRecord(
     priceInclusions: buildPriceInclusions(input, existing),
     catalogs:
       input['catalogsToDelete'] !== undefined
-        ? removeIdsFromConnection(existing?.['catalogs'], readStringArray(input['catalogsToDelete']))
+        ? removeIdsFromConnection(runtime, existing?.['catalogs'], readStringArray(input['catalogsToDelete']))
         : addIdsToConnection(
+            runtime,
             existing?.['catalogs'],
             readStringArray(input['catalogs'] ?? input['catalogsToAdd']),
             'MarketCatalog',
           ),
     webPresences:
       input['webPresencesToDelete'] !== undefined
-        ? removeIdsFromConnection(existing?.['webPresences'], readStringArray(input['webPresencesToDelete']))
+        ? removeIdsFromConnection(runtime, existing?.['webPresences'], readStringArray(input['webPresencesToDelete']))
         : addWebPresenceIdsToConnection(
+            runtime,
             existing?.['webPresences'],
             readStringArray(input['webPresences'] ?? input['webPresencesToAdd']),
           ),
@@ -1957,7 +2044,7 @@ function marketSummaryForWebPresence(market: MarketRecord): Record<string, unkno
   };
 }
 
-function syncWebPresenceMarketLinks(market: MarketRecord): void {
+function syncWebPresenceMarketLinks(runtime: ProxyRuntimeContext, market: MarketRecord): void {
   const edges = readConnectionEdges(market.data['webPresences']);
   const marketSummary = marketSummaryForWebPresence(market);
   for (const edge of edges) {
@@ -1965,16 +2052,16 @@ function syncWebPresenceMarketLinks(market: MarketRecord): void {
       continue;
     }
 
-    const existing = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    const existing = runtime.store.getEffectiveWebPresenceRecordById(edge.node['id']);
     if (!existing) {
       continue;
     }
 
-    store.stageUpdateWebPresence({
+    runtime.store.stageUpdateWebPresence({
       ...existing,
       data: {
         ...structuredClone(existing.data),
-        markets: connectionFromNodes([
+        markets: connectionFromNodes(runtime, [
           ...readConnectionEdges(existing.data['markets'])
             .map((marketEdge) => marketEdge.node)
             .filter((node) => !(isPlainObject(node) && typeof node['id'] === 'string' && node['id'] === market.id)),
@@ -1985,8 +2072,8 @@ function syncWebPresenceMarketLinks(market: MarketRecord): void {
   }
 }
 
-function syncMarketWebPresenceNodes(webPresence: WebPresenceRecord): void {
-  for (const market of store.listEffectiveMarkets()) {
+function syncMarketWebPresenceNodes(runtime: ProxyRuntimeContext, webPresence: WebPresenceRecord): void {
+  for (const market of runtime.store.listEffectiveMarkets()) {
     const edges = readConnectionEdges(market.data['webPresences']);
     if (
       !edges.some(
@@ -1996,11 +2083,12 @@ function syncMarketWebPresenceNodes(webPresence: WebPresenceRecord): void {
       continue;
     }
 
-    store.stageUpdateMarket({
+    runtime.store.stageUpdateMarket({
       ...market,
       data: {
         ...structuredClone(market.data),
         webPresences: connectionFromNodes(
+          runtime,
           edges.map((edge) =>
             isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === webPresence.id
               ? webPresence.data
@@ -2012,8 +2100,8 @@ function syncMarketWebPresenceNodes(webPresence: WebPresenceRecord): void {
   }
 }
 
-function removeWebPresenceFromMarkets(webPresenceId: string): void {
-  for (const market of store.listEffectiveMarkets()) {
+function removeWebPresenceFromMarkets(runtime: ProxyRuntimeContext, webPresenceId: string): void {
+  for (const market of runtime.store.listEffectiveMarkets()) {
     const edges = readConnectionEdges(market.data['webPresences']);
     const nextEdges = edges.filter(
       (edge) => !(isPlainObject(edge.node) && typeof edge.node['id'] === 'string' && edge.node['id'] === webPresenceId),
@@ -2023,7 +2111,7 @@ function removeWebPresenceFromMarkets(webPresenceId: string): void {
       continue;
     }
 
-    store.stageUpdateMarket({
+    runtime.store.stageUpdateMarket({
       ...market,
       data: {
         ...structuredClone(market.data),
@@ -2129,8 +2217,8 @@ function domainIdFromInput(input: Record<string, unknown>): string | null {
   return typeof input['domainId'] === 'string' && input['domainId'].trim() ? input['domainId'].trim() : null;
 }
 
-function domainIdExists(domainId: string): boolean {
-  return store.listEffectiveWebPresences().some((webPresence) => {
+function domainIdExists(runtime: ProxyRuntimeContext, domainId: string): boolean {
+  return runtime.store.listEffectiveWebPresences().some((webPresence) => {
     const domain = webPresence.data['domain'];
     return isPlainObject(domain) && domain['id'] === domainId;
   });
@@ -2151,18 +2239,18 @@ function webPresenceDomainFromId(domainId: string | null): Record<string, unknow
   };
 }
 
-function primaryWebPresenceBaseUrl(existing?: Record<string, unknown> | null): string {
+function primaryWebPresenceBaseUrl(runtime: ProxyRuntimeContext, existing?: Record<string, unknown> | null): string {
   const existingDomain = isPlainObject(existing?.['domain']) ? existing['domain'] : null;
   if (isPlainObject(existingDomain) && typeof existingDomain['url'] === 'string') {
     return existingDomain['url'].replace(/\/$/u, '');
   }
 
-  const shop = store.getEffectiveShop();
+  const shop = runtime.store.getEffectiveShop();
   if (shop?.url) {
     return shop.url.replace(/\/$/u, '');
   }
 
-  const capturedDomain = store
+  const capturedDomain = runtime.store
     .listEffectiveWebPresences()
     .map((webPresence) => webPresence.data['domain'])
     .find((domain): domain is Record<string, JsonValue> => isPlainObject(domain) && typeof domain['url'] === 'string');
@@ -2174,6 +2262,7 @@ function primaryWebPresenceBaseUrl(existing?: Record<string, unknown> | null): s
 }
 
 function buildRootUrls(
+  runtime: ProxyRuntimeContext,
   defaultLocale: string,
   alternateLocales: string[],
   subfolderSuffix: string | null,
@@ -2183,7 +2272,7 @@ function buildRootUrls(
   const baseUrl =
     domain && typeof domain['url'] === 'string'
       ? domain['url'].replace(/\/$/u, '')
-      : primaryWebPresenceBaseUrl(existing);
+      : primaryWebPresenceBaseUrl(runtime, existing);
   return [defaultLocale, ...alternateLocales].map((locale, index) => ({
     locale,
     url: subfolderSuffix
@@ -2195,11 +2284,12 @@ function buildRootUrls(
 }
 
 function webPresenceIdentifierInUse(
+  runtime: ProxyRuntimeContext,
   input: { domainId: string | null; subfolderSuffix: string | null },
   excludedWebPresenceId?: string,
 ): MarketUserError[] {
   const errors: MarketUserError[] = [];
-  for (const webPresence of store.listEffectiveWebPresences()) {
+  for (const webPresence of runtime.store.listEffectiveWebPresences()) {
     if (webPresence.id === excludedWebPresenceId) {
       continue;
     }
@@ -2218,6 +2308,7 @@ function webPresenceIdentifierInUse(
 }
 
 function buildWebPresenceRecord(
+  runtime: ProxyRuntimeContext,
   id: string,
   input: Record<string, unknown>,
   existingWebPresence: WebPresenceRecord | null,
@@ -2229,7 +2320,7 @@ function buildWebPresenceRecord(
       ? existing['defaultLocale']['locale']
       : null;
   const domainId = domainIdFromInput(input);
-  const domainExists = domainId ? domainIdExists(domainId) : false;
+  const domainExists = domainId ? domainIdExists(runtime, domainId) : false;
   if (domainId && !domainExists) {
     errors.push(marketError(['input', 'domainId'], 'Domain does not exist', 'DOMAIN_NOT_FOUND'));
   }
@@ -2280,10 +2371,10 @@ function buildWebPresenceRecord(
   }
 
   if (!domainId || domainExists) {
-    errors.push(...webPresenceIdentifierInUse({ domainId, subfolderSuffix }, existingWebPresence?.id));
+    errors.push(...webPresenceIdentifierInUse(runtime, { domainId, subfolderSuffix }, existingWebPresence?.id));
   }
 
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const domain = domainId
     ? webPresenceDomainFromId(domainId)
     : isPlainObject(existing?.['domain'])
@@ -2296,7 +2387,9 @@ function buildWebPresenceRecord(
     id,
     subfolderSuffix,
     domain: subfolderSuffix ? null : domain,
-    rootUrls: defaultLocale ? buildRootUrls(defaultLocale, alternateLocales, subfolderSuffix, domain, existing) : [],
+    rootUrls: defaultLocale
+      ? buildRootUrls(runtime, defaultLocale, alternateLocales, subfolderSuffix, domain, existing)
+      : [],
     defaultLocale: defaultLocale ? localePayload(defaultLocale, true) : null,
     alternateLocales: alternateLocales.map((locale) => localePayload(locale, false)),
     markets,
@@ -2316,17 +2409,23 @@ function selectedWebPresencePayload(webPresence: WebPresenceRecord | null): unkn
 }
 
 function projectMutationPayload(
+  runtime: ProxyRuntimeContext,
   payload: Record<string, unknown>,
   field: FieldNode,
   fragments: FragmentMap,
   variables: Record<string, unknown>,
 ): unknown {
   return field.selectionSet
-    ? projectMarketValue(payload, field.selectionSet.selections, fragments, variables)
+    ? projectMarketValue(runtime, payload, field.selectionSet.selections, fragments, variables)
     : payload;
 }
 
-function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleMarketCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
@@ -2338,13 +2437,14 @@ function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>
     errors.push(marketError(['input', 'name'], 'Name is too short (minimum is 2 characters)', 'TOO_SHORT'));
   }
 
-  const market = buildMarketRecord(makeSyntheticGid('Market'), input, null, errors);
+  const market = buildMarketRecord(runtime, runtime.syntheticIdentity.makeSyntheticGid('Market'), input, null, errors);
   if (errors.length === 0) {
-    store.stageCreateMarket(market);
-    syncWebPresenceMarketLinks(market);
+    runtime.store.stageCreateMarket(market);
+    syncWebPresenceMarketLinks(runtime, market);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       market: errors.length === 0 ? selectedMarketPayload(market) : null,
       userErrors: errors,
@@ -2355,7 +2455,12 @@ function handleMarketCreate(field: FieldNode, variables: Record<string, unknown>
   );
 }
 
-function handleMarketUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleMarketUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args['input']);
@@ -2365,18 +2470,19 @@ function handleMarketUpdate(field: FieldNode, variables: Record<string, unknown>
     errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
   }
 
-  const existingMarket = id ? store.getEffectiveMarketRecordById(id) : null;
+  const existingMarket = id ? runtime.store.getEffectiveMarketRecordById(id) : null;
   if (id && !existingMarket) {
     errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
   }
 
-  const market = id && existingMarket ? buildMarketRecord(id, input, existingMarket, errors) : null;
+  const market = id && existingMarket ? buildMarketRecord(runtime, id, input, existingMarket, errors) : null;
   if (errors.length === 0 && market) {
-    store.stageUpdateMarket(market);
-    syncWebPresenceMarketLinks(market);
+    runtime.store.stageUpdateMarket(market);
+    syncWebPresenceMarketLinks(runtime, market);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       market: errors.length === 0 ? selectedMarketPayload(market) : null,
       userErrors: errors,
@@ -2387,8 +2493,8 @@ function handleMarketUpdate(field: FieldNode, variables: Record<string, unknown>
   );
 }
 
-function countActiveRegionMarkets(excludedMarketId?: string): number {
-  return store
+function countActiveRegionMarkets(runtime: ProxyRuntimeContext, excludedMarketId?: string): number {
+  return runtime.store
     .listEffectiveMarkets()
     .filter(
       (market) =>
@@ -2396,11 +2502,16 @@ function countActiveRegionMarkets(excludedMarketId?: string): number {
     ).length;
 }
 
-function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleMarketDelete(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const errors: MarketUserError[] = [];
-  const existingMarket = id ? store.getEffectiveMarketRecordById(id) : null;
+  const existingMarket = id ? runtime.store.getEffectiveMarketRecordById(id) : null;
 
   if (!id || !existingMarket) {
     errors.push(marketError(['id'], 'Market does not exist', 'MARKET_NOT_FOUND'));
@@ -2409,7 +2520,7 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
   } else if (
     existingMarket.data['type'] === 'REGION' &&
     existingMarket.data['status'] === 'ACTIVE' &&
-    countActiveRegionMarkets(id) === 0
+    countActiveRegionMarkets(runtime, id) === 0
   ) {
     errors.push(
       marketError(
@@ -2421,10 +2532,11 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
   }
 
   if (errors.length === 0 && id) {
-    store.stageDeleteMarket(id);
+    runtime.store.stageDeleteMarket(id);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       deletedId: errors.length === 0 ? id : null,
       userErrors: errors,
@@ -2435,8 +2547,8 @@ function handleMarketDelete(field: FieldNode, variables: Record<string, unknown>
   );
 }
 
-function catalogTitleInUse(title: string, excludedCatalogId?: string): boolean {
-  return store
+function catalogTitleInUse(runtime: ProxyRuntimeContext, title: string, excludedCatalogId?: string): boolean {
+  return runtime.store
     .listEffectiveCatalogs()
     .some((catalog) => catalog.id !== excludedCatalogId && catalog.data['title'] === title);
 }
@@ -2456,6 +2568,7 @@ function catalogMarketIds(catalog: CatalogRecord): string[] {
 }
 
 function readCatalogContextMarketIds(
+  runtime: ProxyRuntimeContext,
   rawContext: unknown,
   fieldPrefix: string[],
   errors: MarketUserError[],
@@ -2489,7 +2602,7 @@ function readCatalogContextMarketIds(
       errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
       continue;
     }
-    if (!store.getEffectiveMarketRecordById(marketId)) {
+    if (!runtime.store.getEffectiveMarketRecordById(marketId)) {
       errors.push(catalogError([...fieldPrefix, 'marketIds'], 'Market does not exist', 'MARKET_NOT_FOUND'));
       continue;
     }
@@ -2499,16 +2612,16 @@ function readCatalogContextMarketIds(
   return uniqueMarketIds;
 }
 
-function marketNodeForCatalogConnection(marketId: string): Record<string, unknown> {
-  const market = store.getEffectiveMarketRecordById(marketId);
+function marketNodeForCatalogConnection(runtime: ProxyRuntimeContext, marketId: string): Record<string, unknown> {
+  const market = runtime.store.getEffectiveMarketRecordById(marketId);
   return market ? { __typename: 'Market', ...market.data, id: market.id } : { __typename: 'Market', id: marketId };
 }
 
-function marketConnectionFromIds(marketIds: string[]): Record<string, unknown> {
+function marketConnectionFromIds(runtime: ProxyRuntimeContext, marketIds: string[]): Record<string, unknown> {
   return {
     edges: marketIds.map((marketId) => ({
       cursor: marketId,
-      node: marketNodeForCatalogConnection(marketId),
+      node: marketNodeForCatalogConnection(runtime, marketId),
     })),
     pageInfo: {
       hasNextPage: false,
@@ -2537,22 +2650,32 @@ function catalogStatusFromInput(
   return typeof existing?.['status'] === 'string' ? existing['status'] : 'ACTIVE';
 }
 
-function linkedPriceList(rawPriceListId: unknown, existing: Record<string, unknown> | null): unknown {
+function linkedPriceList(
+  runtime: ProxyRuntimeContext,
+  rawPriceListId: unknown,
+  existing: Record<string, unknown> | null,
+): unknown {
   if (rawPriceListId === null) {
     return null;
   }
   if (typeof rawPriceListId === 'string' && rawPriceListId.length > 0) {
-    return store.getEffectivePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
+    return runtime.store.getEffectivePriceListById(rawPriceListId) ?? { __typename: 'PriceList', id: rawPriceListId };
   }
   return existing?.['priceList'] ?? null;
 }
 
-function linkedPublication(rawPublicationId: unknown, existing: Record<string, unknown> | null): unknown {
+function linkedPublication(
+  runtime: ProxyRuntimeContext,
+  rawPublicationId: unknown,
+  existing: Record<string, unknown> | null,
+): unknown {
   if (rawPublicationId === null) {
     return null;
   }
   if (typeof rawPublicationId === 'string' && rawPublicationId.length > 0) {
-    const publication = store.listEffectivePublications().find((candidate) => candidate.id === rawPublicationId);
+    const publication = runtime.store
+      .listEffectivePublications()
+      .find((candidate) => candidate.id === rawPublicationId);
     return publication
       ? { __typename: 'Publication', ...publication }
       : { __typename: 'Publication', id: rawPublicationId };
@@ -2561,6 +2684,7 @@ function linkedPublication(rawPublicationId: unknown, existing: Record<string, u
 }
 
 function buildCatalogRecord(
+  runtime: ProxyRuntimeContext,
   id: string,
   input: Record<string, unknown>,
   existingCatalog: CatalogRecord | null,
@@ -2577,24 +2701,24 @@ function buildCatalogRecord(
     errors.push(catalogError(['input', 'title'], "Title can't be blank", 'BLANK'));
   } else if (trimmedTitle.length < 2) {
     errors.push(catalogError(['input', 'title'], 'Title is too short (minimum is 2 characters)', 'TOO_SHORT'));
-  } else if (catalogTitleInUse(trimmedTitle, existingCatalog?.id)) {
+  } else if (catalogTitleInUse(runtime, trimmedTitle, existingCatalog?.id)) {
     errors.push(catalogError(['input', 'title'], `Title '${trimmedTitle}' has already been taken`, 'TAKEN'));
   }
 
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const data: Record<string, unknown> = {
     ...(existing ? structuredClone(existing) : {}),
     __typename: 'MarketCatalog',
     id,
     title: trimmedTitle,
     status: catalogStatusFromInput(input, existing, errors),
-    markets: marketConnectionFromIds(contextMarketIds),
+    markets: marketConnectionFromIds(runtime, contextMarketIds),
     operations: Array.isArray(existing?.['operations']) ? structuredClone(existing['operations']) : [],
     priceList: hasOwnProperty(input, 'priceListId')
-      ? linkedPriceList(input['priceListId'], existing)
+      ? linkedPriceList(runtime, input['priceListId'], existing)
       : (existing?.['priceList'] ?? null),
     publication: hasOwnProperty(input, 'publicationId')
-      ? linkedPublication(input['publicationId'], existing)
+      ? linkedPublication(runtime, input['publicationId'], existing)
       : (existing?.['publication'] ?? null),
     createdAt: typeof existing?.['createdAt'] === 'string' ? existing['createdAt'] : now,
     updatedAt: now,
@@ -2615,8 +2739,8 @@ function selectedPriceListPayload(priceList: PriceListRecord | null): unknown {
   return priceList ? priceList.data : null;
 }
 
-function priceListNameInUse(name: string, excludedPriceListId?: string): boolean {
-  return store
+function priceListNameInUse(runtime: ProxyRuntimeContext, name: string, excludedPriceListId?: string): boolean {
+  return runtime.store
     .listEffectivePriceLists()
     .some((priceList) => priceList.data['name'] === name && priceList.id !== excludedPriceListId);
 }
@@ -2672,6 +2796,7 @@ function emptyPriceListPricesConnection(): Record<string, unknown> {
 }
 
 function buildPriceListRecord(
+  runtime: ProxyRuntimeContext,
   id: string,
   input: Record<string, unknown>,
   existingPriceList: PriceListRecord | null,
@@ -2684,7 +2809,7 @@ function buildPriceListRecord(
 
   if (name.length === 0) {
     errors.push(priceListError(['input', 'name'], "Name can't be blank", 'BLANK'));
-  } else if (priceListNameInUse(name, existingPriceList?.id)) {
+  } else if (priceListNameInUse(runtime, name, existingPriceList?.id)) {
     errors.push(priceListError(['input', 'name'], `Name '${name}' has already been taken`, 'TAKEN'));
   }
 
@@ -2696,7 +2821,7 @@ function buildPriceListRecord(
     errors.length === 0;
   const catalog =
     hasOwnProperty(input, 'catalogId') && typeof input['catalogId'] === 'string'
-      ? store.getEffectiveCatalogById(input['catalogId'])
+      ? runtime.store.getEffectiveCatalogById(input['catalogId'])
       : (existing?.['catalog'] ?? null);
 
   if (typeof input['catalogId'] === 'string' && !catalog) {
@@ -2708,7 +2833,7 @@ function buildPriceListRecord(
   const fixedPricesCount = readConnectionEdges(prices).filter(
     (edge) => isPlainObject(edge.node) && edge.node['originType'] === 'FIXED',
   ).length;
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const data: Record<string, unknown> = {
     ...(existing ? structuredClone(existing) : {}),
     __typename: 'PriceList',
@@ -2863,13 +2988,17 @@ function productPayload(product: ProductRecord): Record<string, unknown> {
   };
 }
 
-function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+function rebuildPriceListWithEdges(
+  runtime: ProxyRuntimeContext,
+  priceList: PriceListRecord,
+  edges: ConnectionEdge[],
+): PriceListRecord {
   const fixedPricesCount = edges.filter((edge) => fixedPriceVariantId(edge) !== null).length;
   const data: Record<string, unknown> = {
     ...structuredClone(priceList.data),
     fixedPricesCount,
     prices: connectionFromEdges(edges),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 
   return {
@@ -2880,6 +3009,7 @@ function rebuildPriceListWithEdges(priceList: PriceListRecord, edges: Connection
 }
 
 function upsertFixedPriceNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   inputs: Record<string, unknown>[],
   mode: 'add' | 'update' | 'upsert',
@@ -2916,13 +3046,13 @@ function upsertFixedPriceNodes(
       continue;
     }
 
-    const variant = store.getEffectiveVariantById(variantId);
+    const variant = runtime.store.getEffectiveVariantById(variantId);
     if (!variant) {
       errors.push(priceListError(['prices', 'variantId'], 'Variant does not exist', 'VARIANT_NOT_FOUND'));
       continue;
     }
 
-    const product = store.getEffectiveProductById(variant.productId);
+    const product = runtime.store.getEffectiveProductById(variant.productId);
     const existingNode = isPlainObject(existing?.node) ? existing.node : null;
     const node = variantPriceListNode(variant, product, input, currencyCode, existingNode);
     if (!node) {
@@ -2938,12 +3068,13 @@ function upsertFixedPriceNodes(
   }
 
   return {
-    priceList: rebuildPriceListWithEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    priceList: rebuildPriceListWithEdges(runtime, priceList, [...otherEdges, ...edgesByVariantId.values()]),
     changedVariantIds,
   };
 }
 
 function deleteFixedPriceNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   variantIds: string[],
   errors: MarketUserError[],
@@ -2967,7 +3098,7 @@ function deleteFixedPriceNodes(
   }
 
   return {
-    priceList: rebuildPriceListWithEdges(priceList, edges),
+    priceList: rebuildPriceListWithEdges(runtime, priceList, edges),
     deletedVariantIds,
   };
 }
@@ -3121,11 +3252,15 @@ function addQuantityRuleValidationErrors(
   }
 }
 
-function rebuildPriceListWithQuantityRuleEdges(priceList: PriceListRecord, edges: ConnectionEdge[]): PriceListRecord {
+function rebuildPriceListWithQuantityRuleEdges(
+  runtime: ProxyRuntimeContext,
+  priceList: PriceListRecord,
+  edges: ConnectionEdge[],
+): PriceListRecord {
   const data: Record<string, unknown> = {
     ...structuredClone(priceList.data),
     quantityRules: connectionFromEdges(edges),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 
   return {
@@ -3136,6 +3271,7 @@ function rebuildPriceListWithQuantityRuleEdges(priceList: PriceListRecord, edges
 }
 
 function upsertQuantityRuleNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   inputs: Record<string, unknown>[],
   errors: MarketUserError[],
@@ -3182,7 +3318,7 @@ function upsertQuantityRuleNodes(
     }
     inputVariantIds.add(variantId);
 
-    const variant = store.getEffectiveVariantById(variantId);
+    const variant = runtime.store.getEffectiveVariantById(variantId);
     if (!variant) {
       errors.push({
         field: [...field, 'variantId'],
@@ -3197,7 +3333,7 @@ function upsertQuantityRuleNodes(
       continue;
     }
 
-    const product = store.getEffectiveProductById(variant.productId);
+    const product = runtime.store.getEffectiveProductById(variant.productId);
     const node = quantityRuleNode(variant, product, input);
     edgesByVariantId.set(variantId, { cursor: variantId, node });
     quantityRules.push(node);
@@ -3205,13 +3341,14 @@ function upsertQuantityRuleNodes(
   }
 
   return {
-    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, [...otherEdges, ...edgesByVariantId.values()]),
+    priceList: rebuildPriceListWithQuantityRuleEdges(runtime, priceList, [...otherEdges, ...edgesByVariantId.values()]),
     quantityRules,
     variantIds,
   };
 }
 
 function deleteQuantityRuleNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   variantIds: string[],
   errors: MarketUserError[],
@@ -3239,7 +3376,7 @@ function deleteQuantityRuleNodes(
   });
 
   for (const [index, variantId] of variantIds.entries()) {
-    if (!store.getEffectiveVariantById(variantId)) {
+    if (!runtime.store.getEffectiveVariantById(variantId)) {
       errors.push({
         field: [...options.fieldPrefix, String(index)],
         code: options.variantNotFoundCode,
@@ -3257,12 +3394,13 @@ function deleteQuantityRuleNodes(
   }
 
   return {
-    priceList: rebuildPriceListWithQuantityRuleEdges(priceList, edges),
+    priceList: rebuildPriceListWithQuantityRuleEdges(runtime, priceList, edges),
     deletedVariantIds,
   };
 }
 
 function quantityPriceBreakNode(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   variant: ProductVariantRecord,
   input: Record<string, unknown>,
@@ -3274,10 +3412,10 @@ function quantityPriceBreakNode(
     return null;
   }
 
-  const product = store.getEffectiveProductById(variant.productId);
+  const product = runtime.store.getEffectiveProductById(variant.productId);
   return {
     __typename: 'QuantityPriceBreak',
-    id: makeSyntheticGid('QuantityPriceBreak'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('QuantityPriceBreak'),
     minimumQuantity,
     price,
     priceList: {
@@ -3317,6 +3455,7 @@ function rebuildFixedPriceEdgeWithQuantityBreaks(
 }
 
 function upsertQuantityPriceBreakNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   inputs: Record<string, unknown>[],
   errors: MarketUserError[],
@@ -3329,7 +3468,7 @@ function upsertQuantityPriceBreakNodes(
 
   for (const [index, input] of inputs.entries()) {
     const variantId = typeof input['variantId'] === 'string' ? input['variantId'] : null;
-    if (!variantId || !store.getEffectiveVariantById(variantId)) {
+    if (!variantId || !runtime.store.getEffectiveVariantById(variantId)) {
       errors.push({
         field: ['input', 'quantityPriceBreaksToAdd', String(index)],
         code: 'QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND',
@@ -3346,7 +3485,7 @@ function upsertQuantityPriceBreakNodes(
       continue;
     }
 
-    const variant = store.getEffectiveVariantById(variantId);
+    const variant = runtime.store.getEffectiveVariantById(variantId);
     if (!variant) {
       continue;
     }
@@ -3381,7 +3520,7 @@ function upsertQuantityPriceBreakNodes(
       }
       seenMinimums.add(minimumQuantity);
 
-      const node = quantityPriceBreakNode(priceList, variant, input, currencyCode);
+      const node = quantityPriceBreakNode(runtime, priceList, variant, input, currencyCode);
       if (!node) {
         errors.push({
           field: ['input', 'quantityPriceBreaksToAdd'],
@@ -3423,12 +3562,13 @@ function upsertQuantityPriceBreakNodes(
   });
 
   return {
-    priceList: rebuildPriceListWithEdges(priceList, mergedEdges),
+    priceList: rebuildPriceListWithEdges(runtime, priceList, mergedEdges),
     variantIds: changedVariantIds,
   };
 }
 
 function deleteQuantityPriceBreakNodes(
+  runtime: ProxyRuntimeContext,
   priceList: PriceListRecord,
   ids: string[],
   variantIds: string[],
@@ -3472,25 +3612,38 @@ function deleteQuantityPriceBreakNodes(
   }
 
   return {
-    priceList: errors.length === 0 ? rebuildPriceListWithEdges(priceList, nextEdges) : priceList,
+    priceList: errors.length === 0 ? rebuildPriceListWithEdges(runtime, priceList, nextEdges) : priceList,
     variantIds: errors.length === 0 ? changedVariantIds : [],
   };
 }
 
-function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleCatalogCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
-  const marketIds = readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, {
+  const marketIds = readCatalogContextMarketIds(runtime, input['context'], ['input', 'context'], errors, {
     requireMarketContext: true,
   });
-  const catalog = buildCatalogRecord(makeSyntheticGid('MarketCatalog'), input, null, errors, marketIds);
+  const catalog = buildCatalogRecord(
+    runtime,
+    runtime.syntheticIdentity.makeSyntheticGid('MarketCatalog'),
+    input,
+    null,
+    errors,
+    marketIds,
+  );
 
   if (errors.length === 0) {
-    store.stageCreateCatalog(catalog);
+    runtime.store.stageCreateCatalog(catalog);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
       userErrors: errors,
@@ -3501,12 +3654,17 @@ function handleCatalogCreate(field: FieldNode, variables: Record<string, unknown
   );
 }
 
-function handleCatalogUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleCatalogUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
-  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+  const existingCatalog = id ? runtime.store.getEffectiveCatalogRecordById(id) : null;
 
   if (!id || !existingCatalog) {
     errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
@@ -3516,17 +3674,21 @@ function handleCatalogUpdate(field: FieldNode, variables: Record<string, unknown
 
   const marketIds =
     existingCatalog && hasOwnProperty(input, 'context')
-      ? readCatalogContextMarketIds(input['context'], ['input', 'context'], errors, { requireMarketContext: true })
+      ? readCatalogContextMarketIds(runtime, input['context'], ['input', 'context'], errors, {
+          requireMarketContext: true,
+        })
       : existingCatalog
         ? catalogMarketIds(existingCatalog)
         : [];
-  const catalog = id && existingCatalog ? buildCatalogRecord(id, input, existingCatalog, errors, marketIds) : null;
+  const catalog =
+    id && existingCatalog ? buildCatalogRecord(runtime, id, input, existingCatalog, errors, marketIds) : null;
 
   if (errors.length === 0 && catalog) {
-    store.stageUpdateCatalog(catalog);
+    runtime.store.stageUpdateCatalog(catalog);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
       userErrors: errors,
@@ -3538,6 +3700,7 @@ function handleCatalogUpdate(field: FieldNode, variables: Record<string, unknown
 }
 
 function handleCatalogContextUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3545,7 +3708,7 @@ function handleCatalogContextUpdate(
   const args = getFieldArguments(field, variables);
   const catalogId = typeof args['catalogId'] === 'string' ? args['catalogId'] : null;
   const errors: MarketUserError[] = [];
-  const existingCatalog = catalogId ? store.getEffectiveCatalogRecordById(catalogId) : null;
+  const existingCatalog = catalogId ? runtime.store.getEffectiveCatalogRecordById(catalogId) : null;
 
   if (!catalogId || !existingCatalog) {
     errors.push(catalogError(['catalogId'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
@@ -3554,12 +3717,12 @@ function handleCatalogContextUpdate(
   }
 
   const nextMarketIds = new Set(existingCatalog ? catalogMarketIds(existingCatalog) : []);
-  for (const marketId of readCatalogContextMarketIds(args['contextsToRemove'], ['contextsToRemove'], errors, {
+  for (const marketId of readCatalogContextMarketIds(runtime, args['contextsToRemove'], ['contextsToRemove'], errors, {
     requireMarketContext: false,
   })) {
     nextMarketIds.delete(marketId);
   }
-  for (const marketId of readCatalogContextMarketIds(args['contextsToAdd'], ['contextsToAdd'], errors, {
+  for (const marketId of readCatalogContextMarketIds(runtime, args['contextsToAdd'], ['contextsToAdd'], errors, {
     requireMarketContext: false,
   })) {
     nextMarketIds.add(marketId);
@@ -3571,14 +3734,15 @@ function handleCatalogContextUpdate(
 
   const catalog =
     catalogId && existingCatalog
-      ? buildCatalogRecord(catalogId, {}, existingCatalog, errors, Array.from(nextMarketIds))
+      ? buildCatalogRecord(runtime, catalogId, {}, existingCatalog, errors, Array.from(nextMarketIds))
       : null;
 
   if (errors.length === 0 && catalog) {
-    store.stageUpdateCatalog(catalog);
+    runtime.store.stageUpdateCatalog(catalog);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       catalog: errors.length === 0 ? selectedCatalogPayload(catalog) : null,
       userErrors: errors,
@@ -3589,11 +3753,16 @@ function handleCatalogContextUpdate(
   );
 }
 
-function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleCatalogDelete(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const errors: MarketUserError[] = [];
-  const existingCatalog = id ? store.getEffectiveCatalogRecordById(id) : null;
+  const existingCatalog = id ? runtime.store.getEffectiveCatalogRecordById(id) : null;
 
   if (!id || !existingCatalog) {
     errors.push(catalogError(['id'], 'Catalog does not exist', 'CATALOG_NOT_FOUND'));
@@ -3602,10 +3771,11 @@ function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown
   }
 
   if (errors.length === 0 && id) {
-    store.stageDeleteCatalog(id);
+    runtime.store.stageDeleteCatalog(id);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       deletedId: errors.length === 0 ? id : null,
       userErrors: errors,
@@ -3616,17 +3786,29 @@ function handleCatalogDelete(field: FieldNode, variables: Record<string, unknown
   );
 }
 
-function handlePriceListCreate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handlePriceListCreate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
-  const priceList = buildPriceListRecord(makeSyntheticGid('PriceList'), input, null, errors);
+  const priceList = buildPriceListRecord(
+    runtime,
+    runtime.syntheticIdentity.makeSyntheticGid('PriceList'),
+    input,
+    null,
+    errors,
+  );
 
   if (errors.length === 0) {
-    store.stageCreatePriceList(priceList);
+    runtime.store.stageCreatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       userErrors: errors,
@@ -3637,23 +3819,30 @@ function handlePriceListCreate(field: FieldNode, variables: Record<string, unkno
   );
 }
 
-function handlePriceListUpdate(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handlePriceListUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
-  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+  const existingPriceList = id ? runtime.store.getEffectivePriceListRecordById(id) : null;
 
   if (!id || !existingPriceList) {
     errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
   }
 
-  const priceList = id && existingPriceList ? buildPriceListRecord(id, input, existingPriceList, errors) : null;
+  const priceList =
+    id && existingPriceList ? buildPriceListRecord(runtime, id, input, existingPriceList, errors) : null;
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       userErrors: errors,
@@ -3664,21 +3853,27 @@ function handlePriceListUpdate(field: FieldNode, variables: Record<string, unkno
   );
 }
 
-function handlePriceListDelete(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handlePriceListDelete(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const errors: MarketUserError[] = [];
-  const existingPriceList = id ? store.getEffectivePriceListRecordById(id) : null;
+  const existingPriceList = id ? runtime.store.getEffectivePriceListRecordById(id) : null;
 
   if (!id || !existingPriceList) {
     errors.push(priceListError(['id'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
   }
 
   if (errors.length === 0 && id) {
-    store.stageDeletePriceList(id);
+    runtime.store.stageDeletePriceList(id);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       deletedId: errors.length === 0 ? id : null,
       priceList: errors.length === 0 ? selectedPriceListPayload(existingPriceList) : null,
@@ -3691,6 +3886,7 @@ function handlePriceListDelete(field: FieldNode, variables: Record<string, unkno
 }
 
 function handlePriceListFixedPricesAdd(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3698,7 +3894,7 @@ function handlePriceListFixedPricesAdd(
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
@@ -3706,14 +3902,15 @@ function handlePriceListFixedPricesAdd(
 
   const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd']);
   const { priceList, changedVariantIds } = existingPriceList
-    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'add', errors)
+    ? upsertFixedPriceNodes(runtime, existingPriceList, fixedPrices, 'add', errors)
     : { priceList: null, changedVariantIds: [] };
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
@@ -3726,6 +3923,7 @@ function handlePriceListFixedPricesAdd(
 }
 
 function handlePriceListFixedPricesUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3733,7 +3931,7 @@ function handlePriceListFixedPricesUpdate(
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
@@ -3741,14 +3939,15 @@ function handlePriceListFixedPricesUpdate(
 
   const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToUpdate']);
   const { priceList, changedVariantIds } = existingPriceList
-    ? upsertFixedPriceNodes(existingPriceList, fixedPrices, 'update', errors)
+    ? upsertFixedPriceNodes(runtime, existingPriceList, fixedPrices, 'update', errors)
     : { priceList: null, changedVariantIds: [] };
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
@@ -3761,6 +3960,7 @@ function handlePriceListFixedPricesUpdate(
 }
 
 function handlePriceListFixedPricesDelete(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3768,7 +3968,7 @@ function handlePriceListFixedPricesDelete(
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
@@ -3776,14 +3976,15 @@ function handlePriceListFixedPricesDelete(
 
   const variantIds = readFixedPriceVariantIds(args, ['variantIds', 'variantsToDelete', 'fixedPriceVariantIds']);
   const { priceList, deletedVariantIds } = existingPriceList
-    ? deleteFixedPriceNodes(existingPriceList, variantIds, errors)
+    ? deleteFixedPriceNodes(runtime, existingPriceList, variantIds, errors)
     : { priceList: null, deletedVariantIds: [] };
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       deletedFixedPriceVariantIds: errors.length === 0 ? deletedVariantIds : [],
@@ -3796,6 +3997,7 @@ function handlePriceListFixedPricesDelete(
 }
 
 function handlePriceListFixedPricesByProductUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3804,7 +4006,7 @@ function handlePriceListFixedPricesByProductUpdate(
   const input = readInput(args['input']);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   const productPriceInputs = readFixedPriceInputs(args, ['pricesToAdd']);
   const productIdsToDelete = readFixedPriceProductIds(args, ['pricesToDeleteByProductIds']);
@@ -3825,7 +4027,7 @@ function handlePriceListFixedPricesByProductUpdate(
     if (existingPriceList) {
       for (const [index, priceInput] of productPriceInputs.entries()) {
         const productId = typeof priceInput['productId'] === 'string' ? priceInput['productId'] : null;
-        const product = productId ? store.getEffectiveProductById(productId) : null;
+        const product = productId ? runtime.store.getEffectiveProductById(productId) : null;
         if (!product || !productId) {
           errors.push(
             priceListError(
@@ -3838,13 +4040,13 @@ function handlePriceListFixedPricesByProductUpdate(
         }
 
         pricesToAddProducts.push(productPayload(product));
-        for (const variant of store.getEffectiveVariantsByProductId(productId)) {
+        for (const variant of runtime.store.getEffectiveVariantsByProductId(productId)) {
           fixedPrices.push({ ...priceInput, variantId: variant.id });
         }
       }
 
       for (const [index, productId] of productIdsToDelete.entries()) {
-        const product = store.getEffectiveProductById(productId);
+        const product = runtime.store.getEffectiveProductById(productId);
         if (!product) {
           errors.push(
             priceListError(
@@ -3857,7 +4059,9 @@ function handlePriceListFixedPricesByProductUpdate(
         }
 
         pricesToDeleteProducts.push(productPayload(product));
-        variantIdsToDelete.push(...store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id));
+        variantIdsToDelete.push(
+          ...runtime.store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id),
+        );
       }
     }
 
@@ -3865,18 +4069,19 @@ function handlePriceListFixedPricesByProductUpdate(
     let changedVariantIds: string[] = [];
     let removedVariantIds: string[] = [];
     if (existingPriceList && errors.length === 0) {
-      const upserted = upsertFixedPriceNodes(existingPriceList, fixedPrices, 'upsert', errors);
-      const deleted = deleteFixedPriceNodes(upserted.priceList, variantIdsToDelete, errors);
+      const upserted = upsertFixedPriceNodes(runtime, existingPriceList, fixedPrices, 'upsert', errors);
+      const deleted = deleteFixedPriceNodes(runtime, upserted.priceList, variantIdsToDelete, errors);
       priceList = deleted.priceList;
       changedVariantIds = upserted.changedVariantIds;
       removedVariantIds = deleted.deletedVariantIds;
     }
 
     if (errors.length === 0 && priceList) {
-      store.stageUpdatePriceList(priceList);
+      runtime.store.stageUpdatePriceList(priceList);
     }
 
     return projectMutationPayload(
+      runtime,
       {
         priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
         pricesToAddProducts: errors.length === 0 ? pricesToAddProducts : null,
@@ -3897,7 +4102,7 @@ function handlePriceListFixedPricesByProductUpdate(
       : typeof input['productId'] === 'string'
         ? input['productId']
         : null;
-  const product = productId ? store.getEffectiveProductById(productId) : null;
+  const product = productId ? runtime.store.getEffectiveProductById(productId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist', 'PRICE_LIST_NOT_FOUND'));
@@ -3907,7 +4112,7 @@ function handlePriceListFixedPricesByProductUpdate(
   }
 
   const productVariantIds = new Set(
-    productId ? store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id) : [],
+    productId ? runtime.store.getEffectiveVariantsByProductId(productId).map((variant) => variant.id) : [],
   );
   const fixedPrices = readFixedPriceInputs(args, ['prices', 'fixedPrices', 'pricesToAdd', 'pricesToUpdate']);
   for (const fixedPrice of fixedPrices) {
@@ -3932,18 +4137,19 @@ function handlePriceListFixedPricesByProductUpdate(
   let changedVariantIds: string[] = [];
   let removedVariantIds: string[] = [];
   if (existingPriceList && errors.length === 0) {
-    const upserted = upsertFixedPriceNodes(existingPriceList, fixedPrices, 'upsert', errors);
-    const deleted = deleteFixedPriceNodes(upserted.priceList, deletedVariantIds, errors);
+    const upserted = upsertFixedPriceNodes(runtime, existingPriceList, fixedPrices, 'upsert', errors);
+    const deleted = deleteFixedPriceNodes(runtime, upserted.priceList, deletedVariantIds, errors);
     priceList = deleted.priceList;
     changedVariantIds = upserted.changedVariantIds;
     removedVariantIds = deleted.deletedVariantIds;
   }
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       priceList: errors.length === 0 ? selectedPriceListPayload(priceList) : null,
       fixedPriceVariantIds: errors.length === 0 ? changedVariantIds : [],
@@ -3956,11 +4162,16 @@ function handlePriceListFixedPricesByProductUpdate(
   );
 }
 
-function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function handleQuantityRulesAdd(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
@@ -3968,7 +4179,7 @@ function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unkn
 
   const quantityRuleInputs = readQuantityRuleInputs(args, ['quantityRules', 'rules', 'quantityRulesToAdd']);
   const { priceList, quantityRules } = existingPriceList
-    ? upsertQuantityRuleNodes(existingPriceList, quantityRuleInputs, errors, {
+    ? upsertQuantityRuleNodes(runtime, existingPriceList, quantityRuleInputs, errors, {
         fieldPrefix: ['quantityRules'],
         variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
         duplicateCode: 'DUPLICATE_INPUT_FOR_VARIANT',
@@ -3977,10 +4188,11 @@ function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unkn
     : { priceList: null, quantityRules: [] };
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       quantityRules: errors.length === 0 ? quantityRules : [],
       userErrors: errors,
@@ -3992,6 +4204,7 @@ function handleQuantityRulesAdd(field: FieldNode, variables: Record<string, unkn
 }
 
 function handleQuantityRulesDelete(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -3999,7 +4212,7 @@ function handleQuantityRulesDelete(
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list does not exist.', 'PRICE_LIST_DOES_NOT_EXIST'));
@@ -4007,7 +4220,7 @@ function handleQuantityRulesDelete(
 
   const variantIds = readQuantityVariantIds(args, ['variantIds', 'quantityRulesToDeleteByVariantId']);
   const { priceList, deletedVariantIds } = existingPriceList
-    ? deleteQuantityRuleNodes(existingPriceList, variantIds, errors, {
+    ? deleteQuantityRuleNodes(runtime, existingPriceList, variantIds, errors, {
         fieldPrefix: ['variantIds'],
         variantNotFoundCode: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
         missingRuleCode: 'VARIANT_QUANTITY_RULE_DOES_NOT_EXIST',
@@ -4016,10 +4229,11 @@ function handleQuantityRulesDelete(
     : { priceList: null, deletedVariantIds: [] };
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       deletedQuantityRulesVariantIds: errors.length === 0 ? deletedVariantIds : [],
       userErrors: errors,
@@ -4031,6 +4245,7 @@ function handleQuantityRulesDelete(
 }
 
 function handleQuantityPricingByVariantUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -4038,7 +4253,7 @@ function handleQuantityPricingByVariantUpdate(
   const args = getFieldArguments(field, variables);
   const priceListId = readPriceListIdArgument(args);
   const errors: MarketUserError[] = [];
-  const existingPriceList = priceListId ? store.getEffectivePriceListRecordById(priceListId) : null;
+  const existingPriceList = priceListId ? runtime.store.getEffectivePriceListRecordById(priceListId) : null;
 
   if (!priceListId || !existingPriceList) {
     errors.push(priceListError(['priceListId'], 'Price list not found.', 'PRICE_LIST_NOT_FOUND'));
@@ -4049,7 +4264,7 @@ function handleQuantityPricingByVariantUpdate(
 
   if (priceList && errors.length === 0) {
     const priceInputs = readFixedPriceInputs(args, ['pricesToAdd']);
-    const upserted = upsertFixedPriceNodes(priceList, priceInputs, 'upsert', errors);
+    const upserted = upsertFixedPriceNodes(runtime, priceList, priceInputs, 'upsert', errors);
     priceList = upserted.priceList;
     for (const variantId of upserted.changedVariantIds) {
       changedVariantIds.add(variantId);
@@ -4058,7 +4273,7 @@ function handleQuantityPricingByVariantUpdate(
 
   if (priceList && errors.length === 0) {
     const priceVariantIdsToDelete = readFixedPriceVariantIds(args, ['pricesToDeleteByVariantId']);
-    const deleted = deleteFixedPriceNodes(priceList, priceVariantIdsToDelete, errors);
+    const deleted = deleteFixedPriceNodes(runtime, priceList, priceVariantIdsToDelete, errors);
     priceList = deleted.priceList;
     for (const variantId of deleted.deletedVariantIds) {
       changedVariantIds.add(variantId);
@@ -4067,7 +4282,7 @@ function handleQuantityPricingByVariantUpdate(
 
   if (priceList && errors.length === 0) {
     const ruleInputs = readQuantityRuleInputs(args, ['quantityRulesToAdd']);
-    const upserted = upsertQuantityRuleNodes(priceList, ruleInputs, errors, {
+    const upserted = upsertQuantityRuleNodes(runtime, priceList, ruleInputs, errors, {
       fieldPrefix: ['input', 'quantityRulesToAdd'],
       variantNotFoundCode: 'QUANTITY_RULE_ADD_VARIANT_NOT_FOUND',
       duplicateCode: 'QUANTITY_RULE_ADD_DUPLICATE_INPUT_FOR_VARIANT',
@@ -4081,7 +4296,7 @@ function handleQuantityPricingByVariantUpdate(
 
   if (priceList && errors.length === 0) {
     const ruleVariantIdsToDelete = readQuantityVariantIds(args, ['quantityRulesToDeleteByVariantId']);
-    const deleted = deleteQuantityRuleNodes(priceList, ruleVariantIdsToDelete, errors, {
+    const deleted = deleteQuantityRuleNodes(runtime, priceList, ruleVariantIdsToDelete, errors, {
       fieldPrefix: ['input', 'quantityRulesToDeleteByVariantId'],
       variantNotFoundCode: 'QUANTITY_RULE_DELETE_VARIANT_NOT_FOUND',
       missingRuleCode: 'QUANTITY_RULE_DELETE_RULE_NOT_FOUND',
@@ -4095,7 +4310,7 @@ function handleQuantityPricingByVariantUpdate(
 
   if (priceList && errors.length === 0) {
     const priceBreakInputs = readQuantityRuleInputs(args, ['quantityPriceBreaksToAdd']);
-    const upserted = upsertQuantityPriceBreakNodes(priceList, priceBreakInputs, errors);
+    const upserted = upsertQuantityPriceBreakNodes(runtime, priceList, priceBreakInputs, errors);
     priceList = upserted.priceList;
     for (const variantId of upserted.variantIds) {
       changedVariantIds.add(variantId);
@@ -4108,6 +4323,7 @@ function handleQuantityPricingByVariantUpdate(
       'quantityPriceBreaksToDeleteByVariantId',
     ]);
     const deleted = deleteQuantityPriceBreakNodes(
+      runtime,
       priceList,
       quantityPriceBreakIdsToDelete,
       quantityPriceBreakVariantIdsToDelete,
@@ -4120,16 +4336,16 @@ function handleQuantityPricingByVariantUpdate(
   }
 
   if (errors.length === 0 && priceList) {
-    store.stageUpdatePriceList(priceList);
+    runtime.store.stageUpdatePriceList(priceList);
   }
 
   const productVariants =
     errors.length === 0
       ? [...changedVariantIds]
-          .map((variantId) => store.getEffectiveVariantById(variantId))
+          .map((variantId) => runtime.store.getEffectiveVariantById(variantId))
           .filter((variant): variant is ProductVariantRecord => variant !== null)
           .map((variant) => {
-            const product = store.getEffectiveProductById(variant.productId);
+            const product = runtime.store.getEffectiveProductById(variant.productId);
             return {
               __typename: 'ProductVariant',
               id: variant.id,
@@ -4141,6 +4357,7 @@ function handleQuantityPricingByVariantUpdate(
       : null;
 
   return projectMutationPayload(
+    runtime,
     {
       productVariants,
       userErrors: errors,
@@ -4152,6 +4369,7 @@ function handleQuantityPricingByVariantUpdate(
 }
 
 function handleWebPresenceCreate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -4159,13 +4377,20 @@ function handleWebPresenceCreate(
   const args = getFieldArguments(field, variables);
   const input = readInput(args['input']);
   const errors: MarketUserError[] = [];
-  const webPresence = buildWebPresenceRecord(makeSyntheticGid('MarketWebPresence'), input, null, errors);
+  const webPresence = buildWebPresenceRecord(
+    runtime,
+    runtime.syntheticIdentity.makeSyntheticGid('MarketWebPresence'),
+    input,
+    null,
+    errors,
+  );
 
   if (errors.length === 0) {
-    store.stageCreateWebPresence(webPresence);
+    runtime.store.stageCreateWebPresence(webPresence);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       webPresence: errors.length === 0 ? selectedWebPresencePayload(webPresence) : null,
       userErrors: errors,
@@ -4177,6 +4402,7 @@ function handleWebPresenceCreate(
 }
 
 function handleWebPresenceUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -4190,18 +4416,20 @@ function handleWebPresenceUpdate(
     errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
   }
 
-  const existingWebPresence = id ? store.getEffectiveWebPresenceRecordById(id) : null;
+  const existingWebPresence = id ? runtime.store.getEffectiveWebPresenceRecordById(id) : null;
   if (id && !existingWebPresence) {
     errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
   }
 
-  const webPresence = id && existingWebPresence ? buildWebPresenceRecord(id, input, existingWebPresence, errors) : null;
+  const webPresence =
+    id && existingWebPresence ? buildWebPresenceRecord(runtime, id, input, existingWebPresence, errors) : null;
   if (errors.length === 0 && webPresence) {
-    store.stageUpdateWebPresence(webPresence);
-    syncMarketWebPresenceNodes(webPresence);
+    runtime.store.stageUpdateWebPresence(webPresence);
+    syncMarketWebPresenceNodes(runtime, webPresence);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       webPresence: errors.length === 0 ? selectedWebPresencePayload(webPresence) : null,
       userErrors: errors,
@@ -4213,6 +4441,7 @@ function handleWebPresenceUpdate(
 }
 
 function handleWebPresenceDelete(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
@@ -4220,18 +4449,19 @@ function handleWebPresenceDelete(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const errors: MarketUserError[] = [];
-  const existingWebPresence = id ? store.getEffectiveWebPresenceRecordById(id) : null;
+  const existingWebPresence = id ? runtime.store.getEffectiveWebPresenceRecordById(id) : null;
 
   if (!id || !existingWebPresence) {
     errors.push(marketError(['id'], "The market web presence wasn't found.", 'WEB_PRESENCE_NOT_FOUND'));
   }
 
   if (errors.length === 0 && id) {
-    store.stageDeleteWebPresence(id);
-    removeWebPresenceFromMarkets(id);
+    runtime.store.stageDeleteWebPresence(id);
+    removeWebPresenceFromMarkets(runtime, id);
   }
 
   return projectMutationPayload(
+    runtime,
     {
       deletedId: errors.length === 0 ? id : null,
       userErrors: errors,
@@ -4242,7 +4472,10 @@ function handleWebPresenceDelete(
   );
 }
 
-function validateMarketLocalizationResource(resourceId: unknown): {
+function validateMarketLocalizationResource(
+  runtime: ProxyRuntimeContext,
+  resourceId: unknown,
+): {
   resource: MarketLocalizableResourceRecord | null;
   errors: MarketUserError[];
 } {
@@ -4253,7 +4486,7 @@ function validateMarketLocalizationResource(resourceId: unknown): {
     };
   }
 
-  const resource = readMarketLocalizableResource(resourceId);
+  const resource = readMarketLocalizableResource(runtime, resourceId);
   if (!resource) {
     return {
       resource: null,
@@ -4289,11 +4522,12 @@ function validateMarketLocalizationKey(
 }
 
 function validateMarketId(
+  runtime: ProxyRuntimeContext,
   rawMarketId: unknown,
   fieldPrefix: string[],
 ): { marketId: string | null; errors: MarketUserError[] } {
   const marketId = typeof rawMarketId === 'string' ? rawMarketId : '';
-  if (!marketId || !store.getEffectiveMarketRecordById(marketId)) {
+  if (!marketId || !runtime.store.getEffectiveMarketRecordById(marketId)) {
     return {
       marketId: marketId || null,
       errors: [
@@ -4310,6 +4544,7 @@ function validateMarketId(
 }
 
 function projectMarketLocalizationMutationPayload(
+  runtime: ProxyRuntimeContext,
   payload: Record<string, unknown>,
   field: FieldNode,
   fragments: FragmentMap,
@@ -4323,6 +4558,7 @@ function projectMarketLocalizationMutationPayload(
         result[key] = Array.isArray(payload['marketLocalizations'])
           ? payload['marketLocalizations'].map((localization) =>
               serializeMarketLocalization(
+                runtime,
                 localization as MarketLocalizationRecord,
                 selection.selectionSet?.selections ?? [],
                 fragments,
@@ -4333,6 +4569,7 @@ function projectMarketLocalizationMutationPayload(
         break;
       case 'userErrors':
         result[key] = projectMarketValue(
+          runtime,
           payload['userErrors'],
           selection.selectionSet?.selections ?? [],
           fragments,
@@ -4347,12 +4584,13 @@ function projectMarketLocalizationMutationPayload(
 }
 
 function handleMarketLocalizationsRegister(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): unknown {
   const args = getFieldArguments(field, variables);
-  const resourceValidation = validateMarketLocalizationResource(args['resourceId']);
+  const resourceValidation = validateMarketLocalizationResource(runtime, args['resourceId']);
   const errors = [...resourceValidation.errors];
   const inputs = Array.isArray(args['marketLocalizations'])
     ? args['marketLocalizations'].filter((input): input is Record<string, unknown> => isPlainObject(input))
@@ -4367,7 +4605,7 @@ function handleMarketLocalizationsRegister(
   if (resource) {
     inputs.forEach((input, index) => {
       const indexPath = ['marketLocalizations', String(index)];
-      const marketValidation = validateMarketId(input['marketId'], [...indexPath, 'marketId']);
+      const marketValidation = validateMarketId(runtime, input['marketId'], [...indexPath, 'marketId']);
       const keyValidation = validateMarketLocalizationKey(resource, input['key'], [...indexPath, 'key']);
       errors.push(...marketValidation.errors, ...keyValidation.errors);
 
@@ -4394,7 +4632,7 @@ function handleMarketLocalizationsRegister(
           marketId: marketValidation.marketId,
           key: keyValidation.key,
           value: input['value'],
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           outdated: false,
         });
       }
@@ -4403,11 +4641,12 @@ function handleMarketLocalizationsRegister(
 
   if (errors.length === 0) {
     for (const localization of localizations) {
-      store.stageMarketLocalization(localization);
+      runtime.store.stageMarketLocalization(localization);
     }
   }
 
   return projectMarketLocalizationMutationPayload(
+    runtime,
     {
       marketLocalizations: errors.length === 0 ? localizations : null,
       userErrors: errors,
@@ -4419,12 +4658,13 @@ function handleMarketLocalizationsRegister(
 }
 
 function handleMarketLocalizationsRemove(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): unknown {
   const args = getFieldArguments(field, variables);
-  const resourceValidation = validateMarketLocalizationResource(args['resourceId']);
+  const resourceValidation = validateMarketLocalizationResource(runtime, args['resourceId']);
   const errors = [...resourceValidation.errors];
   const rawKeys = Array.isArray(args['marketLocalizationKeys']) ? args['marketLocalizationKeys'] : [];
   const rawMarketIds = Array.isArray(args['marketIds']) ? args['marketIds'] : [];
@@ -4451,7 +4691,7 @@ function handleMarketLocalizationsRemove(
     });
 
     rawMarketIds.forEach((rawMarketId, index) => {
-      const marketValidation = validateMarketId(rawMarketId, ['marketIds', String(index)]);
+      const marketValidation = validateMarketId(runtime, rawMarketId, ['marketIds', String(index)]);
       errors.push(...marketValidation.errors);
       if (marketValidation.marketId) {
         marketIds.push(marketValidation.marketId);
@@ -4463,7 +4703,7 @@ function handleMarketLocalizationsRemove(
   if (errors.length === 0 && resource) {
     for (const marketId of marketIds) {
       for (const key of keys) {
-        const removed = store.removeMarketLocalization(resource.resourceId, marketId, key);
+        const removed = runtime.store.removeMarketLocalization(resource.resourceId, marketId, key);
         if (removed) {
           removedLocalizations.push(removed);
         }
@@ -4472,6 +4712,7 @@ function handleMarketLocalizationsRemove(
   }
 
   return projectMarketLocalizationMutationPayload(
+    runtime,
     {
       marketLocalizations: errors.length === 0 ? removedLocalizations : null,
       userErrors: errors,
@@ -4482,9 +4723,16 @@ function handleMarketLocalizationsRemove(
   );
 }
 
-function listMarketsForConnection(field: FieldNode, variables: Record<string, unknown>): MarketRecord[] {
+function listMarketsForConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): MarketRecord[] {
   const args = getFieldArguments(field, variables);
-  const filteredMarkets = applyMarketsQuery(applyRootMarketFilters(store.listEffectiveMarkets(), args), args['query']);
+  const filteredMarkets = applyMarketsQuery(
+    applyRootMarketFilters(runtime.store.listEffectiveMarkets(), args),
+    args['query'],
+  );
   const sortedMarkets = [...filteredMarkets].sort((left, right) =>
     compareMarketsBySortKey(left, right, args['sortKey']),
   );
@@ -4497,11 +4745,12 @@ function marketCursor(market: MarketRecord): string {
 }
 
 function serializeMarketsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
-  const markets = listMarketsForConnection(field, variables);
+  const markets = listMarketsForConnection(runtime, field, variables);
   const window = paginateConnectionItems(markets, field, variables, marketCursor);
   return serializeConnection(field, {
     items: window.items,
@@ -4509,7 +4758,7 @@ function serializeMarketsConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: marketCursor,
     serializeNode: (market, selection) =>
-      projectMarketValue(market.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(runtime, market.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -4521,11 +4770,12 @@ function webPresenceCursor(webPresence: WebPresenceRecord): string {
 }
 
 function serializeWebPresencesConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
-  const webPresences = store.listEffectiveWebPresences();
+  const webPresences = runtime.store.listEffectiveWebPresences();
   const args = getFieldArguments(field, variables);
   const sortedWebPresences = args['reverse'] === true ? [...webPresences].reverse() : webPresences;
   const window = paginateConnectionItems(sortedWebPresences, field, variables, webPresenceCursor);
@@ -4535,7 +4785,7 @@ function serializeWebPresencesConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: webPresenceCursor,
     serializeNode: (webPresence, selection) =>
-      projectMarketValue(webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
+      projectMarketValue(runtime, webPresence.data, selection.selectionSet?.selections ?? [], fragments, variables),
     pageInfoOptions: {
       prefixCursors: false,
     },
@@ -4567,8 +4817,8 @@ function marketMatchesBuyerCountry(market: MarketRecord, countryCode: string): b
   return marketRegionCountryEdges(market).some((edge) => marketRegionCountryCode(edge) === countryCode);
 }
 
-function resolveMarketForBuyerCountry(countryCode: string): MarketRecord | null {
-  return store.listEffectiveMarkets().find((market) => marketMatchesBuyerCountry(market, countryCode)) ?? null;
+function resolveMarketForBuyerCountry(runtime: ProxyRuntimeContext, countryCode: string): MarketRecord | null {
+  return runtime.store.listEffectiveMarkets().find((market) => marketMatchesBuyerCountry(market, countryCode)) ?? null;
 }
 
 function resolvedCurrencyCode(market: MarketRecord | null, countryCode: string | null): string {
@@ -4622,7 +4872,7 @@ function webPresenceReferencesMarket(webPresence: WebPresenceRecord, marketId: s
   );
 }
 
-function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[] {
+function webPresencesForMarket(runtime: ProxyRuntimeContext, market: MarketRecord | null): WebPresenceRecord[] {
   if (!market) {
     return [];
   }
@@ -4633,11 +4883,11 @@ function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[]
       continue;
     }
 
-    if (store.isWebPresenceDeleted(edge.node['id'])) {
+    if (runtime.store.isWebPresenceDeleted(edge.node['id'])) {
       continue;
     }
 
-    const effectiveWebPresence = store.getEffectiveWebPresenceRecordById(edge.node['id']);
+    const effectiveWebPresence = runtime.store.getEffectiveWebPresenceRecordById(edge.node['id']);
     webPresencesById.set(
       edge.node['id'],
       effectiveWebPresence ?? {
@@ -4648,7 +4898,7 @@ function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[]
     );
   }
 
-  for (const webPresence of store.listEffectiveWebPresences()) {
+  for (const webPresence of runtime.store.listEffectiveWebPresences()) {
     if (webPresenceReferencesMarket(webPresence, market.id)) {
       webPresencesById.set(webPresence.id, webPresence);
     }
@@ -4657,7 +4907,7 @@ function webPresencesForMarket(market: MarketRecord | null): WebPresenceRecord[]
   return Array.from(webPresencesById.values());
 }
 
-function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
+function catalogsForMarket(runtime: ProxyRuntimeContext, market: MarketRecord | null): CatalogRecord[] {
   if (!market) {
     return [];
   }
@@ -4668,7 +4918,7 @@ function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
       continue;
     }
 
-    const effectiveCatalog = store.getEffectiveCatalogRecordById(edge.node['id']);
+    const effectiveCatalog = runtime.store.getEffectiveCatalogRecordById(edge.node['id']);
     catalogsById.set(
       edge.node['id'],
       effectiveCatalog ?? {
@@ -4679,7 +4929,7 @@ function catalogsForMarket(market: MarketRecord | null): CatalogRecord[] {
     );
   }
 
-  for (const catalog of store.listEffectiveCatalogs()) {
+  for (const catalog of runtime.store.listEffectiveCatalogs()) {
     if (catalogReferencesMarket(catalog, market.id)) {
       catalogsById.set(catalog.id, catalog);
     }
@@ -4708,23 +4958,24 @@ function connectionPayloadFromRecords<
 }
 
 function buildMarketsResolvedValuesPayload(
+  runtime: ProxyRuntimeContext,
   market: MarketRecord | null,
   countryCode: string | null,
 ): Record<string, unknown> {
   return {
     currencyCode: resolvedCurrencyCode(market, countryCode),
     priceInclusivity: resolvedPriceInclusivity(market),
-    catalogs: connectionPayloadFromRecords(catalogsForMarket(market), catalogCursor),
-    webPresences: connectionPayloadFromRecords(webPresencesForMarket(market), webPresenceCursor),
+    catalogs: connectionPayloadFromRecords(catalogsForMarket(runtime, market), catalogCursor),
+    webPresences: connectionPayloadFromRecords(webPresencesForMarket(runtime, market), webPresenceCursor),
   };
 }
 
-function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown {
+function overlayMarketsResolvedValuesWebPresences(runtime: ProxyRuntimeContext, rootPayload: unknown): unknown {
   if (!isPlainObject(rootPayload)) {
     return rootPayload;
   }
 
-  const webPresences = store.listEffectiveWebPresences();
+  const webPresences = runtime.store.listEffectiveWebPresences();
   if (webPresences.length === 0) {
     return rootPayload;
   }
@@ -4746,45 +4997,55 @@ function overlayMarketsResolvedValuesWebPresences(rootPayload: unknown): unknown
   };
 }
 
-function serializeMarketsResolvedValues(field: FieldNode, variables: Record<string, unknown>): unknown {
+function serializeMarketsResolvedValues(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): unknown {
   const args = getFieldArguments(field, variables);
   const countryCode = buyerSignalCountryCode(args['buyerSignal']);
-  const exactBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(countryCode));
-  const wildcardBasePayload = store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(null));
-  const legacyBasePayload = store.getBaseMarketsRootPayload('marketsResolvedValues');
-  const matchedMarket = countryCode ? resolveMarketForBuyerCountry(countryCode) : null;
+  const exactBasePayload = runtime.store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(countryCode));
+  const wildcardBasePayload = runtime.store.getBaseMarketsRootPayload(marketsResolvedValuesPayloadKey(null));
+  const legacyBasePayload = runtime.store.getBaseMarketsRootPayload('marketsResolvedValues');
+  const matchedMarket = countryCode ? resolveMarketForBuyerCountry(runtime, countryCode) : null;
 
-  if (!store.hasStagedMarkets() && !store.hasStagedPriceLists() && exactBasePayload !== null) {
+  if (!runtime.store.hasStagedMarkets() && !runtime.store.hasStagedPriceLists() && exactBasePayload !== null) {
     return exactBasePayload;
   }
 
   if (matchedMarket) {
-    return buildMarketsResolvedValuesPayload(matchedMarket, countryCode);
+    return buildMarketsResolvedValuesPayload(runtime, matchedMarket, countryCode);
   }
 
   const fallbackBasePayload = exactBasePayload ?? wildcardBasePayload ?? legacyBasePayload;
   if (fallbackBasePayload !== null) {
-    return overlayMarketsResolvedValuesWebPresences(fallbackBasePayload);
+    return overlayMarketsResolvedValuesWebPresences(runtime, fallbackBasePayload);
   }
 
-  return buildMarketsResolvedValuesPayload(null, countryCode);
+  return buildMarketsResolvedValuesPayload(runtime, null, countryCode);
 }
 
-function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function rootPayloadForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   switch (field.name.value) {
     case 'market': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectiveMarketById(id) : null;
+      return id ? runtime.store.getEffectiveMarketById(id) : null;
     }
     case 'markets':
-      return serializeMarketsConnection(field, variables, fragments);
+      return serializeMarketsConnection(runtime, field, variables, fragments);
     case 'marketLocalizableResource': {
       const args = getFieldArguments(field, variables);
       const resourceId = typeof args['resourceId'] === 'string' ? args['resourceId'] : null;
       return resourceId
         ? serializeMarketLocalizableResource(
-            readMarketLocalizableResource(resourceId),
+            runtime,
+            readMarketLocalizableResource(runtime, resourceId),
             field.selectionSet?.selections ?? [],
             fragments,
             variables,
@@ -4793,14 +5054,16 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     }
     case 'marketLocalizableResources':
       return serializeMarketLocalizableResourcesConnection(
-        listMarketLocalizableResources(field, variables),
+        runtime,
+        listMarketLocalizableResources(runtime, field, variables),
         field,
         variables,
         fragments,
       );
     case 'marketLocalizableResourcesByIds':
       return serializeMarketLocalizableResourcesConnection(
-        listMarketLocalizableResourcesByIds(field, variables),
+        runtime,
+        listMarketLocalizableResourcesByIds(runtime, field, variables),
         field,
         variables,
         fragments,
@@ -4808,29 +5071,33 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
     case 'catalog': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectiveCatalogById(id) : null;
+      return id ? runtime.store.getEffectiveCatalogById(id) : null;
     }
     case 'catalogs':
-      return serializeCatalogsConnection(field, variables, fragments);
+      return serializeCatalogsConnection(runtime, field, variables, fragments);
     case 'catalogsCount':
-      return serializeCatalogsCount(field, variables);
+      return serializeCatalogsCount(runtime, field, variables);
     case 'priceList': {
       const args = getFieldArguments(field, variables);
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectivePriceListById(id) : null;
+      return id ? runtime.store.getEffectivePriceListById(id) : null;
     }
     case 'priceLists':
-      return serializePriceListsConnection(field, variables, fragments);
+      return serializePriceListsConnection(runtime, field, variables, fragments);
     case 'webPresences':
-      return serializeWebPresencesConnection(field, variables, fragments);
+      return serializeWebPresencesConnection(runtime, field, variables, fragments);
     case 'marketsResolvedValues':
-      return serializeMarketsResolvedValues(field, variables);
+      return serializeMarketsResolvedValues(runtime, field, variables);
     default:
       return null;
   }
 }
 
-export function handleMarketsQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleMarketsQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   const errors: Record<string, unknown>[] = [];
   const fragments = getDocumentFragments(document);
@@ -4844,7 +5111,7 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
     }
 
     const key = getFieldResponseKey(field);
-    const rootPayload = rootPayloadForField(field, variables, fragments);
+    const rootPayload = rootPayloadForField(runtime, field, variables, fragments);
     data[key] =
       field.name.value === 'markets' ||
       field.name.value === 'marketLocalizableResource' ||
@@ -4856,7 +5123,7 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
       field.name.value === 'webPresences'
         ? rootPayload
         : field.selectionSet
-          ? projectMarketValue(rootPayload, field.selectionSet.selections, fragments, variables)
+          ? projectMarketValue(runtime, rootPayload, field.selectionSet.selections, fragments, variables)
           : rootPayload;
   }
 
@@ -4867,7 +5134,11 @@ export function handleMarketsQuery(document: string, variables: Record<string, u
   return { data };
 }
 
-export function handleMarketMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleMarketMutation(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   const fragments = getDocumentFragments(document);
 
@@ -4875,70 +5146,70 @@ export function handleMarketMutation(document: string, variables: Record<string,
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'marketCreate':
-        data[key] = handleMarketCreate(field, variables, fragments);
+        data[key] = handleMarketCreate(runtime, field, variables, fragments);
         break;
       case 'marketUpdate':
-        data[key] = handleMarketUpdate(field, variables, fragments);
+        data[key] = handleMarketUpdate(runtime, field, variables, fragments);
         break;
       case 'marketDelete':
-        data[key] = handleMarketDelete(field, variables, fragments);
+        data[key] = handleMarketDelete(runtime, field, variables, fragments);
         break;
       case 'catalogCreate':
-        data[key] = handleCatalogCreate(field, variables, fragments);
+        data[key] = handleCatalogCreate(runtime, field, variables, fragments);
         break;
       case 'catalogUpdate':
-        data[key] = handleCatalogUpdate(field, variables, fragments);
+        data[key] = handleCatalogUpdate(runtime, field, variables, fragments);
         break;
       case 'catalogContextUpdate':
-        data[key] = handleCatalogContextUpdate(field, variables, fragments);
+        data[key] = handleCatalogContextUpdate(runtime, field, variables, fragments);
         break;
       case 'catalogDelete':
-        data[key] = handleCatalogDelete(field, variables, fragments);
+        data[key] = handleCatalogDelete(runtime, field, variables, fragments);
         break;
       case 'priceListCreate':
-        data[key] = handlePriceListCreate(field, variables, fragments);
+        data[key] = handlePriceListCreate(runtime, field, variables, fragments);
         break;
       case 'priceListUpdate':
-        data[key] = handlePriceListUpdate(field, variables, fragments);
+        data[key] = handlePriceListUpdate(runtime, field, variables, fragments);
         break;
       case 'priceListDelete':
-        data[key] = handlePriceListDelete(field, variables, fragments);
+        data[key] = handlePriceListDelete(runtime, field, variables, fragments);
         break;
       case 'priceListFixedPricesAdd':
-        data[key] = handlePriceListFixedPricesAdd(field, variables, fragments);
+        data[key] = handlePriceListFixedPricesAdd(runtime, field, variables, fragments);
         break;
       case 'priceListFixedPricesUpdate':
-        data[key] = handlePriceListFixedPricesUpdate(field, variables, fragments);
+        data[key] = handlePriceListFixedPricesUpdate(runtime, field, variables, fragments);
         break;
       case 'priceListFixedPricesDelete':
-        data[key] = handlePriceListFixedPricesDelete(field, variables, fragments);
+        data[key] = handlePriceListFixedPricesDelete(runtime, field, variables, fragments);
         break;
       case 'priceListFixedPricesByProductUpdate':
-        data[key] = handlePriceListFixedPricesByProductUpdate(field, variables, fragments);
+        data[key] = handlePriceListFixedPricesByProductUpdate(runtime, field, variables, fragments);
         break;
       case 'quantityPricingByVariantUpdate':
-        data[key] = handleQuantityPricingByVariantUpdate(field, variables, fragments);
+        data[key] = handleQuantityPricingByVariantUpdate(runtime, field, variables, fragments);
         break;
       case 'quantityRulesAdd':
-        data[key] = handleQuantityRulesAdd(field, variables, fragments);
+        data[key] = handleQuantityRulesAdd(runtime, field, variables, fragments);
         break;
       case 'quantityRulesDelete':
-        data[key] = handleQuantityRulesDelete(field, variables, fragments);
+        data[key] = handleQuantityRulesDelete(runtime, field, variables, fragments);
         break;
       case 'webPresenceCreate':
-        data[key] = handleWebPresenceCreate(field, variables, fragments);
+        data[key] = handleWebPresenceCreate(runtime, field, variables, fragments);
         break;
       case 'webPresenceUpdate':
-        data[key] = handleWebPresenceUpdate(field, variables, fragments);
+        data[key] = handleWebPresenceUpdate(runtime, field, variables, fragments);
         break;
       case 'webPresenceDelete':
-        data[key] = handleWebPresenceDelete(field, variables, fragments);
+        data[key] = handleWebPresenceDelete(runtime, field, variables, fragments);
         break;
       case 'marketLocalizationsRegister':
-        data[key] = handleMarketLocalizationsRegister(field, variables, fragments);
+        data[key] = handleMarketLocalizationsRegister(runtime, field, variables, fragments);
         break;
       case 'marketLocalizationsRemove':
-        data[key] = handleMarketLocalizationsRemove(field, variables, fragments);
+        data[key] = handleMarketLocalizationsRemove(runtime, field, variables, fragments);
         break;
       default:
         data[key] = null;
@@ -4949,7 +5220,7 @@ export function handleMarketMutation(document: string, variables: Record<string,
   return { data };
 }
 
-export function seedMarketsFromCapture(capture: unknown): boolean {
+export function seedMarketsFromCapture(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const roots = [
     'markets',
     'market',
@@ -4979,7 +5250,7 @@ export function seedMarketsFromCapture(capture: unknown): boolean {
   }
 
   if (seeded) {
-    hydrateMarketsFromUpstreamResponse('query MarketsSeed { __typename }', {}, seededPayload);
+    hydrateMarketsFromUpstreamResponse(runtime, 'query MarketsSeed { __typename }', {}, seededPayload);
   }
 
   return seeded;
