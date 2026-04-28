@@ -2906,3 +2906,21 @@ Practical rule:
 - model ready transitions as an origin-level reservation: subtract from `available`, add to `reserved`, and leave `on_hand` plus product-level `totalInventory` unchanged
 - model canceling a ready transfer as releasing the local reservation before setting `CANCELED`
 - keep shipment/receive/in-progress behavior out of transfer lifecycle support until shipment roots and downstream inventory effects are captured
+
+## 74. Native marketing activity roots are extension-context fossils
+
+HAR-373 probed `marketingActivityCreate` and `marketingActivityUpdate` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- `MarketingActivityCreateInput` now exposes only `marketingActivityExtensionId` and `status`.
+- `MarketingActivityCreatePayload` exposes only `userErrors`; the previously documented `marketingActivity` and `redirectPath` payload fields are not in the 2026-04 schema.
+- `MarketingActivityUpdateInput` exposes only `id`, while `MarketingActivityUpdatePayload` still exposes `marketingActivity`, `redirectPath`, and `userErrors`.
+- create with an arbitrary or all-zero `MarketingActivityExtension` GID returns a resolver userError at `["input", "marketingActivityExtensionId"]` with message `Could not find the marketing extension`.
+- update outside a deprecated marketing activity extension context returned a top-level `ACCESS_DENIED` error requiring `write_marketing_events`, even though the current app installation reports that scope.
+
+Practical rule:
+
+- keep native activity staging separate from external activity staging; native creates should not invent nested `MarketingEvent` records without new evidence
+- current local success behavior is runtime-test-backed draft-proxy support for staged app-extension activity records, not a live Shopify success capture
+- if the conformance app later installs a deprecated marketing activity extension, re-capture native create/update success before broadening input/payload claims
