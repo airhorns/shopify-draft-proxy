@@ -97,7 +97,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-213 captured write_marketing_events evidence for external marketing activity create, update by remoteId, upsert create/update, delete by id/remoteId, delete-all job payload, and validation/userErrors branches. This spec replays the lifecycle through the local proxy parity harness and compares stable selected payload/read fields plus captured userErrors while runtime tests cover synthetic ID/timestamp and meta-log details.",
+  "notes": "HAR-213 captured write_marketing_events evidence for external marketing activity create, update by remoteId, upsert create/update, delete by id/remoteId, delete-all job payload, and validation/userErrors branches. This spec replays the lifecycle through the local proxy parity harness and compares stable selected payload/read fields plus captured userErrors while runtime tests cover synthetic ID/timestamp and meta-log details. The UTM-selector update target reuses the captured update lifecycle payload as the conformance oracle for the documented alternate selector path.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -217,6 +217,56 @@
         "capturePath": "$.operations.updateExternalByRemoteId.response.data.marketingActivityUpdateExternal.marketingActivity.marketingEvent.manageUrl",
         "proxyPath": "$.data.updateExternalByRemoteId.marketingActivity.marketingEvent.manageUrl",
         "upstreamCapturePath": null
+      },
+      {
+        "name": "update-by-utm-user-errors",
+        "capturePath": "$.operations.updateExternalByRemoteId.response.data.marketingActivityUpdateExternal.userErrors",
+        "proxyPath": "$.data.updateExternalByUtm.userErrors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing-activity-lifecycle-update-by-utm.graphql",
+          "variables": {
+            "utm": {
+              "campaign": "har-213-update-1777157650359",
+              "source": "newsletter",
+              "medium": "email"
+            },
+            "input": {
+              "title": "HAR-213 Updated By Remote 1777157650359",
+              "status": "PAUSED",
+              "remoteUrl": "https://example.com/har-213-update-2"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-by-utm-payload",
+        "capturePath": "$.operations.updateExternalByRemoteId.response.data.marketingActivityUpdateExternal.marketingActivity",
+        "proxyPath": "$.data.updateExternalByUtm.marketingActivity",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.title",
+          "$.status",
+          "$.statusLabel",
+          "$.utmParameters",
+          "$.marketingEvent.manageUrl",
+          "$.marketingEvent.description"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing-activity-lifecycle-update-by-utm.graphql",
+          "variables": {
+            "utm": {
+              "campaign": "har-213-update-1777157650359",
+              "source": "newsletter",
+              "medium": "email"
+            },
+            "input": {
+              "title": "HAR-213 Updated By Remote 1777157650359",
+              "status": "PAUSED",
+              "remoteUrl": "https://example.com/har-213-update-2"
+            }
+          }
+        }
       },
       {
         "name": "upsert-create-user-errors",

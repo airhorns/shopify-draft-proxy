@@ -29,7 +29,7 @@ import {
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
 import { handleAppMutation, handleAppQuery, hydrateAppsFromUpstreamResponse } from '../src/proxy/apps.js';
-import { handleB2BQuery } from '../src/proxy/b2b.js';
+import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
@@ -107,6 +107,7 @@ import type {
   CollectionRecord,
   CustomerAddressRecord,
   CustomerMetafieldRecord,
+  CustomerPaymentMethodRecord,
   CustomerRecord,
   DeliveryProfileCountryRecord,
   DeliveryProfileLocationGroupRecord,
@@ -143,6 +144,7 @@ import type {
   SellingPlanGroupRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
+  ShopifyFunctionRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -231,10 +233,20 @@ interface CompiledRule extends ExpectedDifference {
 type PathSegment = string | number | '*';
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'customerPaymentMethodCreateFromDuplicationData',
+  'customerPaymentMethodCreditCardCreate',
+  'customerPaymentMethodCreditCardUpdate',
+  'customerPaymentMethodGetDuplicationData',
+  'customerPaymentMethodGetUpdateUrl',
+  'customerPaymentMethodPaypalBillingAgreementCreate',
+  'customerPaymentMethodPaypalBillingAgreementUpdate',
+  'customerPaymentMethodRemoteCreate',
+  'customerPaymentMethodRevoke',
   'paymentCustomizationActivation',
   'paymentCustomizationCreate',
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
+  'paymentReminderSend',
 ]);
 const operationRegistryEntries = listOperationRegistryEntries();
 const registeredMutationOperationNames = new Set(
@@ -1296,7 +1308,10 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
-    const bulkOperationMutation = handleBulkOperationMutation(document, variables, { readMode: 'snapshot' });
+    const bulkOperationMutation = handleBulkOperationMutation(document, variables, {
+      readMode: 'snapshot',
+      shopifyAdminOrigin: 'https://example.myshopify.com',
+    });
     if (!bulkOperationMutation) {
       throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
     }
@@ -1317,6 +1332,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: bulkOperationMutation.response,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'b2b') {
+    const b2bMutation = handleB2BMutation(document, variables);
+    if (!b2bMutation) {
+      throw new Error(`B2B-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (b2bMutation.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: b2bMutation.stagedResourceIds,
+        notes: b2bMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: b2bMutation.response,
     };
   }
 
@@ -2249,6 +2291,33 @@ function seedDiscountCatalogPreconditions(capture: unknown): boolean {
   return true;
 }
 
+function seedShopifyFunctionPreconditions(capture: unknown): boolean {
+  const seedNodes = readArrayField(capture as Record<string, unknown>, 'seedShopifyFunctions').filter(isPlainObject);
+  const functions: ShopifyFunctionRecord[] = seedNodes
+    .map((node): ShopifyFunctionRecord | null => {
+      const id = readStringField(node, 'id');
+      if (!id) {
+        return null;
+      }
+
+      return {
+        id,
+        title: readNullableStringField(node, 'title'),
+        handle: readNullableStringField(node, 'handle'),
+        apiType: readNullableStringField(node, 'apiType'),
+        description: readNullableStringField(node, 'description') ?? undefined,
+        appKey: readNullableStringField(node, 'appKey') ?? undefined,
+      };
+    })
+    .filter((shopifyFunction): shopifyFunction is ShopifyFunctionRecord => shopifyFunction !== null);
+
+  for (const shopifyFunction of functions) {
+    store.upsertStagedShopifyFunction(shopifyFunction);
+  }
+
+  return functions.length > 0;
+}
+
 function readMoneySetField(
   value: Record<string, unknown> | null | undefined,
   key: string,
@@ -2547,6 +2616,57 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
   };
+}
+
+function readSeedCustomerPaymentMethod(rawPaymentMethod: Record<string, unknown>): CustomerPaymentMethodRecord | null {
+  const id = readStringField(rawPaymentMethod, 'id');
+  const customerId = readStringField(rawPaymentMethod, 'customerId');
+  if (!id?.startsWith('gid://shopify/CustomerPaymentMethod/') || !customerId?.startsWith('gid://shopify/Customer/')) {
+    return null;
+  }
+
+  const rawInstrument = readRecordField(rawPaymentMethod, 'instrument');
+  const rawInstrumentData = readRecordField(rawInstrument, 'data') ?? rawInstrument;
+  const typeName = readStringField(rawInstrument, 'typeName') ?? readStringField(rawInstrumentData, '__typename');
+  const instrument = typeName
+    ? {
+        typeName,
+        data: structuredClone(rawInstrumentData ?? { __typename: typeName }) as NonNullable<
+          CustomerPaymentMethodRecord['instrument']
+        >['data'],
+      }
+    : null;
+
+  return {
+    id,
+    customerId,
+    cursor: readNullableStringField(rawPaymentMethod, 'cursor') ?? undefined,
+    instrument,
+    revokedAt: readNullableStringField(rawPaymentMethod, 'revokedAt'),
+    revokedReason: readNullableStringField(rawPaymentMethod, 'revokedReason') ?? undefined,
+    subscriptionContracts: [],
+  };
+}
+
+function seedCustomerPaymentMethodPreconditions(capture: unknown): void {
+  const seedCustomers = readArrayField(capture as Record<string, unknown>, 'seedCustomers')
+    .filter(isPlainObject)
+    .map((customer) => {
+      const customerId = readStringField(customer, 'id');
+      return customerId?.startsWith('gid://shopify/Customer/') ? makeSeedCustomer(customerId, customer) : null;
+    })
+    .filter((customer): customer is CustomerRecord => customer !== null);
+  if (seedCustomers.length > 0) {
+    store.upsertBaseCustomers(seedCustomers);
+  }
+
+  const seedPaymentMethods = readArrayField(capture as Record<string, unknown>, 'seedCustomerPaymentMethods')
+    .filter(isPlainObject)
+    .map(readSeedCustomerPaymentMethod)
+    .filter((paymentMethod): paymentMethod is CustomerPaymentMethodRecord => paymentMethod !== null);
+  if (seedPaymentMethods.length > 0) {
+    store.upsertBaseCustomerPaymentMethods(seedPaymentMethods);
+  }
 }
 
 function seedCustomerMutationPreconditions(
@@ -7061,6 +7181,8 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  seedCustomerPaymentMethodPreconditions(capture);
+
   if (seedCustomerMutationPreconditions(capture, variables, mutationName, payload)) {
     return;
   }
@@ -7098,6 +7220,11 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   }
 
   if (seedDiscountCatalogPreconditions(capture)) {
+    seedShopifyFunctionPreconditions(capture);
+    return;
+  }
+
+  if (seedShopifyFunctionPreconditions(capture)) {
     return;
   }
 

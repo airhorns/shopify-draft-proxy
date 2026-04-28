@@ -472,4 +472,339 @@ describe('marketing activity external lifecycle flow', () => {
     expect(stateResponse.body.stagedState.marketingActivities).toEqual({});
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('updates an external activity by UTM selector without proxying to Shopify', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('marketing update stays local'));
+    const app = createApp(config).callback();
+    const utm = {
+      campaign: 'har-394-utm-selector',
+      source: 'newsletter',
+      medium: 'email',
+    };
+
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateMarketing($input: MarketingActivityCreateExternalInput!) {
+          marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title utmParameters { campaign source medium } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            title: 'HAR-394 UTM Selector Campaign',
+            remoteId: 'har-394-utm-selector',
+            status: 'ACTIVE',
+            remoteUrl: 'https://example.com/har-394-utm-selector',
+            tactic: 'NEWSLETTER',
+            marketingChannelType: 'EMAIL',
+            utm,
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const createdActivity = createResponse.body.data.marketingActivityCreateExternal.marketingActivity;
+    expect(createdActivity.utmParameters).toEqual(utm);
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateMarketingByUtm($utm: UTMInput!, $input: MarketingActivityUpdateExternalInput!) {
+          marketingActivityUpdateExternal(utm: $utm, input: $input) {
+            marketingActivity {
+              id
+              title
+              status
+              statusLabel
+              utmParameters { campaign source medium }
+              marketingEvent { id description }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          utm,
+          input: {
+            title: 'HAR-394 UTM Selector Campaign Sent',
+            status: 'INACTIVE',
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.marketingActivityUpdateExternal).toMatchObject({
+      marketingActivity: {
+        id: createdActivity.id,
+        title: 'HAR-394 UTM Selector Campaign Sent',
+        status: 'INACTIVE',
+        statusLabel: 'Sent',
+        utmParameters: utm,
+        marketingEvent: {
+          description: 'HAR-394 UTM Selector Campaign Sent',
+        },
+      },
+      userErrors: [],
+    });
+
+    const downstreamRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadMarketing($id: ID!) {
+          marketingActivity(id: $id) {
+            id
+            title
+            status
+          }
+        }`,
+        variables: { id: createdActivity.id },
+      });
+
+    expect(downstreamRead.body.data.marketingActivity).toEqual({
+      id: createdActivity.id,
+      title: 'HAR-394 UTM Selector Campaign Sent',
+      status: 'INACTIVE',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages native activity create and update with downstream reads, engagement, and meta visibility', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('native marketing stays local'));
+    const app = createApp(config).callback();
+    const extensionId = 'gid://shopify/MarketingActivityExtension/har-373-local-extension';
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NativeCreate($input: MarketingActivityCreateInput!) {
+          marketingActivityCreate(input: $input) {
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            marketingActivityExtensionId: extensionId,
+            status: 'DRAFT',
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.marketingActivityCreate).toEqual({ userErrors: [] });
+
+    const createdActivityId = 'gid://shopify/MarketingActivity/1';
+    const readAfterCreate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query NativeRead($activityId: ID!) {
+          marketingActivity(id: $activityId) {
+            id
+            title
+            status
+            statusLabel
+            tactic
+            marketingChannelType
+            sourceAndMedium
+            isExternal
+            inMainWorkflowVersion
+            marketingEvent { id }
+          }
+          marketingActivities(first: 5, marketingActivityIds: [$activityId]) {
+            nodes { id title status isExternal marketingEvent { id } }
+          }
+        }`,
+        variables: {
+          activityId: createdActivityId,
+        },
+      });
+
+    expect(readAfterCreate.status).toBe(200);
+    expect(readAfterCreate.body.data.marketingActivity).toEqual({
+      id: createdActivityId,
+      title: 'Marketing activity',
+      status: 'DRAFT',
+      statusLabel: 'Draft',
+      tactic: 'NEWSLETTER',
+      marketingChannelType: 'EMAIL',
+      sourceAndMedium: 'Email newsletter',
+      isExternal: false,
+      inMainWorkflowVersion: true,
+      marketingEvent: null,
+    });
+    expect(readAfterCreate.body.data.marketingActivities.nodes).toEqual([
+      {
+        id: createdActivityId,
+        title: 'Marketing activity',
+        status: 'DRAFT',
+        isExternal: false,
+        marketingEvent: null,
+      },
+    ]);
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2024-10/graphql.json')
+      .send({
+        query: `mutation NativeUpdate($input: MarketingActivityUpdateInput!) {
+          marketingActivityUpdate(input: $input) {
+            marketingActivity {
+              id
+              title
+              status
+              statusLabel
+              isExternal
+              inMainWorkflowVersion
+              marketingEvent { id }
+            }
+            redirectPath
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: createdActivityId,
+            title: 'HAR-373 Native Activity Active',
+            status: 'ACTIVE',
+          },
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.marketingActivityUpdate).toEqual({
+      marketingActivity: {
+        id: createdActivityId,
+        title: 'HAR-373 Native Activity Active',
+        status: 'ACTIVE',
+        statusLabel: 'Sending',
+        isExternal: false,
+        inMainWorkflowVersion: true,
+        marketingEvent: null,
+      },
+      redirectPath: null,
+      userErrors: [],
+    });
+
+    const engagementResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NativeEngagement($marketingActivityId: ID, $marketingEngagement: MarketingEngagementInput!) {
+          marketingEngagementCreate(marketingActivityId: $marketingActivityId, marketingEngagement: $marketingEngagement) {
+            marketingEngagement {
+              occurredOn
+              clicksCount
+              marketingActivity { id isExternal adSpend { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          marketingActivityId: createdActivityId,
+          marketingEngagement: {
+            occurredOn: '2026-04-28',
+            utcOffset: '+00:00',
+            isCumulative: false,
+            clicksCount: 7,
+          },
+        },
+      });
+
+    expect(engagementResponse.status).toBe(200);
+    expect(engagementResponse.body.data.marketingEngagementCreate).toMatchObject({
+      marketingEngagement: {
+        occurredOn: '2026-04-28',
+        clicksCount: 7,
+        marketingActivity: {
+          id: createdActivityId,
+          isExternal: false,
+          adSpend: null,
+        },
+      },
+      userErrors: [],
+    });
+
+    const readAfterUpdate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query NativeReadAfterUpdate($activityId: ID!) {
+          marketingActivity(id: $activityId) {
+            id
+            title
+            status
+            updatedAt
+            isExternal
+            marketingEvent { id }
+          }
+        }`,
+        variables: {
+          activityId: createdActivityId,
+        },
+      });
+
+    expect(readAfterUpdate.body.data.marketingActivity).toEqual({
+      id: createdActivityId,
+      title: 'HAR-373 Native Activity Active',
+      status: 'ACTIVE',
+      updatedAt: '2024-01-01T00:00:02.000Z',
+      isExternal: false,
+      marketingEvent: null,
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'marketingActivityCreate',
+      'marketingActivityUpdate',
+      'marketingEngagementCreate',
+    ]);
+    expect(logResponse.body.entries[0].requestBody.variables.input.marketingActivityExtensionId).toBe(extensionId);
+    expect(logResponse.body.entries.every((entry: { status: string }) => entry.status === 'staged')).toBe(true);
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.marketingActivities[createdActivityId].data).toMatchObject({
+      title: 'HAR-373 Native Activity Active',
+      status: 'ACTIVE',
+      isExternal: false,
+      marketingActivityExtensionId: extensionId,
+      marketingEvent: null,
+    });
+    expect(Object.values(stateResponse.body.stagedState.marketingEngagements)).toHaveLength(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns captured native extension userErrors without staging records', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('native validation stays local'));
+    const app = createApp(config).callback();
+
+    const invalidCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NativeCreateValidation($input: MarketingActivityCreateInput!) {
+          marketingActivityCreate(input: $input) {
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            marketingActivityExtensionId:
+              'gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000',
+            status: 'DRAFT',
+          },
+        },
+      });
+
+    expect(invalidCreateResponse.status).toBe(200);
+    expect(invalidCreateResponse.body.data.marketingActivityCreate).toEqual({
+      userErrors: [
+        {
+          field: ['input', 'marketingActivityExtensionId'],
+          message: 'Could not find the marketing extension',
+        },
+      ],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(logResponse.body.entries).toEqual([]);
+    expect(stateResponse.body.stagedState.marketingActivities).toEqual({});
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

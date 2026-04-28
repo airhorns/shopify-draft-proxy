@@ -1,0 +1,79 @@
+{
+  "scenarioId": "marketing-native-activity-lifecycle",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-04-28T02:23:00.000Z",
+  "accessScopes": ["read_marketing_events", "write_marketing_events"],
+  "schema": {
+    "marketingActivityCreateInputFields": ["marketingActivityExtensionId", "status"],
+    "marketingActivityUpdateInputFields": ["id"],
+    "marketingActivityCreatePayloadFields": ["userErrors"],
+    "marketingActivityUpdatePayloadFields": ["marketingActivity", "redirectPath", "userErrors"]
+  },
+  "operations": {
+    "validation": {
+      "invalidExtension": {
+        "request": {
+          "query": "mutation NativeCreateValidation($input: MarketingActivityCreateInput!) { marketingActivityCreate(input: $input) { userErrors { field message } } }",
+          "variables": {
+            "input": {
+              "marketingActivityExtensionId": "gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000",
+              "status": "DRAFT"
+            }
+          }
+        },
+        "response": {
+          "data": {
+            "marketingActivityCreate": {
+              "userErrors": [
+                {
+                  "field": ["input", "marketingActivityExtensionId"],
+                  "message": "Could not find the marketing extension"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "updateOutsideExtensionContext": {
+        "request": {
+          "query": "mutation NativeUpdateMissing($input: MarketingActivityUpdateInput!) { marketingActivityUpdate(input: $input) { marketingActivity { id } redirectPath userErrors { field message } } }",
+          "variables": {
+            "input": {
+              "id": "gid://shopify/MarketingActivity/999999999999"
+            }
+          }
+        },
+        "response": {
+          "errors": [
+            {
+              "message": "Access denied for marketingActivityUpdate field. Required access: `write_marketing_events` access scope.",
+              "path": ["marketingActivityUpdate"],
+              "extensions": {
+                "code": "ACCESS_DENIED",
+                "requiredAccess": "`write_marketing_events` access scope."
+              }
+            }
+          ],
+          "data": {
+            "marketingActivityUpdate": null
+          }
+        }
+      }
+    }
+  },
+  "blockers": {
+    "successPath": "The conformance app/store has read/write marketing scopes, but no deprecated MarketingActivityExtension is installed or discoverable through Admin GraphQL. Shopify returns `Could not find the marketing extension` for arbitrary extension IDs, and update probes outside extension context return ACCESS_DENIED, so live success-path capture is blocked until the conformance app includes a deprecated marketing activity app extension."
+  },
+  "localRuntimeExpectations": {
+    "updatedActivity": {
+      "id": "gid://shopify/MarketingActivity/1",
+      "title": "HAR-373 Native Activity Active",
+      "status": "ACTIVE",
+      "statusLabel": "Sending",
+      "isExternal": false,
+      "inMainWorkflowVersion": true,
+      "marketingEvent": null
+    }
+  }
+}

@@ -114,23 +114,18 @@ describe('proxy capability classification', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('marks app-managed discount mutations as unsafe unsupported passthrough in logs', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            discountCodeAppCreate: {
-              codeAppDiscount: null,
-              userErrors: [],
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    );
+  it('logs app-managed discount mutations with Function evidence as staged-local intent', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('supported app-managed discount create should not hit upstream fetch');
+    });
+    store.upsertStagedShopifyFunction({
+      id: '859fcac2-cf96-44db-8146-977445fa90c8',
+      title: 'Function discount',
+      handle: 'function-discount',
+      apiType: 'DISCOUNT',
+      description: 'Local Function evidence',
+      appKey: 'local-app-key',
+    });
 
     const app = createApp(config);
 
@@ -141,12 +136,14 @@ describe('proxy capability classification', () => {
             title: "Function discount"
             code: "FUNCTION"
             startsAt: "2026-04-24T00:00:00Z"
-            functionId: "11111111-1111-4111-8111-111111111111"
+            functionId: "859fcac2-cf96-44db-8146-977445fa90c8"
           }
         ) {
           codeAppDiscount {
+            discountId
             title
             status
+            appDiscountType { appKey functionId title description }
           }
           userErrors {
             field
@@ -162,35 +159,37 @@ describe('proxy capability classification', () => {
       .send({ query });
 
     expect(response.status).toBe(200);
+    expect(response.body.data.discountCodeAppCreate).toEqual({
+      codeAppDiscount: {
+        discountId: 'gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic',
+        title: 'Function discount',
+        status: 'SCHEDULED',
+        appDiscountType: {
+          appKey: 'local-app-key',
+          functionId: '859fcac2-cf96-44db-8146-977445fa90c8',
+          title: 'Function discount',
+          description: 'Local Function evidence',
+        },
+      },
+      userErrors: [],
+    });
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'CreateAppDiscount',
-      status: 'proxied',
+      operationName: 'discountCodeAppCreate',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         operationName: 'CreateAppDiscount',
         rootFields: ['discountCodeAppCreate'],
         primaryRootField: 'discountCodeAppCreate',
         capability: {
-          operationName: 'CreateAppDiscount',
-          domain: 'unknown',
-          execution: 'passthrough',
-        },
-        registeredOperation: {
-          name: 'discountCodeAppCreate',
           domain: 'discounts',
           execution: 'stage-locally',
-          implemented: false,
-        },
-        safety: {
-          classification: 'unsupported-app-discount-function-mutation',
-          wouldProxyToShopify: true,
         },
       },
-      notes:
-        'Unsupported app-managed discount mutation would be proxied to Shopify. Shopify Functions app-discount roots require conformance-backed local staging before they can be supported without executing external Function logic.',
+      notes: 'Staged locally in the in-memory discount draft store.',
     });
-    expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('logs app billing and access mutations as staged-local intent', async () => {

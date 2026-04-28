@@ -43,13 +43,27 @@ The supported entry field slice is based on the HAR-240 Admin GraphQL 2026-04 ca
 - ordered `fields` with `key`, `type`, `value`, `jsonValue`, and the captured field-definition reference (`key`, `name`, `required`, `type.name`, `type.category`)
 - `field(key:)`, including `null` for unknown field keys while preserving aliases
 - `definition` when the matching normalized definition is present
-- `referencedBy` as a Shopify-like empty connection until relation evidence exists
+- `MetaobjectField.reference` for `metaobject_reference` fields and `MetaobjectField.references` for `list.metaobject_reference` fields
+- `referencedBy` connections for reverse relationships created by modeled metaobject reference fields
 
 Snapshot mode reads entries from normalized `metaobjects` state and returns `null` for absent ID or `(type, handle)` lookups. Empty or absent type catalogs return non-null empty connections with empty `edges` / `nodes`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
 
 `metaobjects(type:, first:, after:, before:, last:, reverse:, sortKey:, query:)` is type-scoped and never invents entries outside normalized state. Local catalog cursors use stable `cursor:<metaobject gid>` values. Supported local sort keys are `id`, `type`, `updated_at`, and `display_name`; `reverse` flips the sorted list before cursor windowing. Query filtering supports general text search plus documented field-value filters such as `fields.title:Alpha` against normalized field `value` / `jsonValue` data.
 
 Live-hybrid mode fetches upstream first. When local snapshot or staged entry state exists, the proxy overlays normalized entries onto the selected roots; when no local entry exists, upstream no-data/null responses are returned unchanged.
+
+### Reference relationship behavior
+
+HAR-384 promotes metaobject field relationships from documentation-only gap to modeled runtime behavior. The live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-reference-lifecycle.json`, recorded by `corepack pnpm conformance:capture-metaobject-references`, confirms these shapes:
+
+- `metaobject_reference` field definitions accept a `metaobject_definition_id` validation that points at the target definition.
+- A single-reference field serializes `value` and `jsonValue` as the referenced metaobject GID, returns a selected `reference` object, and returns `references: null`.
+- A list-reference field serializes `value` as Shopify's JSON-encoded ID list, `jsonValue` as an array of IDs, returns `reference: null`, and returns a `references` connection of referenced metaobjects.
+- Target metaobjects expose `referencedBy` as a `MetafieldRelationConnection`; relation nodes include the parent field `key`, field definition `name`, parent type as `namespace`, and the parent metaobject as `referencer`.
+
+The local model derives relationships from effective staged/snapshot metaobject field values at read time. Create, update, upsert, delete, and schema projection therefore affect downstream `reference`, `references`, and `referencedBy` reads without runtime Shopify writes. When no fields reference a target metaobject, `referencedBy` remains a Shopify-like empty connection.
+
+Reference connection cursors are intentionally stable synthetic cursor values in local mode. Shopify cursors are opaque and are recorded as expected parity differences.
 
 ### Supported definition mutation roots
 
@@ -122,6 +136,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 ### Planned local-staging posture
 
 - Definition mutation support does not yet migrate modeled entries or cascade definition deletes into entry state. Future definition/entry coupling needs conformance-backed migration and cascade behavior.
+- Metaobject relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and `mixed_reference` need separate conformance evidence before support is widened.
 - Broader bulk delete selection semantics and Shopify async job timing need additional live conformance before widening beyond the local ids/type branches.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 
@@ -166,6 +181,8 @@ HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json`
 
 HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
+HAR-384 adds `config/parity-specs/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobject-reference-read.graphql`, and a live 2026-04 fixture for metaobject reference relationships. The parity runner hydrates the local proxy from captured definition and entry reads, then strictly compares selected `reference`, `references`, and `referencedBy` payloads against Shopify while allowing only opaque cursor differences. `tests/integration/metaobject-draft-flow.test.ts` covers staged create/update/delete reference effects and no runtime upstream writes.
+
 ### Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
@@ -177,3 +194,4 @@ HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the c
 - Captured root inventory: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
 - Schema-change fixture recorder: `scripts/capture-metaobject-schema-change-conformance.ts`
+- Reference relationship fixture recorder: `scripts/capture-metaobject-reference-conformance.ts`

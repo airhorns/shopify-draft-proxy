@@ -1,0 +1,24 @@
+query MarketingNativeActivityRead($activityId: ID!) {
+  marketingActivity(id: $activityId) {
+    id
+    title
+    status
+    statusLabel
+    isExternal
+    inMainWorkflowVersion
+    marketingEvent {
+      id
+    }
+  }
+  marketingActivities(first: 5, marketingActivityIds: [$activityId]) {
+    nodes {
+      id
+      title
+      status
+      isExternal
+      marketingEvent {
+        id
+      }
+    }
+  }
+}

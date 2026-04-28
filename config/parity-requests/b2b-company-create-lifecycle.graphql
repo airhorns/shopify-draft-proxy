@@ -1,0 +1,32 @@
+mutation B2BCompanyCreateLifecycle($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      externalId
+      contactsCount {
+        count
+      }
+      locationsCount {
+        count
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
