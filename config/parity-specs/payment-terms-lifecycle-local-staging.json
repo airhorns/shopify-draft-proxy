@@ -1,0 +1,185 @@
+{
+  "scenarioId": "payment-terms-lifecycle-local-staging",
+  "operationNames": ["paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "mutation-log-replay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payment-terms-lifecycle.json"],
+  "runtimeTestFiles": ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payment-terms-lifecycle-create.graphql",
+    "variables": {
+      "referenceId": { "fromCapturePath": "$.seedDraftOrder.id" },
+      "attrs": {
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [
+          {
+            "issuedAt": {
+              "fromCapturePath": "$.operations.paymentTermsCreate.variables.attrs.paymentSchedules[0].issuedAt"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.paymentTerms.id",
+        "matcher": "shopify-gid:PaymentTerms",
+        "reason": "Shopify and the local proxy generate independent payment terms IDs."
+      },
+      {
+        "path": "$.paymentTerms.paymentSchedules.nodes[0].id",
+        "matcher": "shopify-gid:PaymentSchedule",
+        "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+      },
+      {
+        "path": "$.paymentTerms.paymentSchedules.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+      },
+      {
+        "path": "$.paymentTerms.paymentSchedules.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.operations.paymentTermsCreate.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate"
+      },
+      {
+        "name": "read-after-create",
+        "capturePath": "$.reads.afterCreate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payment-terms-lifecycle-draft-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+          }
+        }
+      },
+      {
+        "name": "update-payload",
+        "capturePath": "$.operations.paymentTermsUpdate.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payment-terms-lifecycle-update.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": { "fromPrimaryProxyPath": "$.data.paymentTermsCreate.paymentTerms.id" },
+              "paymentTermsAttributes": {
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [
+                  {
+                    "dueAt": {
+                      "fromCapturePath": "$.operations.paymentTermsUpdate.variables.input.paymentTermsAttributes.paymentSchedules[0].dueAt"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-update",
+        "capturePath": "$.reads.afterUpdate.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payment-terms-lifecycle-draft-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+          }
+        }
+      },
+      {
+        "name": "delete-payload",
+        "capturePath": "$.operations.paymentTermsDelete.response.data.paymentTermsDelete",
+        "proxyPath": "$.data.paymentTermsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payment-terms-lifecycle-delete.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": { "fromPrimaryProxyPath": "$.data.paymentTermsCreate.paymentTerms.id" }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy delete their independently generated payment terms IDs."
+          }
+        ]
+      },
+      {
+        "name": "read-after-delete",
+        "capturePath": "$.reads.afterDelete.response.data.draftOrder.paymentTerms",
+        "proxyPath": "$.data.draftOrder.paymentTerms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payment-terms-lifecycle-draft-read.graphql",
+          "variables": {
+            "id": { "fromCapturePath": "$.seedDraftOrder.id" }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable parity replays paymentTermsCreate, paymentTermsUpdate, paymentTermsDelete, and downstream draftOrder(id:) reads against the local proxy using a live 2026-04 Shopify capture from a disposable draft order. The capture confirms Shopify computes NET dueAt from issuedAt plus template due days, replaces the PaymentSchedule id on FIXED update, and returns null paymentTerms after delete."
+}
