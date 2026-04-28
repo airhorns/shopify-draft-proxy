@@ -1,0 +1,714 @@
+{
+  "capturedAt": "2026-04-28T10:55:33.132Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "token": "H402-moiifgz1",
+  "notes": [
+    "HAR-402 capture for executable saved-search resource-root parity.",
+    "PRODUCT, COLLECTION, ORDER, DRAFT_ORDER, FILE, and DISCOUNT_REDEEM_CODE savedSearchCreate calls succeeded and were visible only through their matching saved-search roots.",
+    "CUSTOMER savedSearchCreate returned Shopify deprecation userErrors with field null.",
+    "PRICE_RULE savedSearchCreate was intentionally excluded from this live fixture because the current conformance token returns ACCESS_DENIED for that resource type; local PRICE_RULE routing remains covered by runtime tests.",
+    "codeDiscountSavedSearches and automaticDiscountSavedSearches were captured without query arguments because Shopify 2026-04 rejects query: on those roots.",
+    "The fixture includes cleanup delete responses and post-delete empty reads for all successfully created saved searches."
+  ],
+  "create": {
+    "documentPath": "config/parity-requests/saved-search-resource-roots-create.graphql",
+    "variables": {
+      "product": {
+        "resourceType": "PRODUCT",
+        "name": "H402-moiifgz1 PRODUCT",
+        "query": "H402-moiifgz1 PRODUCT"
+      },
+      "collection": {
+        "resourceType": "COLLECTION",
+        "name": "H402-moiifgz1 COLLECTION",
+        "query": "H402-moiifgz1 COLLECTION"
+      },
+      "order": {
+        "resourceType": "ORDER",
+        "name": "H402-moiifgz1 ORDER",
+        "query": "H402-moiifgz1 ORDER"
+      },
+      "draftOrder": {
+        "resourceType": "DRAFT_ORDER",
+        "name": "H402-moiifgz1 DRAFT_ORDER",
+        "query": "H402-moiifgz1 DRAFT_ORDER"
+      },
+      "file": {
+        "resourceType": "FILE",
+        "name": "H402-moiifgz1 FILE",
+        "query": "H402-moiifgz1 FILE"
+      },
+      "discountRedeemCode": {
+        "resourceType": "DISCOUNT_REDEEM_CODE",
+        "name": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+        "query": "H402-moiifgz1 DISCOUNT_REDEEM_CODE"
+      },
+      "customer": {
+        "resourceType": "CUSTOMER",
+        "name": "H402-moiifgz1 CUSTOMER",
+        "query": "H402-moiifgz1 CUSTOMER"
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002731983154",
+            "legacyResourceId": "4002731983154",
+            "name": "H402-moiifgz1 PRODUCT",
+            "query": "H402-moiifgz1 PRODUCT",
+            "resourceType": "PRODUCT",
+            "searchTerms": "H402-moiifgz1 PRODUCT",
+            "filters": []
+          },
+          "userErrors": []
+        },
+        "collection": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002732015922",
+            "legacyResourceId": "4002732015922",
+            "name": "H402-moiifgz1 COLLECTION",
+            "query": "H402-moiifgz1 COLLECTION",
+            "resourceType": "COLLECTION",
+            "searchTerms": "H402-moiifgz1 COLLECTION",
+            "filters": []
+          },
+          "userErrors": []
+        },
+        "customer": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Customer saved searches have been deprecated. Use Segmentation API instead."
+            }
+          ]
+        },
+        "order": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002732048690",
+            "legacyResourceId": "4002732048690",
+            "name": "H402-moiifgz1 ORDER",
+            "query": "H402-moiifgz1 ORDER",
+            "resourceType": "ORDER",
+            "searchTerms": "H402-moiifgz1 ORDER",
+            "filters": []
+          },
+          "userErrors": []
+        },
+        "draftOrder": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002732081458",
+            "legacyResourceId": "4002732081458",
+            "name": "H402-moiifgz1 DRAFT_ORDER",
+            "query": "H402-moiifgz1 DRAFT_ORDER",
+            "resourceType": "DRAFT_ORDER",
+            "searchTerms": "H402-moiifgz1 DRAFT_ORDER",
+            "filters": []
+          },
+          "userErrors": []
+        },
+        "file": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002732114226",
+            "legacyResourceId": "4002732114226",
+            "name": "H402-moiifgz1 FILE",
+            "query": "H402-moiifgz1 FILE",
+            "resourceType": "FILE",
+            "searchTerms": "H402-moiifgz1 FILE",
+            "filters": []
+          },
+          "userErrors": []
+        },
+        "discountRedeemCode": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4002732146994",
+            "legacyResourceId": "4002732146994",
+            "name": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+            "query": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+            "resourceType": "DISCOUNT_REDEEM_CODE",
+            "searchTerms": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+            "filters": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 77,
+          "actualQueryCost": 76,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1924,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "documentPath": "config/parity-requests/saved-search-resource-roots-read.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4002731983154",
+              "legacyResourceId": "4002731983154",
+              "name": "H402-moiifgz1 PRODUCT",
+              "query": "H402\\-moiifgz1 PRODUCT",
+              "resourceType": "PRODUCT",
+              "searchTerms": "H402-moiifgz1 PRODUCT",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4002732015922",
+              "legacyResourceId": "4002732015922",
+              "name": "H402-moiifgz1 COLLECTION",
+              "query": "H402\\-moiifgz1 COLLECTION",
+              "resourceType": "COLLECTION",
+              "searchTerms": "H402-moiifgz1 COLLECTION",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "orders": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634391515442",
+              "legacyResourceId": "3634391515442",
+              "name": "Unfulfilled",
+              "query": "status:open fulfillment_status:unshipped,partial",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "fulfillment_status",
+                  "value": "unshipped,partial"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391548210",
+              "legacyResourceId": "3634391548210",
+              "name": "Unpaid",
+              "query": "status:open financial_status:unpaid",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "financial_status",
+                  "value": "unpaid"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391580978",
+              "legacyResourceId": "3634391580978",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391613746",
+              "legacyResourceId": "3634391613746",
+              "name": "Archived",
+              "query": "status:closed",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "closed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4002732048690",
+              "legacyResourceId": "4002732048690",
+              "name": "H402-moiifgz1 ORDER",
+              "query": "H402\\-moiifgz1 ORDER",
+              "resourceType": "ORDER",
+              "searchTerms": "H402-moiifgz1 ORDER",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "draftOrders": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634390597938",
+              "legacyResourceId": "3634390597938",
+              "name": "Open and invoice sent",
+              "query": "status:open_and_invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open_and_invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390630706",
+              "legacyResourceId": "3634390630706",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390663474",
+              "legacyResourceId": "3634390663474",
+              "name": "Invoice sent",
+              "query": "status:invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390696242",
+              "legacyResourceId": "3634390696242",
+              "name": "Completed",
+              "query": "status:completed",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390729010",
+              "legacyResourceId": "3634390729010",
+              "name": "Submitted for review",
+              "query": "status:open source:online_store",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "source",
+                  "value": "online_store"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/4002732081458",
+              "legacyResourceId": "4002732081458",
+              "name": "H402-moiifgz1 DRAFT_ORDER",
+              "query": "H402\\-moiifgz1 DRAFT_ORDER",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "H402-moiifgz1 DRAFT_ORDER",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4002732114226",
+              "legacyResourceId": "4002732114226",
+              "name": "H402-moiifgz1 FILE",
+              "query": "H402\\-moiifgz1 FILE",
+              "resourceType": "FILE",
+              "searchTerms": "H402-moiifgz1 FILE",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "codeDiscounts": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "automaticDiscounts": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "redeemCodes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4002732146994",
+              "legacyResourceId": "4002732146994",
+              "name": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+              "query": "H402\\-moiifgz1 DISCOUNT_REDEEM_CODE",
+              "resourceType": "DISCOUNT_REDEEM_CODE",
+              "searchTerms": "H402-moiifgz1 DISCOUNT_REDEEM_CODE",
+              "filters": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 108,
+          "actualQueryCost": 44,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1907,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-search-resource-roots-delete.graphql",
+    "variables": {
+      "product": {
+        "id": "gid://shopify/SavedSearch/4002731983154"
+      },
+      "collection": {
+        "id": "gid://shopify/SavedSearch/4002732015922"
+      },
+      "order": {
+        "id": "gid://shopify/SavedSearch/4002732048690"
+      },
+      "draftOrder": {
+        "id": "gid://shopify/SavedSearch/4002732081458"
+      },
+      "file": {
+        "id": "gid://shopify/SavedSearch/4002732114226"
+      },
+      "discountRedeemCode": {
+        "id": "gid://shopify/SavedSearch/4002732146994"
+      }
+    },
+    "response": {
+      "data": {
+        "product": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002731983154",
+          "userErrors": []
+        },
+        "collection": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002732015922",
+          "userErrors": []
+        },
+        "order": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002732048690",
+          "userErrors": []
+        },
+        "draftOrder": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002732081458",
+          "userErrors": []
+        },
+        "file": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002732114226",
+          "userErrors": []
+        },
+        "discountRedeemCode": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4002732146994",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 60,
+          "actualQueryCost": 60,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1870,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "documentPath": "config/parity-requests/saved-search-resource-roots-read.graphql",
+    "variables": {},
+    "response": {
+      "data": {
+        "products": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "collections": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "customers": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "orders": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634391515442",
+              "legacyResourceId": "3634391515442",
+              "name": "Unfulfilled",
+              "query": "status:open fulfillment_status:unshipped,partial",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "fulfillment_status",
+                  "value": "unshipped,partial"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391548210",
+              "legacyResourceId": "3634391548210",
+              "name": "Unpaid",
+              "query": "status:open financial_status:unpaid",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "financial_status",
+                  "value": "unpaid"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391580978",
+              "legacyResourceId": "3634391580978",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634391613746",
+              "legacyResourceId": "3634391613746",
+              "name": "Archived",
+              "query": "status:closed",
+              "resourceType": "ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "closed"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "draftOrders": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/3634390597938",
+              "legacyResourceId": "3634390597938",
+              "name": "Open and invoice sent",
+              "query": "status:open_and_invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open_and_invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390630706",
+              "legacyResourceId": "3634390630706",
+              "name": "Open",
+              "query": "status:open",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390663474",
+              "legacyResourceId": "3634390663474",
+              "name": "Invoice sent",
+              "query": "status:invoice_sent",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "invoice_sent"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390696242",
+              "legacyResourceId": "3634390696242",
+              "name": "Completed",
+              "query": "status:completed",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "completed"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/SavedSearch/3634390729010",
+              "legacyResourceId": "3634390729010",
+              "name": "Submitted for review",
+              "query": "status:open source:online_store",
+              "resourceType": "DRAFT_ORDER",
+              "searchTerms": "",
+              "filters": [
+                {
+                  "key": "status",
+                  "value": "open"
+                },
+                {
+                  "key": "source",
+                  "value": "online_store"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "files": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "codeDiscounts": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "automaticDiscounts": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "redeemCodes": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 108,
+          "actualQueryCost": 59,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1831,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,136 @@
+mutation SavedSearchResourceRootsCreate(
+  $product: SavedSearchCreateInput!
+  $collection: SavedSearchCreateInput!
+  $customer: SavedSearchCreateInput!
+  $order: SavedSearchCreateInput!
+  $draftOrder: SavedSearchCreateInput!
+  $file: SavedSearchCreateInput!
+  $discountRedeemCode: SavedSearchCreateInput!
+) {
+  product: savedSearchCreate(input: $product) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  collection: savedSearchCreate(input: $collection) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  customer: savedSearchCreate(input: $customer) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  order: savedSearchCreate(input: $order) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  draftOrder: savedSearchCreate(input: $draftOrder) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  file: savedSearchCreate(input: $file) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  discountRedeemCode: savedSearchCreate(input: $discountRedeemCode) {
+    savedSearch {
+      id
+      legacyResourceId
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
