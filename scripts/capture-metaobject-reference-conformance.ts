@@ -36,8 +36,8 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const outputPath = path.join(outputDir, 'metaobject-reference-lifecycle.json');
 const runId = Date.now().toString();
 const seed: SeedState = {
-  targetType: `codex_har_384_ref_target_${runId}`,
-  parentType: `codex_har_384_ref_parent_${runId}`,
+  targetType: `codex_har_409_ref_target_${runId}`,
+  parentType: `codex_har_409_ref_parent_${runId}`,
 };
 
 const referenceReadQuery = await readFile('config/parity-requests/metaobject-reference-read.graphql', 'utf8');
@@ -360,8 +360,8 @@ try {
     {
       definition: {
         type: seed.targetType,
-        name: `Codex HAR-384 Target ${runId}`,
-        description: 'Temporary HAR-384 conformance definition for metaobject reference targets.',
+        name: `Codex HAR-409 Target ${runId}`,
+        description: 'Temporary HAR-409 conformance definition for metaobject reference targets.',
         displayNameKey: 'title',
         fieldDefinitions: [
           {
@@ -389,8 +389,8 @@ try {
     {
       definition: {
         type: seed.parentType,
-        name: `Codex HAR-384 Parent ${runId}`,
-        description: 'Temporary HAR-384 conformance definition for metaobject reference fields.',
+        name: `Codex HAR-409 Parent ${runId}`,
+        description: 'Temporary HAR-409 conformance definition for metaobject reference fields.',
         displayNameKey: 'title',
         fieldDefinitions: [
           {

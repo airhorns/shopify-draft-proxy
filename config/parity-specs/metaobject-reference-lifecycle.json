@@ -101,5 +101,5 @@
       }
     ]
   },
-  "notes": "HAR-384 captured live 2026-04 evidence for `metaobject_reference`, `list.metaobject_reference`, field-level `reference`/`references`, and reverse `Metaobject.referencedBy` relations. The parity runner hydrates local definitions and rows from the captured seeded read, then replays the reference read through the proxy with strict JSON comparison except for Shopify's opaque connection cursors. Runtime tests cover staged create, update, and delete reference downstream reads without upstream passthrough."
+  "notes": "HAR-409 captured live 2026-04 evidence for `metaobject_reference`, `list.metaobject_reference`, field-level `reference`/`references`, and reverse `Metaobject.referencedBy` relations. The parity runner hydrates local definitions and rows from the captured seeded read, then replays the reference read through the proxy with strict JSON comparison except for Shopify's opaque connection cursors. Runtime tests cover staged create, update, and delete reference downstream reads without upstream passthrough."
 }

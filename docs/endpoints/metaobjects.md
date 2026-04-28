@@ -54,7 +54,7 @@ Live-hybrid mode fetches upstream first. When local snapshot or staged entry sta
 
 ### Reference relationship behavior
 
-HAR-384 promotes metaobject field relationships from documentation-only gap to modeled runtime behavior. The live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-reference-lifecycle.json`, recorded by `corepack pnpm conformance:capture-metaobject-references`, confirms these shapes:
+HAR-409 promotes metaobject field relationships from documentation-only gap to modeled runtime behavior. The live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-reference-lifecycle.json`, recorded by `corepack pnpm conformance:capture-metaobject-references`, confirms these shapes:
 
 - `metaobject_reference` field definitions accept a `metaobject_definition_id` validation that points at the target definition.
 - A single-reference field serializes `value` and `jsonValue` as the referenced metaobject GID, returns a selected `reference` object, and returns `references: null`.
@@ -181,7 +181,7 @@ HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json`
 
 HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
-HAR-384 adds `config/parity-specs/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobject-reference-read.graphql`, and a live 2026-04 fixture for metaobject reference relationships. The parity runner hydrates the local proxy from captured definition and entry reads, then strictly compares selected `reference`, `references`, and `referencedBy` payloads against Shopify while allowing only opaque cursor differences. `tests/integration/metaobject-draft-flow.test.ts` covers staged create/update/delete reference effects and no runtime upstream writes.
+HAR-409 adds `config/parity-specs/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobject-reference-read.graphql`, and a live 2026-04 fixture for metaobject reference relationships. The parity runner hydrates the local proxy from captured definition and entry reads, then strictly compares selected `reference`, `references`, and `referencedBy` payloads against Shopify while allowing only opaque cursor differences. `tests/integration/metaobject-draft-flow.test.ts` covers staged create/update/delete reference effects and no runtime upstream writes.
 
 ### Validation anchors
 
