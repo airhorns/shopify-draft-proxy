@@ -24,7 +24,9 @@ Snapshot/local empty behavior follows the 2025-01 capture in `fixtures/conforman
 - `articleTags(limit:)` returns an empty list when no local article tags exist
 - `blogsCount` and `pagesCount` return `Count` payloads with `precision: "EXACT"`
 
-Local connection support uses the shared GraphQL connection helpers for selected `nodes`, `edges`, and `pageInfo` fields. The local model supports simple id/title/handle/status text filtering, common sort keys, reverse ordering, and cursor windows. Captured opaque Shopify cursors are not decoded; newly staged local rows use stable synthetic cursor values.
+Local connection support uses the shared GraphQL connection helpers for selected `nodes`, `edges`, and `pageInfo` fields. The local model supports common sort keys, reverse ordering, and cursor windows. Captured opaque Shopify cursors are not decoded; newly staged local rows use stable synthetic cursor values.
+
+Search/filter support uses the shared Shopify Admin search-query helpers instead of a resource-local parser. The implemented local subset covers default text terms, boolean `OR` / negation grouping, and the fields that matter for the captured content lifecycle: `id`, `title`, `handle`, `created_at`, `updated_at`, `published_at`, `published_status`, `status`, article `author`, `blog_id`, `blog_title`, `tag`, and `tag_not`. Top-level `articles` still applies the captured published-article boundary before query filtering; nested blog article reads expose the effective local graph.
 
 Nested content behavior:
 
@@ -45,7 +47,7 @@ Implemented local staging:
 - `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes
 - `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, body/body summary, template suffix, and publication fields
 - `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
-- `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation or tombstones for comments that already exist in hydrated/snapshot local state
+- `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation or tombstones for comments that already exist in hydrated/snapshot local state; approval sets `status: "PUBLISHED"`, `isPublished: true`, and a local `publishedAt` timestamp when the comment did not already have one
 
 Unknown content IDs return local `userErrors` for supported mutations instead of proxying upstream. Delete mutations stage tombstones so downstream detail reads return `null` and catalog/nested connections omit the deleted row.
 
@@ -120,6 +122,7 @@ These roots can affect the live storefront, tracking integrations, theme assets,
 ### Evidence and blockers
 
 - Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors. HAR-352 promotes this fixture through `config/parity-specs/online-store-content-lifecycle.json` and `config/parity-requests/online-store-content-*.graphql`; `corepack pnpm conformance:parity` seeds the captured baseline read, replays local create/update/read/delete/comment guardrail requests, and strictly compares stable payload/count/null-empty/userErrors fields against the recording.
+- HAR-393 executable review added local integration coverage for Shopify-style boolean/fielded content search and comment approval `publishedAt` materialization. External examples reviewed during the ticket show apps commonly requesting page `onlineStoreUrl`, article image/SEO/metafield fields, and navigation-menu insertion after page creation; those surfaces remain outside the current content lifecycle model unless separately captured and implemented.
 - Current presentation/integration evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-304 query and mutation root names exist in the captured Admin GraphQL schema.
 - Current HAR-304 blocker: no checked-in parity scenario or live capture records presentation/integration read shapes, validation branches, or safe lifecycle behavior for those roots.
 - Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible and must not be marked implemented from validation-only or branch-only evidence.

@@ -1,6 +1,16 @@
 import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import {
+  applySearchQuery,
+  matchesSearchQueryDate,
+  matchesSearchQueryNumber,
+  matchesSearchQueryString,
+  matchesSearchQueryText,
+  normalizeSearchQueryValue,
+  searchQueryTermValue,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import { makeProxySyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { OnlineStoreContentKind, OnlineStoreContentRecord } from '../state/types.js';
@@ -59,6 +69,12 @@ function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/gu, '').trim();
 }
 
+function numericGidSuffix(id: string): number | null {
+  const suffix = id.split('/').at(-1)?.split('?')[0] ?? '';
+  const numeric = Number.parseFloat(suffix);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function countPayload(count: number): Record<string, unknown> {
   return { count, precision: 'EXACT' };
 }
@@ -95,35 +111,106 @@ function readIdArgument(field: FieldNode, variables: Record<string, unknown>): s
   return typeof args['id'] === 'string' ? args['id'] : null;
 }
 
-function matchesQuery(record: OnlineStoreContentRecord, query: unknown): boolean {
-  if (typeof query !== 'string' || query.trim().length === 0) {
+function recordString(record: OnlineStoreContentRecord, field: string): string | null {
+  const value = record.data[field];
+  return typeof value === 'string' ? value : null;
+}
+
+function recordBlog(record: OnlineStoreContentRecord): OnlineStoreContentRecord | null {
+  const blogId =
+    typeof record.parentId === 'string'
+      ? record.parentId
+      : typeof record.data['blogId'] === 'string'
+        ? record.data['blogId']
+        : null;
+  return blogId ? store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
+}
+
+function matchesPublishedStatus(record: OnlineStoreContentRecord, term: SearchQueryTerm): boolean {
+  const value = normalizeSearchQueryValue(term.value);
+  if (value === 'any') {
     return true;
   }
 
-  const normalized = query.trim().toLowerCase();
-  const data = record.data;
-  const id = String(data['id'] ?? record.id).toLowerCase();
-  const title = String(data['title'] ?? '').toLowerCase();
-  const handle = String(data['handle'] ?? '').toLowerCase();
-  const status = String(data['status'] ?? '').toLowerCase();
-  const body = String(data['body'] ?? data['bodyHtml'] ?? '').toLowerCase();
-
-  if (normalized.startsWith('id:')) {
-    return id.includes(normalized.slice(3));
-  }
-  if (normalized.startsWith('handle:')) {
-    return handle.includes(normalized.slice(7));
-  }
-  if (normalized.startsWith('title:')) {
-    return title.includes(normalized.slice(6));
-  }
-  if (normalized.startsWith('status:')) {
-    return status === normalized.slice(7);
+  const isPublished = record.data['isPublished'] === true;
+  if (value === 'published' || value === 'visible') {
+    return isPublished;
   }
 
-  return (
-    id.includes(normalized) || title.includes(normalized) || handle.includes(normalized) || body.includes(normalized)
-  );
+  if (value === 'unpublished' || value === 'hidden') {
+    return !isPublished;
+  }
+
+  return false;
+}
+
+function matchesOnlineStoreSearchTerm(record: OnlineStoreContentRecord, term: SearchQueryTerm): boolean {
+  const field = term.field?.toLowerCase() ?? null;
+  const id = String(record.data['id'] ?? record.id);
+  const title = recordString(record, 'title');
+  const handle = recordString(record, 'handle');
+  const body = recordString(record, 'body') ?? recordString(record, 'bodyHtml');
+  const status = recordString(record, 'status');
+  const author = record.data['author'];
+  const authorName = isPlainObject(author) && typeof author['name'] === 'string' ? author['name'] : null;
+  const tags = readStringArray(record.data['tags']);
+  const blog = record.kind === 'article' ? recordBlog(record) : null;
+
+  switch (field) {
+    case null:
+      return (
+        matchesSearchQueryText(id, term) ||
+        matchesSearchQueryText(title, term) ||
+        matchesSearchQueryText(handle, term) ||
+        matchesSearchQueryText(body, term) ||
+        matchesSearchQueryText(recordString(record, 'summary'), term) ||
+        matchesSearchQueryText(status, term) ||
+        matchesSearchQueryText(authorName, term) ||
+        tags.some((tag) => matchesSearchQueryText(tag, term)) ||
+        matchesSearchQueryText(recordString(blog ?? record, 'title'), term)
+      );
+    case 'id':
+      return (
+        matchesSearchQueryNumber(numericGidSuffix(id), term) || matchesSearchQueryString(id, term.value, 'includes')
+      );
+    case 'handle':
+      return matchesSearchQueryString(handle, term.value, 'includes');
+    case 'title':
+      return matchesSearchQueryString(title, term.value, 'includes');
+    case 'status':
+      return matchesSearchQueryString(status, term.value, 'exact');
+    case 'author':
+      return matchesSearchQueryString(authorName, term.value, 'includes');
+    case 'blog_id': {
+      const blogId = record.parentId ?? recordString(record, 'blogId');
+      return (
+        matchesSearchQueryNumber(blogId ? numericGidSuffix(blogId) : null, term) ||
+        matchesSearchQueryString(blogId, term.value, 'includes')
+      );
+    }
+    case 'blog_title':
+      return matchesSearchQueryString(recordString(blog ?? record, 'title'), term.value, 'includes');
+    case 'tag':
+      return tags.some((tag) => matchesSearchQueryString(tag, term.value, 'exact'));
+    case 'tag_not':
+      return tags.every((tag) => !matchesSearchQueryString(tag, term.value, 'exact'));
+    case 'published_status':
+      return matchesPublishedStatus(record, term);
+    case 'created_at':
+      return matchesSearchQueryDate(recordString(record, 'createdAt') ?? record.createdAt, term);
+    case 'updated_at':
+      return matchesSearchQueryDate(recordString(record, 'updatedAt') ?? record.updatedAt, term);
+    case 'published_at':
+      return matchesSearchQueryDate(recordString(record, 'publishedAt'), term);
+    case 'body':
+      return matchesSearchQueryString(body, searchQueryTermValue(term), 'includes');
+    default:
+      return matchesSearchQueryString(recordString(record, field), searchQueryTermValue(term), 'includes');
+  }
+}
+
+function applyOnlineStoreSearch(records: OnlineStoreContentRecord[], query: unknown): OnlineStoreContentRecord[] {
+  return applySearchQuery(records, query, { recognizeNotKeyword: true }, matchesOnlineStoreSearchTerm);
 }
 
 function sortRecords(
@@ -171,10 +258,12 @@ function listRecords(
 ): OnlineStoreContentRecord[] {
   const args = getFieldArguments(field, variables);
   return sortRecords(
-    store
-      .listEffectiveOnlineStoreContent(kind)
-      .filter((record) => kind !== 'article' || record.data['isPublished'] !== false)
-      .filter((record) => matchesQuery(record, args['query'])),
+    applyOnlineStoreSearch(
+      store
+        .listEffectiveOnlineStoreContent(kind)
+        .filter((record) => kind !== 'article' || record.data['isPublished'] !== false),
+      args['query'],
+    ),
     field,
     variables,
   );
@@ -187,10 +276,10 @@ function recordsForNestedConnection(
   variables: Record<string, unknown>,
 ): OnlineStoreContentRecord[] {
   return sortRecords(
-    store
-      .listEffectiveOnlineStoreContent(kind)
-      .filter((record) => record.parentId === parentId)
-      .filter((record) => matchesQuery(record, getFieldArguments(field, variables)['query'])),
+    applyOnlineStoreSearch(
+      store.listEffectiveOnlineStoreContent(kind).filter((record) => record.parentId === parentId),
+      getFieldArguments(field, variables)['query'],
+    ),
     field,
     variables,
   );
@@ -614,6 +703,7 @@ function handleCommentModeration(
             ...existing.data,
             status: statusByRoot[root] ?? String(existing.data['status'] ?? 'PENDING'),
             isPublished: root === 'commentApprove',
+            publishedAt: root === 'commentApprove' ? (existing.data['publishedAt'] ?? updatedAt) : null,
             updatedAt,
           },
         }
