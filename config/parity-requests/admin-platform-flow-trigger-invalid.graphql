@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveInvalid {
+  flowTriggerReceive(handle: "har-374-missing", payload: { test: "value" }) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

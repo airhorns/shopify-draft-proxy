@@ -436,6 +436,7 @@ export const fileRecordSchema = z.strictObject({
   imageUrl: nullableStringSchema,
   imageWidth: nullableNumberSchema,
   imageHeight: nullableNumberSchema,
+  updateFailureAcknowledgedAt: nullableStringSchema.optional(),
 });
 export type FileRecord = z.infer<typeof fileRecordSchema>;
 
@@ -787,6 +788,21 @@ export const customerPaymentMethodRecordSchema = z.strictObject({
 });
 export type CustomerPaymentMethodRecord = z.infer<typeof customerPaymentMethodRecordSchema>;
 
+export const customerPaymentMethodUpdateUrlRecordSchema = z.strictObject({
+  id: z.string(),
+  customerPaymentMethodId: z.string(),
+  updatePaymentMethodUrl: z.string(),
+  createdAt: z.string(),
+});
+export type CustomerPaymentMethodUpdateUrlRecord = z.infer<typeof customerPaymentMethodUpdateUrlRecordSchema>;
+
+export const paymentReminderSendRecordSchema = z.strictObject({
+  id: z.string(),
+  paymentScheduleId: z.string(),
+  sentAt: z.string(),
+});
+export type PaymentReminderSendRecord = z.infer<typeof paymentReminderSendRecordSchema>;
+
 export const storeCreditAccountTransactionRecordSchema = z.strictObject({
   id: z.string(),
   accountId: z.string(),
@@ -1119,16 +1135,26 @@ export type DiscountEventRecord = z.infer<typeof discountEventRecordSchema>;
 export const discountBulkOperationRecordSchema = z.strictObject({
   id: z.string(),
   typeName: z.string(),
-  operation: z.enum(['discountRedeemCodeBulkAdd', 'discountCodeRedeemCodeBulkDelete']),
+  operation: z.enum([
+    'discountRedeemCodeBulkAdd',
+    'discountCodeRedeemCodeBulkDelete',
+    'discountCodeBulkActivate',
+    'discountCodeBulkDeactivate',
+    'discountCodeBulkDelete',
+    'discountAutomaticBulkDelete',
+  ]),
   discountId: z.string(),
   status: z.enum(['COMPLETED', 'FAILED', 'IN_PROGRESS']),
   done: z.boolean(),
   createdAt: z.string(),
   completedAt: nullableStringSchema.optional(),
+  query: nullableStringSchema.optional(),
   codesCount: z.number().int().nonnegative().optional(),
   importedCount: z.number().int().nonnegative().optional(),
   failedCount: z.number().int().nonnegative().optional(),
   redeemCodeIds: z.array(z.string()).optional(),
+  discountIds: z.array(z.string()).optional(),
+  selector: jsonObjectSchema.optional(),
 });
 export type DiscountBulkOperationRecord = z.infer<typeof discountBulkOperationRecordSchema>;
 
@@ -2163,6 +2189,32 @@ export const abandonmentRecordSchema = z.strictObject({
 });
 export type AbandonmentRecord = z.infer<typeof abandonmentRecordSchema>;
 
+export const backupRegionRecordSchema = z.strictObject({
+  __typename: z.literal('MarketRegionCountry'),
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+});
+export type BackupRegionRecord = z.infer<typeof backupRegionRecordSchema>;
+
+export const adminPlatformFlowSignatureRecordSchema = z.strictObject({
+  id: z.string(),
+  flowTriggerId: z.string(),
+  payloadSha256: z.string(),
+  signatureSha256: z.string(),
+  createdAt: z.string(),
+});
+export type AdminPlatformFlowSignatureRecord = z.infer<typeof adminPlatformFlowSignatureRecordSchema>;
+
+export const adminPlatformFlowTriggerRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  payloadBytes: z.number().int().nonnegative(),
+  payloadSha256: z.string(),
+  receivedAt: z.string(),
+});
+export type AdminPlatformFlowTriggerRecord = z.infer<typeof adminPlatformFlowTriggerRecordSchema>;
+
 export const stateSnapshotSchema = z.strictObject({
   shop: shopRecordSchema.nullable().default(null),
   products: z.record(z.string(), productRecordSchema),
@@ -2190,9 +2242,11 @@ export const stateSnapshotSchema = z.strictObject({
   customers: z.record(z.string(), customerRecordSchema),
   customerAddresses: z.record(z.string(), customerAddressRecordSchema).default({}),
   customerPaymentMethods: z.record(z.string(), customerPaymentMethodRecordSchema).default({}),
+  customerPaymentMethodUpdateUrls: z.record(z.string(), customerPaymentMethodUpdateUrlRecordSchema).default({}),
   customerAccountPages: z.record(z.string(), customerAccountPageRecordSchema).default({}),
   customerAccountPageOrder: z.array(z.string()).default([]),
   customerDataErasureRequests: z.record(z.string(), customerDataErasureRequestRecordSchema).default({}),
+  paymentReminderSends: z.record(z.string(), paymentReminderSendRecordSchema).default({}),
   storeCreditAccounts: z.record(z.string(), storeCreditAccountRecordSchema).default({}),
   storeCreditAccountTransactions: z.record(z.string(), storeCreditAccountTransactionRecordSchema).default({}),
   segments: z.record(z.string(), segmentRecordSchema).default({}),
@@ -2266,6 +2320,11 @@ export const stateSnapshotSchema = z.strictObject({
   abandonedCheckoutOrder: z.array(z.string()).default([]),
   abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
   abandonmentOrder: z.array(z.string()).default([]),
+  backupRegion: backupRegionRecordSchema.nullable().default(null),
+  adminPlatformFlowSignatures: z.record(z.string(), adminPlatformFlowSignatureRecordSchema).default({}),
+  adminPlatformFlowSignatureOrder: z.array(z.string()).default([]),
+  adminPlatformFlowTriggers: z.record(z.string(), adminPlatformFlowTriggerRecordSchema).default({}),
+  adminPlatformFlowTriggerOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
@@ -2299,6 +2358,10 @@ export const stateSnapshotSchema = z.strictObject({
   deletedPaymentCustomizationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedValidationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCartTransformIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedB2BCompanyIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedB2BCompanyContactIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedB2BCompanyContactRoleIds: z.record(z.string(), z.literal(true)).default({}),
+  deletedB2BCompanyLocationIds: z.record(z.string(), z.literal(true)).default({}),
   deletedMarketIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCatalogIds: z.record(z.string(), z.literal(true)).default({}),
   deletedPriceListIds: z.record(z.string(), z.literal(true)).default({}),
