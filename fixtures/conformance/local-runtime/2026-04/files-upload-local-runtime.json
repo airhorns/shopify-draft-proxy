@@ -2,9 +2,9 @@
   "kind": "local-runtime-fixture",
   "apiVersion": "2026-04",
   "scenarioId": "files-upload-local-runtime",
-  "issue": "HAR-313",
+  "issue": "HAR-313, HAR-379",
   "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
-  "coveredOperations": ["fileCreate", "files", "fileSavedSearches", "stagedUploadsCreate"],
+  "coveredOperations": ["fileCreate", "fileUpdate", "files", "fileSavedSearches", "stagedUploadsCreate"],
   "liveEvidenceFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-create-delete-parity.json",
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/file-update-parity.json"
@@ -13,7 +13,8 @@
     "Snapshot-mode fileCreate stages Files API records without upstream fetch.",
     "Staged file records are visible through the top-level files connection.",
     "fileSavedSearches returns Shopify-like empty connection data until saved-search records are modeled.",
-    "stagedUploadsCreate returns inert local target metadata and does not create external upload storage."
+    "stagedUploadsCreate returns inert local target metadata and does not create external upload storage.",
+    "fileUpdate rejects simultaneous originalSource and previewImageSource without staging a file replacement."
   ],
   "create": {
     "response": {
@@ -96,6 +97,22 @@
             }
           ],
           "userErrors": []
+        }
+      }
+    }
+  },
+  "fileUpdateConflictingSources": {
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [],
+          "userErrors": [
+            {
+              "field": ["files", "0"],
+              "message": "Specify either originalSource or previewImageSource, not both.",
+              "code": "INVALID"
+            }
+          ]
         }
       }
     }
