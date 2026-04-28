@@ -8607,6 +8607,12 @@ function serializeProductOperationField(
         field,
         variables,
       );
+    case 'newProduct':
+      return serializeProduct(
+        operation.newProductId ? store.getEffectiveProductById(operation.newProductId) : null,
+        field,
+        variables,
+      );
     case 'userErrors':
       return serializeProductOperationUserErrors(operation.userErrors, field);
     default:
@@ -8647,6 +8653,51 @@ function serializeProductOperation(
 
     const key = selection.alias?.value ?? selection.name.value;
     result[key] = serializeProductOperationField(operation, selection, variables);
+  }
+
+  return result;
+}
+
+function serializeProductDuplicateOperation(
+  field: FieldNode | null,
+  operation: ProductOperationRecord | null,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!field || !operation) {
+    return null;
+  }
+
+  return serializeProductOperation(operation, field, variables);
+}
+
+function serializeProductDuplicateMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    newProduct: ProductRecord | null;
+    productDuplicateOperation: ProductOperationRecord | null;
+    userErrors: ProductOperationRecord['userErrors'];
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  const newProductField = getChildField(field, 'newProduct');
+  if (newProductField) {
+    result[getResponseKey(newProductField)] = serializeProduct(payload.newProduct, newProductField, variables);
+  }
+
+  const operationField = getChildField(field, 'productDuplicateOperation');
+  if (operationField) {
+    result[getResponseKey(operationField)] = serializeProductDuplicateOperation(
+      operationField,
+      payload.productDuplicateOperation,
+      variables,
+    );
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
   }
 
   return result;
@@ -10106,22 +10157,51 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
               newProduct: null,
+              productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product id is required' }],
-            },
+            }),
           },
         };
       }
 
+      const synchronous = args['synchronous'] !== false;
       const sourceProduct = store.getEffectiveProductById(productId);
       if (!sourceProduct) {
+        if (!synchronous) {
+          const operation = store.stageProductOperation({
+            id: makeSyntheticGid('ProductDuplicateOperation'),
+            typeName: 'ProductDuplicateOperation',
+            productId: null,
+            newProductId: null,
+            status: 'COMPLETE',
+            userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+          });
+          const initialOperation: ProductOperationRecord = {
+            ...operation,
+            status: 'CREATED',
+            userErrors: [],
+          };
+
+          return {
+            data: {
+              [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: null,
+                productDuplicateOperation: initialOperation,
+                userErrors: [],
+              }),
+            },
+          };
+        }
+
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
               newProduct: null,
+              productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product not found' }],
-            },
+            }),
           },
         };
       }
@@ -10167,13 +10247,36 @@ export function handleProductMutation(
       );
       const product =
         syncProductInventorySummary(duplicatedProduct.id) ?? store.getEffectiveProductById(duplicatedProduct.id);
+      const productDuplicateOperation = synchronous
+        ? null
+        : store.stageProductOperation({
+            id: makeSyntheticGid('ProductDuplicateOperation'),
+            typeName: 'ProductDuplicateOperation',
+            productId,
+            newProductId: duplicatedProduct.id,
+            status: 'COMPLETE',
+            userErrors: [],
+          });
 
       return {
         data: {
-          [responseKey]: {
-            newProduct: serializeProduct(product, getChildField(field, 'newProduct'), variables),
-            userErrors: [],
-          },
+          [responseKey]: synchronous
+            ? serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: product,
+                productDuplicateOperation: null,
+                userErrors: [],
+              })
+            : serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: null,
+                productDuplicateOperation: productDuplicateOperation
+                  ? {
+                      ...productDuplicateOperation,
+                      newProductId: null,
+                      status: 'CREATED',
+                    }
+                  : null,
+                userErrors: [],
+              }),
         },
       };
     }

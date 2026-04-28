@@ -227,6 +227,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    packageScript: 'conformance:capture-product-duplicate-async',
+    scriptPath: 'scripts/capture-product-duplicate-async-conformance.ts',
+    purpose: 'Asynchronous productDuplicate operation success and missing-product completion behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-duplicate-async-success.json`,
+      `${CAPTURE_ROOT}product-duplicate-async-missing.json`,
+      'config/parity-specs/productDuplicate-async-*.json',
+    ],
+    cleanupBehavior: 'Creates disposable source/duplicate products and deletes both after operation completion.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     packageScript: 'conformance:capture-product-inventory-reads',
     scriptPath: 'scripts/capture-product-inventory-read-conformance.mts',
