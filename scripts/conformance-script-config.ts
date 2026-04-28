@@ -1,3 +1,5 @@
+import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
+
 /* oxlint-disable no-console -- CLI scripts intentionally write missing-env errors to stderr. */
 
 export type ConformanceScriptConfig = {
@@ -33,7 +35,7 @@ function readRequiredEnv(env: NodeJS.ProcessEnv, names: string[], exitOnMissing:
 }
 
 export function readConformanceScriptConfig({
-  defaultApiVersion = '2025-01',
+  defaultApiVersion = DEFAULT_ADMIN_API_VERSION,
   env = process.env,
   exitOnMissing = false,
   requireAdminOrigin = true,

@@ -20,7 +20,7 @@ type CaptureEntry = {
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
-  defaultApiVersion: '2025-01',
+  defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });

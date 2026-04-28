@@ -72,6 +72,7 @@ type BulkOperationMutationResult = {
 type BulkOperationMutationOptions = {
   readMode: ReadMode;
   shopifyAdminOrigin: string;
+  apiVersion?: string | null;
 };
 
 export type BulkOperationImportLogEntry = {
@@ -1000,7 +1001,12 @@ function handleSupportedBulkImportInnerMutation(
       ) as GraphqlResponseBody | null;
       break;
     case 'products':
-      responseBody = handleProductMutation(mutation, variables, options.readMode) as GraphqlResponseBody;
+      responseBody = handleProductMutation(
+        mutation,
+        variables,
+        options.readMode,
+        options.apiVersion,
+      ) as GraphqlResponseBody;
       break;
     case 'saved-searches': {
       const result = handleSavedSearchMutation(mutation, variables);
@@ -1044,7 +1050,7 @@ function handleSupportedBulkImportInnerMutation(
     case 'store-properties':
       responseBody =
         capability.operationName?.startsWith('publishable') === true
-          ? (handleProductMutation(mutation, variables, options.readMode) as GraphqlResponseBody)
+          ? (handleProductMutation(mutation, variables, options.readMode, options.apiVersion) as GraphqlResponseBody)
           : (handleStorePropertiesMutation(mutation, variables) as GraphqlResponseBody);
       break;
     case 'webhooks': {
