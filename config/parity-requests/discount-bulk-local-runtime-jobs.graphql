@@ -1,0 +1,59 @@
+mutation DiscountBulkJobs(
+  $activateIds: [ID!]
+  $deactivateIds: [ID!]
+  $deleteCodeIds: [ID!]
+  $deleteAutomaticIds: [ID!]
+) {
+  activate: discountCodeBulkActivate(ids: $activateIds) {
+    job {
+      id
+      done
+      query
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  deactivate: discountCodeBulkDeactivate(ids: $deactivateIds) {
+    job {
+      id
+      done
+      query
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  deleteCode: discountCodeBulkDelete(ids: $deleteCodeIds) {
+    job {
+      id
+      done
+      query
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticIds) {
+    job {
+      id
+      done
+      query
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveOversize($payload: JSON) {
+  flowTriggerReceive(handle: "har-374-missing", payload: $payload) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

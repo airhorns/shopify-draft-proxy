@@ -834,6 +834,194 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages CustomerInput address lists on create and update read-after-write paths', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('CustomerInput address lists should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreateWithAddresses($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              defaultAddress { id address1 city provinceCode countryCodeV2 formattedArea }
+              addressesV2(first: 5) {
+                nodes { id address1 city provinceCode countryCodeV2 formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'customer-input-addresses@example.com',
+            firstName: 'Address',
+            lastName: 'Input',
+            addresses: [
+              {
+                address1: '10 Input St',
+                city: 'Ottawa',
+                countryCode: 'CA',
+                provinceCode: 'ON',
+                zip: 'K1A 0B1',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.customerCreate.userErrors).toEqual([]);
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+    const createdAddress = createResponse.body.data.customerCreate.customer.addressesV2.nodes[0];
+    expect(createdAddress).toMatchObject({
+      id: expect.stringMatching(/^gid:\/\/shopify\/CustomerAddress\//),
+      address1: '10 Input St',
+      city: 'Ottawa',
+      provinceCode: 'ON',
+      countryCodeV2: 'CA',
+      formattedArea: 'Ottawa ON, Canada',
+    });
+    expect(createResponse.body.data.customerCreate.customer.defaultAddress).toEqual(createdAddress);
+    expect(createResponse.body.data.customerCreate.customer.addressesV2.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: `customer-address-${customerId}-0`,
+      endCursor: `customer-address-${customerId}-0`,
+    });
+
+    const invalidUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InvalidCustomerInputAddress($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id addressesV2(first: 5) { nodes { address1 } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: customerId,
+            addresses: [{ address1: 'Invalid Province', city: 'Ottawa', countryCode: 'CA', provinceCode: 'ZZ' }],
+          },
+        },
+      });
+
+    expect(invalidUpdateResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [{ field: ['input', 'addresses', '0', 'province'], message: 'Province is invalid' }],
+    });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerUpdateAddressList($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer {
+              id
+              defaultAddress { id address1 city provinceCode countryCodeV2 formattedArea }
+              addresses { id address1 city }
+              addressesV2(first: 5) {
+                nodes { id address1 city provinceCode countryCodeV2 formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: customerId,
+            addresses: [
+              {
+                address1: '20 Replacement Ave',
+                city: 'Montreal',
+                countryCode: 'CA',
+                provinceCode: 'QC',
+                zip: 'H2Y 1C6',
+              },
+              {
+                address1: '20 Replacement Ave',
+                city: 'Montreal',
+                countryCode: 'CA',
+                provinceCode: 'QC',
+                zip: 'H2Y 1C6',
+              },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.body.data.customerUpdate.userErrors).toEqual([]);
+    const replacementAddress = updateResponse.body.data.customerUpdate.customer.addressesV2.nodes[0];
+    expect(updateResponse.body.data.customerUpdate.customer.addressesV2.nodes).toEqual([
+      {
+        id: replacementAddress.id,
+        address1: '20 Replacement Ave',
+        city: 'Montreal',
+        provinceCode: 'QC',
+        countryCodeV2: 'CA',
+        formattedArea: 'Montreal QC, Canada',
+      },
+    ]);
+    expect(updateResponse.body.data.customerUpdate.customer.defaultAddress).toEqual(replacementAddress);
+    expect(updateResponse.body.data.customerUpdate.customer.addresses).toEqual([
+      {
+        id: replacementAddress.id,
+        address1: '20 Replacement Ave',
+        city: 'Montreal',
+      },
+    ]);
+
+    const downstreamReadResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query CustomerInputAddressRead($id: ID!) {
+          customer(id: $id) {
+            id
+            defaultAddress { address1 city }
+            addressesV2(first: 5) { nodes { address1 city } }
+          }
+          customerByIdentifier(identifier: { emailAddress: "customer-input-addresses@example.com" }) {
+            id
+            defaultAddress { address1 city }
+            addressesV2(first: 5) { nodes { address1 city } }
+          }
+          customers(first: 5, query: "email:customer-input-addresses@example.com") {
+            nodes {
+              id
+              defaultAddress { address1 city }
+              addressesV2(first: 5) { nodes { address1 city } }
+            }
+          }
+        }`,
+        variables: { id: customerId },
+      });
+
+    const expectedAddressRead = {
+      defaultAddress: { address1: '20 Replacement Ave', city: 'Montreal' },
+      addressesV2: { nodes: [{ address1: '20 Replacement Ave', city: 'Montreal' }] },
+    };
+    expect(downstreamReadResponse.body.data).toEqual({
+      customer: { id: customerId, ...expectedAddressRead },
+      customerByIdentifier: { id: customerId, ...expectedAddressRead },
+      customers: { nodes: [{ id: customerId, ...expectedAddressRead }] },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'customerCreate',
+      'customerUpdate',
+      'customerUpdate',
+    ]);
+    expect(logResponse.body.entries.at(-1).requestBody.variables.input.addresses).toHaveLength(2);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages customer address lifecycle mutations and overlays downstream address reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('customer address mutations should not hit upstream fetch');

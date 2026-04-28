@@ -496,6 +496,19 @@ describe('getOperationCapability', () => {
       operationName: 'FileDelete',
       type: 'mutation',
     });
+
+    expect(
+      getOperationCapability({
+        type: 'mutation',
+        name: 'FileAcknowledgeUpdateFailed',
+        rootFields: ['fileAcknowledgeUpdateFailed'],
+      }),
+    ).toEqual({
+      domain: 'media',
+      execution: 'stage-locally',
+      operationName: 'FileAcknowledgeUpdateFailed',
+      type: 'mutation',
+    });
   });
 
   it('marks inventoryAdjustQuantities as a locally staged mutation', () => {
@@ -587,9 +600,9 @@ describe('getOperationCapability', () => {
         rootFields: ['discountAutomaticBulkDelete'],
       }),
     ).toEqual({
-      domain: 'unknown',
-      execution: 'passthrough',
-      operationName: 'DeleteAutomaticDiscounts',
+      domain: 'discounts',
+      execution: 'stage-locally',
+      operationName: 'discountAutomaticBulkDelete',
       type: 'mutation',
     });
   });

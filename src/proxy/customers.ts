@@ -1461,7 +1461,7 @@ function serializeCustomerPaymentMethodSubscriptionContractsConnection(
   return connection;
 }
 
-function serializeCustomerPaymentMethodSelection(
+export function serializeCustomerPaymentMethodSelection(
   paymentMethod: CustomerPaymentMethodRecord,
   field: FieldNode,
   variables: Record<string, unknown> = {},
@@ -3171,6 +3171,18 @@ function validateCustomerAddressInputs(
   );
 }
 
+function validateCustomerInputAddresses(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (!hasOwnField(input, 'addresses') || input['addresses'] === null) {
+    return [];
+  }
+
+  if (!Array.isArray(input['addresses'])) {
+    return [{ field: ['input', 'addresses'], message: 'Addresses must be an array' }];
+  }
+
+  return validateCustomerAddressInputs(input['addresses']);
+}
+
 function customerAddressesMatch(left: CustomerAddressRecord, right: CustomerAddressRecord): boolean {
   return CUSTOMER_ADDRESS_DUPLICATE_FIELDS.every((field) => left[field] === right[field]);
 }
@@ -3235,6 +3247,14 @@ function replaceCustomerSetAddresses(customer: CustomerRecord, rawAddresses: unk
   }
 
   return store.stageUpdateCustomer(buildCustomerWithDefaultAddress(customer, addresses[0] ?? null));
+}
+
+function replaceCustomerInputAddresses(customer: CustomerRecord, input: Record<string, unknown>): CustomerRecord {
+  if (!hasOwnField(input, 'addresses') || input['addresses'] === null) {
+    return customer;
+  }
+
+  return replaceCustomerSetAddresses(customer, input['addresses']);
 }
 
 function buildCustomerAddressOwnershipUserError(): CustomerMutationUserError {
@@ -4525,6 +4545,7 @@ export function handleCustomerMutation(
         ...validateCustomerCreateInput(input),
         ...validateCustomerInputLongTail(input, null),
         ...validateCustomerTaxExemptionInput(input),
+        ...validateCustomerInputAddresses(input),
         ...validateCustomerMetafieldInputs(input['metafields'], customerIdForValidation),
       ];
       if (userErrors.length > 0) {
@@ -4532,7 +4553,8 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customer = store.stageCreateCustomer(buildCreatedCustomer(input));
+      const createdCustomer = store.stageCreateCustomer(buildCreatedCustomer(input));
+      const customer = replaceCustomerInputAddresses(createdCustomer, input);
       const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(
@@ -4563,6 +4585,7 @@ export function handleCustomerMutation(
       const userErrors = [
         ...validateCustomerInputLongTail(input, existingCustomer.id),
         ...validateCustomerTaxExemptionInput(input),
+        ...validateCustomerInputAddresses(input),
         ...validateCustomerMetafieldInputs(input['metafields'], existingCustomer.id),
       ];
       if (userErrors.length > 0) {
@@ -4570,7 +4593,8 @@ export function handleCustomerMutation(
         continue;
       }
 
-      const customer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
+      const updatedCustomer = store.stageUpdateCustomer(buildUpdatedCustomer(existingCustomer, input));
+      const customer = replaceCustomerInputAddresses(updatedCustomer, input);
       const metafieldInputs = readMetafieldInputObjects(input['metafields']);
       if (metafieldInputs.length > 0) {
         store.replaceStagedMetafieldsForCustomer(

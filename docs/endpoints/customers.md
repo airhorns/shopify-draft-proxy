@@ -33,6 +33,15 @@ Local staged mutations:
 - `customerGenerateAccountActivationUrl`
 - `customerSendAccountInviteEmail`
 - `customerPaymentMethodSendUpdateEmail`
+- `customerPaymentMethodCreditCardCreate`
+- `customerPaymentMethodCreditCardUpdate`
+- `customerPaymentMethodRemoteCreate`
+- `customerPaymentMethodPaypalBillingAgreementCreate`
+- `customerPaymentMethodPaypalBillingAgreementUpdate`
+- `customerPaymentMethodGetDuplicationData`
+- `customerPaymentMethodCreateFromDuplicationData`
+- `customerPaymentMethodGetUpdateUrl`
+- `customerPaymentMethodRevoke`
 - `customerRequestDataErasure`
 - `customerCancelDataErasure`
 - `customerSet`
@@ -42,10 +51,6 @@ Local staged mutations:
 - `customerReplaceTaxExemptions`
 - `storeCreditAccountCredit`
 - `storeCreditAccountDebit`
-
-### Unsupported roots still tracked by the registry
-
-- `customerPaymentMethodGetUpdateUrl`
 
 ### Behavior notes
 
@@ -59,6 +64,7 @@ Local staged mutations:
 - Email and SMS validation payload shapes intentionally differ where Shopify differs: unknown email customers report `field: ["input", "customerId"]` / `code: "INVALID"`, unknown SMS customers report null field/code, future timestamp email failures return the unchanged customer payload, and future timestamp/SMS no-phone failures return `customer: null`.
 - Customer-owned addresses live in normalized `customerAddresses` state. Staged `customerAddressCreate`, `customerAddressUpdate`, `customerAddressDelete`, and `customerUpdateDefaultAddress` mutate that address graph locally and keep `Customer.defaultAddress` synchronized with the selected default row.
 - `Customer.addresses` and `Customer.addressesV2` serialize from the effective normalized address graph; `addressesV2` preserves hydrated connection cursors where captured and returns Shopify-like empty connections when no address records exist.
+- `CustomerInput.addresses` is also modeled on `customerCreate` and `customerUpdate`, matching Shopify's documented Admin GraphQL address examples that use `customerUpdate(input: { id, addresses })`. Captured Admin GraphQL 2025-01 evidence confirms `customerCreate(input.addresses)` returns the submitted address list with `Customer.defaultAddress` pointing at the first input row, and `customerUpdate(input.addresses)` treats the list as a replacement: duplicate replacement rows coalesce without `userErrors`, the resulting address list contains the unique row, and downstream `customer` / `customerByIdentifier` reads observe the replacement. Local staging validates the same country/province metadata as dedicated address mutations, replaces the effective normalized address list, coalesces duplicate input rows, and points `Customer.defaultAddress` at the first replacement row or `null` for an empty list.
 - Captured Admin GraphQL 2025-01 evidence for customer address lifecycle uses `MailingAddressInput`, payload field `address`, and delete payload field `deletedAddressId`. Unknown customers return payload `userErrors` with `field: ["customerId"]`; unknown address IDs on update/delete/default roots return top-level `RESOURCE_NOT_FOUND` GraphQL errors with `data.<root>: null`. Address IDs that exist but belong to a different customer return payload `userErrors` with `field: ["addressId"]` instead: update/delete return `address: null` or `deletedAddressId: null`, while default-address selection returns the unchanged customer plus the userError.
 - The customer-address lifecycle parity spec now replays the main captured chain through the generic proxy-vs-recording runner: setup customer, create/update/default/delete address mutations, downstream `customer` / `customerByIdentifier` reads, omitted `setAsDefault`, duplicate-address validation, ordering read, default-address deletion, and final read. Local replay materializes generated IDs between target requests so the chain validates staged read-after-write behavior without runtime Shopify writes. The remaining isolated validation branches stay in `customer-draft-flow`.
 - `MailingAddressInput` blank and normalization behavior is fixture-backed for the local slice: `{}` creates a blank address, inherited customer `firstName` / `lastName` populate missing or blank address names, empty address strings normalize to `null`, invalid `countryCode` / country-specific `provinceCode` values return payload userErrors from the generated Shopify Atlas country/zone metadata, and arbitrary postal text is accepted.
@@ -66,7 +72,7 @@ Local staged mutations:
 - Address updates recompute derived `formattedArea` from the effective city/province/country fields unless Shopify provided an explicit formatted value, and newly created addresses receive a monotonically increasing local position so post-delete creates do not reorder older addresses. Deleting the current default address promotes the next remaining normalized address to `Customer.defaultAddress`; `setAsDefault: false` and omitted/null `setAsDefault` do not replace an existing default. The capture did not find a maximum-address failure through 105 created addresses, so local staging does not impose a smaller artificial limit.
 - Customer payment method reads are modeled from normalized `customerPaymentMethods` state only. The local serializer supports `customerPaymentMethod(id:, showRevoked:)` and `Customer.paymentMethods(showRevoked:)`; revoked rows are hidden unless `showRevoked: true` is selected.
 - `CustomerPaymentMethod.instrument` is stored as a selected union payload keyed by `__typename`, so seeded fixtures can serialize credit-card and PayPal billing-agreement fragments without local vaulting. `subscriptionContracts` on the payment method is serialized as a normal connection from seeded link rows; the customer-level `subscriptionContracts` field remains empty/no-data until separately modeled.
-- Customer payment method writes remain unsupported scaffolds except for `customerPaymentMethodSendUpdateEmail`, which is buffered locally and retained for commit replay rather than delivered at runtime. Credit-card, PayPal billing-agreement, remote-create, duplication-data, update-url, and revoke roots require `write_customers` plus `write_customer_payment_methods` and are sensitive because they can involve vaulted instruments, expiring payment links, destructive revocation, asynchronous gateway polling, or customer-visible flows.
+- Customer payment method writes stage locally without storing real payment credentials. Credit-card and PayPal create/update store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a proxy-local non-secret token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, and revoke marks the normalized method revoked so read filtering observes the state change. Live success-path capture remains blocked by missing `read_customer_payment_methods` / `write_customer_payment_methods` scopes and sensitive payment material.
 - Store credit accounts are modeled as sensitive balance records. Snapshot mode never creates a store credit account merely because a customer exists: `Customer.storeCreditAccounts` remains an empty connection until normalized account state is seeded or a local mutation updates an existing account, and `storeCreditAccount(id:)` returns `null` for unknown IDs.
 - `storeCreditAccountCredit` and `storeCreditAccountDebit` stage locally only for existing normalized store credit accounts. They update the account balance and append local `StoreCreditAccountTransaction` rows so direct account reads and nested customer account reads observe the changed balance without runtime Shopify writes. Debit staging rejects insufficient local funds; both roots reject currency mismatches and unknown account IDs locally.
 - HAR-317 live evidence on 2026-04-27 used the canonical conformance auth helper against `harry-test-heelo.myshopify.com`: schema introspection captured the account fields (`id`, `balance`, `owner`, `transactions`), transaction fields (`account`, `amount`, `balanceAfterTransaction`, `createdAt`, `event`, `origin`), credit/debit input shapes, and payload fields. The recorder now creates a disposable customer, calls `storeCreditAccountCredit` with that customer ID so Shopify creates a real store credit account, captures account-ID credit/debit mutations plus downstream direct/nested balance reads, debits the remaining captured balance back to zero, and deletes the disposable customer.
@@ -99,7 +105,7 @@ The customer surface includes roots that look related but have different safety 
 - `customerGenerateAccountActivationUrl` returns a sensitive, expiring customer-facing link. Runtime support synthesizes a non-deliverable local activation URL and keeps the original raw mutation for commit replay instead of asking Shopify for a live URL.
 - `customerSendAccountInviteEmail` and `customerPaymentMethodSendUpdateEmail` are explicit outbound email side effects. These can still be supported because the proxy buffers the original mutations locally and does not deliver email at runtime; delivery happens only if the staged mutation log is committed to Shopify.
 - `customerPaymentMethodSendUpdateEmail` validates that the payment method is present in the local customer-payment graph before buffering. It returns the associated customer when that ownership edge is known locally, and otherwise mirrors Shopify's not-found userError instead of claiming delivery for an unknown payment method.
-- `customerPaymentMethodGetUpdateUrl` remains unsupported because the proxy does not yet model customer payment-method ownership or synthesize payment-method update URLs.
+- `customerPaymentMethodGetUpdateUrl` synthesizes a non-deliverable local URL only. Do not replace it with a live Shopify URL fetch during supported runtime handling.
 
 Do not mark outbound email roots implemented by proxying them upstream. Support means local validation/buffering plus original raw mutation retention for commit-time replay; it does not require pretending the runtime email or URL side effect already happened in Shopify.
 
@@ -109,6 +115,8 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 
 - Customer reads: `tests/integration/customer-query-shapes.test.ts`
 - Customer mutations, `customerSet`, and merge slices: `tests/integration/customer-draft-flow.test.ts`
+- CustomerInput address-list create/update coverage: `corepack pnpm vitest run tests/integration/customer-draft-flow.test.ts -t "CustomerInput address lists"`
+- CustomerInput address-list parity: `corepack pnpm conformance:parity` executes `customer-input-addresses-parity` from `fixtures/conformance/<store>/<version>/customer-input-addresses-parity.json`; capture refresh remains `corepack pnpm conformance:capture-customer-input-addresses`
 - Store credit account read and local balance staging: `tests/integration/store-credit-flow.test.ts`
 - Store credit account success-path capture: `corepack pnpm conformance:capture-store-credit`, writing `store-credit-account-parity.json`
 - Customer address lifecycle parity: `corepack pnpm conformance:parity` executes `customer-address-lifecycle-parity` from `fixtures/conformance/<store>/<version>/customer-address-lifecycle.json` through chained local proxy requests; capture refresh remains `corepack pnpm conformance:capture-customer-addresses`

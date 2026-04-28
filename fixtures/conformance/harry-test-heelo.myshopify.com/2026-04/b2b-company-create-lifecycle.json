@@ -1,0 +1,150 @@
+{
+  "capturedAt": "2026-04-28T02:18:29.857Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "setup": {
+    "plan": "companyCreate creates a disposable B2B company, records immediate downstream read, then deletes the company."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "mutation B2BCompanyCreateLifecycle($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n      contactsCount {\n        count\n      }\n      locationsCount {\n        count\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-363 parity company 1777342709247",
+            "externalId": "har-363-parity-1777342709247"
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5427822898",
+            "name": "HAR-363 parity company 1777342709247",
+            "externalId": "har-363-parity-1777342709247",
+            "contactsCount": {
+              "count": 0
+            },
+            "locationsCount": {
+              "count": 1
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8234697010",
+                  "name": "HAR-363 parity company 1777342709247"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10647404850",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10647437618",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "request": {
+      "query": "query B2BCompanyCreateLifecycleRead($companyId: ID!) {\n  company(id: $companyId) {\n    id\n    name\n    externalId\n    contactsCount {\n      count\n    }\n    locationsCount {\n      count\n    }\n    locations(first: 5) {\n      nodes {\n        id\n        name\n      }\n    }\n    contactRoles(first: 5) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5427822898"
+      }
+    },
+    "response": {
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5427822898",
+          "name": "HAR-363 parity company 1777342709247",
+          "externalId": "har-363-parity-1777342709247",
+          "contactsCount": {
+            "count": 0
+          },
+          "locationsCount": {
+            "count": 1
+          },
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8234697010",
+                "name": "HAR-363 parity company 1777342709247"
+              }
+            ]
+          },
+          "contactRoles": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRole/10647404850",
+                "name": "Location admin"
+              },
+              {
+                "id": "gid://shopify/CompanyContactRole/10647437618",
+                "name": "Ordering only"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "request": {
+      "variables": {
+        "id": "gid://shopify/Company/5427822898"
+      }
+    },
+    "response": {
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5427822898",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

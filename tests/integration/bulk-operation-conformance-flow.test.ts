@@ -46,6 +46,9 @@ type BulkImportLogEntryBody = {
   operationName: string;
   variables: Record<string, unknown>;
   interpreted: {
+    capability: {
+      domain: string;
+    };
     bulkOperationImport?: {
       lineNumber: number;
       outerRequestBody: unknown;
@@ -1131,6 +1134,602 @@ describe('BulkOperation conformance fixture and local model', () => {
     ]);
   });
 
+  it('stages supported product-variant bulk mutation imports from uploaded JSONL', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation product-variant imports should stay local'));
+    const app = createApp(config).callback();
+    const product = makeBaseProduct('gid://shopify/Product/8801', 'Variant Import Hat', 'variant-import-hat');
+    store.upsertBaseProducts([product]);
+    store.replaceBaseVariantsForProduct(product.id, [
+      makeBaseVariant(product.id, 'gid://shopify/ProductVariant/9901', 'Default Title', 'BASE-SKU'),
+    ]);
+
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/product-variant-create.jsonl';
+    const firstVariables = {
+      input: {
+        productId: product.id,
+        title: 'Bulk Variant One',
+        sku: 'BULK-VARIANT-ONE',
+      },
+    };
+    const secondVariables = {
+      input: {
+        productId: 'gid://shopify/Product/404404',
+        title: 'Missing Product Variant',
+        sku: 'BULK-VARIANT-MISSING',
+      },
+    };
+    store.stageUploadContent(
+      [stagedUploadPath],
+      `${JSON.stringify(firstVariables)}\n${JSON.stringify(secondVariables)}\n`,
+    );
+
+    const innerMutation = `mutation ProductVariantCreate($input: ProductVariantInput!) {
+      productVariantCreate(input: $input) {
+        product {
+          id
+          title
+        }
+        productVariant {
+          id
+          title
+          sku
+          selectedOptions {
+            name
+            value
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      query: innerMutation,
+    });
+
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(2);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          productVariantCreate: {
+            product: {
+              id: product.id,
+              title: 'Variant Import Hat',
+            },
+            productVariant: {
+              title: 'Bulk Variant One',
+              sku: 'BULK-VARIANT-ONE',
+              selectedOptions: [],
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+    expect(resultRows[1]).toMatchObject({
+      line: 2,
+      response: {
+        data: {
+          productVariantCreate: {
+            product: null,
+            productVariant: null,
+            userErrors: [{ field: ['input', 'productId'], message: 'Product not found' }],
+          },
+        },
+      },
+    });
+
+    const firstResultResponse = resultRows[0]?.['response'] as {
+      data: { productVariantCreate: { productVariant: { id: string } } };
+    };
+    const createdVariantId = firstResultResponse.data.productVariantCreate.productVariant.id;
+    const readAfterWriteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkImportedVariant($id: ID!) {
+          productVariant(id: $id) {
+            id
+            title
+            sku
+            product {
+              id
+              title
+            }
+          }
+        }`,
+        variables: {
+          id: createdVariantId,
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const bulkImportLogEntries = (logResponse.body.entries as BulkImportLogEntryBody[]).filter(
+      (
+        entry,
+      ): entry is BulkImportLogEntryBody & {
+        interpreted: { bulkOperationImport: { lineNumber: number; outerRequestBody: unknown } };
+      } => Boolean(entry.interpreted.bulkOperationImport),
+    );
+
+    expect(readAfterWriteResponse.body.data.productVariant).toEqual({
+      id: createdVariantId,
+      title: 'Bulk Variant One',
+      sku: 'BULK-VARIANT-ONE',
+      product: {
+        id: product.id,
+        title: 'Variant Import Hat',
+      },
+    });
+    expect(logResponse.body.entries).toHaveLength(2);
+    expect(bulkImportLogEntries.map((entry) => entry.operationName)).toEqual([
+      'ProductVariantCreate',
+      'ProductVariantCreate',
+    ]);
+    expect(bulkImportLogEntries.map((entry) => entry.variables)).toEqual([firstVariables, secondVariables]);
+    expect(bulkImportLogEntries.map((entry) => entry.interpreted.bulkOperationImport.lineNumber)).toEqual([1, 2]);
+  });
+
+  it('stages supported customer bulk mutation imports from uploaded JSONL', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation customer imports should stay local'));
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/customer-create.jsonl';
+    const firstVariables = {
+      input: {
+        email: 'bulk-customer-one@example.com',
+        firstName: 'Bulk',
+        lastName: 'Customer One',
+        tags: ['bulk-import'],
+      },
+    };
+    const secondVariables = {
+      input: {
+        email: 'not an email',
+        firstName: 'Invalid',
+        lastName: 'Customer',
+      },
+    };
+    store.stageUploadContent(
+      [stagedUploadPath],
+      `${JSON.stringify(firstVariables)}\n${JSON.stringify(secondVariables)}\n`,
+    );
+
+    const innerMutation = `mutation CustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer {
+          id
+          displayName
+          email
+          tags
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      query: innerMutation,
+    });
+
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(2);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          customerCreate: {
+            customer: {
+              displayName: 'Bulk Customer One',
+              email: 'bulk-customer-one@example.com',
+              tags: ['bulk-import'],
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+    expect(resultRows[1]).toMatchObject({
+      line: 2,
+      response: {
+        data: {
+          customerCreate: {
+            customer: null,
+            userErrors: [{ field: ['email'], message: 'Email is invalid' }],
+          },
+        },
+      },
+    });
+
+    const firstResultResponse = resultRows[0]?.['response'] as {
+      data: { customerCreate: { customer: { id: string } } };
+    };
+    const createdCustomerId = firstResultResponse.data.customerCreate.customer.id;
+    const readAfterWriteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkImportedCustomer($id: ID!) {
+          customer(id: $id) {
+            id
+            displayName
+            email
+            tags
+          }
+        }`,
+        variables: {
+          id: createdCustomerId,
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const bulkImportLogEntries = (logResponse.body.entries as BulkImportLogEntryBody[]).filter(
+      (
+        entry,
+      ): entry is BulkImportLogEntryBody & {
+        interpreted: { bulkOperationImport: { lineNumber: number; outerRequestBody: unknown } };
+      } => Boolean(entry.interpreted.bulkOperationImport),
+    );
+
+    expect(readAfterWriteResponse.body.data.customer).toEqual({
+      id: createdCustomerId,
+      displayName: 'Bulk Customer One',
+      email: 'bulk-customer-one@example.com',
+      tags: ['bulk-import'],
+    });
+    expect(logResponse.body.entries).toHaveLength(2);
+    expect(bulkImportLogEntries.map((entry) => entry.operationName)).toEqual(['CustomerCreate', 'CustomerCreate']);
+    expect(bulkImportLogEntries.map((entry) => entry.variables)).toEqual([firstVariables, secondVariables]);
+    expect(
+      bulkImportLogEntries.map((entry) => ({
+        domain: entry.interpreted.capability.domain,
+        lineNumber: entry.interpreted.bulkOperationImport.lineNumber,
+      })),
+    ).toEqual([
+      { domain: 'customers', lineNumber: 1 },
+      { domain: 'customers', lineNumber: 2 },
+    ]);
+  });
+
+  it('stages supported non-product/customer bulk mutation imports from uploaded JSONL', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation location imports should stay local'));
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/location-add.jsonl';
+    const variables = {
+      input: {
+        name: 'Bulk Warehouse',
+        address: { countryCode: 'US', zip: '10006' },
+        fulfillsOnlineOrders: false,
+      },
+    };
+    store.stageUploadContent([stagedUploadPath], `${JSON.stringify(variables)}\n`);
+
+    const innerMutation = `mutation LocationAdd($input: LocationAddInput!) {
+      locationAdd(input: $input) {
+        location {
+          id
+          name
+          fulfillsOnlineOrders
+          address {
+            countryCode
+            zip
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      query: innerMutation,
+    });
+
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(1);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          locationAdd: {
+            location: {
+              name: 'Bulk Warehouse',
+              fulfillsOnlineOrders: false,
+              address: { countryCode: 'US', zip: '10006' },
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+
+    const firstResultResponse = resultRows[0]?.['response'] as {
+      data: { locationAdd: { location: { id: string } } };
+    };
+    const createdLocationId = firstResultResponse.data.locationAdd.location.id;
+    const readAfterWriteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkImportedLocation($id: ID!) {
+          location(id: $id) {
+            id
+            name
+            fulfillsOnlineOrders
+            address {
+              countryCode
+              zip
+            }
+          }
+        }`,
+        variables: {
+          id: createdLocationId,
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const bulkImportLogEntries = (logResponse.body.entries as BulkImportLogEntryBody[]).filter(
+      (
+        entry,
+      ): entry is BulkImportLogEntryBody & {
+        interpreted: { bulkOperationImport: { lineNumber: number; outerRequestBody: unknown } };
+      } => Boolean(entry.interpreted.bulkOperationImport),
+    );
+
+    expect(readAfterWriteResponse.body.data.location).toEqual({
+      id: createdLocationId,
+      name: 'Bulk Warehouse',
+      fulfillsOnlineOrders: false,
+      address: { countryCode: 'US', zip: '10006' },
+    });
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(bulkImportLogEntries).toHaveLength(1);
+    expect(bulkImportLogEntries[0]).toMatchObject({
+      operationName: 'LocationAdd',
+      variables,
+      interpreted: {
+        capability: { domain: 'store-properties' },
+        bulkOperationImport: { lineNumber: 1 },
+      },
+    });
+  });
+
+  it('replays bulk import inner mutations through meta commit in JSONL line order', async () => {
+    const upstreamBodies: unknown[] = [];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      upstreamBodies.push(body);
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            productCreate: {
+              product: {
+                id: `gid://shopify/Product/${9000 + upstreamBodies.length}`,
+              },
+              userErrors: [],
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
+    });
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/commit-order.jsonl';
+    const innerMutation = `mutation ProductCreate($product: ProductCreateInput!) {
+      productCreate(product: $product) {
+        product {
+          id
+          title
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const firstVariables = { product: { title: 'Bulk Commit One', status: 'DRAFT' } };
+    const secondVariables = { product: { title: 'Bulk Commit Two', status: 'ACTIVE' } };
+    store.stageUploadContent(
+      [stagedUploadPath],
+      `${JSON.stringify(firstVariables)}\n${JSON.stringify(secondVariables)}\n`,
+    );
+
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+    const logBeforeCommit = await request(app).get('/__meta/log');
+
+    expect(bulkResponse.status).toBe(200);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(logBeforeCommit.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'ProductCreate',
+      'ProductCreate',
+    ]);
+    expect(logBeforeCommit.body.entries.map((entry: { variables: unknown }) => entry.variables)).toEqual([
+      firstVariables,
+      secondVariables,
+    ]);
+
+    const commitResponse = await request(app)
+      .post('/__meta/commit')
+      .set('x-shopify-access-token', 'shpat_bulk_commit')
+      .set('authorization', 'Bearer bulk_commit_authorization');
+    const logAfterCommit = await request(app).get('/__meta/log');
+
+    expect(commitResponse.status).toBe(200);
+    expect(commitResponse.body).toMatchObject({
+      ok: true,
+      stopIndex: null,
+      attempts: [
+        { operationName: 'ProductCreate', path: '/admin/api/2026-04/graphql.json', success: true },
+        { operationName: 'ProductCreate', path: '/admin/api/2026-04/graphql.json', success: true },
+      ],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(upstreamBodies).toEqual([
+      {
+        query: innerMutation,
+        variables: firstVariables,
+      },
+      {
+        query: innerMutation,
+        variables: secondVariables,
+      },
+    ]);
+    expect(JSON.stringify(upstreamBodies)).not.toContain('bulkOperationRunMutation');
+    expect(logAfterCommit.body.entries.map((entry: { status: string }) => entry.status)).toEqual([
+      'committed',
+      'committed',
+    ]);
+  });
+
   it('fails unsupported bulk mutation import roots locally without upstream passthrough', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -1139,7 +1738,7 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     store.stageUploadContent(
       ['shopify-draft-proxy/gid://shopify/StagedUploadTarget0/unsupported.jsonl'],
-      `${JSON.stringify({ input: { email: 'bulk@example.com' } })}\n`,
+      `${JSON.stringify({ id: 'gid://shopify/CompanyContact/404404' })}\n`,
     );
 
     const response = await request(app)
@@ -1162,11 +1761,8 @@ describe('BulkOperation conformance fixture and local model', () => {
           }
         }`,
         variables: {
-          mutation: `mutation CustomerCreate($input: CustomerInput!) {
-            customerCreate(input: $input) {
-              customer {
-                id
-              }
+          mutation: `mutation CompanyContactSendWelcomeEmail($id: ID!) {
+            companyContactSendWelcomeEmail(companyContactId: $id) {
               userErrors {
                 field
                 message
@@ -1201,7 +1797,7 @@ describe('BulkOperation conformance fixture and local model', () => {
       errors: [
         {
           message:
-            'bulkOperationRunMutation locally supports only single-root product mutations that are already staged by the proxy.',
+            'bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.',
         },
       ],
     });

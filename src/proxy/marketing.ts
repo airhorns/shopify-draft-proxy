@@ -37,6 +37,8 @@ const ACTIVITY_ID_PREFIX = 'gid://shopify/MarketingActivity/';
 const EVENT_ID_PREFIX = 'gid://shopify/MarketingEvent/';
 
 export const MARKETING_MUTATION_ROOTS = new Set([
+  'marketingActivityCreate',
+  'marketingActivityUpdate',
   'marketingActivityCreateExternal',
   'marketingActivityUpdateExternal',
   'marketingActivityUpsertExternal',
@@ -247,12 +249,22 @@ function statusLabel(status: string | null): string {
   switch (status) {
     case 'ACTIVE':
       return 'Sending';
+    case 'DELETED':
+      return 'Deleted';
     case 'INACTIVE':
       return 'Sent';
     case 'PAUSED':
       return 'Paused';
+    case 'PENDING':
+      return 'Pending';
     case 'SCHEDULED':
       return 'Scheduled';
+    case 'DRAFT':
+      return 'Draft';
+    case 'FAILED':
+      return 'Failed';
+    case 'DISCONNECTED':
+      return 'Disconnected';
     case 'DELETED_EXTERNALLY':
       return 'Deleted externally';
     case 'UNDEFINED':
@@ -490,6 +502,14 @@ function duplicateExternalActivityError(): MarketingUserError {
   };
 }
 
+function missingMarketingExtensionError(): MarketingUserError {
+  return {
+    field: ['input', 'marketingActivityExtensionId'],
+    message: 'Could not find the marketing extension',
+    code: null,
+  };
+}
+
 function engagementMissingIdentifierError(): MarketingUserError {
   return {
     field: null,
@@ -598,6 +618,86 @@ function buildMarketingRecordsFromCreateInput(input: Record<string, unknown>): {
   return {
     activity: { id: activityId, cursor: null, data: toMarketingData(activityData) },
     event: { id: eventId, cursor: null, data: toMarketingData(eventData) },
+  };
+}
+
+function isKnownLocalMarketingActivityExtension(marketingActivityExtensionId: string | null): boolean {
+  if (!marketingActivityExtensionId?.startsWith('gid://shopify/MarketingActivityExtension/')) {
+    return false;
+  }
+
+  return !marketingActivityExtensionId.endsWith('/00000000-0000-0000-0000-000000000000');
+}
+
+function buildNativeMarketingActivityFromCreateInput(input: Record<string, unknown>): MarketingRecord {
+  const activityId = makeSyntheticGid('MarketingActivity');
+  const timestamp = makeSyntheticTimestamp();
+  const status = readString(input, 'status') ?? 'UNDEFINED';
+  const title = readString(input, 'marketingActivityTitle') ?? readString(input, 'title') ?? 'Marketing activity';
+  const tactic = readString(input, 'tactic') ?? 'NEWSLETTER';
+  const marketingChannelType = readString(input, 'marketingChannelType') ?? 'EMAIL';
+  const sourceMedium = sourceAndMedium(marketingChannelType, tactic);
+
+  const activityData: Record<string, unknown> = {
+    __typename: 'MarketingActivity',
+    id: activityId,
+    title,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    status,
+    statusLabel: statusLabel(status),
+    tactic,
+    marketingChannelType,
+    sourceAndMedium: sourceMedium,
+    isExternal: false,
+    inMainWorkflowVersion: true,
+    urlParameterValue: readString(input, 'urlParameterValue'),
+    parentActivityId: readString(input, 'parentActivityId'),
+    parentRemoteId: readString(input, 'parentRemoteId'),
+    hierarchyLevel: readString(input, 'hierarchyLevel'),
+    marketingActivityExtensionId: readString(input, 'marketingActivityExtensionId'),
+    context: readString(input, 'context'),
+    formData: readString(input, 'formData'),
+    utmParameters: readUtm(input),
+    marketingEvent: null,
+  };
+
+  return { id: activityId, cursor: null, data: toMarketingData(activityData) };
+}
+
+function applyNativeMarketingActivityUpdate(record: MarketingRecord, input: Record<string, unknown>): MarketingRecord {
+  const timestamp = makeSyntheticTimestamp();
+  const existingActivity = structuredClone(record.data);
+  const status = readString(input, 'status') ?? readString(existingActivity, 'status') ?? 'UNDEFINED';
+  const tactic = readString(input, 'tactic') ?? readString(existingActivity, 'tactic') ?? 'NEWSLETTER';
+  const marketingChannelType =
+    readString(input, 'marketingChannelType') ?? readString(existingActivity, 'marketingChannelType') ?? 'EMAIL';
+  const title =
+    readString(input, 'marketingActivityTitle') ??
+    readString(input, 'title') ??
+    readString(existingActivity, 'title') ??
+    'Marketing activity';
+  const sourceMedium = sourceAndMedium(marketingChannelType, tactic);
+  const nextUtm = readUtm(input) ?? readObject(existingActivity, 'utmParameters');
+
+  return {
+    id: record.id,
+    cursor: record.cursor ?? null,
+    data: toMarketingData({
+      ...existingActivity,
+      title,
+      updatedAt: timestamp,
+      status,
+      statusLabel: statusLabel(status),
+      tactic,
+      marketingChannelType,
+      sourceAndMedium: sourceMedium,
+      urlParameterValue: readString(input, 'urlParameterValue') ?? readString(existingActivity, 'urlParameterValue'),
+      context: readString(input, 'context') ?? readString(existingActivity, 'context'),
+      formData: readString(input, 'formData') ?? readString(existingActivity, 'formData'),
+      utmParameters: nextUtm,
+      marketingEvent: readObject(existingActivity, 'marketingEvent'),
+    }),
   };
 }
 
@@ -810,6 +910,47 @@ function buildMutationRootPayload(
   stagedResourceIds: string[];
   shouldLog: boolean;
 } {
+  if (rootField === 'marketingActivityCreate') {
+    const input = readInput(args['input']);
+    if (!isKnownLocalMarketingActivityExtension(readString(input, 'marketingActivityExtensionId'))) {
+      return {
+        payload: { userErrors: [missingMarketingExtensionError()] },
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
+    }
+
+    const activity = buildNativeMarketingActivityFromCreateInput(input);
+    store.stageMarketingActivity(activity);
+    return {
+      payload: { userErrors: [] },
+      stagedResourceIds: [activity.id],
+      shouldLog: true,
+    };
+  }
+
+  if (rootField === 'marketingActivityUpdate') {
+    const input = readInput(args['input']);
+    const activityId = readString(input, 'id');
+    const activity = activityId ? store.getEffectiveMarketingActivityRecordById(activityId) : null;
+
+    if (!activity) {
+      return {
+        payload: { marketingActivity: null, redirectPath: null, userErrors: [marketingActivityMissingError()] },
+        stagedResourceIds: [],
+        shouldLog: false,
+      };
+    }
+
+    const updated = applyNativeMarketingActivityUpdate(activity, input);
+    store.stageMarketingActivity(updated);
+    return {
+      payload: { marketingActivity: updated.data, redirectPath: null, userErrors: [] },
+      stagedResourceIds: [updated.id],
+      shouldLog: true,
+    };
+  }
+
   if (rootField === 'marketingActivityCreateExternal') {
     const input = readInput(args['input']);
     if (!hasAttribution(input)) {

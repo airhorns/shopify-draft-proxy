@@ -7,7 +7,7 @@ description: Extend Shopify Admin GraphQL conformance coverage in shopify-draft-
 
 ## Core Rule
 
-Treat conformance as the fidelity source of truth. Do not guess Shopify behavior when a safe live capture or existing fixture can answer it. Preserve the project goal: product-first Shopify Admin GraphQL draft proxy behavior, not a generic mock server.
+Treat conformance as the fidelity source of truth. Do not guess Shopify behavior when a safe live capture or existing fixture can answer it. Preserve the project goal: broad, high-fidelity Shopify Admin GraphQL draft proxy behavior, not a generic mock server.
 
 ## Why a live target exists
 

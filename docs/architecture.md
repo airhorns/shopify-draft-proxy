@@ -140,9 +140,14 @@ The runtime should use a normalized object graph rather than raw GraphQL blobs.
 - `queryCache` (optional)
   - normalized read-through cache useful for overlay operations
 
-## Product-first domain model
+## Admin API domain model
 
-Initial normalized entities should include at least:
+The normalized object graph should expand across Shopify Admin API domains as
+local lifecycle fidelity is implemented. The current graph includes product
+entities and several other domain-specific state buckets, and new domains
+should be added without making any one domain special in the core engine.
+
+Current product-domain entities include:
 
 - Product
 - ProductVariant
@@ -150,8 +155,6 @@ Initial normalized entities should include at least:
 - Metafield
 - Media (even if partial)
 - Collection entities plus product-scoped membership rows (lightly modeled at first)
-
-The architecture should be open to later domains without making products special in the core engine.
 
 Product-domain metafields are normalized as owner-scoped records for product, product variant, and collection owner IDs. Broader `HasMetafields` owner families still need domain-specific evidence and storage decisions before being added to shared `metafieldsSet` / `metafieldsDelete` staging.
 
@@ -163,18 +166,21 @@ Current customer-domain state deliberately stays narrower than the product model
 - staged `customerMerge` updates the normalized resulting customer row, marks the source customer deleted, records the source-to-result customer id redirect in `mergedCustomerIds`, and records the observed merge job/result shape in `customerMergeRequests`
 - the privacy-domain `dataSaleOptOut` mutation stores its downstream effect as `CustomerRecord.dataSaleOptOut`, keeping the mutation under privacy coverage while preserving customer read-after-write serialization
 
-Localization state is also normalized for the first product-focused slice: available locales, shop locales, and translations live in dedicated state buckets, while `TranslatableResource` rows are derived from the effective product and product-metafield graph. Locale and translation endpoint-specific boundaries are documented in `docs/endpoints/localization.md`.
+Localization state is also normalized in dedicated state buckets: available locales, shop locales, and translations live separately, while `TranslatableResource` rows are currently derived from the effective product and product-metafield graph. Locale and translation endpoint-specific boundaries are documented in `docs/endpoints/localization.md`.
 
-Current B2B company-domain state is read-only and fixture-backed:
+Current B2B company-domain state is normalized and supports local lifecycle staging:
 
 - `B2BCompanyRecord`, `B2BCompanyContactRecord`, `B2BCompanyContactRoleRecord`,
   and `B2BCompanyLocationRecord` store captured scalar fields plus normalized
   company-to-contact/location/role IDs
 - snapshot reads support company catalog/count/detail roots and singular
   contact/role/location lookups, including empty/null behavior
-- B2B lifecycle mutations remain registry blockers until local create/update,
-  delete, assignment, revoke, address, tax, and side-effect behavior can be
-  staged with downstream read-after-write effects
+- staged company, contact, location, role-assignment, address, staff-assignment,
+  and tax-setting mutations write only to the in-memory staged state, preserve
+  original raw mutation requests for commit replay, and update downstream
+  company/contact/location/role reads without runtime Shopify writes
+- B2B email delivery side effects remain unsupported because local staging
+  cannot faithfully emulate outbound Shopify email delivery
 
 Marketing-domain state keeps activity/event records and engagement metrics together but separate:
 
@@ -189,7 +195,7 @@ Bulk Operations state is normalized as a shared job foundation rather than as pr
 - `bulkOperations` uses the shared connection helpers for cursor windowing, `nodes`/`edges`, and selected `pageInfo`, while keeping BulkOperation-specific sort/filter decisions in the endpoint module
 - `bulkOperationCancel` mutates only staged jobs, records the local cancel attempt in the mutation log, and returns captured userErrors for unknown or terminal operations without proxying supported cancel attempts upstream
 - `bulkOperationRunQuery` stages supported product/product-variant query exports locally by parsing the submitted bulk query, validating documented bulk-query boundaries, writing a completed staged query job, and serving generated JSONL from an in-memory result URL
-- `bulkOperationRunMutation` stages product-first mutation imports locally when the staged upload content was uploaded through the proxy and the inner mutation root is already implemented by the local product mutation pipeline; unsupported inner roots create failed local jobs instead of runtime Shopify writes
+- `bulkOperationRunMutation` stages mutation imports locally when the staged upload content was uploaded through the proxy and the inner mutation root has a local bulk-import executor backed by an implemented Admin API mutation handler; unsupported inner roots create failed local jobs instead of runtime Shopify writes
 
 ## Mutation handling strategy
 
