@@ -17,16 +17,6 @@ export interface CommitAttempt {
   responseBody: unknown;
 }
 
-export interface MetaHealthResponse {
-  ok: true;
-  message: string;
-}
-
-export interface MetaResetResponse {
-  ok: true;
-  message: string;
-}
-
 export interface MetaCommitResponse {
   ok: boolean;
   stopIndex: number | null;
@@ -611,29 +601,6 @@ export function renderMetaWebUi(config: AppConfig, runtimeStore: InMemoryStore):
     </script>
   </body>
 </html>`;
-}
-
-export function getMetaHealth(): MetaHealthResponse {
-  return {
-    ok: true,
-    message: 'shopify-draft-proxy is running',
-  };
-}
-
-export function getMetaConfig(config: AppConfig): Record<string, unknown> {
-  return {
-    runtime: {
-      readMode: config.readMode,
-    },
-    proxy: {
-      port: config.port,
-      shopifyAdminOrigin: config.shopifyAdminOrigin,
-    },
-    snapshot: {
-      enabled: Boolean(config.snapshotPath),
-      path: config.snapshotPath ?? null,
-    },
-  };
 }
 
 export async function commitMetaState(

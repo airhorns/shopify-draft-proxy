@@ -172,10 +172,9 @@ Current implementation note:
 - Public `DraftProxy` meta APIs pass their owned store and synthetic identity
   explicitly. GraphQL request processing installs the instance runtime context
   before entering domain handlers.
-- Domain handlers can use the shared `store` and synthetic identity accessors
-  only while a `DraftProxy` request context is active. Those accessors have no
-  fallback runtime singleton and throw if called outside an explicit proxy
-  instance context.
+- Domain handlers must receive instance-owned runtime state through the proxy
+  request/runtime path. Do not introduce `AsyncLocalStorage` or process-wide
+  mutable runtime singletons to bridge store or synthetic identity access.
 
 ## Product-first domain model
 

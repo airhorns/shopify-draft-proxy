@@ -66,6 +66,9 @@ describe('draft proxy public instance API', () => {
       ok: true,
       message: 'shopify-draft-proxy is running',
     });
+    expect(proxy.health()).toEqual({
+      message: 'shopify-draft-proxy is running',
+    });
     expect(proxy.getConfig()).toEqual({
       runtime: { readMode: 'passthrough' },
       proxy: {
@@ -122,10 +125,7 @@ describe('draft proxy public instance API', () => {
     expect(firstProxy.getState().stagedState.products[firstProductId]?.title).toBe('First Instance Hat');
     expect(secondProxy.getState().stagedState.products[secondProductId]?.title).toBe('Second Instance Hat');
 
-    expect(secondProxy.clear()).toEqual({
-      ok: true,
-      message: 'state reset',
-    });
+    expect(secondProxy.clear()).toBeUndefined();
     expect(secondProxy.getLog().entries).toEqual([]);
     expect(firstProxy.getLog().entries).toHaveLength(1);
     expect(firstProxy.getState().stagedState.products[firstProductId]?.title).toBe('First Instance Hat');

@@ -1,7 +1,11 @@
 import { logger } from '../logger.js';
 import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
-import { isProxySyntheticGid, SyntheticIdentityRegistry } from '../state/synthetic-identity.js';
-import { InMemoryStore } from '../state/store.js';
+import {
+  isProxySyntheticGid,
+  runWithSyntheticIdentity,
+  SyntheticIdentityRegistry,
+} from '../state/synthetic-identity.js';
+import { InMemoryStore, runWithStore } from '../state/store.js';
 import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
@@ -2153,6 +2157,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 ];
 
 export async function processProxyGraphQLRequest(
+  config: AppConfig,
+  input: ProxyGraphQLRequest,
+  runtime: ProxyGraphQLRuntime,
+): Promise<ProxyGraphQLResponse> {
+  return runWithStore(runtime.store, () =>
+    runWithSyntheticIdentity(runtime.syntheticIdentity, () =>
+      processProxyGraphQLRequestWithRuntime(config, input, runtime),
+    ),
+  );
+}
+
+async function processProxyGraphQLRequestWithRuntime(
   config: AppConfig,
   input: ProxyGraphQLRequest,
   runtime: ProxyGraphQLRuntime,

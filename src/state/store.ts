@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
 import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from './types.js';
 import type { SyntheticIdentityRegistry } from './synthetic-identity.js';
 import type {
@@ -4904,18 +4903,34 @@ export class InMemoryStore {
   }
 }
 
-const storeContext = new AsyncLocalStorage<InMemoryStore>();
+let activeStore: InMemoryStore | null = null;
 
 export function getCurrentStore(): InMemoryStore {
-  const runtimeStore = storeContext.getStore();
-  if (!runtimeStore) {
+  if (!activeStore) {
     throw new Error('No DraftProxy runtime store is active. Process requests through a DraftProxy instance.');
   }
-  return runtimeStore;
+  return activeStore;
 }
 
 export function runWithStore<T>(runtimeStore: InMemoryStore, callback: () => T): T {
-  return storeContext.run(runtimeStore, callback);
+  const previousStore = activeStore;
+  activeStore = runtimeStore;
+
+  try {
+    const result = callback();
+
+    if (result instanceof Promise) {
+      return result.finally(() => {
+        activeStore = previousStore;
+      }) as T;
+    }
+
+    activeStore = previousStore;
+    return result;
+  } catch (error) {
+    activeStore = previousStore;
+    throw error;
+  }
 }
 
 export const store = new Proxy({} as InMemoryStore, {

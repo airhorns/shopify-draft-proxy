@@ -1,5 +1,3 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
-
 export class SyntheticIdentityRegistry {
   private nextSyntheticId = 1;
   private nextSyntheticTime = Date.parse('2024-01-01T00:00:00.000Z');
@@ -28,20 +26,36 @@ export class SyntheticIdentityRegistry {
   }
 }
 
-const syntheticIdentityContext = new AsyncLocalStorage<SyntheticIdentityRegistry>();
+let activeSyntheticIdentity: SyntheticIdentityRegistry | null = null;
 
 export function getCurrentSyntheticIdentity(): SyntheticIdentityRegistry {
-  const identity = syntheticIdentityContext.getStore();
-  if (!identity) {
+  if (!activeSyntheticIdentity) {
     throw new Error(
       'No DraftProxy synthetic identity registry is active. Process requests through a DraftProxy instance.',
     );
   }
-  return identity;
+  return activeSyntheticIdentity;
 }
 
 export function runWithSyntheticIdentity<T>(identity: SyntheticIdentityRegistry, callback: () => T): T {
-  return syntheticIdentityContext.run(identity, callback);
+  const previousIdentity = activeSyntheticIdentity;
+  activeSyntheticIdentity = identity;
+
+  try {
+    const result = callback();
+
+    if (result instanceof Promise) {
+      return result.finally(() => {
+        activeSyntheticIdentity = previousIdentity;
+      }) as T;
+    }
+
+    activeSyntheticIdentity = previousIdentity;
+    return result;
+  } catch (error) {
+    activeSyntheticIdentity = previousIdentity;
+    throw error;
+  }
 }
 
 export function resetSyntheticIdentity(): void {

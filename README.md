@@ -108,18 +108,26 @@ console.log(response.status, response.body);
 in-memory store, mutation log, snapshot baseline, and synthetic ID/timestamp
 registry.
 
-Public instance methods:
+Public instance methods use ordinary TypeScript return values. HTTP-style
+`{ status, body }` shaping is limited to `processRequest(...)` and the Koa
+adapter.
 
 - `processRequest({ method, path, headers, body })`: handles Shopify Admin
-  GraphQL routes and `__meta` routes in request form.
+  GraphQL routes and `__meta` routes in HTTP-shaped request form.
 - `processGraphQLRequest(body, { apiVersion, path, headers })`: convenience
-  wrapper for a versioned Admin GraphQL `POST`.
+  wrapper for a versioned Admin GraphQL `POST`; returns the same HTTP-shaped
+  result as `processRequest`.
 - `health()`, `getConfig()`, `getLog()`, and `getState()`: meta API equivalents
   for inspection.
 - `reset()` / `clear()`: discard staged state, logs, and generated IDs while
-  restoring the startup snapshot baseline.
+  restoring the startup snapshot baseline. These methods return `void`; the
+  HTTP meta reset route converts success into `{ ok: true, message: ... }`.
 - `commit(headers)` / `flush(headers)`: replay pending staged mutations to
-  Shopify in original order using the supplied auth/request headers.
+  Shopify in original order using the supplied auth/request headers. These
+  methods return a commit report when all replay attempts succeed and throw
+  `DraftProxyCommitError` with the partial report when replay stops on a
+  failure; the HTTP meta commit route converts that into its legacy `{ ok,
+stopIndex, attempts }` response body.
 
 The runnable Koa service is mounted on the same public API:
 

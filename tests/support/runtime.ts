@@ -1,4 +1,5 @@
 import Koa from 'koa';
+import { beforeEach } from 'vitest';
 import { createApp as createRuntimeApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { createDraftProxy, type DraftProxy } from '../../src/proxy-instance.js';
@@ -7,36 +8,41 @@ import { runWithSyntheticIdentity, SyntheticIdentityRegistry } from '../../src/s
 
 let currentStore = new InMemoryStore();
 let currentSyntheticIdentity = new SyntheticIdentityRegistry();
-let runtimePrepared = false;
+let currentProxy: DraftProxy | null = null;
 
-function prepareRuntime(): void {
-  if (runtimePrepared) {
-    return;
-  }
+function resetTestRuntime(): void {
   currentStore = new InMemoryStore();
   currentSyntheticIdentity = new SyntheticIdentityRegistry();
-  runtimePrepared = true;
+  currentProxy = null;
+}
+
+beforeEach(() => {
+  resetTestRuntime();
+});
+
+function createTestProxy(config: AppConfig): DraftProxy {
+  currentProxy ??= createDraftProxy(config, {
+    store: currentStore,
+    syntheticIdentity: currentSyntheticIdentity,
+  });
+  return currentProxy;
 }
 
 export const store = new Proxy({} as InMemoryStore, {
   get(_target, property) {
-    prepareRuntime();
     const value = Reflect.get(currentStore, property);
     return typeof value === 'function' ? value.bind(currentStore) : value;
   },
   set(_target, property, value) {
-    prepareRuntime();
     return Reflect.set(currentStore, property, value);
   },
 }) as InMemoryStore;
 
 export function resetSyntheticIdentity(): void {
-  prepareRuntime();
   currentSyntheticIdentity.reset();
 }
 
 export function withRuntimeContext<T>(callback: () => T): T {
-  prepareRuntime();
   return runWithStore(currentStore, () => runWithSyntheticIdentity(currentSyntheticIdentity, callback));
 }
 
@@ -45,12 +51,5 @@ export function createApp(config: AppConfig, proxy?: DraftProxy): Koa {
     return createRuntimeApp(config, proxy);
   }
 
-  prepareRuntime();
-  return createRuntimeApp(
-    config,
-    createDraftProxy(config, {
-      store: currentStore,
-      syntheticIdentity: currentSyntheticIdentity,
-    }),
-  );
+  return createRuntimeApp(config, createTestProxy(config));
 }
