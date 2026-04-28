@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured 2026-04 orderCreateManualPayment access-denied branch on the current conformance store; the local proxy mirrors this safe branch without passthrough until Plus/manual-payment semantics can be captured.",
+  "notes": "Captured 2026-04 orderCreateManualPayment access-denied branch on a non-Plus conformance store; the local proxy mirrors this safe branch without passthrough for unhydrated/non-local order IDs while local synthetic-order success staging is covered by runtime tests.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

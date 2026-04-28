@@ -2470,6 +2470,21 @@ export const backupRegionRecordSchema = z.strictObject({
 });
 export type BackupRegionRecord = z.infer<typeof backupRegionRecordSchema>;
 
+export const taxonomyCategoryRecordSchema = z.strictObject({
+  id: z.string(),
+  cursor: nullableStringSchema.optional(),
+  name: z.string(),
+  fullName: z.string(),
+  isRoot: z.boolean(),
+  isLeaf: z.boolean(),
+  level: z.number().int(),
+  parentId: nullableStringSchema,
+  ancestorIds: z.array(z.string()),
+  childrenIds: z.array(z.string()),
+  isArchived: z.boolean(),
+});
+export type TaxonomyCategoryRecord = z.infer<typeof taxonomyCategoryRecordSchema>;
+
 export const adminPlatformFlowSignatureRecordSchema = z.strictObject({
   id: z.string(),
   flowTriggerId: z.string(),
@@ -2620,6 +2635,8 @@ export const stateSnapshotSchema = z.strictObject({
   abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
   abandonmentOrder: z.array(z.string()).default([]),
   backupRegion: backupRegionRecordSchema.nullable().default(null),
+  taxonomyCategories: z.record(z.string(), taxonomyCategoryRecordSchema).default({}),
+  taxonomyCategoryOrder: z.array(z.string()).default([]),
   adminPlatformFlowSignatures: z.record(z.string(), adminPlatformFlowSignatureRecordSchema).default({}),
   adminPlatformFlowSignatureOrder: z.array(z.string()).default([]),
   adminPlatformFlowTriggers: z.record(z.string(), adminPlatformFlowTriggerRecordSchema).default({}),

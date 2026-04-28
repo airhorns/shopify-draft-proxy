@@ -212,10 +212,9 @@ describe('order lifecycle, payment, and customer mutations', () => {
         variables: { id: orderId, amount: { amount: '19.00', currencyCode: 'CAD' } },
       });
 
-    expect(manualPaymentResponse.body).toMatchObject({
-      data: { orderCreateManualPayment: null },
-      errors: [{ extensions: { code: 'ACCESS_DENIED' }, path: ['orderCreateManualPayment'] }],
-    });
+    expect(manualPaymentResponse.body.data.orderCreateManualPayment.userErrors).toEqual([
+      { field: ['id'], message: 'Order is already paid' },
+    ]);
 
     const setCustomerResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
