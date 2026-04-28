@@ -297,6 +297,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    packageScript: 'conformance:capture-metaobject-schema-change',
+    scriptPath: 'scripts/capture-metaobject-schema-change-conformance.ts',
+    purpose: 'Metaobject definition schema edits plus row add/update/delete behavior before and after the edit.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-schema-change-lifecycle.json`,
+      'config/parity-specs/metaobject-schema-change-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Deletes remaining seeded metaobject rows and definition after the schema-change lifecycle capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     packageScript: 'conformance:capture-inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',

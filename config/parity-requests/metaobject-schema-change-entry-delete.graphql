@@ -1,0 +1,12 @@
+mutation MetaobjectSchemaChangeEntryDelete($id: ID!) {
+  metaobjectDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
