@@ -1,10 +1,8 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
-import { store } from '../../src/state/store.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
+import { createApp, resetSyntheticIdentity, store } from '../support/runtime.js';
 
 const config: AppConfig = {
   port: 3000,

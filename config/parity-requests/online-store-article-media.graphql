@@ -1,0 +1,39 @@
+mutation OnlineStoreArticleMedia($article: ArticleCreateInput!, $blog: BlogCreateInput!) {
+  articleCreate(article: $article, blog: $blog) {
+    article {
+      title
+      image {
+        altText
+        url
+        width
+        height
+      }
+      metafield(namespace: "har_410", key: "hero") {
+        namespace
+        key
+        type
+        value
+        jsonValue
+        ownerType
+      }
+      metafields(first: 5, namespace: "har_410") {
+        nodes {
+          namespace
+          key
+          type
+          value
+          jsonValue
+          ownerType
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

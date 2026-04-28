@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, parse, type FieldNode, type OperationDefinitionNode, type SelectionNode } from 'graphql';
 
 import type { ReadMode } from '../config.js';
@@ -12,8 +13,7 @@ import {
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
+import { isProxySyntheticGid } from '../state/synthetic-identity.js';
 import type { BulkOperationRecord } from '../state/types.js';
 import { handleDeliveryProfileMutation } from './delivery-profiles.js';
 import { handleDiscountMutation } from './discounts.js';
@@ -313,10 +313,14 @@ function sortBulkOperations(
   return reverse === true ? sorted.reverse() : sorted;
 }
 
-function listBulkOperationsForField(field: FieldNode, variables: Record<string, unknown>): BulkOperationRecord[] {
+function listBulkOperationsForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): BulkOperationRecord[] {
   const args = getFieldArguments(field, variables);
   const filtered = applySearchQuery(
-    store.listEffectiveBulkOperations(),
+    runtime.store.listEffectiveBulkOperations(),
     args['query'],
     {},
     matchesPositiveBulkOperationTerm,
@@ -326,10 +330,11 @@ function listBulkOperationsForField(field: FieldNode, variables: Record<string, 
 }
 
 function serializeBulkOperationsConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const operations = listBulkOperationsForField(field, variables);
+  const operations = listBulkOperationsForField(runtime, field, variables);
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     operations,
     field,
@@ -346,11 +351,15 @@ function serializeBulkOperationsConnection(
   });
 }
 
-function getCurrentBulkOperation(field: FieldNode, variables: Record<string, unknown>): BulkOperationRecord | null {
+function getCurrentBulkOperation(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): BulkOperationRecord | null {
   const args = getFieldArguments(field, variables);
   const requestedType = typeof args['type'] === 'string' ? args['type'] : 'QUERY';
   const [operation] = sortBulkOperations(
-    store.listEffectiveBulkOperations().filter((candidate) => candidate.type === requestedType),
+    runtime.store.listEffectiveBulkOperations().filter((candidate) => candidate.type === requestedType),
     'CREATED_AT',
     false,
   );
@@ -629,16 +638,18 @@ function serializeJsonl(records: Array<Record<string, unknown>>): string {
 }
 
 function executeProductBulkQuery(
+  runtime: ProxyRuntimeContext,
   validation: Extract<BulkQueryValidationResult, { ok: true }>,
   variables: Record<string, unknown>,
 ): { jsonl: string; objectCount: number; rootObjectCount: number } {
   const records: Array<Record<string, unknown>> = [];
 
   if (validation.rootField.name.value === 'productVariants') {
-    const variants = listProductVariantsForBulkExport(validation.rootField, variables);
+    const variants = listProductVariantsForBulkExport(runtime, validation.rootField, variables);
     for (const variant of variants) {
       records.push(
         serializeProductVariantBulkSelection(
+          runtime,
           variant,
           validation.rootNodeField.selectionSet?.selections ?? [],
           variables,
@@ -652,16 +663,22 @@ function executeProductBulkQuery(
     };
   }
 
-  const products = listProductsForBulkExport(validation.rootField, variables);
+  const products = listProductsForBulkExport(runtime, validation.rootField, variables);
   const productSelections = productNodeSelectionsWithoutConnections(validation.rootNodeField);
   for (const product of products) {
-    records.push(serializeProductBulkSelection(product, productSelections, variables));
+    records.push(serializeProductBulkSelection(runtime, product, productSelections, variables));
 
     if (validation.nestedVariantField && validation.nestedVariantNodeField) {
-      const variants = listProductVariantsForProductBulkExport(product.id, validation.nestedVariantField, variables);
+      const variants = listProductVariantsForProductBulkExport(
+        runtime,
+        product.id,
+        validation.nestedVariantField,
+        variables,
+      );
       for (const variant of variants) {
         records.push({
           ...serializeProductVariantBulkSelection(
+            runtime,
             variant,
             validation.nestedVariantNodeField.selectionSet?.selections ?? [],
             variables,
@@ -679,11 +696,17 @@ function executeProductBulkQuery(
   };
 }
 
-function stageCompletedBulkQueryOperation(query: string, jsonl: string, objectCount: number, rootObjectCount: number) {
-  const createdAt = makeSyntheticTimestamp();
-  const completedAt = makeSyntheticTimestamp();
+function stageCompletedBulkQueryOperation(
+  runtime: ProxyRuntimeContext,
+  query: string,
+  jsonl: string,
+  objectCount: number,
+  rootObjectCount: number,
+) {
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const completedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const operation: BulkOperationRecord = {
-    id: makeSyntheticGid('BulkOperation'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('BulkOperation'),
     status: 'COMPLETED',
     type: 'QUERY',
     errorCode: null,
@@ -698,7 +721,7 @@ function stageCompletedBulkQueryOperation(query: string, jsonl: string, objectCo
   };
 
   operation.url = makeLocalBulkResultUrl(operation);
-  return store.stageBulkOperationResult(operation, jsonl);
+  return runtime.store.stageBulkOperationResult(operation, jsonl);
 }
 
 function terminalCancelError(operation: BulkOperationRecord): BulkOperationUserError {
@@ -725,13 +748,14 @@ function buildBulkOperationResultUrl(operationId: string): string {
 }
 
 function buildMutationImportOperation(
+  runtime: ProxyRuntimeContext,
   status: BulkOperationRecord['status'],
   mutation: string,
   resultJsonl: string,
   counts: { objectCount: number; rootObjectCount: number },
 ): BulkOperationRecord {
-  const completedAt = makeSyntheticTimestamp();
-  const id = makeSyntheticGid('BulkOperation');
+  const completedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const id = runtime.syntheticIdentity.makeSyntheticGid('BulkOperation');
   return {
     id,
     status,
@@ -923,6 +947,7 @@ const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid',
 const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
 
 function handleSupportedBulkImportInnerMutation(
+  runtime: ProxyRuntimeContext,
   innerMutation: { rootField: string; capability: OperationCapability },
   mutation: string,
   variables: Record<string, unknown>,
@@ -935,10 +960,10 @@ function handleSupportedBulkImportInnerMutation(
   switch (capability.domain) {
     case 'customers':
     case 'privacy':
-      responseBody = handleCustomerMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleCustomerMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'discounts': {
-      const result = handleDiscountMutation(mutation, variables);
+      const result = handleDiscountMutation(runtime, mutation, variables);
       if (!result) {
         return null;
       }
@@ -947,19 +972,19 @@ function handleSupportedBulkImportInnerMutation(
       break;
     }
     case 'functions':
-      responseBody = handleFunctionMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleFunctionMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'gift-cards':
-      responseBody = handleGiftCardMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleGiftCardMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'localization':
-      responseBody = handleLocalizationMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleLocalizationMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'markets':
-      responseBody = handleMarketMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleMarketMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'marketing': {
-      const result = handleMarketingMutation(mutation, variables);
+      const result = handleMarketingMutation(runtime, mutation, variables);
       if (!result) {
         return null;
       }
@@ -968,16 +993,16 @@ function handleSupportedBulkImportInnerMutation(
       break;
     }
     case 'media':
-      responseBody = handleMediaMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleMediaMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'metafields':
-      responseBody = handleMetafieldDefinitionMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleMetafieldDefinitionMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'metaobjects':
-      responseBody = handleMetaobjectDefinitionMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleMetaobjectDefinitionMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'online-store': {
-      const result = handleOnlineStoreMutation(mutation, variables);
+      const result = handleOnlineStoreMutation(runtime, mutation, variables);
       if (!result) {
         return null;
       }
@@ -987,6 +1012,7 @@ function handleSupportedBulkImportInnerMutation(
     }
     case 'orders':
       responseBody = handleOrderMutation(
+        runtime,
         mutation,
         variables,
         options.readMode,
@@ -996,12 +1022,13 @@ function handleSupportedBulkImportInnerMutation(
     case 'payments':
       responseBody = (
         ORDER_PAYMENT_MUTATION_ROOTS.has(rootField) || PAYMENT_TERMS_MUTATION_ROOTS.has(rootField)
-          ? handleOrderMutation(mutation, variables, options.readMode, options.shopifyAdminOrigin)
-          : handlePaymentMutation(mutation, variables)
+          ? handleOrderMutation(runtime, mutation, variables, options.readMode, options.shopifyAdminOrigin)
+          : handlePaymentMutation(runtime, mutation, variables)
       ) as GraphqlResponseBody | null;
       break;
     case 'products':
       responseBody = handleProductMutation(
+        runtime,
         mutation,
         variables,
         options.readMode,
@@ -1009,7 +1036,7 @@ function handleSupportedBulkImportInnerMutation(
       ) as GraphqlResponseBody;
       break;
     case 'saved-searches': {
-      const result = handleSavedSearchMutation(mutation, variables);
+      const result = handleSavedSearchMutation(runtime, mutation, variables);
       if (!result) {
         return null;
       }
@@ -1018,18 +1045,18 @@ function handleSupportedBulkImportInnerMutation(
       break;
     }
     case 'segments':
-      responseBody = handleSegmentMutation(mutation, variables) as GraphqlResponseBody;
+      responseBody = handleSegmentMutation(runtime, mutation, variables) as GraphqlResponseBody;
       break;
     case 'shipping-fulfillments': {
       if (DELIVERY_PROFILE_MUTATION_ROOTS.has(rootField)) {
-        const result = handleDeliveryProfileMutation(mutation, variables);
+        const result = handleDeliveryProfileMutation(runtime, mutation, variables);
         if (!result) {
           return null;
         }
         responseBody = result.response as GraphqlResponseBody;
         stagedResourceIds.push(...result.stagedResourceIds);
       } else if (INVENTORY_SHIPMENT_MUTATION_ROOTS.has(rootField)) {
-        const result = handleInventoryShipmentMutation(mutation, variables);
+        const result = handleInventoryShipmentMutation(runtime, mutation, variables);
         if (!result) {
           return null;
         }
@@ -1037,24 +1064,31 @@ function handleSupportedBulkImportInnerMutation(
         stagedResourceIds.push(...result.stagedResourceIds);
       } else if (ORDER_BACKED_SHIPPING_FULFILLMENT_MUTATION_ROOTS.has(rootField)) {
         responseBody = handleOrderMutation(
+          runtime,
           mutation,
           variables,
           options.readMode,
           options.shopifyAdminOrigin,
         ) as GraphqlResponseBody | null;
       } else {
-        responseBody = handleStorePropertiesMutation(mutation, variables) as GraphqlResponseBody;
+        responseBody = handleStorePropertiesMutation(runtime, mutation, variables) as GraphqlResponseBody;
       }
       break;
     }
     case 'store-properties':
       responseBody =
         capability.operationName?.startsWith('publishable') === true
-          ? (handleProductMutation(mutation, variables, options.readMode, options.apiVersion) as GraphqlResponseBody)
-          : (handleStorePropertiesMutation(mutation, variables) as GraphqlResponseBody);
+          ? (handleProductMutation(
+              runtime,
+              mutation,
+              variables,
+              options.readMode,
+              options.apiVersion,
+            ) as GraphqlResponseBody)
+          : (handleStorePropertiesMutation(runtime, mutation, variables) as GraphqlResponseBody);
       break;
     case 'webhooks': {
-      const result = handleWebhookSubscriptionMutation(mutation, variables);
+      const result = handleWebhookSubscriptionMutation(runtime, mutation, variables);
       if (!result) {
         return null;
       }
@@ -1084,6 +1118,7 @@ function makeJsonl(rows: Array<Record<string, unknown>>): string {
 }
 
 function handleBulkOperationRunMutation(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   args: Record<string, unknown>,
   options: BulkOperationMutationOptions,
@@ -1109,11 +1144,11 @@ function handleBulkOperationRunMutation(
     };
   }
 
-  const uploadContent = store.getStagedUploadContent(stagedUploadPath);
+  const uploadContent = runtime.store.getStagedUploadContent(stagedUploadPath);
   if (uploadContent === null) {
-    const failedOperation = store.stageBulkOperation(
+    const failedOperation = runtime.store.stageBulkOperation(
       withStableBulkOperationUrl(
-        buildMutationImportOperation('FAILED', mutation, emptyResult, { objectCount: 0, rootObjectCount: 0 }),
+        buildMutationImportOperation(runtime, 'FAILED', mutation, emptyResult, { objectCount: 0, rootObjectCount: 0 }),
       ),
     );
     return {
@@ -1145,9 +1180,9 @@ function handleBulkOperationRunMutation(
         ],
       },
     ]);
-    const failedOperation = store.stageBulkOperation(
+    const failedOperation = runtime.store.stageBulkOperation(
       withStableBulkOperationUrl(
-        buildMutationImportOperation('FAILED', mutation, resultJsonl, { objectCount: 0, rootObjectCount: 0 }),
+        buildMutationImportOperation(runtime, 'FAILED', mutation, resultJsonl, { objectCount: 0, rootObjectCount: 0 }),
       ),
     );
     return {
@@ -1185,6 +1220,7 @@ function handleBulkOperationRunMutation(
     }
 
     const executionResult = handleSupportedBulkImportInnerMutation(
+      runtime,
       innerMutation,
       mutation,
       parsedLine.variables,
@@ -1234,9 +1270,9 @@ function handleBulkOperationRunMutation(
   }
 
   const resultJsonl = makeJsonl(rows);
-  const operation = store.stageBulkOperation(
+  const operation = runtime.store.stageBulkOperation(
     withStableBulkOperationUrl(
-      buildMutationImportOperation(hasFatalLineError ? 'FAILED' : 'COMPLETED', mutation, resultJsonl, {
+      buildMutationImportOperation(runtime, hasFatalLineError ? 'FAILED' : 'COMPLETED', mutation, resultJsonl, {
         objectCount,
         rootObjectCount: objectCount,
       }),
@@ -1257,7 +1293,11 @@ function handleBulkOperationRunMutation(
   };
 }
 
-export function handleBulkOperationQuery(document: string, variables: Record<string, unknown>): GraphqlResponseBody {
+export function handleBulkOperationQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): GraphqlResponseBody {
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
@@ -1273,7 +1313,7 @@ export function handleBulkOperationQuery(document: string, variables: Record<str
         if (!isBulkOperationGid(id)) {
           return invalidBulkOperationIdResponse(document, field, id);
         }
-        const operation = store.getEffectiveBulkOperationById(id);
+        const operation = runtime.store.getEffectiveBulkOperationById(id);
         data[key] = operation ? serializeBulkOperation(operation, field) : null;
         break;
       }
@@ -1282,11 +1322,11 @@ export function handleBulkOperationQuery(document: string, variables: Record<str
         if (validationError) {
           return validationError;
         }
-        data[key] = serializeBulkOperationsConnection(field, variables);
+        data[key] = serializeBulkOperationsConnection(runtime, field, variables);
         break;
       }
       case 'currentBulkOperation': {
-        const operation = getCurrentBulkOperation(field, variables);
+        const operation = getCurrentBulkOperation(runtime, field, variables);
         data[key] = operation ? serializeBulkOperation(operation, field) : null;
         break;
       }
@@ -1300,6 +1340,7 @@ export function handleBulkOperationQuery(document: string, variables: Record<str
 }
 
 export function handleBulkOperationMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
   options: BulkOperationMutationOptions,
@@ -1314,7 +1355,7 @@ export function handleBulkOperationMutation(
 
     if (field.name.value === 'bulkOperationRunMutation') {
       handled = true;
-      return handleBulkOperationRunMutation(field, args, options);
+      return handleBulkOperationRunMutation(runtime, field, args, options);
     }
 
     if (field.name.value !== 'bulkOperationCancel' && field.name.value !== 'bulkOperationRunQuery') {
@@ -1347,8 +1388,9 @@ export function handleBulkOperationMutation(
         continue;
       }
 
-      const result = executeProductBulkQuery(validation, variables);
+      const result = executeProductBulkQuery(runtime, validation, variables);
       const operation = stageCompletedBulkQueryOperation(
+        runtime,
         query,
         result.jsonl,
         result.objectCount,
@@ -1376,8 +1418,8 @@ export function handleBulkOperationMutation(
       };
     }
 
-    const stagedOperation = store.getStagedBulkOperationById(id);
-    const effectiveOperation = stagedOperation ?? store.getEffectiveBulkOperationById(id);
+    const stagedOperation = runtime.store.getStagedBulkOperationById(id);
+    const effectiveOperation = stagedOperation ?? runtime.store.getEffectiveBulkOperationById(id);
 
     if (!effectiveOperation) {
       data[key] = serializeCancelPayload(field, null, [missingBulkOperationUserError()]);
@@ -1395,7 +1437,7 @@ export function handleBulkOperationMutation(
       continue;
     }
 
-    const canceledOperation = store.cancelStagedBulkOperation(id) ?? stagedOperation;
+    const canceledOperation = runtime.store.cancelStagedBulkOperation(id) ?? stagedOperation;
     data[key] = serializeCancelPayload(field, canceledOperation, []);
     stagedResourceIds.push(canceledOperation.id);
   }

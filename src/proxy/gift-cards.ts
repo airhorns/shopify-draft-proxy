@@ -1,10 +1,9 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { parseSearchQueryTerms, normalizeSearchQueryValue, type SearchQueryTerm } from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
-import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   GiftCardRecipientAttributesRecord,
   GiftCardRecord,
@@ -462,18 +461,26 @@ function compareGiftCards(left: GiftCardRecord, right: GiftCardRecord, sortKey: 
   }
 }
 
-function listGiftCardsForConnection(field: FieldNode, variables: Record<string, unknown>): GiftCardRecord[] {
+function listGiftCardsForConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): GiftCardRecord[] {
   const args = getFieldArguments(field, variables);
   const reverse = args['reverse'] === true;
-  const sortedGiftCards = filterGiftCardsByQuery(store.listEffectiveGiftCards(), args['query']).sort((left, right) =>
-    compareGiftCards(left, right, args['sortKey']),
+  const sortedGiftCards = filterGiftCardsByQuery(runtime.store.listEffectiveGiftCards(), args['query']).sort(
+    (left, right) => compareGiftCards(left, right, args['sortKey']),
   );
 
   return reverse ? sortedGiftCards.reverse() : sortedGiftCards;
 }
 
-function serializeGiftCardsConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
-  const giftCards = listGiftCardsForConnection(field, variables);
+function serializeGiftCardsConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const giftCards = listGiftCardsForConnection(runtime, field, variables);
   const getCursor = (giftCard: GiftCardRecord): string => giftCard.id;
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(giftCards, field, variables, getCursor);
 
@@ -487,9 +494,13 @@ function serializeGiftCardsConnection(field: FieldNode, variables: Record<string
   });
 }
 
-function serializeGiftCardsCount(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function serializeGiftCardsCount(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const count = filterGiftCardsByQuery(store.listEffectiveGiftCards(), args['query']).length;
+  const count = filterGiftCardsByQuery(runtime.store.listEffectiveGiftCards(), args['query']).length;
   const limit =
     typeof args['limit'] === 'number' && Number.isInteger(args['limit']) && args['limit'] >= 0 ? args['limit'] : null;
   const visibleCount = limit === null ? count : Math.min(count, limit);
@@ -519,8 +530,11 @@ function serializeGiftCardsCount(field: FieldNode, variables: Record<string, unk
   return result;
 }
 
-function serializeGiftCardConfiguration(selections: readonly SelectionNode[]): Record<string, unknown> {
-  const configuration = store.getEffectiveGiftCardConfiguration();
+function serializeGiftCardConfiguration(
+  runtime: ProxyRuntimeContext,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const configuration = runtime.store.getEffectiveGiftCardConfiguration();
   const result: Record<string, unknown> = {};
   for (const selection of selections) {
     if (selection.kind !== Kind.FIELD) {
@@ -638,9 +652,9 @@ function notFoundUserError(): GiftCardUserErrorRecord {
   return { field: ['id'], message: 'Gift card does not exist' };
 }
 
-function stageGiftCardCreate(args: Record<string, unknown>): GiftCardPayload {
+function stageGiftCardCreate(runtime: ProxyRuntimeContext, args: Record<string, unknown>): GiftCardPayload {
   const input = readInput(args);
-  const id = makeProxySyntheticGid('GiftCard');
+  const id = runtime.syntheticIdentity.makeProxySyntheticGid('GiftCard');
   const code = normalizeGiftCardCode(input['code'], id);
   const initialValue = normalizeMoney(input['initialValue']);
   if (parseDecimalAmount(initialValue.amount) <= 0) {
@@ -651,7 +665,7 @@ function stageGiftCardCreate(args: Record<string, unknown>): GiftCardPayload {
     };
   }
 
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const lastCharacters = lastCharactersFromCode(code);
   const recipientAttributes = readRecipientAttributes(input['recipientAttributes']);
   const giftCard: GiftCardRecord = {
@@ -675,16 +689,16 @@ function stageGiftCardCreate(args: Record<string, unknown>): GiftCardPayload {
   };
 
   return {
-    giftCard: store.stageCreateGiftCard(giftCard),
+    giftCard: runtime.store.stageCreateGiftCard(giftCard),
     giftCardCode: code,
     userErrors: [],
   };
 }
 
-function stageGiftCardUpdate(args: Record<string, unknown>): GiftCardPayload {
+function stageGiftCardUpdate(runtime: ProxyRuntimeContext, args: Record<string, unknown>): GiftCardPayload {
   const input = readInput(args);
   const id = readString(input['id']) ?? readString(args['id']);
-  const existing = id ? store.getEffectiveGiftCardById(id) : null;
+  const existing = id ? runtime.store.getEffectiveGiftCardById(id) : null;
   if (!id || !existing) {
     return { giftCard: null, userErrors: [notFoundUserError()] };
   }
@@ -709,19 +723,20 @@ function stageGiftCardUpdate(args: Record<string, unknown>): GiftCardPayload {
     recipientAttributes: Object.prototype.hasOwnProperty.call(input, 'recipientAttributes')
       ? readRecipientAttributes(input['recipientAttributes'], effectiveRecipientAttributes(existing))
       : existing.recipientAttributes,
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 
-  return { giftCard: store.stageUpdateGiftCard(giftCard), userErrors: [] };
+  return { giftCard: runtime.store.stageUpdateGiftCard(giftCard), userErrors: [] };
 }
 
 function stageGiftCardTransaction(
+  runtime: ProxyRuntimeContext,
   args: Record<string, unknown>,
   kind: 'CREDIT' | 'DEBIT',
   preferredAmountKey: 'creditAmount' | 'debitAmount',
 ): GiftCardPayload {
   const id = readGiftCardId(args);
-  const existing = id ? store.getEffectiveGiftCardById(id) : null;
+  const existing = id ? runtime.store.getEffectiveGiftCardById(id) : null;
   if (!id || !existing) {
     return { giftCard: null, giftCardTransaction: null, userErrors: [notFoundUserError()] };
   }
@@ -748,14 +763,15 @@ function stageGiftCardTransaction(
   const signedAmount = kind === 'CREDIT' ? magnitude : -magnitude;
   const currencyCode = rawMoney.currencyCode ?? existing.balance.currencyCode;
   const transaction: GiftCardTransactionRecord = {
-    id: makeSyntheticGid('GiftCardTransaction'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('GiftCardTransaction'),
     kind,
     amount: {
       amount: formatDecimalAmount(signedAmount),
       currencyCode,
     },
     processedAt:
-      readMutationProcessedAt(args, kind === 'CREDIT' ? 'creditInput' : 'debitInput') ?? makeSyntheticTimestamp(),
+      readMutationProcessedAt(args, kind === 'CREDIT' ? 'creditInput' : 'debitInput') ??
+      runtime.syntheticIdentity.makeSyntheticTimestamp(),
     note: readMutationNote(args, kind === 'CREDIT' ? 'creditInput' : 'debitInput'),
   };
   const giftCard: GiftCardRecord = {
@@ -764,37 +780,37 @@ function stageGiftCardTransaction(
       amount: formatDecimalAmount(currentBalance + signedAmount),
       currencyCode,
     },
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     transactions: [...existing.transactions, transaction],
   };
 
   return {
-    giftCard: store.stageUpdateGiftCard(giftCard),
+    giftCard: runtime.store.stageUpdateGiftCard(giftCard),
     giftCardTransaction: transaction,
     userErrors: [],
   };
 }
 
-function stageGiftCardDeactivate(args: Record<string, unknown>): GiftCardPayload {
+function stageGiftCardDeactivate(runtime: ProxyRuntimeContext, args: Record<string, unknown>): GiftCardPayload {
   const id = readGiftCardId(args);
-  const existing = id ? store.getEffectiveGiftCardById(id) : null;
+  const existing = id ? runtime.store.getEffectiveGiftCardById(id) : null;
   if (!id || !existing) {
     return { giftCard: null, userErrors: [notFoundUserError()] };
   }
 
-  const now = makeSyntheticTimestamp();
+  const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const giftCard: GiftCardRecord = {
     ...existing,
     enabled: false,
     deactivatedAt: existing.deactivatedAt ?? now,
     updatedAt: now,
   };
-  return { giftCard: store.stageUpdateGiftCard(giftCard), userErrors: [] };
+  return { giftCard: runtime.store.stageUpdateGiftCard(giftCard), userErrors: [] };
 }
 
-function stageGiftCardNotification(args: Record<string, unknown>): GiftCardPayload {
+function stageGiftCardNotification(runtime: ProxyRuntimeContext, args: Record<string, unknown>): GiftCardPayload {
   const id = readGiftCardId(args);
-  const existing = id ? store.getEffectiveGiftCardById(id) : null;
+  const existing = id ? runtime.store.getEffectiveGiftCardById(id) : null;
   if (!id || !existing) {
     return { giftCard: null, userErrors: [notFoundUserError()] };
   }
@@ -802,7 +818,11 @@ function stageGiftCardNotification(args: Record<string, unknown>): GiftCardPaylo
   return { giftCard: existing, userErrors: [] };
 }
 
-export function handleGiftCardQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleGiftCardQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
     const key = responseKey(field);
@@ -810,18 +830,18 @@ export function handleGiftCardQuery(document: string, variables: Record<string, 
     switch (field.name.value) {
       case 'giftCard': {
         const id = readString(args['id']);
-        const giftCard = id ? store.getEffectiveGiftCardById(id) : null;
+        const giftCard = id ? runtime.store.getEffectiveGiftCardById(id) : null;
         data[key] = giftCard ? serializeGiftCard(giftCard, field.selectionSet?.selections ?? [], variables) : null;
         break;
       }
       case 'giftCards':
-        data[key] = serializeGiftCardsConnection(field, variables);
+        data[key] = serializeGiftCardsConnection(runtime, field, variables);
         break;
       case 'giftCardsCount':
-        data[key] = serializeGiftCardsCount(field, variables);
+        data[key] = serializeGiftCardsCount(runtime, field, variables);
         break;
       case 'giftCardConfiguration':
-        data[key] = serializeGiftCardConfiguration(field.selectionSet?.selections ?? []);
+        data[key] = serializeGiftCardConfiguration(runtime, field.selectionSet?.selections ?? []);
         break;
       default:
         data[key] = null;
@@ -831,7 +851,11 @@ export function handleGiftCardQuery(document: string, variables: Record<string, 
   return { data };
 }
 
-export function handleGiftCardMutation(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleGiftCardMutation(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
     const key = responseKey(field);
@@ -839,7 +863,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
     switch (field.name.value) {
       case 'giftCardCreate':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardCreate(args),
+          stageGiftCardCreate(runtime, args),
           'GiftCardCreatePayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -847,7 +871,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardUpdate':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardUpdate(args),
+          stageGiftCardUpdate(runtime, args),
           'GiftCardUpdatePayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -855,7 +879,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardCredit':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardTransaction(args, 'CREDIT', 'creditAmount'),
+          stageGiftCardTransaction(runtime, args, 'CREDIT', 'creditAmount'),
           'GiftCardCreditPayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -863,7 +887,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardDebit':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardTransaction(args, 'DEBIT', 'debitAmount'),
+          stageGiftCardTransaction(runtime, args, 'DEBIT', 'debitAmount'),
           'GiftCardDebitPayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -871,7 +895,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardDeactivate':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardDeactivate(args),
+          stageGiftCardDeactivate(runtime, args),
           'GiftCardDeactivatePayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -879,7 +903,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardSendNotificationToCustomer':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardNotification(args),
+          stageGiftCardNotification(runtime, args),
           'GiftCardSendNotificationToCustomerPayload',
           field.selectionSet?.selections ?? [],
           variables,
@@ -887,7 +911,7 @@ export function handleGiftCardMutation(document: string, variables: Record<strin
         break;
       case 'giftCardSendNotificationToRecipient':
         data[key] = serializeGiftCardPayload(
-          stageGiftCardNotification(args),
+          stageGiftCardNotification(runtime, args),
           'GiftCardSendNotificationToRecipientPayload',
           field.selectionSet?.selections ?? [],
           variables,

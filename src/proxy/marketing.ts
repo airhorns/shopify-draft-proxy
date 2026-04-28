@@ -1,3 +1,4 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import type { FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
@@ -10,8 +11,6 @@ import {
   type SearchQueryNode,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { MarketingEngagementRecord, MarketingRecord } from '../state/types.js';
 import {
   buildSyntheticCursor,
@@ -127,6 +126,7 @@ function collectMarketingNodes(
 }
 
 export function hydrateMarketingFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
   document: string,
   _variables: Record<string, unknown>,
   upstreamPayload: unknown,
@@ -148,10 +148,10 @@ export function hydrateMarketingFromUpstreamResponse(
     }
 
     if (collected.activities.length > 0) {
-      store.upsertBaseMarketingActivities(collected.activities);
+      runtime.store.upsertBaseMarketingActivities(collected.activities);
     }
     if (collected.events.length > 0) {
-      store.upsertBaseMarketingEvents(collected.events);
+      runtime.store.upsertBaseMarketingEvents(collected.events);
     }
   }
 }
@@ -233,13 +233,16 @@ function sameUtm(left: Record<string, unknown> | null, right: Record<string, unk
   );
 }
 
-function findMarketingActivityByUtm(utm: Record<string, unknown> | null): MarketingRecord | null {
+function findMarketingActivityByUtm(
+  runtime: ProxyRuntimeContext,
+  utm: Record<string, unknown> | null,
+): MarketingRecord | null {
   if (!utm) {
     return null;
   }
 
   return (
-    store
+    runtime.store
       .listEffectiveMarketingActivities()
       .find((activity) => sameUtm(readObject(activity.data, 'utmParameters'), utm)) ?? null
   );
@@ -553,13 +556,16 @@ function eventEndedAtForStatus(status: string | null, timestamp: string): string
   return status === 'INACTIVE' || status === 'DELETED_EXTERNALLY' ? timestamp : null;
 }
 
-function buildMarketingRecordsFromCreateInput(input: Record<string, unknown>): {
+function buildMarketingRecordsFromCreateInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): {
   activity: MarketingRecord;
   event: MarketingRecord;
 } {
-  const activityId = makeSyntheticGid('MarketingActivity');
-  const eventId = makeSyntheticGid('MarketingEvent');
-  const timestamp = makeSyntheticTimestamp();
+  const activityId = runtime.syntheticIdentity.makeSyntheticGid('MarketingActivity');
+  const eventId = runtime.syntheticIdentity.makeSyntheticGid('MarketingEvent');
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const title = readString(input, 'title') ?? '';
   const remoteId = readString(input, 'remoteId');
   const status = readString(input, 'status') ?? 'UNDEFINED';
@@ -629,9 +635,12 @@ function isKnownLocalMarketingActivityExtension(marketingActivityExtensionId: st
   return !marketingActivityExtensionId.endsWith('/00000000-0000-0000-0000-000000000000');
 }
 
-function buildNativeMarketingActivityFromCreateInput(input: Record<string, unknown>): MarketingRecord {
-  const activityId = makeSyntheticGid('MarketingActivity');
-  const timestamp = makeSyntheticTimestamp();
+function buildNativeMarketingActivityFromCreateInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): MarketingRecord {
+  const activityId = runtime.syntheticIdentity.makeSyntheticGid('MarketingActivity');
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const status = readString(input, 'status') ?? 'UNDEFINED';
   const title = readString(input, 'marketingActivityTitle') ?? readString(input, 'title') ?? 'Marketing activity';
   const tactic = readString(input, 'tactic') ?? 'NEWSLETTER';
@@ -665,8 +674,12 @@ function buildNativeMarketingActivityFromCreateInput(input: Record<string, unkno
   return { id: activityId, cursor: null, data: toMarketingData(activityData) };
 }
 
-function applyNativeMarketingActivityUpdate(record: MarketingRecord, input: Record<string, unknown>): MarketingRecord {
-  const timestamp = makeSyntheticTimestamp();
+function applyNativeMarketingActivityUpdate(
+  runtime: ProxyRuntimeContext,
+  record: MarketingRecord,
+  input: Record<string, unknown>,
+): MarketingRecord {
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const existingActivity = structuredClone(record.data);
   const status = readString(input, 'status') ?? readString(existingActivity, 'status') ?? 'UNDEFINED';
   const tactic = readString(input, 'tactic') ?? readString(existingActivity, 'tactic') ?? 'NEWSLETTER';
@@ -702,13 +715,14 @@ function applyNativeMarketingActivityUpdate(record: MarketingRecord, input: Reco
 }
 
 function applyExternalActivityUpdate(
+  runtime: ProxyRuntimeContext,
   record: MarketingRecord,
   input: Record<string, unknown>,
 ): {
   activity: MarketingRecord;
   event: MarketingRecord;
 } {
-  const timestamp = makeSyntheticTimestamp();
+  const timestamp = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const existingActivity = structuredClone(record.data);
   const existingEvent = readObject(existingActivity, 'marketingEvent') ?? {};
   const status = readString(input, 'status') ?? readString(existingActivity, 'status') ?? 'UNDEFINED';
@@ -717,7 +731,7 @@ function applyExternalActivityUpdate(
     readString(input, 'marketingChannelType') ?? readString(existingActivity, 'marketingChannelType') ?? 'EMAIL';
   const title = readString(input, 'title') ?? readString(existingActivity, 'title') ?? '';
   const sourceMedium = sourceAndMedium(marketingChannelType, tactic);
-  const eventId = readString(existingEvent, 'id') ?? makeSyntheticGid('MarketingEvent');
+  const eventId = readString(existingEvent, 'id') ?? runtime.syntheticIdentity.makeSyntheticGid('MarketingEvent');
   const remoteId = marketingRemoteId(existingActivity);
   const existingUtm = readObject(existingActivity, 'utmParameters');
   const endedAt =
@@ -768,9 +782,12 @@ function applyExternalActivityUpdate(
   };
 }
 
-function stageMarketingRecords(records: { activity: MarketingRecord; event: MarketingRecord }): void {
-  store.stageMarketingEvent(records.event);
-  store.stageMarketingActivity(records.activity);
+function stageMarketingRecords(
+  runtime: ProxyRuntimeContext,
+  records: { activity: MarketingRecord; event: MarketingRecord },
+): void {
+  runtime.store.stageMarketingEvent(records.event);
+  runtime.store.stageMarketingActivity(records.activity);
 }
 
 function readMoneyInput(input: Record<string, unknown>, field: string): Record<string, unknown> | null {
@@ -807,6 +824,7 @@ function engagementRecordId(identifier: MarketingEngagementIdentifier, occurredO
 }
 
 function resolveMarketingEngagementIdentifier(
+  runtime: ProxyRuntimeContext,
   args: Record<string, unknown>,
 ): { ok: true; identifier: MarketingEngagementIdentifier } | { ok: false; error: MarketingUserError } {
   const marketingActivityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
@@ -823,20 +841,20 @@ function resolveMarketingEngagementIdentifier(
   }
 
   if (marketingActivityId) {
-    const activity = store.getEffectiveMarketingActivityRecordById(marketingActivityId);
+    const activity = runtime.store.getEffectiveMarketingActivityRecordById(marketingActivityId);
     return activity
       ? { ok: true, identifier: { kind: 'activityId', value: marketingActivityId, activity } }
       : { ok: false, error: marketingActivityMissingError() };
   }
 
   if (remoteId) {
-    const activity = store.getEffectiveMarketingActivityByRemoteId(remoteId);
+    const activity = runtime.store.getEffectiveMarketingActivityByRemoteId(remoteId);
     return activity
       ? { ok: true, identifier: { kind: 'remoteId', value: remoteId, activity } }
       : { ok: false, error: marketingActivityMissingError() };
   }
 
-  if (channelHandle && store.hasKnownMarketingChannelHandle(channelHandle)) {
+  if (channelHandle && runtime.store.hasKnownMarketingChannelHandle(channelHandle)) {
     return { ok: true, identifier: { kind: 'channelHandle', value: channelHandle, activity: null } };
   }
 
@@ -903,6 +921,7 @@ function buildMarketingEngagementRecord(
 }
 
 function buildMutationRootPayload(
+  runtime: ProxyRuntimeContext,
   rootField: string,
   args: Record<string, unknown>,
 ): {
@@ -920,8 +939,8 @@ function buildMutationRootPayload(
       };
     }
 
-    const activity = buildNativeMarketingActivityFromCreateInput(input);
-    store.stageMarketingActivity(activity);
+    const activity = buildNativeMarketingActivityFromCreateInput(runtime, input);
+    runtime.store.stageMarketingActivity(activity);
     return {
       payload: { userErrors: [] },
       stagedResourceIds: [activity.id],
@@ -932,7 +951,7 @@ function buildMutationRootPayload(
   if (rootField === 'marketingActivityUpdate') {
     const input = readInput(args['input']);
     const activityId = readString(input, 'id');
-    const activity = activityId ? store.getEffectiveMarketingActivityRecordById(activityId) : null;
+    const activity = activityId ? runtime.store.getEffectiveMarketingActivityRecordById(activityId) : null;
 
     if (!activity) {
       return {
@@ -942,8 +961,8 @@ function buildMutationRootPayload(
       };
     }
 
-    const updated = applyNativeMarketingActivityUpdate(activity, input);
-    store.stageMarketingActivity(updated);
+    const updated = applyNativeMarketingActivityUpdate(runtime, activity, input);
+    runtime.store.stageMarketingActivity(updated);
     return {
       payload: { marketingActivity: updated.data, redirectPath: null, userErrors: [] },
       stagedResourceIds: [updated.id],
@@ -962,7 +981,7 @@ function buildMutationRootPayload(
     }
 
     const remoteId = readString(input, 'remoteId');
-    if (remoteId && store.getEffectiveMarketingActivityByRemoteId(remoteId)) {
+    if (remoteId && runtime.store.getEffectiveMarketingActivityByRemoteId(remoteId)) {
       return {
         payload: marketingValidationPayload(rootField, [duplicateExternalActivityError()]),
         stagedResourceIds: [],
@@ -970,8 +989,8 @@ function buildMutationRootPayload(
       };
     }
 
-    const records = buildMarketingRecordsFromCreateInput(input);
-    stageMarketingRecords(records);
+    const records = buildMarketingRecordsFromCreateInput(runtime, input);
+    stageMarketingRecords(runtime, records);
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
@@ -985,10 +1004,10 @@ function buildMutationRootPayload(
     const activityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
     const selectorUtm = readUtm(readInput(args['utm']));
     const activity = remoteId
-      ? store.getEffectiveMarketingActivityByRemoteId(remoteId)
+      ? runtime.store.getEffectiveMarketingActivityByRemoteId(remoteId)
       : activityId
-        ? store.getEffectiveMarketingActivityRecordById(activityId)
-        : findMarketingActivityByUtm(selectorUtm);
+        ? runtime.store.getEffectiveMarketingActivityRecordById(activityId)
+        : findMarketingActivityByUtm(runtime, selectorUtm);
 
     if (!activity) {
       return {
@@ -1010,8 +1029,8 @@ function buildMutationRootPayload(
       };
     }
 
-    const records = applyExternalActivityUpdate(activity, input);
-    stageMarketingRecords(records);
+    const records = applyExternalActivityUpdate(runtime, activity, input);
+    stageMarketingRecords(runtime, records);
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
@@ -1022,7 +1041,7 @@ function buildMutationRootPayload(
   if (rootField === 'marketingActivityUpsertExternal') {
     const input = readInput(args['input']);
     const remoteId = readString(input, 'remoteId');
-    const existing = remoteId ? store.getEffectiveMarketingActivityByRemoteId(remoteId) : null;
+    const existing = remoteId ? runtime.store.getEffectiveMarketingActivityByRemoteId(remoteId) : null;
 
     if (!existing) {
       if (!hasAttribution(input)) {
@@ -1033,8 +1052,8 @@ function buildMutationRootPayload(
         };
       }
 
-      const records = buildMarketingRecordsFromCreateInput(input);
-      stageMarketingRecords(records);
+      const records = buildMarketingRecordsFromCreateInput(runtime, input);
+      stageMarketingRecords(runtime, records);
       return {
         payload: { marketingActivity: records.activity.data, userErrors: [] },
         stagedResourceIds: [records.activity.id, records.event.id],
@@ -1050,8 +1069,8 @@ function buildMutationRootPayload(
       };
     }
 
-    const records = applyExternalActivityUpdate(existing, input);
-    stageMarketingRecords(records);
+    const records = applyExternalActivityUpdate(runtime, existing, input);
+    stageMarketingRecords(runtime, records);
     return {
       payload: { marketingActivity: records.activity.data, userErrors: [] },
       stagedResourceIds: [records.activity.id, records.event.id],
@@ -1063,9 +1082,9 @@ function buildMutationRootPayload(
     const remoteId = typeof args['remoteId'] === 'string' ? args['remoteId'] : null;
     const activityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
     const activity = remoteId
-      ? store.getEffectiveMarketingActivityByRemoteId(remoteId)
+      ? runtime.store.getEffectiveMarketingActivityByRemoteId(remoteId)
       : activityId
-        ? store.getEffectiveMarketingActivityRecordById(activityId)
+        ? runtime.store.getEffectiveMarketingActivityRecordById(activityId)
         : null;
 
     if (!activity) {
@@ -1076,7 +1095,7 @@ function buildMutationRootPayload(
       };
     }
 
-    store.stageDeleteMarketingActivity(activity.id);
+    runtime.store.stageDeleteMarketingActivity(activity.id);
     return {
       payload: { deletedMarketingActivityId: activity.id, userErrors: [] },
       stagedResourceIds: [activity.id],
@@ -1085,8 +1104,8 @@ function buildMutationRootPayload(
   }
 
   if (rootField === 'marketingActivitiesDeleteAllExternal') {
-    const deletedIds = store.stageDeleteAllExternalMarketingActivities();
-    const jobId = makeSyntheticGid('Job');
+    const deletedIds = runtime.store.stageDeleteAllExternalMarketingActivities();
+    const jobId = runtime.syntheticIdentity.makeSyntheticGid('Job');
     return {
       payload: {
         job: {
@@ -1103,7 +1122,7 @@ function buildMutationRootPayload(
 
   if (rootField === 'marketingEngagementCreate') {
     const input = readInput(args['marketingEngagement']);
-    const resolved = resolveMarketingEngagementIdentifier(args);
+    const resolved = resolveMarketingEngagementIdentifier(runtime, args);
     if (!resolved.ok) {
       return {
         payload: marketingValidationPayload(rootField, [resolved.error]),
@@ -1112,7 +1131,9 @@ function buildMutationRootPayload(
       };
     }
 
-    const engagement = store.stageMarketingEngagement(buildMarketingEngagementRecord(resolved.identifier, input));
+    const engagement = runtime.store.stageMarketingEngagement(
+      buildMarketingEngagementRecord(resolved.identifier, input),
+    );
     return {
       payload: { marketingEngagement: engagement.data, userErrors: [] },
       stagedResourceIds: [engagement.id],
@@ -1132,7 +1153,7 @@ function buildMutationRootPayload(
     }
 
     if (channelHandle) {
-      if (!store.hasKnownMarketingChannelHandle(channelHandle)) {
+      if (!runtime.store.hasKnownMarketingChannelHandle(channelHandle)) {
         return {
           payload: marketingValidationPayload(rootField, [invalidChannelHandleError()]),
           stagedResourceIds: [],
@@ -1140,7 +1161,7 @@ function buildMutationRootPayload(
         };
       }
 
-      const deletedIds = store.stageDeleteMarketingEngagementsByChannelHandle(channelHandle);
+      const deletedIds = runtime.store.stageDeleteMarketingEngagementsByChannelHandle(channelHandle);
       return {
         payload: { result: 'Engagement data marked for deletion for 1 channel(s)', userErrors: [] },
         stagedResourceIds: deletedIds,
@@ -1149,12 +1170,12 @@ function buildMutationRootPayload(
     }
 
     const channelHandles = new Set(
-      store
+      runtime.store
         .listEffectiveMarketingEngagements()
         .map((engagement) => engagement.channelHandle)
         .filter((value): value is string => typeof value === 'string' && value.length > 0),
     );
-    const deletedIds = store.stageDeleteAllChannelMarketingEngagements();
+    const deletedIds = runtime.store.stageDeleteAllChannelMarketingEngagements();
     return {
       payload: { result: `Engagement data marked for deletion for ${channelHandles.size} channel(s)`, userErrors: [] },
       stagedResourceIds: deletedIds,
@@ -1166,6 +1187,7 @@ function buildMutationRootPayload(
 }
 
 export function handleMarketingMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): MarketingMutationResult | null {
@@ -1187,7 +1209,7 @@ export function handleMarketingMutation(
       payload,
       stagedResourceIds: rootStagedResourceIds,
       shouldLog: rootShouldLog,
-    } = buildMutationRootPayload(rootField, args);
+    } = buildMutationRootPayload(runtime, rootField, args);
     stagedResourceIds.push(...rootStagedResourceIds);
     shouldLog = shouldLog || rootShouldLog;
     data[getFieldResponseKey(field)] = field.selectionSet
@@ -1205,28 +1227,33 @@ export function handleMarketingMutation(
     : null;
 }
 
-function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function rootPayloadForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   const args = getFieldArguments(field, variables);
 
   switch (field.name.value) {
     case 'marketingActivity': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectiveMarketingActivityById(id) : null;
+      return id ? runtime.store.getEffectiveMarketingActivityById(id) : null;
     }
     case 'marketingActivities':
       return buildConnection(
-        filterRecords(store.listEffectiveMarketingActivities(), field, variables, 'activity'),
+        filterRecords(runtime.store.listEffectiveMarketingActivities(), field, variables, 'activity'),
         field,
         variables,
         fragments,
       );
     case 'marketingEvent': {
       const id = typeof args['id'] === 'string' ? args['id'] : null;
-      return id ? store.getEffectiveMarketingEventById(id) : null;
+      return id ? runtime.store.getEffectiveMarketingEventById(id) : null;
     }
     case 'marketingEvents':
       return buildConnection(
-        filterRecords(store.listEffectiveMarketingEvents(), field, variables, 'event'),
+        filterRecords(runtime.store.listEffectiveMarketingEvents(), field, variables, 'event'),
         field,
         variables,
         fragments,
@@ -1237,6 +1264,7 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
 }
 
 export function handleMarketingQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown> = {},
 ): {
@@ -1247,7 +1275,7 @@ export function handleMarketingQuery(
 
   for (const field of getRootFields(document)) {
     const key = getFieldResponseKey(field);
-    const rootPayload = rootPayloadForField(field, variables, fragments);
+    const rootPayload = rootPayloadForField(runtime, field, variables, fragments);
     data[key] = field.selectionSet
       ? projectGraphqlValue(rootPayload, field.selectionSet.selections, fragments)
       : rootPayload;

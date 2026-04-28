@@ -1,10 +1,9 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash } from 'node:crypto';
 
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   LocaleRecord,
   ProductMetafieldRecord,
@@ -68,36 +67,42 @@ function readInput(raw: unknown): Record<string, unknown> {
   return isPlainObject(raw) ? raw : {};
 }
 
-function availableLocales(): LocaleRecord[] {
-  const stored = store.listEffectiveAvailableLocales();
+function availableLocales(runtime: ProxyRuntimeContext): LocaleRecord[] {
+  const stored = runtime.store.listEffectiveAvailableLocales();
   return stored.length > 0 ? stored : DEFAULT_AVAILABLE_LOCALES;
 }
 
-function localeName(locale: string): string | null {
-  return availableLocales().find((candidate) => candidate.isoCode === locale)?.name ?? null;
+function localeName(runtime: ProxyRuntimeContext, locale: string): string | null {
+  return availableLocales(runtime).find((candidate) => candidate.isoCode === locale)?.name ?? null;
 }
 
-function defaultShopLocales(): ShopLocaleRecord[] {
+function defaultShopLocales(runtime: ProxyRuntimeContext): ShopLocaleRecord[] {
   return [
-    { locale: 'en', name: localeName('en') ?? 'English', primary: true, published: true, marketWebPresenceIds: [] },
+    {
+      locale: 'en',
+      name: localeName(runtime, 'en') ?? 'English',
+      primary: true,
+      published: true,
+      marketWebPresenceIds: [],
+    },
   ];
 }
 
-function listShopLocales(published?: boolean | null): ShopLocaleRecord[] {
-  const stored = store.listEffectiveShopLocales(published);
+function listShopLocales(runtime: ProxyRuntimeContext, published?: boolean | null): ShopLocaleRecord[] {
+  const stored = runtime.store.listEffectiveShopLocales(published);
   if (stored.length > 0) {
     return stored;
   }
 
-  return defaultShopLocales().filter((locale) =>
+  return defaultShopLocales(runtime).filter((locale) =>
     typeof published === 'boolean' ? locale.published === published : true,
   );
 }
 
-function getShopLocale(locale: string): ShopLocaleRecord | null {
+function getShopLocale(runtime: ProxyRuntimeContext, locale: string): ShopLocaleRecord | null {
   return (
-    store.getEffectiveShopLocale(locale) ??
-    defaultShopLocales().find((candidate) => candidate.locale === locale) ??
+    runtime.store.getEffectiveShopLocale(locale) ??
+    defaultShopLocales(runtime).find((candidate) => candidate.locale === locale) ??
     null
   );
 }
@@ -173,6 +178,7 @@ function serializeLocale(locale: LocaleRecord, selections: readonly SelectionNod
 }
 
 function serializeShopLocale(
+  runtime: ProxyRuntimeContext,
   locale: ShopLocaleRecord | null,
   selections: readonly SelectionNode[],
 ): Record<string, unknown> | null {
@@ -201,7 +207,7 @@ function serializeShopLocale(
         break;
       case 'marketWebPresences':
         result[key] = locale.marketWebPresenceIds
-          .map((id) => store.getEffectiveWebPresenceById(id))
+          .map((id) => runtime.store.getEffectiveWebPresenceById(id))
           .filter((presence): presence is Record<string, unknown> => isPlainObject(presence))
           .map((presence) => projectGraphqlValue(presence, selection.selectionSet?.selections ?? [], new Map()));
         break;
@@ -302,24 +308,24 @@ function localizableContentTypeForMetafield(type: string | null): string {
   }
 }
 
-function listProductMetafields(): ProductMetafieldRecord[] {
+function listProductMetafields(runtime: ProxyRuntimeContext): ProductMetafieldRecord[] {
   const metafieldsById = new Map<string, ProductMetafieldRecord>();
-  for (const product of store.listEffectiveProducts()) {
-    for (const metafield of store.getEffectiveMetafieldsByOwnerId(product.id)) {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    for (const metafield of runtime.store.getEffectiveMetafieldsByOwnerId(product.id)) {
       metafieldsById.set(metafield.id, metafield);
     }
   }
   return Array.from(metafieldsById.values()).sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function listResources(resourceType: unknown): TranslatableResourceRecord[] {
+function listResources(runtime: ProxyRuntimeContext, resourceType: unknown): TranslatableResourceRecord[] {
   switch (resourceType) {
     case 'PRODUCT':
-      return store
+      return runtime.store
         .listEffectiveProducts()
         .map((product) => ({ resourceId: product.id, resourceType: 'PRODUCT', content: productContent(product) }));
     case 'METAFIELD':
-      return listProductMetafields().map((metafield) => ({
+      return listProductMetafields(runtime).map((metafield) => ({
         resourceId: metafield.id,
         resourceType: 'METAFIELD',
         content: metafieldContent(metafield),
@@ -329,13 +335,13 @@ function listResources(resourceType: unknown): TranslatableResourceRecord[] {
   }
 }
 
-function findResource(resourceId: string): TranslatableResourceRecord | null {
-  const product = store.getEffectiveProductById(resourceId);
+function findResource(runtime: ProxyRuntimeContext, resourceId: string): TranslatableResourceRecord | null {
+  const product = runtime.store.getEffectiveProductById(resourceId);
   if (product) {
     return { resourceId: product.id, resourceType: 'PRODUCT', content: productContent(product) };
   }
 
-  const metafield = listProductMetafields().find((candidate) => candidate.id === resourceId) ?? null;
+  const metafield = listProductMetafields(runtime).find((candidate) => candidate.id === resourceId) ?? null;
   return metafield
     ? { resourceId: metafield.id, resourceType: 'METAFIELD', content: metafieldContent(metafield) }
     : null;
@@ -378,6 +384,7 @@ function serializeContent(
 }
 
 function serializeTranslation(
+  runtime: ProxyRuntimeContext,
   translation: TranslationRecord,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
@@ -405,7 +412,7 @@ function serializeTranslation(
         result[key] = translation.updatedAt;
         break;
       case 'market': {
-        const market = translation.marketId ? store.getEffectiveMarketById(translation.marketId) : null;
+        const market = translation.marketId ? runtime.store.getEffectiveMarketById(translation.marketId) : null;
         result[key] =
           market && selection.selectionSet
             ? projectGraphqlValue(market, selection.selectionSet.selections, fragments)
@@ -431,6 +438,7 @@ function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
 }
 
 function serializeResource(
+  runtime: ProxyRuntimeContext,
   resource: TranslatableResourceRecord | null,
   selections: readonly SelectionNode[],
   fragments: FragmentMap,
@@ -459,10 +467,14 @@ function serializeResource(
         const locale = typeof args['locale'] === 'string' ? args['locale'] : null;
         const marketId = typeof args['marketId'] === 'string' ? args['marketId'] : null;
         const outdated = typeof args['outdated'] === 'boolean' ? args['outdated'] : null;
-        const translations = locale ? store.listEffectiveTranslations(resource.resourceId, locale, marketId) : [];
+        const translations = locale
+          ? runtime.store.listEffectiveTranslations(resource.resourceId, locale, marketId)
+          : [];
         result[key] = translations
           .filter((translation) => (outdated === null ? true : translation.outdated === outdated))
-          .map((translation) => serializeTranslation(translation, selection.selectionSet?.selections ?? [], fragments));
+          .map((translation) =>
+            serializeTranslation(runtime, translation, selection.selectionSet?.selections ?? [], fragments),
+          );
         break;
       }
       case 'nestedTranslatableResources':
@@ -481,6 +493,7 @@ function resourceCursor(resource: TranslatableResourceRecord): string {
 }
 
 function serializeResourceConnection(
+  runtime: ProxyRuntimeContext,
   resources: TranslatableResourceRecord[],
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -493,7 +506,7 @@ function serializeResourceConnection(
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: resourceCursor,
     serializeNode: (resource, selection) =>
-      serializeResource(resource, selection.selectionSet?.selections ?? [], fragments, variables),
+      serializeResource(runtime, resource, selection.selectionSet?.selections ?? [], fragments, variables),
   });
 }
 
@@ -501,7 +514,10 @@ function translationError(field: string[], message: string, code: string): Trans
   return { field, message, code };
 }
 
-function validateResource(resourceId: unknown): {
+function validateResource(
+  runtime: ProxyRuntimeContext,
+  resourceId: unknown,
+): {
   resource: TranslatableResourceRecord | null;
   errors: TranslationUserError[];
 } {
@@ -512,7 +528,7 @@ function validateResource(resourceId: unknown): {
     };
   }
 
-  const resource = findResource(resourceId);
+  const resource = findResource(runtime, resourceId);
   if (!resource) {
     return {
       resource: null,
@@ -523,8 +539,12 @@ function validateResource(resourceId: unknown): {
   return { resource, errors: [] };
 }
 
-function validateLocale(locale: unknown, field: string[]): { locale: string | null; errors: TranslationUserError[] } {
-  if (typeof locale !== 'string' || !getShopLocale(locale)) {
+function validateLocale(
+  runtime: ProxyRuntimeContext,
+  locale: unknown,
+  field: string[],
+): { locale: string | null; errors: TranslationUserError[] } {
+  if (typeof locale !== 'string' || !getShopLocale(runtime, locale)) {
     return {
       locale: typeof locale === 'string' ? locale : null,
       errors: [translationError(field, 'Locale is not enabled for this shop', 'INVALID_LOCALE_FOR_SHOP')],
@@ -535,6 +555,7 @@ function validateLocale(locale: unknown, field: string[]): { locale: string | nu
 }
 
 function projectTranslationsPayload(
+  runtime: ProxyRuntimeContext,
   payload: { translations: TranslationRecord[] | null; userErrors: TranslationUserError[] },
   field: FieldNode,
   fragments: FragmentMap,
@@ -546,7 +567,7 @@ function projectTranslationsPayload(
       case 'translations':
         result[key] = payload.translations
           ? payload.translations.map((translation) =>
-              serializeTranslation(translation, selection.selectionSet?.selections ?? [], fragments),
+              serializeTranslation(runtime, translation, selection.selectionSet?.selections ?? [], fragments),
             )
           : null;
         break;
@@ -562,12 +583,13 @@ function projectTranslationsPayload(
 }
 
 function handleTranslationsRegister(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const resourceValidation = validateResource(args['resourceId']);
+  const resourceValidation = validateResource(runtime, args['resourceId']);
   const errors = [...resourceValidation.errors];
   const inputs = Array.isArray(args['translations'])
     ? args['translations'].filter((input): input is Record<string, unknown> => isPlainObject(input))
@@ -582,7 +604,7 @@ function handleTranslationsRegister(
   if (resource) {
     inputs.forEach((input, index) => {
       const prefix = ['translations', String(index)];
-      const localeValidation = validateLocale(input['locale'], [...prefix, 'locale']);
+      const localeValidation = validateLocale(runtime, input['locale'], [...prefix, 'locale']);
       errors.push(...localeValidation.errors);
       const key = typeof input['key'] === 'string' ? input['key'] : '';
       const content = resource.content.find((entry) => entry.key === key) ?? null;
@@ -631,7 +653,7 @@ function handleTranslationsRegister(
           value: input['value'],
           translatableContentDigest: content.digest,
           marketId: null,
-          updatedAt: makeSyntheticTimestamp(),
+          updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           outdated: false,
         });
       }
@@ -640,11 +662,12 @@ function handleTranslationsRegister(
 
   if (errors.length === 0) {
     for (const translation of translations) {
-      store.stageTranslation(translation);
+      runtime.store.stageTranslation(translation);
     }
   }
 
   return projectTranslationsPayload(
+    runtime,
     { translations: errors.length === 0 ? translations : null, userErrors: errors },
     field,
     fragments,
@@ -652,12 +675,13 @@ function handleTranslationsRegister(
 }
 
 function handleTranslationsRemove(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const resourceValidation = validateResource(args['resourceId']);
+  const resourceValidation = validateResource(runtime, args['resourceId']);
   const errors = [...resourceValidation.errors];
   const keys = Array.isArray(args['translationKeys'])
     ? args['translationKeys'].filter((key): key is string => typeof key === 'string')
@@ -696,7 +720,7 @@ function handleTranslationsRemove(
       }
     }
     for (const locale of locales) {
-      errors.push(...validateLocale(locale, ['locales']).errors);
+      errors.push(...validateLocale(runtime, locale, ['locales']).errors);
     }
   }
 
@@ -704,7 +728,7 @@ function handleTranslationsRemove(
   if (errors.length === 0 && resource) {
     for (const locale of locales) {
       for (const key of keys) {
-        const translation = store.removeTranslation(resource.resourceId, locale, key);
+        const translation = runtime.store.removeTranslation(resource.resourceId, locale, key);
         if (translation) {
           removed.push(translation);
         }
@@ -713,6 +737,7 @@ function handleTranslationsRemove(
   }
 
   return projectTranslationsPayload(
+    runtime,
     { translations: errors.length === 0 ? removed : null, userErrors: errors },
     field,
     fragments,
@@ -724,6 +749,7 @@ function invalidLocaleError(): UserError {
 }
 
 function projectShopLocalePayload(
+  runtime: ProxyRuntimeContext,
   payload: { shopLocale?: ShopLocaleRecord | null; locale?: string | null; userErrors: UserError[] },
   field: FieldNode,
 ): Record<string, unknown> {
@@ -732,7 +758,11 @@ function projectShopLocalePayload(
     const key = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'shopLocale':
-        result[key] = serializeShopLocale(payload.shopLocale ?? null, selection.selectionSet?.selections ?? []);
+        result[key] = serializeShopLocale(
+          runtime,
+          payload.shopLocale ?? null,
+          selection.selectionSet?.selections ?? [],
+        );
         break;
       case 'locale':
         result[key] = payload.locale ?? null;
@@ -748,19 +778,23 @@ function projectShopLocalePayload(
   return result;
 }
 
-function handleShopLocaleEnable(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function handleShopLocaleEnable(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const locale = typeof args['locale'] === 'string' ? args['locale'] : '';
-  const name = localeName(locale);
+  const name = localeName(runtime, locale);
   if (!name) {
-    return projectShopLocalePayload({ shopLocale: null, userErrors: [invalidLocaleError()] }, field);
+    return projectShopLocalePayload(runtime, { shopLocale: null, userErrors: [invalidLocaleError()] }, field);
   }
 
   const marketWebPresenceIds = Array.isArray(args['marketWebPresenceIds'])
     ? args['marketWebPresenceIds'].filter((id): id is string => typeof id === 'string')
     : [];
-  const existing = getShopLocale(locale);
-  const record = store.stageShopLocale({
+  const existing = getShopLocale(runtime, locale);
+  const record = runtime.store.stageShopLocale({
     locale,
     name,
     primary: existing?.primary ?? false,
@@ -768,64 +802,84 @@ function handleShopLocaleEnable(field: FieldNode, variables: Record<string, unkn
     marketWebPresenceIds,
   });
 
-  return projectShopLocalePayload({ shopLocale: record, userErrors: [] }, field);
+  return projectShopLocalePayload(runtime, { shopLocale: record, userErrors: [] }, field);
 }
 
-function handleShopLocaleUpdate(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function handleShopLocaleUpdate(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const locale = typeof args['locale'] === 'string' ? args['locale'] : '';
-  const existing = getShopLocale(locale);
-  if (!existing || !localeName(locale)) {
-    return projectShopLocalePayload({ shopLocale: null, userErrors: [invalidLocaleError()] }, field);
+  const existing = getShopLocale(runtime, locale);
+  if (!existing || !localeName(runtime, locale)) {
+    return projectShopLocalePayload(runtime, { shopLocale: null, userErrors: [invalidLocaleError()] }, field);
   }
 
   const input = readInput(args['shopLocale']);
   const marketWebPresenceIds = Array.isArray(input['marketWebPresenceIds'])
     ? input['marketWebPresenceIds'].filter((id): id is string => typeof id === 'string')
     : existing.marketWebPresenceIds;
-  const record = store.stageShopLocale({
+  const record = runtime.store.stageShopLocale({
     ...existing,
     published: typeof input['published'] === 'boolean' ? input['published'] : existing.published,
     marketWebPresenceIds,
   });
 
-  return projectShopLocalePayload({ shopLocale: record, userErrors: [] }, field);
+  return projectShopLocalePayload(runtime, { shopLocale: record, userErrors: [] }, field);
 }
 
-function handleShopLocaleDisable(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+function handleShopLocaleDisable(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const locale = typeof args['locale'] === 'string' ? args['locale'] : '';
-  const existing = getShopLocale(locale);
-  if (!existing || !localeName(locale) || existing.primary) {
-    return projectShopLocalePayload({ locale, userErrors: [invalidLocaleError()] }, field);
+  const existing = getShopLocale(runtime, locale);
+  if (!existing || !localeName(runtime, locale) || existing.primary) {
+    return projectShopLocalePayload(runtime, { locale, userErrors: [invalidLocaleError()] }, field);
   }
 
-  store.disableShopLocale(locale);
-  return projectShopLocalePayload({ locale, userErrors: [] }, field);
+  runtime.store.disableShopLocale(locale);
+  return projectShopLocalePayload(runtime, { locale, userErrors: [] }, field);
 }
 
-function rootPayloadForField(field: FieldNode, variables: Record<string, unknown>, fragments: FragmentMap): unknown {
+function rootPayloadForField(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): unknown {
   switch (field.name.value) {
     case 'availableLocales':
-      return availableLocales().map((locale) => serializeLocale(locale, field.selectionSet?.selections ?? []));
+      return availableLocales(runtime).map((locale) => serializeLocale(locale, field.selectionSet?.selections ?? []));
     case 'shopLocales': {
       const args = getFieldArguments(field, variables);
       const published = typeof args['published'] === 'boolean' ? args['published'] : null;
-      return listShopLocales(published).map((locale) =>
-        serializeShopLocale(locale, field.selectionSet?.selections ?? []),
+      return listShopLocales(runtime, published).map((locale) =>
+        serializeShopLocale(runtime, locale, field.selectionSet?.selections ?? []),
       );
     }
     case 'translatableResource': {
       const args = getFieldArguments(field, variables);
       const resourceId = typeof args['resourceId'] === 'string' ? args['resourceId'] : null;
       return resourceId
-        ? serializeResource(findResource(resourceId), field.selectionSet?.selections ?? [], fragments, variables)
+        ? serializeResource(
+            runtime,
+            findResource(runtime, resourceId),
+            field.selectionSet?.selections ?? [],
+            fragments,
+            variables,
+          )
         : null;
     }
     case 'translatableResources': {
       const args = getFieldArguments(field, variables);
-      const resources = listResources(args['resourceType']);
+      const resources = listResources(runtime, args['resourceType']);
       return serializeResourceConnection(
+        runtime,
         args['reverse'] === true ? resources.reverse() : resources,
         field,
         variables,
@@ -838,10 +892,11 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
         ? args['resourceIds'].filter((id): id is string => typeof id === 'string')
         : [];
       const resources = ids.flatMap((id) => {
-        const resource = findResource(id);
+        const resource = findResource(runtime, id);
         return resource ? [resource] : [];
       });
       return serializeResourceConnection(
+        runtime,
         args['reverse'] === true ? resources.reverse() : resources,
         field,
         variables,
@@ -853,16 +908,21 @@ function rootPayloadForField(field: FieldNode, variables: Record<string, unknown
   }
 }
 
-export function handleLocalizationQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleLocalizationQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
   const data: Record<string, unknown> = {};
   for (const field of getRootFields(document)) {
-    data[getFieldResponseKey(field)] = rootPayloadForField(field, variables, fragments);
+    data[getFieldResponseKey(field)] = rootPayloadForField(runtime, field, variables, fragments);
   }
   return { data };
 }
 
 export function handleLocalizationMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -872,19 +932,19 @@ export function handleLocalizationMutation(
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'translationsRegister':
-        data[key] = handleTranslationsRegister(field, variables, fragments);
+        data[key] = handleTranslationsRegister(runtime, field, variables, fragments);
         break;
       case 'translationsRemove':
-        data[key] = handleTranslationsRemove(field, variables, fragments);
+        data[key] = handleTranslationsRemove(runtime, field, variables, fragments);
         break;
       case 'shopLocaleEnable':
-        data[key] = handleShopLocaleEnable(field, variables);
+        data[key] = handleShopLocaleEnable(runtime, field, variables);
         break;
       case 'shopLocaleUpdate':
-        data[key] = handleShopLocaleUpdate(field, variables);
+        data[key] = handleShopLocaleUpdate(runtime, field, variables);
         break;
       case 'shopLocaleDisable':
-        data[key] = handleShopLocaleDisable(field, variables);
+        data[key] = handleShopLocaleDisable(runtime, field, variables);
         break;
       default:
         data[key] = null;
@@ -927,10 +987,10 @@ function normalizeShopLocale(value: unknown): ShopLocaleRecord | null {
   };
 }
 
-export function hydrateLocalizationFromUpstreamResponse(upstreamPayload: unknown): void {
+export function hydrateLocalizationFromUpstreamResponse(runtime: ProxyRuntimeContext, upstreamPayload: unknown): void {
   const availableLocalesPayload = readGraphqlDataResponsePayload(upstreamPayload, 'availableLocales');
   if (Array.isArray(availableLocalesPayload)) {
-    store.replaceBaseAvailableLocales(
+    runtime.store.replaceBaseAvailableLocales(
       availableLocalesPayload.flatMap((locale) => {
         const normalized = normalizeLocale(locale);
         return normalized ? [normalized] : [];
@@ -940,7 +1000,7 @@ export function hydrateLocalizationFromUpstreamResponse(upstreamPayload: unknown
 
   const shopLocalesPayload = readGraphqlDataResponsePayload(upstreamPayload, 'shopLocales');
   if (Array.isArray(shopLocalesPayload)) {
-    store.upsertBaseShopLocales(
+    runtime.store.upsertBaseShopLocales(
       shopLocalesPayload.flatMap((locale) => {
         const normalized = normalizeShopLocale(locale);
         return normalized ? [normalized] : [];
