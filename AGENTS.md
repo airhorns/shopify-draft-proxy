@@ -10,9 +10,11 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 
 ## Non-negotiables
 
-1. **Products first, but deep**
-   - Start with products and their directly related sub-resources.
-   - Do not chase broad coverage before product fidelity is credible.
+1. **Admin API breadth with domain depth**
+   - The proxy should grow toward high-fidelity emulation across the Shopify
+     Admin GraphQL API, not remain product-centric.
+   - Do not claim a root is supported until its local lifecycle behavior and
+     downstream read-after-write effects are modeled for that domain.
 
 2. **Domain fidelity over hacks**
    - Prefer modeling Shopify domain behavior over brittle response patching.
@@ -48,7 +50,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
    - Put endpoint-specific quirks, field behavior, coverage notes, and
      conformance minutia in `docs/endpoints/<group>.md`, not in the high-level
      architecture doc.
-   - Update `docs/original-intent.md` only if the product goal truly changes.
+   - Update `docs/original-intent.md` only if the project goal truly changes.
 
 ## Development rules
 

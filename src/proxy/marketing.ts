@@ -231,6 +231,18 @@ function sameUtm(left: Record<string, unknown> | null, right: Record<string, unk
   );
 }
 
+function findMarketingActivityByUtm(utm: Record<string, unknown> | null): MarketingRecord | null {
+  if (!utm) {
+    return null;
+  }
+
+  return (
+    store
+      .listEffectiveMarketingActivities()
+      .find((activity) => sameUtm(readObject(activity.data, 'utmParameters'), utm)) ?? null
+  );
+}
+
 function statusLabel(status: string | null): string {
   switch (status) {
     case 'ACTIVE':
@@ -773,7 +785,7 @@ function buildMarketingEngagementRecord(
     }
   }
 
-  for (const field of ['orders', 'firstTimeCustomers', 'returningCustomers']) {
+  for (const field of ['orders', 'primaryConversions', 'allConversions', 'firstTimeCustomers', 'returningCustomers']) {
     const decimal = readDecimalInput(input, field);
     if (decimal !== null) {
       data[field] = decimal;
@@ -830,11 +842,12 @@ function buildMutationRootPayload(
     const input = readInput(args['input']);
     const remoteId = typeof args['remoteId'] === 'string' ? args['remoteId'] : null;
     const activityId = typeof args['marketingActivityId'] === 'string' ? args['marketingActivityId'] : null;
+    const selectorUtm = readUtm(readInput(args['utm']));
     const activity = remoteId
       ? store.getEffectiveMarketingActivityByRemoteId(remoteId)
       : activityId
         ? store.getEffectiveMarketingActivityRecordById(activityId)
-        : null;
+        : findMarketingActivityByUtm(selectorUtm);
 
     if (!activity) {
       return {

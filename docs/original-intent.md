@@ -88,7 +88,7 @@ That means:
 - reproduce derived read behavior after staged writes
 - aim for domain-specific realism, not generic GraphQL stubbing
 
-The system should start with **products** and go deep there first, but the architecture should anticipate broader Admin GraphQL coverage.
+The system should grow toward high-fidelity coverage across the Shopify Admin GraphQL API. Individual domains should still be implemented deeply enough to preserve lifecycle behavior and read-after-write effects before they are marked supported.
 
 ## Development strategy
 
@@ -98,7 +98,7 @@ We are **not** trying to support every domain on day one. We are trying to:
 
 1. build a durable architecture
 2. create an exhaustive coverage map
-3. implement products deeply first
+3. implement each supported Admin API domain with credible local lifecycle fidelity
 4. use conformance testing against a real Shopify dev store to drive fidelity forward
 
 ## Conformance testing is a first-class goal

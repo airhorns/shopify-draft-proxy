@@ -1,0 +1,107 @@
+fragment MetaobjectReferenceTargetFields on Metaobject {
+  __typename
+  id
+  handle
+  type
+  displayName
+}
+
+fragment MetaobjectReferenceFieldFields on MetaobjectField {
+  key
+  type
+  value
+  jsonValue
+  reference {
+    __typename
+    ... on Metaobject {
+      ...MetaobjectReferenceTargetFields
+    }
+  }
+  references(first: 5) {
+    nodes {
+      __typename
+      ... on Metaobject {
+        ...MetaobjectReferenceTargetFields
+      }
+    }
+    edges {
+      cursor
+      node {
+        __typename
+        ... on Metaobject {
+          ...MetaobjectReferenceTargetFields
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+fragment MetaobjectReferencedByFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  referencedBy(first: 10) {
+    nodes {
+      key
+      name
+      namespace
+      referencer {
+        __typename
+        ... on Metaobject {
+          ...MetaobjectReferenceTargetFields
+        }
+      }
+    }
+    edges {
+      cursor
+      node {
+        key
+        name
+        namespace
+        referencer {
+          __typename
+          ... on Metaobject {
+            ...MetaobjectReferenceTargetFields
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
+
+query MetaobjectReferenceReadParity($targetAId: ID!, $targetBId: ID!, $parentId: ID!) {
+  targetA: metaobject(id: $targetAId) {
+    ...MetaobjectReferencedByFields
+  }
+  targetB: metaobject(id: $targetBId) {
+    ...MetaobjectReferencedByFields
+  }
+  parent: metaobject(id: $parentId) {
+    id
+    handle
+    type
+    displayName
+    fields {
+      ...MetaobjectReferenceFieldFields
+    }
+    singleRef: field(key: "single_ref") {
+      ...MetaobjectReferenceFieldFields
+    }
+    listRef: field(key: "list_ref") {
+      ...MetaobjectReferenceFieldFields
+    }
+  }
+}
