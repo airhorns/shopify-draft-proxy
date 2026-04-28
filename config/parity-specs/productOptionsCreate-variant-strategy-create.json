@@ -1,0 +1,80 @@
+{
+  "scenarioId": "product-options-create-variant-strategy-create",
+  "operationNames": ["productOptionsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-options-create-variant-strategy-create-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productOptionsCreate-variant-strategy-create.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for Shopify's documented `productOptionsCreate(variantStrategy: CREATE)` fanout. The live fixture captures a default-only product where CREATE replaces the default Title option with Color, keeps the original default variant for the first value, creates a second variant for the second value, marks both option values variant-backed, and exposes the same graph on an immediate downstream product read.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productOptionsCreate.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.variants.nodes[1].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The second CREATE fanout variant is allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[0].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[1].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns the locally generated product option value ID."
+      },
+      {
+        "path": "$.product.variants.nodes[1].id",
+        "matcher": "shopify-gid:ProductVariant",
+        "reason": "The downstream proxy read returns the locally generated second CREATE fanout variant ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/product-option-lifecycle-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

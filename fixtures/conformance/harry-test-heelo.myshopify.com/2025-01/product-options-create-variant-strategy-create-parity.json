@@ -1,0 +1,196 @@
+{
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172064923954",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718243119410",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979347181874",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105202700594",
+              "title": "Default Title",
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 13,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172064923954",
+      "variantStrategy": "CREATE",
+      "options": [
+        {
+          "name": "Color",
+          "position": 1,
+          "values": [
+            {
+              "name": "Blue"
+            },
+            {
+              "name": "Green"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172064923954",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718243152178",
+                "name": "Color",
+                "position": 1,
+                "values": ["Blue", "Green"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979347214642",
+                    "name": "Blue",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979347247410",
+                    "name": "Green",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105202700594",
+                  "title": "Blue",
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Blue"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51105202733362",
+                  "title": "Green",
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Green"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172064923954",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718243152178",
+            "name": "Color",
+            "position": 1,
+            "values": ["Blue", "Green"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979347214642",
+                "name": "Blue",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/7979347247410",
+                "name": "Green",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105202700594",
+              "title": "Blue",
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51105202733362",
+              "title": "Green",
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Green"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 13,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}
