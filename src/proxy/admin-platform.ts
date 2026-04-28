@@ -1,9 +1,8 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { BackupRegionRecord, ShopDomainRecord } from '../state/types.js';
 import { serializeConnection } from './graphql-helpers.js';
 import { serializeProductBulkSelection } from './products.js';
@@ -253,9 +252,13 @@ function readIdArgument(field: FieldNode, variables: Record<string, unknown>): s
   return typeof id === 'string' && id.length > 0 ? id : null;
 }
 
-function serializeDomainRoot(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+function serializeDomainRoot(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
   const id = readIdArgument(field, variables);
-  const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+  const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
   if (!id || !primaryDomain || primaryDomain.id !== id) {
     return null;
   }
@@ -305,30 +308,35 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
 }
 
 function serializeLocalNodeById(
+  runtime: ProxyRuntimeContext,
   id: string,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> | null {
   if (id.startsWith('gid://shopify/Product/')) {
-    const product = store.getEffectiveProductById(id);
-    return product ? serializeProductBulkSelection(product, selections, variables) : null;
+    const product = runtime.store.getEffectiveProductById(id);
+    return product ? serializeProductBulkSelection(runtime, product, selections, variables) : null;
   }
 
   if (id.startsWith('gid://shopify/Domain/')) {
-    const primaryDomain = store.getEffectiveShop()?.primaryDomain ?? null;
+    const primaryDomain = runtime.store.getEffectiveShop()?.primaryDomain ?? null;
     return primaryDomain?.id === id ? serializeDomain(primaryDomain, selections) : null;
   }
 
   return null;
 }
 
-function serializeNode(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> | null {
+function serializeNode(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
   const id = readIdArgument(field, variables);
   if (!id) {
     return null;
   }
 
-  return serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables);
+  return serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables);
 }
 
 function fieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
@@ -528,6 +536,7 @@ export interface AdminPlatformMutationResult {
 }
 
 export function handleAdminPlatformQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -544,22 +553,22 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'node':
-        data[key] = serializeNode(field, variables);
+        data[key] = serializeNode(runtime, field, variables);
         break;
       case 'nodes':
         data[key] = readIdListArgument(field, variables).map((id) =>
-          serializeLocalNodeById(id, field.selectionSet?.selections ?? [], variables),
+          serializeLocalNodeById(runtime, id, field.selectionSet?.selections ?? [], variables),
         );
         break;
       case 'job':
         data[key] = serializeJob(field, variables);
         break;
       case 'domain':
-        data[key] = serializeDomainRoot(field, variables);
+        data[key] = serializeDomainRoot(runtime, field, variables);
         break;
       case 'backupRegion':
         data[key] = serializePlainObject(
-          store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
+          runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
           field.selectionSet?.selections ?? [],
           'MarketRegionCountry',
         );
@@ -581,6 +590,7 @@ export function handleAdminPlatformQuery(
 }
 
 export function handleAdminPlatformMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): AdminPlatformMutationResult | null {
@@ -605,13 +615,13 @@ export function handleAdminPlatformMutation(
         }
 
         const signature = buildFlowSignature(flowTriggerId, payload);
-        const recordId = makeSyntheticGid('FlowGenerateSignature');
-        store.stageAdminPlatformFlowSignature({
+        const recordId = runtime.syntheticIdentity.makeSyntheticGid('FlowGenerateSignature');
+        runtime.store.stageAdminPlatformFlowSignature({
           id: recordId,
           flowTriggerId,
           payloadSha256: hashString(payload),
           signatureSha256: hashString(signature),
-          createdAt: makeSyntheticTimestamp(),
+          createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
         });
         stagedResourceIds.push(recordId);
         staged = true;
@@ -639,13 +649,13 @@ export function handleAdminPlatformMutation(
         }
 
         if (userErrors.length === 0 && handle) {
-          const recordId = makeSyntheticGid('FlowTriggerReceive');
-          store.stageAdminPlatformFlowTrigger({
+          const recordId = runtime.syntheticIdentity.makeSyntheticGid('FlowTriggerReceive');
+          runtime.store.stageAdminPlatformFlowTrigger({
             id: recordId,
             handle,
             payloadBytes: size,
             payloadSha256: hashString(stableJsonStringify(payload)),
-            receivedAt: makeSyntheticTimestamp(),
+            receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
           });
           stagedResourceIds.push(recordId);
           staged = true;
@@ -669,7 +679,7 @@ export function handleAdminPlatformMutation(
           break;
         }
 
-        store.stageBackupRegion(region);
+        runtime.store.stageBackupRegion(region);
         staged = true;
         stagedResourceIds.push(region.id);
         notes.push('Staged the shop backup region locally; no market or regional setting was changed upstream.');

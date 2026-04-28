@@ -1274,8 +1274,9 @@ describe('Markets lifecycle staging', () => {
   });
 
   it('stages webPresenceCreate and webPresenceUpdate locally with read-after-write and meta visibility', async () => {
-    withRuntimeContext(() =>
+    withRuntimeContext((runtime) =>
       hydrateMarketsFromUpstreamResponse(
+        runtime,
         'query SeedMarketsResolvedValues { marketsResolvedValues { webPresences { edges { node { id } } } } }',
         {},
         readJson(`${fixtureRoot}/markets-resolved-values.json`),

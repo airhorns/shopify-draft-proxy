@@ -1,15 +1,12 @@
 import { logger } from '../logger.js';
 import { parseOperation, type ParsedOperation } from '../graphql/parse-operation.js';
-import {
-  isProxySyntheticGid,
-  runWithSyntheticIdentity,
-  SyntheticIdentityRegistry,
-} from '../state/synthetic-identity.js';
-import { InMemoryStore, runWithStore } from '../state/store.js';
+import { isProxySyntheticGid, SyntheticIdentityRegistry } from '../state/synthetic-identity.js';
+import { InMemoryStore } from '../state/store.js';
 import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/types.js';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import {
   ADMIN_PLATFORM_MUTATION_ROOTS,
   ADMIN_PLATFORM_QUERY_ROOTS,
@@ -105,9 +102,8 @@ export interface ProxyGraphQLResponse {
   body: unknown;
 }
 
-export interface ProxyGraphQLRuntime {
-  store: InMemoryStore;
-  syntheticIdentity: SyntheticIdentityRegistry;
+export interface ProxyGraphQLRuntime extends ProxyRuntimeContext {
+  recordStagedMutation(context: StagedMutationLogContext, options: StagedMutationLogOptions): void;
 }
 
 interface ProxyGraphQLContext extends IncomingGraphQLRequestContext {
@@ -295,7 +291,7 @@ function readOriginalRequestBody(body: GraphQLBody): Record<string, unknown> {
   return structuredClone(requestBody);
 }
 
-function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): string[] {
+export function collectProxySyntheticGids(value: unknown, seen = new Set<string>()): string[] {
   if (typeof value === 'string') {
     if (isProxySyntheticGid(value)) {
       seen.add(value);
@@ -359,7 +355,7 @@ function shouldAppendLocalMutationLog(primaryRootField: string | null | undefine
   return !NO_LOG_ERROR_MUTATION_ROOTS.has(primaryRootField ?? '');
 }
 
-function interpretMutationLogEntry(
+export function interpretMutationLogEntry(
   parsed: ParsedOperation,
   capability: OperationCapability,
 ): MutationLogInterpretedMetadata {
@@ -585,9 +581,9 @@ interface ProxyDispatchRequest {
   config: AppConfig;
   runtimeStore: InMemoryStore;
   syntheticIdentity: SyntheticIdentityRegistry;
+  runtime: ProxyGraphQLRuntime;
   upstream: UpstreamGraphQLClient;
   proxyLogger: ProxyLogger;
-  recordStagedMutation(options: StagedMutationLogOptions): void;
 }
 
 interface DomainDispatcher {
@@ -597,7 +593,7 @@ interface DomainDispatcher {
   handleQuery?(request: ProxyDispatchRequest): boolean | Promise<boolean>;
 }
 
-interface StagedMutationLogOptions {
+export interface StagedMutationLogOptions {
   id?: string | undefined;
   receivedAt?: string | undefined;
   operationName?: string | null | undefined;
@@ -606,6 +602,15 @@ interface StagedMutationLogOptions {
   status?: MutationLogEntry['status'] | undefined;
   interpreted?: MutationLogInterpretedMetadata | undefined;
   notes?: string | null | undefined;
+}
+
+export interface StagedMutationLogContext {
+  path: string;
+  query: string;
+  variables: Record<string, unknown>;
+  requestBody: Record<string, unknown>;
+  parsed: ParsedOperation;
+  capability: OperationCapability;
 }
 
 const ORDER_BACKED_FULFILLMENT_QUERY_ROOTS = new Set([
@@ -788,6 +793,21 @@ function appendBulkOperationImportLog(request: ProxyDispatchRequest, entry: Bulk
   });
 }
 
+function stagedMutationLogContext(request: ProxyDispatchRequest): StagedMutationLogContext {
+  return {
+    path: request.ctx.path,
+    query: request.body.query,
+    variables: request.variables,
+    requestBody: request.requestBody,
+    parsed: request.parsed,
+    capability: request.capability,
+  };
+}
+
+function recordStagedMutation(request: ProxyDispatchRequest, options: StagedMutationLogOptions): void {
+  request.runtime.recordStagedMutation(stagedMutationLogContext(request), options);
+}
+
 async function proxyUpstreamGraphQL(request: ProxyDispatchRequest): Promise<{ status: number; body: unknown }> {
   const response = await requestUpstreamGraphQL(request.upstream, request.ctx, {
     body: {
@@ -838,18 +858,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot' || request.runtimeStore.hasAppDomainState()) {
-        setGraphQLResponse(request, 200, handleAppQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleAppQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateAppsFromUpstreamResponse(upstreamResponse.body);
+        hydrateAppsFromUpstreamResponse(request.runtime, upstreamResponse.body);
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasAppDomainState()
-            ? handleAppQuery(request.body.query, request.variables)
+            ? handleAppQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -866,12 +886,17 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleAppMutation(request.body.query, request.variables, request.config.shopifyAdminOrigin);
+      const responseBody = handleAppMutation(
+        request.runtime,
+        request.body.query,
+        request.variables,
+        request.config.shopifyAdminOrigin,
+      );
       if (!responseBody) {
         return false;
       }
 
-      request.recordStagedMutation({
+      recordStagedMutation(request, {
         responseBody,
         notes:
           'Staged locally in the in-memory app billing/access draft store; no billing, uninstall, scope, or delegated-token side effect was sent to Shopify at runtime.',
@@ -886,7 +911,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       request.parsed.type === 'mutation' ||
       (request.capability.execution === 'overlay-read' && request.capability.domain === 'discounts'),
     handleMutation(request) {
-      const discountMutation = handleDiscountMutation(request.body.query, request.variables);
+      const discountMutation = handleDiscountMutation(request.runtime, request.body.query, request.variables);
       if (!discountMutation) {
         return false;
       }
@@ -904,7 +929,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (discountMutation.staged) {
         const discountLogMetadata = buildLocalDiscountMutationLogMetadata(request.parsed, request.capability);
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           operationName: discountLogMetadata.operationName,
           interpreted: discountLogMetadata.interpreted,
           stagedResourceIds: discountMutation.stagedResourceIds,
@@ -917,12 +942,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     },
     handleQuery(request) {
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleDiscountQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleDiscountQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid' && request.runtimeStore.hasDiscounts()) {
-        setGraphQLResponse(request, 200, handleDiscountQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleDiscountQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -942,11 +967,16 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const bulkOperationMutation = handleBulkOperationMutation(request.body.query, request.variables, {
-        readMode: request.config.readMode,
-        shopifyAdminOrigin: request.config.shopifyAdminOrigin,
-        apiVersion: request.apiVersion,
-      });
+      const bulkOperationMutation = handleBulkOperationMutation(
+        request.runtime,
+        request.body.query,
+        request.variables,
+        {
+          readMode: request.config.readMode,
+          shopifyAdminOrigin: request.config.shopifyAdminOrigin,
+          apiVersion: request.apiVersion,
+        },
+      );
       if (!bulkOperationMutation) {
         return false;
       }
@@ -957,14 +987,14 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (request.primaryRootField === 'bulkOperationRunMutation') {
         if ((bulkOperationMutation.innerMutationLogs ?? []).length === 0) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             stagedResourceIds: bulkOperationMutation.stagedResourceIds,
             status: 'failed',
             notes: bulkOperationMutation.notes,
           });
         }
       } else {
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           stagedResourceIds: bulkOperationMutation.stagedResourceIds,
           notes: bulkOperationMutation.notes,
         });
@@ -981,7 +1011,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.config.readMode === 'snapshot' ||
         (request.config.readMode === 'live-hybrid' && request.runtimeStore.hasBulkOperations())
       ) {
-        setGraphQLResponse(request, 200, handleBulkOperationQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleBulkOperationQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
@@ -996,12 +1030,20 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     async handleQuery(request) {
       if (request.primaryRootField === 'inventoryShipment') {
         if (request.config.readMode === 'snapshot') {
-          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleInventoryShipmentQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
 
         if (request.config.readMode === 'live-hybrid' && request.runtimeStore.hasInventoryShipments()) {
-          setGraphQLResponse(request, 200, handleInventoryShipmentQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleInventoryShipmentQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
       }
@@ -1010,7 +1052,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         setGraphQLResponse(
           request,
           200,
-          handleProductQuery(request.body.query, request.variables, request.config.readMode),
+          handleProductQuery(request.runtime, request.body.query, request.variables, request.config.readMode),
         );
         return true;
       }
@@ -1026,7 +1068,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return true;
       }
 
-      hydrateProductsFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+      hydrateProductsFromUpstreamResponse(
+        request.runtime,
+        request.body.query,
+        request.variables,
+        upstreamResponse.body,
+      );
       setGraphQLResponse(
         request,
         upstreamResponse.status,
@@ -1034,20 +1081,24 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request.runtimeStore.hasStagedSellingPlanGroups() ||
           request.runtimeStore.hasStagedInventoryTransfers() ||
           request.runtimeStore.hasInventoryShipments()
-          ? handleProductQuery(request.body.query, request.variables, request.config.readMode)
+          ? handleProductQuery(request.runtime, request.body.query, request.variables, request.config.readMode)
           : upstreamResponse.body,
       );
       return true;
     },
     handleMutation(request) {
       if (request.primaryRootField && INVENTORY_SHIPMENT_MUTATION_ROOTS.has(request.primaryRootField)) {
-        const inventoryShipmentMutation = handleInventoryShipmentMutation(request.body.query, request.variables);
+        const inventoryShipmentMutation = handleInventoryShipmentMutation(
+          request.runtime,
+          request.body.query,
+          request.variables,
+        );
         if (!inventoryShipmentMutation) {
           return false;
         }
 
         if (inventoryShipmentMutation.staged) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             stagedResourceIds: inventoryShipmentMutation.stagedResourceIds,
             notes: inventoryShipmentMutation.notes,
           });
@@ -1070,12 +1121,13 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
       const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
       const responseBody = handleProductMutation(
+        request.runtime,
         request.body.query,
         request.variables,
         request.config.readMode,
         request.apiVersion,
       );
-      request.recordStagedMutation({
+      recordStagedMutation(request, {
         id: logEntryId,
         receivedAt,
         responseBody,
@@ -1094,6 +1146,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     handleMutation(request) {
       if (request.primaryRootField && FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS.has(request.primaryRootField)) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1103,7 +1156,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           return false;
         }
 
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           operationName: request.primaryRootField,
           responseBody,
           notes:
@@ -1119,6 +1172,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (request.primaryRootField && isOrderEditShippingMutation(request.primaryRootField)) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1129,7 +1183,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             operationName: request.primaryRootField,
             responseBody,
             notes:
@@ -1164,9 +1218,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
               : 'staging supported fulfillment service mutation locally',
         );
 
-        const responseBody = handleStorePropertiesMutation(request.body.query, request.variables);
+        const responseBody = handleStorePropertiesMutation(request.runtime, request.body.query, request.variables);
         if (!isShippingSettingsMutation || !hasLocalMutationErrors(responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             responseBody,
             notes: isShippingSettingsMutation
               ? 'Staged locally in the in-memory shipping settings draft store; no Shopify delivery settings or package configuration are mutated at runtime.'
@@ -1194,13 +1248,17 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           'staging supported delivery profile mutation locally',
         );
 
-        const deliveryProfileMutation = handleDeliveryProfileMutation(request.body.query, request.variables);
+        const deliveryProfileMutation = handleDeliveryProfileMutation(
+          request.runtime,
+          request.body.query,
+          request.variables,
+        );
         if (!deliveryProfileMutation) {
           return false;
         }
 
         if (deliveryProfileMutation.staged) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             stagedResourceIds: deliveryProfileMutation.stagedResourceIds,
             notes: deliveryProfileMutation.notes,
           });
@@ -1220,7 +1278,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (request.primaryRootField === 'deliveryProfile' || request.primaryRootField === 'deliveryProfiles') {
-          setGraphQLResponse(request, 200, handleDeliveryProfileQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleDeliveryProfileQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
 
@@ -1228,8 +1290,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request,
           200,
           request.primaryRootField !== null && ORDER_BACKED_FULFILLMENT_QUERY_ROOTS.has(request.primaryRootField)
-            ? handleOrderQuery(request.body.query, request.variables)
-            : handleStorePropertiesQuery(request.body.query, request.variables),
+            ? handleOrderQuery(request.runtime, request.body.query, request.variables)
+            : handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
         );
         return true;
       }
@@ -1258,7 +1320,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           (request.primaryRootField === 'locationsAvailableForDeliveryProfilesConnection' &&
             request.runtimeStore.hasStagedLocations()))
       ) {
-        setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
@@ -1267,7 +1333,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         (request.primaryRootField === 'deliveryProfile' || request.primaryRootField === 'deliveryProfiles') &&
         request.runtimeStore.hasStagedDeliveryProfiles()
       ) {
-        setGraphQLResponse(request, 200, handleDeliveryProfileQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleDeliveryProfileQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
@@ -1283,12 +1353,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     async handleQuery(request) {
       if (request.parsed.rootFields.includes('customerPaymentMethod')) {
         if (request.config.readMode === 'snapshot') {
-          setGraphQLResponse(request, 200, handleCustomerQuery(request.body.query, request.variables));
+          setGraphQLResponse(request, 200, handleCustomerQuery(request.runtime, request.body.query, request.variables));
           return true;
         }
 
         if (request.config.readMode === 'live-hybrid' && request.runtimeStore.hasCustomerPaymentMethods()) {
-          setGraphQLResponse(request, 200, handleCustomerQuery(request.body.query, request.variables));
+          setGraphQLResponse(request, 200, handleCustomerQuery(request.runtime, request.body.query, request.variables));
           return true;
         }
       }
@@ -1298,13 +1368,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleCustomerQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleCustomerQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateCustomersFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateCustomersFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
 
         if (request.primaryRootField === 'customerAccountPage' || request.primaryRootField === 'customerAccountPages') {
           setGraphQLResponse(request, upstreamResponse.status, upstreamResponse.body);
@@ -1317,7 +1392,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request.runtimeStore.hasBaseCustomers() ||
             request.runtimeStore.hasStagedCustomers() ||
             request.runtimeStore.hasCustomerAccountPages()
-            ? handleCustomerQuery(request.body.query, request.variables)
+            ? handleCustomerQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1335,8 +1410,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
       const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
-      const responseBody = handleCustomerMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleCustomerMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         id: logEntryId,
         receivedAt,
         responseBody,
@@ -1357,10 +1432,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      request.recordStagedMutation({
+      recordStagedMutation(request, {
         notes: 'Staged locally in the in-memory media draft store.',
       });
-      setGraphQLResponse(request, 200, handleMediaMutation(request.body.query, request.variables));
+      setGraphQLResponse(request, 200, handleMediaMutation(request.runtime, request.body.query, request.variables));
       return true;
     },
     handleQuery(request) {
@@ -1369,12 +1444,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleMediaQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleMediaQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid' && request.runtimeStore.listEffectiveFiles().length > 0) {
-        setGraphQLResponse(request, 200, handleMediaQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleMediaQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1390,7 +1465,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleMetafieldDefinitionQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleMetafieldDefinitionQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
@@ -1403,8 +1482,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleMetafieldDefinitionMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleMetafieldDefinitionMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: 'Staged locally in the in-memory metafield definition draft store.',
       });
@@ -1421,7 +1500,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleMetaobjectQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleMetaobjectQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1429,7 +1508,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const hadLocalDefinitions = request.runtimeStore.hasEffectiveMetaobjectDefinitions();
         const hadLocalMetaobjects = request.runtimeStore.hasEffectiveMetaobjects();
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateMetaobjectsFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateMetaobjectsFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
         setGraphQLResponse(
           request,
           upstreamResponse.status,
@@ -1437,7 +1521,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             (hadLocalDefinitions || request.runtimeStore.hasStagedMetaobjectDefinitions())) ||
             (request.runtimeStore.hasEffectiveMetaobjects() &&
               (hadLocalMetaobjects || request.runtimeStore.hasStagedMetaobjects()))
-            ? handleMetaobjectQuery(request.body.query, request.variables)
+            ? handleMetaobjectQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1450,8 +1534,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleMetaobjectDefinitionMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleMetaobjectDefinitionMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: 'Staged locally in the in-memory metaobject definition/entry draft store.',
       });
@@ -1480,7 +1564,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleOrderQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleOrderQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1551,7 +1635,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           canServeLocalAbandonmentDetail ||
           canServeLocalAbandonmentByCheckout
         ) {
-          setGraphQLResponse(request, 200, handleOrderQuery(request.body.query, request.variables));
+          setGraphQLResponse(request, 200, handleOrderQuery(request.runtime, request.body.query, request.variables));
           return true;
         }
 
@@ -1569,6 +1653,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')
       ) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1581,7 +1666,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
         const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1598,6 +1683,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         (request.config.readMode === 'snapshot' || request.config.readMode === 'live-hybrid')
       ) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1618,6 +1704,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
         const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1625,7 +1712,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         ) ?? { data: {} };
 
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1650,6 +1737,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           (request.primaryRootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(request.primaryRootField)))
       ) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1662,7 +1750,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
         const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             id: logEntryId,
             receivedAt,
             responseBody,
@@ -1685,6 +1773,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     handleMutation(request) {
       if (PAYMENT_TERMS_MUTATION_ROOTS.has(request.primaryRootField ?? '')) {
         const responseBody = handleOrderMutation(
+          request.runtime,
           request.body.query,
           request.variables,
           request.config.readMode,
@@ -1695,7 +1784,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         }
 
         if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
-          request.recordStagedMutation({
+          recordStagedMutation(request, {
             operationName: request.primaryRootField,
             responseBody,
             notes:
@@ -1713,8 +1802,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handlePaymentMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handlePaymentMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: request.primaryRootField?.startsWith('customerPaymentMethod')
           ? 'Staged locally in the in-memory customer payment-method draft store; payment credentials, gateway secrets, and customer-facing update URLs are scrubbed or synthetic.'
@@ -1732,7 +1821,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       if (request.primaryRootField === 'shopifyPaymentsAccount') {
         if (request.config.readMode === 'snapshot') {
-          setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
 
@@ -1745,14 +1838,18 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
               .some((businessEntity) => businessEntity.shopifyPaymentsAccount !== null);
 
           if (hasLocalShopifyPaymentsAccount) {
-            setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+            setGraphQLResponse(
+              request,
+              200,
+              handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+            );
             return true;
           }
         }
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handlePaymentQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handlePaymentQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1760,7 +1857,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.config.readMode === 'live-hybrid' &&
         (request.runtimeStore.hasPaymentCustomizations() || request.primaryRootField === 'paymentTermsTemplates')
       ) {
-        setGraphQLResponse(request, 200, handlePaymentQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handlePaymentQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1776,18 +1873,22 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleLocalizationQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleLocalizationQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateLocalizationFromUpstreamResponse(upstreamResponse.body);
+        hydrateLocalizationFromUpstreamResponse(request.runtime, upstreamResponse.body);
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedLocalizationState()
-            ? handleLocalizationQuery(request.body.query, request.variables)
+            ? handleLocalizationQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1800,8 +1901,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleLocalizationMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleLocalizationMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: 'Staged locally in the in-memory localization draft store.',
       });
@@ -1818,18 +1919,23 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleMarketsQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleMarketsQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateMarketsFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateMarketsFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedMarkets() || request.runtimeStore.hasStagedPriceLists()
-            ? handleMarketsQuery(request.body.query, request.variables)
+            ? handleMarketsQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1842,8 +1948,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleMarketMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleMarketMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: 'Staged locally in the in-memory Markets draft store.',
       });
@@ -1860,7 +1966,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleSegmentsQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleSegmentsQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -1874,17 +1980,22 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             request.runtimeStore.hasStagedSegments() ||
             request.runtimeStore.hasStagedCustomers())
         ) {
-          setGraphQLResponse(request, 200, handleSegmentsQuery(request.body.query, request.variables));
+          setGraphQLResponse(request, 200, handleSegmentsQuery(request.runtime, request.body.query, request.variables));
           return true;
         }
 
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateSegmentsFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateSegmentsFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedSegments()
-            ? handleSegmentsQuery(request.body.query, request.variables)
+            ? handleSegmentsQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1897,8 +2008,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleSegmentMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleSegmentMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes: 'Staged locally in the in-memory segment draft store.',
       });
@@ -1919,19 +2030,23 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleSavedSearchQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleSavedSearchQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateSavedSearchesFromUpstreamResponse(request.body.query, upstreamResponse.body);
+        hydrateSavedSearchesFromUpstreamResponse(request.runtime, request.body.query, upstreamResponse.body);
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedSavedSearches() ||
             (isSavedSearchQueryRoot(request.primaryRootField) && request.runtimeStore.hasSavedSearches())
-            ? handleSavedSearchQuery(request.body.query, request.variables)
+            ? handleSavedSearchQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1944,12 +2059,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const savedSearchMutation = handleSavedSearchMutation(request.body.query, request.variables);
+      const savedSearchMutation = handleSavedSearchMutation(request.runtime, request.body.query, request.variables);
       if (!savedSearchMutation) {
         return false;
       }
 
-      request.recordStagedMutation({
+      recordStagedMutation(request, {
         stagedResourceIds: savedSearchMutation.stagedResourceIds,
         notes:
           'Staged locally in the in-memory saved-search draft store; URL redirect saved-search branches remain blocked until online-store navigation conformance is captured.',
@@ -1967,18 +2082,23 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleMarketingQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleMarketingQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateMarketingFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateMarketingFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedMarketingRecords()
-            ? handleMarketingQuery(request.body.query, request.variables)
+            ? handleMarketingQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -1995,13 +2115,13 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const marketingMutation = handleMarketingMutation(request.body.query, request.variables);
+      const marketingMutation = handleMarketingMutation(request.runtime, request.body.query, request.variables);
       if (!marketingMutation) {
         return false;
       }
 
       if (marketingMutation.shouldLog) {
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           stagedResourceIds: marketingMutation.stagedResourceIds,
           notes: marketingMutation.notes,
         });
@@ -2020,18 +2140,27 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleWebhookSubscriptionQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleWebhookSubscriptionQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateWebhookSubscriptionsFromUpstreamResponse(request.body.query, request.variables, upstreamResponse.body);
+        hydrateWebhookSubscriptionsFromUpstreamResponse(
+          request.runtime,
+          request.body.query,
+          request.variables,
+          upstreamResponse.body,
+        );
         setGraphQLResponse(
           request,
           upstreamResponse.status,
           request.runtimeStore.hasWebhookSubscriptions() || request.runtimeStore.hasStagedWebhookSubscriptions()
-            ? handleWebhookSubscriptionQuery(request.body.query, request.variables)
+            ? handleWebhookSubscriptionQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -2049,13 +2178,17 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(request.body.query, request.variables);
+      const webhookSubscriptionMutation = handleWebhookSubscriptionMutation(
+        request.runtime,
+        request.body.query,
+        request.variables,
+      );
       if (!webhookSubscriptionMutation) {
         return false;
       }
 
       if (webhookSubscriptionMutation.staged) {
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           stagedResourceIds: webhookSubscriptionMutation.stagedResourceIds,
           notes: webhookSubscriptionMutation.notes,
         });
@@ -2077,13 +2210,13 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleFunctionQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         if (request.runtimeStore.hasFunctionMetadata()) {
-          setGraphQLResponse(request, 200, handleFunctionQuery(request.body.query, request.variables));
+          setGraphQLResponse(request, 200, handleFunctionQuery(request.runtime, request.body.query, request.variables));
           return true;
         }
 
@@ -2099,8 +2232,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleFunctionMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleFunctionMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes:
           request.primaryRootField === 'taxAppConfigure'
@@ -2120,7 +2253,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleGiftCardQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleGiftCardQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -2130,7 +2263,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request,
           upstreamResponse.status,
           request.runtimeStore.hasGiftCards() || request.runtimeStore.hasStagedGiftCards()
-            ? handleGiftCardQuery(request.body.query, request.variables)
+            ? handleGiftCardQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -2143,8 +2276,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const responseBody = handleGiftCardMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleGiftCardMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes:
           request.primaryRootField === 'giftCardSendNotificationToCustomer' ||
@@ -2165,13 +2298,17 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleOnlineStoreQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleOnlineStoreQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         const upstreamResponse = await proxyUpstreamGraphQL(request);
-        hydrateOnlineStoreFromUpstreamResponse(request.body.query, upstreamResponse.body);
+        hydrateOnlineStoreFromUpstreamResponse(request.runtime, request.body.query, upstreamResponse.body);
         setGraphQLResponse(
           request,
           upstreamResponse.status,
@@ -2180,7 +2317,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             (request.primaryRootField !== null &&
               isOnlineStoreContentQueryRoot(request.primaryRootField) &&
               (request.runtimeStore.hasOnlineStoreContent() || request.runtimeStore.hasOnlineStoreIntegrations()))
-            ? handleOnlineStoreQuery(request.body.query, request.variables)
+            ? handleOnlineStoreQuery(request.runtime, request.body.query, request.variables)
             : upstreamResponse.body,
         );
         return true;
@@ -2193,12 +2330,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const onlineStoreMutation = handleOnlineStoreMutation(request.body.query, request.variables);
+      const onlineStoreMutation = handleOnlineStoreMutation(request.runtime, request.body.query, request.variables);
       if (!onlineStoreMutation) {
         return false;
       }
 
-      request.recordStagedMutation({
+      recordStagedMutation(request, {
         stagedResourceIds: onlineStoreMutation.stagedResourceIds,
         notes: 'Staged locally in the in-memory online-store content draft store.',
       });
@@ -2215,13 +2352,21 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+        setGraphQLResponse(
+          request,
+          200,
+          handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+        );
         return true;
       }
 
       if (request.config.readMode === 'live-hybrid') {
         if (request.primaryRootField === 'shop' && request.runtimeStore.getEffectiveShop() !== null) {
-          setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
 
@@ -2229,7 +2374,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           (request.primaryRootField === 'location' || request.primaryRootField === 'locationByIdentifier') &&
           request.runtimeStore.hasStagedLocations()
         ) {
-          setGraphQLResponse(request, 200, handleStorePropertiesQuery(request.body.query, request.variables));
+          setGraphQLResponse(
+            request,
+            200,
+            handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
+          );
           return true;
         }
 
@@ -2263,8 +2412,8 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         'staging supported store properties mutation locally',
       );
 
-      const responseBody = handleStorePropertiesMutation(request.body.query, request.variables);
-      request.recordStagedMutation({
+      const responseBody = handleStorePropertiesMutation(request.runtime, request.body.query, request.variables);
+      recordStagedMutation(request, {
         responseBody,
         notes:
           request.primaryRootField === 'shopPolicyUpdate'
@@ -2295,7 +2444,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         return false;
       }
 
-      const b2bMutation = handleB2BMutation(request.body.query, request.variables);
+      const b2bMutation = handleB2BMutation(request.runtime, request.body.query, request.variables);
       if (!b2bMutation) {
         return false;
       }
@@ -2312,7 +2461,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       );
 
       if (b2bMutation.staged) {
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           stagedResourceIds: b2bMutation.stagedResourceIds,
           notes: b2bMutation.notes,
         });
@@ -2327,7 +2476,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       }
 
       if (request.config.readMode === 'snapshot') {
-        setGraphQLResponse(request, 200, handleB2BQuery(request.body.query, request.variables));
+        setGraphQLResponse(request, 200, handleB2BQuery(request.runtime, request.body.query, request.variables));
         return true;
       }
 
@@ -2350,17 +2499,21 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.capability.execution === 'stage-locally' &&
         request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_MUTATION_ROOTS.has(rootField))),
     handleQuery(request) {
-      setGraphQLResponse(request, 200, handleAdminPlatformQuery(request.body.query, request.variables));
+      setGraphQLResponse(
+        request,
+        200,
+        handleAdminPlatformQuery(request.runtime, request.body.query, request.variables),
+      );
       return true;
     },
     handleMutation(request) {
-      const result = handleAdminPlatformMutation(request.body.query, request.variables);
+      const result = handleAdminPlatformMutation(request.runtime, request.body.query, request.variables);
       if (!result) {
         return false;
       }
 
       if (result.staged) {
-        request.recordStagedMutation({
+        recordStagedMutation(request, {
           stagedResourceIds: result.stagedResourceIds ?? [],
           notes: result.notes ?? 'Staged locally in the in-memory Admin platform utility store.',
         });
@@ -2375,6 +2528,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     canHandle: (request) => request.parsed.type === 'mutation' && request.config.readMode === 'snapshot',
     handleMutation(request) {
       const responseBody = handleOrderMutation(
+        request.runtime,
         request.body.query,
         request.variables,
         request.config.readMode,
@@ -2395,11 +2549,7 @@ export async function processProxyGraphQLRequest(
   input: ProxyGraphQLRequest,
   runtime: ProxyGraphQLRuntime,
 ): Promise<ProxyGraphQLResponse> {
-  return runWithStore(runtime.store, () =>
-    runWithSyntheticIdentity(runtime.syntheticIdentity, () =>
-      processProxyGraphQLRequestWithRuntime(config, input, runtime),
-    ),
-  );
+  return processProxyGraphQLRequestWithRuntime(config, input, runtime);
 }
 
 async function processProxyGraphQLRequestWithRuntime(
@@ -2446,27 +2596,9 @@ async function processProxyGraphQLRequestWithRuntime(
     config,
     runtimeStore: runtime.store,
     syntheticIdentity: runtime.syntheticIdentity,
+    runtime,
     upstream,
     proxyLogger,
-    recordStagedMutation(options: StagedMutationLogOptions): void {
-      runtime.store.recordMutationLogEntry({
-        id: options.id ?? runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
-        receivedAt: options.receivedAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
-        operationName: options.operationName ?? capability.operationName,
-        path: ctx.path,
-        query,
-        variables,
-        requestBody,
-        ...(options.stagedResourceIds !== undefined
-          ? { stagedResourceIds: options.stagedResourceIds }
-          : options.responseBody !== undefined
-            ? { stagedResourceIds: collectProxySyntheticGids(options.responseBody) }
-            : {}),
-        status: options.status ?? 'staged',
-        interpreted: options.interpreted ?? interpretMutationLogEntry(parsed, capability),
-        ...(options.notes ? { notes: options.notes } : {}),
-      });
-    },
   };
 
   for (const dispatcher of DOMAIN_DISPATCHERS) {

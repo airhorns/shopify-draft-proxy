@@ -1,7 +1,6 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 import { getRootField, getRootFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { FileRecord, ProductMediaRecord } from '../state/types.js';
 import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 
@@ -62,25 +61,25 @@ function deriveFilename(originalSource: string): string | null {
   }
 }
 
-function makeSyntheticFileId(contentType: string | null): string {
+function makeSyntheticFileId(runtime: ProxyRuntimeContext, contentType: string | null): string {
   switch (contentType) {
     case 'IMAGE':
-      return makeSyntheticGid('MediaImage');
+      return runtime.syntheticIdentity.makeSyntheticGid('MediaImage');
     case 'VIDEO':
-      return makeSyntheticGid('Video');
+      return runtime.syntheticIdentity.makeSyntheticGid('Video');
     case 'EXTERNAL_VIDEO':
-      return makeSyntheticGid('ExternalVideo');
+      return runtime.syntheticIdentity.makeSyntheticGid('ExternalVideo');
     case 'MODEL_3D':
-      return makeSyntheticGid('Model3d');
+      return runtime.syntheticIdentity.makeSyntheticGid('Model3d');
     case 'FILE':
-      return makeSyntheticGid('GenericFile');
+      return runtime.syntheticIdentity.makeSyntheticGid('GenericFile');
     default:
-      return makeSyntheticGid('File');
+      return runtime.syntheticIdentity.makeSyntheticGid('File');
   }
 }
 
-function makeSyntheticStagedUploadId(index: number): string {
-  return makeSyntheticGid(`StagedUploadTarget${index}`);
+function makeSyntheticStagedUploadId(runtime: ProxyRuntimeContext, index: number): string {
+  return runtime.syntheticIdentity.makeSyntheticGid(`StagedUploadTarget${index}`);
 }
 
 const googleFormUploadParameterNames = [
@@ -127,7 +126,11 @@ function validateFileInput(input: Record<string, unknown>, index: number): Files
   return errors;
 }
 
-function validateFileUpdateInput(input: Record<string, unknown>, index: number): FilesUserError[] {
+function validateFileUpdateInput(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  index: number,
+): FilesUserError[] {
   const errors: FilesUserError[] = [];
   const id = input['id'];
   const alt = input['alt'];
@@ -140,7 +143,7 @@ function validateFileUpdateInput(input: Record<string, unknown>, index: number):
       message: 'File id is required',
       code: 'REQUIRED',
     });
-  } else if (!store.hasEffectiveFileById(id)) {
+  } else if (!runtime.store.hasEffectiveFileById(id)) {
     errors.push({
       field: ['files', String(index), 'id'],
       message: `File id ${id} does not exist.`,
@@ -189,7 +192,7 @@ function validateFileUpdateInput(input: Record<string, unknown>, index: number):
     ...readIdListInput(input['referencesToAdd']),
     ...readIdListInput(input['referencesToRemove']),
   ]) {
-    if (!store.getEffectiveProductById(productId)) {
+    if (!runtime.store.getEffectiveProductById(productId)) {
       errors.push({
         field: ['files', String(index), 'references'],
         message: `Product id ${productId} does not exist.`,
@@ -201,16 +204,16 @@ function validateFileUpdateInput(input: Record<string, unknown>, index: number):
   return errors;
 }
 
-function makeFileRecord(input: Record<string, unknown>): FileRecord {
+function makeFileRecord(runtime: ProxyRuntimeContext, input: Record<string, unknown>): FileRecord {
   const contentType = typeof input['contentType'] === 'string' ? input['contentType'] : null;
   const originalSource = typeof input['originalSource'] === 'string' ? input['originalSource'] : '';
   const filename = typeof input['filename'] === 'string' ? input['filename'] : deriveFilename(originalSource);
 
   return {
-    id: makeSyntheticFileId(contentType),
+    id: makeSyntheticFileId(runtime, contentType),
     alt: typeof input['alt'] === 'string' ? input['alt'] : null,
     contentType,
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     fileStatus: 'UPLOADED',
     filename,
     originalSource,
@@ -220,8 +223,8 @@ function makeFileRecord(input: Record<string, unknown>): FileRecord {
   };
 }
 
-function getEffectiveFileRecord(fileId: string): FileRecord | null {
-  const state = store.getState();
+function getEffectiveFileRecord(runtime: ProxyRuntimeContext, fileId: string): FileRecord | null {
+  const state = runtime.store.getState();
   if (state.stagedState.deletedFileIds[fileId]) {
     return null;
   }
@@ -259,13 +262,13 @@ function fileContentTypeToMediaContentType(contentType: string | null): string |
   }
 }
 
-function makeFileRecordFromProductMedia(media: ProductMediaRecord): FileRecord {
+function makeFileRecordFromProductMedia(runtime: ProxyRuntimeContext, media: ProductMediaRecord): FileRecord {
   const originalSource = media.sourceUrl ?? media.imageUrl ?? media.previewImageUrl ?? '';
   return {
-    id: media.id ?? makeSyntheticFileId(mediaContentTypeToFileContentType(media.mediaContentType)),
+    id: media.id ?? makeSyntheticFileId(runtime, mediaContentTypeToFileContentType(media.mediaContentType)),
     alt: media.alt,
     contentType: mediaContentTypeToFileContentType(media.mediaContentType),
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     fileStatus: media.status ?? 'READY',
     filename: deriveFilename(originalSource),
     originalSource,
@@ -275,19 +278,21 @@ function makeFileRecordFromProductMedia(media: ProductMediaRecord): FileRecord {
   };
 }
 
-function getEffectiveProductMediaFileRecord(fileId: string): FileRecord | null {
-  for (const product of store.listEffectiveProducts()) {
-    const media = store.getEffectiveMediaByProductId(product.id).find((mediaRecord) => mediaRecord.id === fileId);
+function getEffectiveProductMediaFileRecord(runtime: ProxyRuntimeContext, fileId: string): FileRecord | null {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    const media = runtime.store
+      .getEffectiveMediaByProductId(product.id)
+      .find((mediaRecord) => mediaRecord.id === fileId);
     if (media) {
-      return makeFileRecordFromProductMedia(media);
+      return makeFileRecordFromProductMedia(runtime, media);
     }
   }
 
   return null;
 }
 
-function getEffectiveFileLikeRecord(fileId: string): FileRecord | null {
-  return getEffectiveFileRecord(fileId) ?? getEffectiveProductMediaFileRecord(fileId);
+function getEffectiveFileLikeRecord(runtime: ProxyRuntimeContext, fileId: string): FileRecord | null {
+  return getEffectiveFileRecord(runtime, fileId) ?? getEffectiveProductMediaFileRecord(runtime, fileId);
 }
 
 function updateFileRecord(existing: FileRecord, input: Record<string, unknown>): FileRecord {
@@ -314,14 +319,19 @@ function updateFileRecord(existing: FileRecord, input: Record<string, unknown>):
   };
 }
 
-function acknowledgeFileUpdateFailure(file: FileRecord): FileRecord {
+function acknowledgeFileUpdateFailure(runtime: ProxyRuntimeContext, file: FileRecord): FileRecord {
   return {
     ...structuredClone(file),
-    updateFailureAcknowledgedAt: makeSyntheticTimestamp(),
+    updateFailureAcknowledgedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-function makeProductMediaRecordFromFile(productId: string, file: FileRecord, position: number): ProductMediaRecord {
+function makeProductMediaRecordFromFile(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  file: FileRecord,
+  position: number,
+): ProductMediaRecord {
   return {
     key: `${productId}:media:${position}`,
     productId,
@@ -330,7 +340,7 @@ function makeProductMediaRecordFromFile(productId: string, file: FileRecord, pos
     mediaContentType: fileContentTypeToMediaContentType(file.contentType),
     alt: file.alt,
     status: file.fileStatus,
-    productImageId: file.contentType === 'IMAGE' ? makeSyntheticGid('ProductImage') : null,
+    productImageId: file.contentType === 'IMAGE' ? runtime.syntheticIdentity.makeSyntheticGid('ProductImage') : null,
     imageUrl: file.imageUrl,
     imageWidth: file.imageWidth,
     imageHeight: file.imageHeight,
@@ -358,19 +368,23 @@ function nextMediaPosition(media: ProductMediaRecord[]): number {
   return positions.length > 0 ? Math.max(...positions) + 1 : 0;
 }
 
-function stageProductMediaFileUpdate(file: FileRecord, input: Record<string, unknown>): void {
+function stageProductMediaFileUpdate(
+  runtime: ProxyRuntimeContext,
+  file: FileRecord,
+  input: Record<string, unknown>,
+): void {
   const referencesToAdd = new Set(readIdListInput(input['referencesToAdd']));
   const referencesToRemove = new Set(readIdListInput(input['referencesToRemove']));
   const impactedProductIds = new Set<string>([...referencesToAdd, ...referencesToRemove]);
 
-  for (const product of store.listEffectiveProducts()) {
-    if (store.getEffectiveMediaByProductId(product.id).some((mediaRecord) => mediaRecord.id === file.id)) {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    if (runtime.store.getEffectiveMediaByProductId(product.id).some((mediaRecord) => mediaRecord.id === file.id)) {
       impactedProductIds.add(product.id);
     }
   }
 
   for (const productId of impactedProductIds) {
-    const existingMedia = store.getEffectiveMediaByProductId(productId);
+    const existingMedia = runtime.store.getEffectiveMediaByProductId(productId);
     let changed = false;
     let nextMedia = existingMedia
       .filter((mediaRecord) => {
@@ -389,11 +403,14 @@ function stageProductMediaFileUpdate(file: FileRecord, input: Record<string, unk
 
     if (referencesToAdd.has(productId) && !nextMedia.some((mediaRecord) => mediaRecord.id === file.id)) {
       changed = true;
-      nextMedia = [...nextMedia, makeProductMediaRecordFromFile(productId, file, nextMediaPosition(nextMedia))];
+      nextMedia = [
+        ...nextMedia,
+        makeProductMediaRecordFromFile(runtime, productId, file, nextMediaPosition(nextMedia)),
+      ];
     }
 
     if (changed) {
-      store.replaceStagedMediaForProduct(productId, nextMedia);
+      runtime.store.replaceStagedMediaForProduct(productId, nextMedia);
     }
   }
 }
@@ -539,8 +556,12 @@ function serializeFileSelectionSet(file: FileRecord, selections: readonly Select
   return result;
 }
 
-function serializeFilesConnection(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
-  const files = store.listEffectiveFiles();
+function serializeFilesConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const files = runtime.store.listEffectiveFiles();
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(files, field, variables, (file) => file.id);
 
   return serializeConnection(field, {
@@ -641,6 +662,7 @@ function serializeStagedTarget(
 }
 
 function makeStagedTarget(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   index: number,
 ): {
@@ -648,7 +670,7 @@ function makeStagedTarget(
   resourceUrl: string;
   parameters: Array<{ name: string; value: string }>;
 } {
-  const id = makeSyntheticStagedUploadId(index);
+  const id = makeSyntheticStagedUploadId(runtime, index);
   const filename = typeof input['filename'] === 'string' ? input['filename'] : `upload-${index}`;
   const mimeType = typeof input['mimeType'] === 'string' ? input['mimeType'] : 'application/octet-stream';
   const resource = typeof input['resource'] === 'string' ? input['resource'] : 'FILE';
@@ -705,14 +727,18 @@ function makeStagedTarget(
   };
 }
 
-export function handleMediaQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleMediaQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
   for (const field of getRootFields(document)) {
     const responseKey = field.alias?.value ?? field.name.value;
     switch (field.name.value) {
       case 'files':
-        data[responseKey] = serializeFilesConnection(field, variables);
+        data[responseKey] = serializeFilesConnection(runtime, field, variables);
         break;
       case 'fileSavedSearches':
         data[responseKey] = serializeEmptyConnection(field);
@@ -726,7 +752,11 @@ export function handleMediaQuery(document: string, variables: Record<string, unk
   return { data };
 }
 
-export function handleMediaMutation(query: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleMediaMutation(
+  runtime: ProxyRuntimeContext,
+  query: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const field = getRootField(query);
   const args = getRootFieldArguments(query, variables);
   const responseKey = field.alias?.value ?? field.name.value;
@@ -751,7 +781,7 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
         };
       }
 
-      const createdFiles = store.stageCreateFiles(files.map((file) => makeFileRecord(file)));
+      const createdFiles = runtime.store.stageCreateFiles(files.map((file) => makeFileRecord(runtime, file)));
       return {
         data: {
           [responseKey]: {
@@ -765,7 +795,7 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
     }
     case 'fileUpdate': {
       const files = readFileUpdateInputs(args['files']);
-      const userErrors = files.flatMap((file, index) => validateFileUpdateInput(file, index));
+      const userErrors = files.flatMap((file, index) => validateFileUpdateInput(runtime, file, index));
       const filesField = getChildField(field, 'files');
       const userErrorsField = getChildField(field, 'userErrors');
 
@@ -788,14 +818,14 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
           return [];
         }
 
-        const existingFile = getEffectiveFileLikeRecord(id);
+        const existingFile = getEffectiveFileLikeRecord(runtime, id);
         if (!existingFile) {
           return [];
         }
 
         const nextFile = updateFileRecord(existingFile, fileInput);
-        store.stageCreateFiles([nextFile]);
-        stageProductMediaFileUpdate(nextFile, fileInput);
+        runtime.store.stageCreateFiles([nextFile]);
+        stageProductMediaFileUpdate(runtime, nextFile, fileInput);
         return [nextFile];
       });
 
@@ -814,7 +844,7 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
       const fileIds = readFileIdsInput(args['fileIds']);
       const deletedFileIdsField = getChildField(field, 'deletedFileIds');
       const userErrorsField = getChildField(field, 'userErrors');
-      const missingFileId = fileIds.find((fileId) => !store.hasEffectiveFileById(fileId));
+      const missingFileId = fileIds.find((fileId) => !runtime.store.hasEffectiveFileById(fileId));
       const userErrors: FilesUserError[] = missingFileId
         ? [
             {
@@ -838,7 +868,7 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
         };
       }
 
-      store.stageDeleteFiles(fileIds);
+      runtime.store.stageDeleteFiles(fileIds);
       return {
         data: {
           [responseKey]: {
@@ -855,7 +885,7 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
       const userErrors: FilesUserError[] = [];
 
       for (const fileId of fileIds) {
-        const file = getEffectiveFileLikeRecord(fileId);
+        const file = getEffectiveFileLikeRecord(runtime, fileId);
         if (!file) {
           userErrors.push({
             field: ['fileIds'],
@@ -888,13 +918,13 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
       }
 
       const acknowledgedFiles = fileIds.flatMap((fileId) => {
-        const file = getEffectiveFileLikeRecord(fileId);
+        const file = getEffectiveFileLikeRecord(runtime, fileId);
         if (!file) {
           return [];
         }
 
-        const acknowledgedFile = acknowledgeFileUpdateFailure(file);
-        store.stageCreateFiles([acknowledgedFile]);
+        const acknowledgedFile = acknowledgeFileUpdateFailure(runtime, file);
+        runtime.store.stageCreateFiles([acknowledgedFile]);
         return [acknowledgedFile];
       });
 
@@ -932,7 +962,10 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
         data: {
           [responseKey]: {
             stagedTargets: inputs.map((input, index) =>
-              serializeStagedTarget(makeStagedTarget(input, index), stagedTargetsField?.selectionSet?.selections ?? []),
+              serializeStagedTarget(
+                makeStagedTarget(runtime, input, index),
+                stagedTargetsField?.selectionSet?.selections ?? [],
+              ),
             ),
             userErrors: [],
           },

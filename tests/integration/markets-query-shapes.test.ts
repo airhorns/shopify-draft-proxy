@@ -147,7 +147,7 @@ describe('Markets query shapes', () => {
     const document = readText(documentPath);
     const variables = readJson<Record<string, unknown>>(variablesPath);
     const fixture = readJson<{ data: Record<string, unknown> }>(fixturePath);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets reads must not fetch upstream'));
     const app = createApp(config);
@@ -163,8 +163,9 @@ describe('Markets query shapes', () => {
   });
 
   it('resolves marketsResolvedValues from hydrated buyer-country market state', async () => {
-    withRuntimeContext(() =>
+    withRuntimeContext((runtime) =>
       hydrateMarketsFromUpstreamResponse(
+        runtime,
         readText('config/parity-requests/markets-catalog-read.graphql'),
         readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json'),
         readJson(`${fixtureRoot}/markets-catalog.json`),
@@ -373,7 +374,7 @@ describe('Markets query shapes', () => {
     const document = readText(documentPath);
     const variables = readJson<Record<string, unknown>>(variablesPath);
     const fixture = readJson<{ data: Record<string, unknown> }>(fixturePath);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot catalog and price-list reads must not fetch'));
     const app = createApp(config);
@@ -530,7 +531,7 @@ describe('Markets query shapes', () => {
     const document = readText('config/parity-requests/markets-catalog-read.graphql');
     const variables = readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json');
     const fixture = readJson<MarketsCatalogFixture>(`${fixtureRoot}/markets-catalog.json`);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets reads must not fetch upstream'));
     const app = createApp(config);
@@ -688,7 +689,7 @@ describe('Markets query shapes', () => {
     const document = readText('config/parity-requests/markets-catalog-read.graphql');
     const variables = readJson<Record<string, unknown>>('config/parity-requests/markets-catalog-read.variables.json');
     const fixture = readJson<MarketsCatalogFixture>(`${fixtureRoot}/markets-catalog.json`);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Markets reads must not fetch upstream'));
     const app = createApp(config);
@@ -759,7 +760,7 @@ describe('Markets query shapes', () => {
     const document = readText('config/parity-requests/market-catalogs-read.graphql');
     const variables = readJson<Record<string, unknown>>('config/parity-requests/market-catalogs-read.variables.json');
     const fixture = readJson<MarketCatalogsFixture>(`${marketPriceListFixtureRoot}/market-catalogs.json`);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateMarketsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot Catalog reads must not fetch upstream'));
     const app = createApp(config);
@@ -899,12 +900,16 @@ describe('Markets query shapes', () => {
       'config/parity-requests/price-list-detail-read.variables.json',
     );
     const detailFixture = readJson<PriceListFixture>(`${marketPriceListFixtureRoot}/price-list-detail.json`);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(detailDocument, detailVariables, detailFixture));
+    withRuntimeContext((runtime) =>
+      hydrateMarketsFromUpstreamResponse(runtime, detailDocument, detailVariables, detailFixture),
+    );
 
     const listDocument = readText('config/parity-requests/price-lists-read.graphql');
     const listVariables = readJson<Record<string, unknown>>('config/parity-requests/price-lists-read.variables.json');
     const listFixture = readJson<{ data: Record<string, unknown> }>(`${marketPriceListFixtureRoot}/price-lists.json`);
-    withRuntimeContext(() => hydrateMarketsFromUpstreamResponse(listDocument, listVariables, listFixture));
+    withRuntimeContext((runtime) =>
+      hydrateMarketsFromUpstreamResponse(runtime, listDocument, listVariables, listFixture),
+    );
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot PriceList reads must not fetch upstream'));
     const app = createApp(config);

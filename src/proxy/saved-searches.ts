@@ -1,8 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeProxySyntheticGid } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type { SavedSearchRecord } from '../state/types.js';
 import {
   getDocumentFragments,
@@ -148,8 +147,12 @@ function defaultSavedSearchesForResourceType(resourceType: string): SavedSearchR
   return [];
 }
 
-function makeSavedSearch(input: Record<string, unknown>, existing: SavedSearchRecord | null = null): SavedSearchRecord {
-  const id = existing?.id ?? makeProxySyntheticGid('SavedSearch');
+function makeSavedSearch(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+  existing: SavedSearchRecord | null = null,
+): SavedSearchRecord {
+  const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('SavedSearch');
   const queryInput = readOptionalString(input, 'query') ?? existing?.query ?? '';
   const queryParts = parseSavedSearchQuery(queryInput);
 
@@ -266,13 +269,15 @@ function sanitizedUpdateInput(input: Record<string, unknown>, errors: UserError[
 }
 
 function handleCreate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): { key: string; payload: unknown; stagedResourceIds: string[] } {
   const input = readInput(getFieldArguments(field, variables));
   const errors = validateSavedSearchInput(input, { requireResourceType: true });
-  const record = input && errors.length === 0 ? store.upsertStagedSavedSearch(makeSavedSearch(input)) : null;
+  const record =
+    input && errors.length === 0 ? runtime.store.upsertStagedSavedSearch(makeSavedSearch(runtime, input)) : null;
 
   return {
     key: getFieldResponseKey(field),
@@ -286,19 +291,22 @@ function handleCreate(
 }
 
 function handleUpdate(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): { key: string; payload: unknown; stagedResourceIds: string[] } {
   const input = readInput(getFieldArguments(field, variables));
   const id = input && typeof input['id'] === 'string' ? input['id'] : null;
-  const existing = id ? store.getEffectiveSavedSearchById(id) : null;
+  const existing = id ? runtime.store.getEffectiveSavedSearchById(id) : null;
   const errors = existing
     ? validateSavedSearchInput(input, { requireResourceType: false })
     : [userError(['input', 'id'], 'Saved Search does not exist')];
   const sanitizedInput = input && existing ? sanitizedUpdateInput(input, errors) : null;
   const record =
-    sanitizedInput && existing ? store.upsertStagedSavedSearch(makeSavedSearch(sanitizedInput, existing)) : null;
+    sanitizedInput && existing
+      ? runtime.store.upsertStagedSavedSearch(makeSavedSearch(runtime, sanitizedInput, existing))
+      : null;
   const payloadRecord = record ?? existing;
 
   return {
@@ -316,17 +324,18 @@ function handleUpdate(
 }
 
 function handleDelete(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
 ): { key: string; payload: unknown; stagedResourceIds: string[] } {
   const input = readInput(getFieldArguments(field, variables));
   const id = input && typeof input['id'] === 'string' ? input['id'] : null;
-  const existing = id ? store.getEffectiveSavedSearchById(id) : null;
+  const existing = id ? runtime.store.getEffectiveSavedSearchById(id) : null;
   const errors = existing ? [] : [userError(['input', 'id'], 'Saved Search does not exist')];
 
   if (id && existing) {
-    store.deleteStagedSavedSearch(id);
+    runtime.store.deleteStagedSavedSearch(id);
   }
 
   return {
@@ -341,6 +350,7 @@ function handleDelete(
 }
 
 export function handleSavedSearchMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): SavedSearchMutationResult | null {
@@ -353,11 +363,11 @@ export function handleSavedSearchMutation(
     const root = field.name.value;
     const result =
       root === 'savedSearchCreate'
-        ? handleCreate(field, variables, fragments)
+        ? handleCreate(runtime, field, variables, fragments)
         : root === 'savedSearchUpdate'
-          ? handleUpdate(field, variables, fragments)
+          ? handleUpdate(runtime, field, variables, fragments)
           : root === 'savedSearchDelete'
-            ? handleDelete(field, variables, fragments)
+            ? handleDelete(runtime, field, variables, fragments)
             : null;
     if (!result) {
       continue;
@@ -382,10 +392,14 @@ function matchesQuery(record: SavedSearchRecord, query: unknown): boolean {
     .some((value) => value.includes(normalized));
 }
 
-function listSavedSearches(field: FieldNode, variables: Record<string, unknown>): SavedSearchRecord[] {
+function listSavedSearches(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): SavedSearchRecord[] {
   const resourceType = SAVED_SEARCH_ROOT_RESOURCE_TYPES[field.name.value] ?? '';
   const args = getFieldArguments(field, variables);
-  const localRecords = store.listEffectiveSavedSearches();
+  const localRecords = runtime.store.listEffectiveSavedSearches();
   const records = [
     ...defaultSavedSearchesForResourceType(resourceType).filter(
       (defaultRecord) => !localRecords.some((record) => record.id === defaultRecord.id),
@@ -414,7 +428,11 @@ function serializeSavedSearchConnection(
   });
 }
 
-export function handleSavedSearchQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
+export function handleSavedSearchQuery(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const fragments = getDocumentFragments(document);
   const data: Record<string, unknown> = {};
 
@@ -425,7 +443,7 @@ export function handleSavedSearchQuery(document: string, variables: Record<strin
 
     data[getFieldResponseKey(field)] = serializeSavedSearchConnection(
       field,
-      listSavedSearches(field, variables),
+      listSavedSearches(runtime, field, variables),
       variables,
       fragments,
     );
@@ -469,7 +487,11 @@ function readSavedSearchNode(raw: Record<string, unknown>, cursor: string | null
   };
 }
 
-export function hydrateSavedSearchesFromUpstreamResponse(document: string, upstreamPayload: unknown): void {
+export function hydrateSavedSearchesFromUpstreamResponse(
+  runtime: ProxyRuntimeContext,
+  document: string,
+  upstreamPayload: unknown,
+): void {
   if (!isPlainObject(upstreamPayload) || !isPlainObject(upstreamPayload['data'])) {
     return;
   }
@@ -498,7 +520,7 @@ export function hydrateSavedSearchesFromUpstreamResponse(document: string, upstr
   }
 
   if (records.length > 0) {
-    store.upsertBaseSavedSearches(records);
+    runtime.store.upsertBaseSavedSearches(records);
   }
 }
 

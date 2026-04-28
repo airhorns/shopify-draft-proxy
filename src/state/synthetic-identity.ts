@@ -26,54 +26,6 @@ export class SyntheticIdentityRegistry {
   }
 }
 
-let activeSyntheticIdentity: SyntheticIdentityRegistry | null = null;
-
-export function getCurrentSyntheticIdentity(): SyntheticIdentityRegistry {
-  if (!activeSyntheticIdentity) {
-    throw new Error(
-      'No DraftProxy synthetic identity registry is active. Process requests through a DraftProxy instance.',
-    );
-  }
-  return activeSyntheticIdentity;
-}
-
-export function runWithSyntheticIdentity<T>(identity: SyntheticIdentityRegistry, callback: () => T): T {
-  const previousIdentity = activeSyntheticIdentity;
-  activeSyntheticIdentity = identity;
-
-  try {
-    const result = callback();
-
-    if (result instanceof Promise) {
-      return result.finally(() => {
-        activeSyntheticIdentity = previousIdentity;
-      }) as T;
-    }
-
-    activeSyntheticIdentity = previousIdentity;
-    return result;
-  } catch (error) {
-    activeSyntheticIdentity = previousIdentity;
-    throw error;
-  }
-}
-
-export function resetSyntheticIdentity(): void {
-  getCurrentSyntheticIdentity().reset();
-}
-
-export function makeSyntheticGid(resourceType: string): string {
-  return getCurrentSyntheticIdentity().makeSyntheticGid(resourceType);
-}
-
-export function makeProxySyntheticGid(resourceType: string): string {
-  return getCurrentSyntheticIdentity().makeProxySyntheticGid(resourceType);
-}
-
 export function isProxySyntheticGid(value: string): boolean {
   return value.startsWith('gid://shopify/') && value.includes('?shopify-draft-proxy=synthetic');
-}
-
-export function makeSyntheticTimestamp(): string {
-  return getCurrentSyntheticIdentity().makeSyntheticTimestamp();
 }

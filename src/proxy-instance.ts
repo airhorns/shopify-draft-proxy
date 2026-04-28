@@ -1,6 +1,14 @@
 import type { AppConfig } from './config.js';
 import { commitMetaState, renderMetaWebUi, type MetaCommitResponse } from './meta/routes.js';
-import { processProxyGraphQLRequest, type ProxyGraphQLResponse } from './proxy/routes.js';
+import {
+  collectProxySyntheticGids,
+  interpretMutationLogEntry,
+  processProxyGraphQLRequest,
+  type ProxyGraphQLResponse,
+  type ProxyGraphQLRuntime,
+  type StagedMutationLogContext,
+  type StagedMutationLogOptions,
+} from './proxy/routes.js';
 import { loadNormalizedStateSnapshot } from './state/snapshot-loader.js';
 import { InMemoryStore } from './state/store.js';
 import { SyntheticIdentityRegistry } from './state/synthetic-identity.js';
@@ -138,6 +146,7 @@ export class DraftProxy {
 
   private readonly runtimeStore: InMemoryStore;
   private readonly syntheticIdentity: SyntheticIdentityRegistry;
+  private readonly graphQLRuntime: ProxyGraphQLRuntime;
 
   /**
    * Creates an isolated draft proxy runtime.
@@ -149,6 +158,11 @@ export class DraftProxy {
     this.config = config;
     this.runtimeStore = options.store ?? new InMemoryStore();
     this.syntheticIdentity = options.syntheticIdentity ?? new SyntheticIdentityRegistry();
+    this.graphQLRuntime = {
+      store: this.runtimeStore,
+      syntheticIdentity: this.syntheticIdentity,
+      recordStagedMutation: (context, logOptions) => this.recordStagedMutation(context, logOptions),
+    };
 
     if (config.snapshotPath) {
       this.runtimeStore.installSnapshot(loadNormalizedStateSnapshot(config.snapshotPath));
@@ -351,8 +365,28 @@ export class DraftProxy {
         },
         input.headers,
       ),
-      { store: this.runtimeStore, syntheticIdentity: this.syntheticIdentity },
+      this.graphQLRuntime,
     );
+  }
+
+  private recordStagedMutation(context: StagedMutationLogContext, options: StagedMutationLogOptions): void {
+    this.runtimeStore.recordMutationLogEntry({
+      id: options.id ?? this.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: options.receivedAt ?? this.syntheticIdentity.makeSyntheticTimestamp(),
+      operationName: options.operationName ?? context.capability.operationName,
+      path: context.path,
+      query: context.query,
+      variables: context.variables,
+      requestBody: context.requestBody,
+      ...(options.stagedResourceIds !== undefined
+        ? { stagedResourceIds: options.stagedResourceIds }
+        : options.responseBody !== undefined
+          ? { stagedResourceIds: collectProxySyntheticGids(options.responseBody) }
+          : {}),
+      status: options.status ?? 'staged',
+      interpreted: options.interpreted ?? interpretMutationLogEntry(context.parsed, context.capability),
+      ...(options.notes ? { notes: options.notes } : {}),
+    });
   }
 
   /** Processes a Shopify Admin GraphQL request through the same runtime path as the HTTP API. */

@@ -41,7 +41,7 @@ describe('segment query shapes', () => {
     const fixture = readJson<{ data: Record<string, unknown>; errors: Array<Record<string, unknown>> }>(
       `${fixtureRoot}/segments-baseline.json`,
     );
-    withRuntimeContext(() => hydrateSegmentsFromUpstreamResponse(document, variables, fixture));
+    withRuntimeContext((runtime) => hydrateSegmentsFromUpstreamResponse(runtime, document, variables, fixture));
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('snapshot segment reads must not fetch upstream'));
     const app = createApp(config);
