@@ -132,10 +132,20 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
 ]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'customerPaymentMethodCreateFromDuplicationData',
+  'customerPaymentMethodCreditCardCreate',
+  'customerPaymentMethodCreditCardUpdate',
+  'customerPaymentMethodGetDuplicationData',
+  'customerPaymentMethodGetUpdateUrl',
+  'customerPaymentMethodPaypalBillingAgreementCreate',
+  'customerPaymentMethodPaypalBillingAgreementUpdate',
+  'customerPaymentMethodRemoteCreate',
+  'customerPaymentMethodRevoke',
   'paymentCustomizationActivation',
   'paymentCustomizationCreate',
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
+  'paymentReminderSend',
 ]);
 
 const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
@@ -1505,8 +1515,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const responseBody = handlePaymentMutation(request.body.query, request.variables);
       appendStagedMutationLog(request, {
         responseBody,
-        notes:
-          'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
+        notes: request.primaryRootField?.startsWith('customerPaymentMethod')
+          ? 'Staged locally in the in-memory customer payment-method draft store; payment credentials, gateway secrets, and customer-facing update URLs are scrubbed or synthetic.'
+          : request.primaryRootField === 'paymentReminderSend'
+            ? 'Staged a local payment reminder intent only; no customer email is sent at runtime.'
+            : 'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
       });
       setGraphQLResponse(request, 200, responseBody);
       return true;
