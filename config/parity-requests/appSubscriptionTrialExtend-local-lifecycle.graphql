@@ -1,0 +1,12 @@
+mutation AppSubscriptionTrialExtendLocalLifecycle($id: ID!) {
+  appSubscriptionTrialExtend(id: $id, days: 3) {
+    appSubscription {
+      id
+      trialDays
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

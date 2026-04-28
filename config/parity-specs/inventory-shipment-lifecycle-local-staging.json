@@ -1,17 +1,6 @@
 {
   "scenarioId": "inventory-shipment-lifecycle-local-staging",
-  "operationNames": [
-    "inventoryShipment",
-    "inventoryShipmentCreate",
-    "inventoryShipmentCreateInTransit",
-    "inventoryShipmentAddItems",
-    "inventoryShipmentRemoveItems",
-    "inventoryShipmentUpdateItemQuantities",
-    "inventoryShipmentSetTracking",
-    "inventoryShipmentMarkInTransit",
-    "inventoryShipmentReceive",
-    "inventoryShipmentDelete"
-  ],
+  "operationNames": ["inventoryShipment", "inventoryShipmentCreateInTransit"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",

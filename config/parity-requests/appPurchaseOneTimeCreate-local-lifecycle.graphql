@@ -1,0 +1,24 @@
+mutation AppPurchaseOneTimeCreateLocalLifecycle {
+  appPurchaseOneTimeCreate(
+    name: "Import package"
+    returnUrl: "https://app.example.test/return"
+    price: { amount: 10, currencyCode: USD }
+    test: true
+  ) {
+    confirmationUrl
+    appPurchaseOneTime {
+      id
+      name
+      status
+      test
+      price {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
