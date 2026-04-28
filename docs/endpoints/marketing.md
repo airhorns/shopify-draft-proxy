@@ -45,6 +45,7 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 
 - createExternal happy path with remote ID, UTM, selected activity fields, and nested marketing event attribution
 - updateExternal by `remoteId` for title, status, and remote URL changes
+- local integration coverage also exercises Shopify's documented `marketingActivityUpdateExternal(utm:)` selector path; the proxy resolves that selector against the staged/effective activity `utmParameters` and keeps the update local
 - upsertExternal create and update behavior keyed by `remoteId`
 - deleteExternal by activity ID and remote ID, including missing-activity userErrors
 - deleteAllExternal asynchronous `Job` payload with `done: false`
@@ -59,9 +60,15 @@ HAR-214 captures marketing engagement write evidence with `write_marketing_event
 - `marketingEngagementCreate` accepts activity-level identifiers by either `marketingActivityId` or external activity `remoteId`; missing identifiers return `INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING`, multiple identifiers return `INVALID_MARKETING_ENGAGEMENT_ARGUMENTS`, and missing activity/remote IDs return `MARKETING_ACTIVITY_DOES_NOT_EXIST`
 - duplicate same-day activity-level engagement writes are accepted and the latest returned metric values replace the local engagement record
 - metric counts are not validated as non-negative by Shopify; negative counts are returned without userErrors in the captured activity-level branch
+- current 2026-04 conversion metric fields `primaryConversions` and `allConversions` are staged and returned as decimal strings when supplied, matching the existing decimal handling for orders/customer conversion metrics
 - unrecognized `channelHandle` values return `INVALID_CHANNEL_HANDLE`; this proxy only stages channel-level engagement records when the channel handle is already known from hydrated marketing event data
 - `marketingEngagementsDelete` has no activity-level selector; missing delete selectors return `INVALID_DELETE_ENGAGEMENTS_ARGUMENTS`, `deleteEngagementsForAllChannels: true` returns the captured result string and removes known local channel-level engagement records, and activity-level engagement records are retained
 - immediate downstream `marketingActivity.adSpend` reads remained `null` after captured activity-level engagement writes, so local staging records the engagement in meta state but does not invent activity/event aggregate attribution
+
+### External/native boundary
+
+- The implemented write lifecycle is limited to external marketing activities and engagement metrics. Native/deprecated app-extension mutations (`marketingActivityCreate`, `marketingActivityUpdate`) remain unsupported registry gaps because they involve extension context/form behavior outside the external activity API surface.
+- Public GitHub search during HAR-394 found mostly generated schema/type artifacts rather than production app implementations, so local behavior continues to lean on Shopify docs plus checked-in live captures instead of inferring extra app-specific semantics.
 
 ### Local filtering and ordering
 
