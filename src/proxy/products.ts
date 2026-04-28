@@ -108,8 +108,54 @@ type ProductFeedRecord = {
   status: 'ACTIVE' | 'INACTIVE';
 };
 
+type ProductIdentifierCustomId = {
+  namespace: string;
+  key: string;
+  value: string;
+};
+
 function readProductInput(raw: unknown): Record<string, unknown> {
   return isObject(raw) ? raw : {};
+}
+
+function readProductIdentifierCustomId(identifier: Record<string, unknown>): ProductIdentifierCustomId | null {
+  const customId = readProductInput(identifier['customId']);
+  const namespace = customId['namespace'];
+  const key = customId['key'];
+  const value = customId['value'];
+  if (typeof namespace !== 'string' || typeof key !== 'string' || typeof value !== 'string') {
+    return null;
+  }
+
+  return { namespace, key, value };
+}
+
+function getProductCustomIdDefinition(customId: ProductIdentifierCustomId): MetafieldDefinitionRecord | null {
+  const definition = store.findEffectiveMetafieldDefinition({
+    ownerType: 'PRODUCT',
+    namespace: customId.namespace,
+    key: customId.key,
+  });
+
+  return definition?.type.name === 'id' ? definition : null;
+}
+
+function findEffectiveProductByCustomId(customId: ProductIdentifierCustomId): ProductRecord | null {
+  return (
+    store
+      .listEffectiveProducts()
+      .find((product) =>
+        store
+          .getEffectiveMetafieldsByProductId(product.id)
+          .some(
+            (metafield) =>
+              metafield.namespace === customId.namespace &&
+              metafield.key === customId.key &&
+              metafield.type === 'id' &&
+              metafield.value === customId.value,
+          ),
+      ) ?? null
+  );
 }
 
 function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): ProductRecord | null {
@@ -123,7 +169,23 @@ function findEffectiveProductByIdentifier(identifier: Record<string, unknown>): 
     return findEffectiveProductByHandle(handle);
   }
 
+  const customId = readProductIdentifierCustomId(identifier);
+  if (customId && getProductCustomIdDefinition(customId)) {
+    return findEffectiveProductByCustomId(customId);
+  }
+
   return null;
+}
+
+function buildProductCustomIdDefinitionMissingError(field: FieldNode): Record<string, unknown> {
+  return {
+    message: "Metafield definition of type 'id' is required when using custom ids.",
+    locations: getNodeLocation(field),
+    extensions: {
+      code: 'NOT_FOUND',
+    },
+    path: [getResponseKey(field)],
+  };
 }
 
 function findEffectiveVariantByIdentifier(identifier: Record<string, unknown>): ProductVariantRecord | null {
@@ -587,6 +649,12 @@ function addProductsToCollection(
     collection,
     userErrors: [],
   };
+}
+
+function readCollectionProductIds(rawProductIds: unknown): string[] {
+  return Array.isArray(rawProductIds)
+    ? rawProductIds.filter((productId): productId is string => typeof productId === 'string')
+    : [];
 }
 
 function removeProductsFromCollection(collection: CollectionRecord, productIds: string[]): void {
@@ -1571,6 +1639,92 @@ function makeCreatedVariantRecord(
     selectedOptions,
     inventoryItem: readInventoryItemInput(input['inventoryItem'], null),
   };
+}
+
+function selectedOptionsKey(selectedOptions: ProductVariantRecord['selectedOptions']): string {
+  return selectedOptions.map((selectedOption) => `${selectedOption.name}\u0000${selectedOption.value}`).join('\u0001');
+}
+
+function buildSelectedOptionCombinations(options: ProductOptionRecord[]): ProductVariantRecord['selectedOptions'][] {
+  return options.reduce<ProductVariantRecord['selectedOptions'][]>(
+    (combinations, option) => {
+      const valueNames = option.optionValues
+        .map((optionValue) => optionValue.name)
+        .filter((valueName) => valueName.trim().length > 0);
+      if (valueNames.length === 0) {
+        return combinations;
+      }
+
+      return combinations.flatMap((combination) =>
+        valueNames.map((valueName) => [
+          ...combination,
+          {
+            name: option.name,
+            value: valueName,
+          },
+        ]),
+      );
+    },
+    [[]],
+  );
+}
+
+function fillMissingVariantOptionSelections(
+  variants: ProductVariantRecord[],
+  options: ProductOptionRecord[],
+): ProductVariantRecord[] {
+  return variants.map((variant) => {
+    const selectedByName = new Map(
+      variant.selectedOptions.map((selectedOption) => [selectedOption.name, selectedOption.value]),
+    );
+    const selectedOptions = options
+      .map((option) => {
+        const selectedValue = selectedByName.get(option.name) ?? option.optionValues[0]?.name ?? null;
+        return typeof selectedValue === 'string' && selectedValue.trim()
+          ? {
+              name: option.name,
+              value: selectedValue,
+            }
+          : null;
+      })
+      .filter(
+        (selectedOption): selectedOption is ProductVariantRecord['selectedOptions'][number] => selectedOption !== null,
+      );
+
+    return {
+      ...structuredClone(variant),
+      title: deriveVariantTitle(null, selectedOptions, variant.title),
+      selectedOptions,
+    };
+  });
+}
+
+function createVariantsForOptionValueCombinations(
+  productId: string,
+  options: ProductOptionRecord[],
+  existingVariants: ProductVariantRecord[],
+): ProductVariantRecord[] {
+  const combinations = buildSelectedOptionCombinations(options);
+  if (combinations.length === 0) {
+    return existingVariants;
+  }
+
+  const variantsBySelectedOptions = new Map(
+    fillMissingVariantOptionSelections(existingVariants, options).map((variant) => [
+      selectedOptionsKey(variant.selectedOptions),
+      variant,
+    ]),
+  );
+  const defaultVariant = existingVariants[0] ?? null;
+
+  return combinations.map((selectedOptions) => {
+    const existingVariant = variantsBySelectedOptions.get(selectedOptionsKey(selectedOptions));
+    if (existingVariant) {
+      return existingVariant;
+    }
+
+    return makeCreatedVariantRecord(productId, { selectedOptions }, defaultVariant);
+  });
 }
 
 function makeCreatedProductSetVariantRecord(productId: string, input: Record<string, unknown>): ProductVariantRecord {
@@ -6538,6 +6692,7 @@ function serializeCollectionField(
   collection: CollectionRecord | ProductCollectionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): unknown {
   const publicationIds = getCollectionPublicationIds(collection);
 
@@ -6587,7 +6742,10 @@ function serializeCollectionField(
     case 'image':
       return serializeCollectionImage(collection.image, field.selectionSet?.selections ?? []);
     case 'productsCount':
-      return serializeCountValue(field, listEffectiveProductsForCollection(collection.id).length);
+      return serializeCountValue(
+        field,
+        options.productsCountOverride ?? listEffectiveProductsForCollection(collection.id).length,
+      );
     case 'hasProduct': {
       const args = getFieldArguments(field, variables);
       const productId = typeof args['id'] === 'string' ? args['id'] : null;
@@ -6627,6 +6785,7 @@ function serializeCollectionObject(
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -6637,7 +6796,10 @@ function serializeCollectionObject(
         continue;
       }
 
-      Object.assign(result, serializeCollectionObject(collection, selection.selectionSet.selections, variables));
+      Object.assign(
+        result,
+        serializeCollectionObject(collection, selection.selectionSet.selections, variables, options),
+      );
       continue;
     }
 
@@ -6669,7 +6831,7 @@ function serializeCollectionObject(
         break;
       }
       default:
-        result[key] = serializeCollectionField(collection, selection, variables);
+        result[key] = serializeCollectionField(collection, selection, variables, options);
     }
   }
 
@@ -10603,7 +10765,9 @@ export function handleProductMutation(
       const existingOptions = store.getEffectiveOptionsByProductId(productId);
       const existingVariants = store.getEffectiveVariantsByProductId(productId);
       let nextOptions = existingOptions;
+      let nextVariants = existingVariants;
       const optionInputs = Array.isArray(args['options']) ? args['options'] : [];
+      const shouldCreateOptionVariants = args['variantStrategy'] === 'CREATE';
       const shouldReplaceDefaultOptionState = productUsesOnlyDefaultOptionState(existingOptions, existingVariants);
       if (shouldReplaceDefaultOptionState) {
         nextOptions = [];
@@ -10620,9 +10784,13 @@ export function handleProductMutation(
         );
       }
 
-      let nextVariants = existingVariants;
       if (shouldReplaceDefaultOptionState && existingVariants[0]) {
         nextVariants = [remapDefaultVariantToCreatedOptions(existingVariants[0], nextOptions)];
+        store.replaceStagedVariantsForProduct(productId, nextVariants);
+      }
+
+      if (shouldCreateOptionVariants) {
+        nextVariants = createVariantsForOptionValueCombinations(productId, nextOptions, nextVariants);
         store.replaceStagedVariantsForProduct(productId, nextVariants);
       }
 
@@ -10872,14 +11040,31 @@ export function handleProductMutation(
         };
       }
 
-      const collection = store.stageCreateCollection(makeCollectionRecord(input));
+      const collection = makeCollectionRecord(input);
+      const productIds = readCollectionProductIds(input['products']);
+      if (productIds.length > 0) {
+        const result = addProductsToCollection(collection, productIds);
+        if (result.userErrors.length > 0) {
+          return {
+            data: {
+              [responseKey]: {
+                collection: null,
+                userErrors: result.userErrors,
+              },
+            },
+          };
+        }
+      }
+
+      const stagedCollection = store.stageCreateCollection(collection);
       return {
         data: {
           [responseKey]: {
             collection: serializeCollectionObject(
-              collection,
+              stagedCollection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
+              { productsCountOverride: 0 },
             ),
             userErrors: [],
           },
@@ -11038,7 +11223,9 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds, { placement: 'prepend-reverse' });
+      const result = addProductsToCollection(existing, productIds, {
+        placement: existing.sortOrder === 'MANUAL' ? 'append' : 'prepend-reverse',
+      });
       const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
       return {
         data: {
@@ -12610,6 +12797,7 @@ export function handleProductQuery(
 ): Record<string, unknown> {
   const fields = getRootFields(document);
   const data: Record<string, unknown> = {};
+  const errors: Record<string, unknown>[] = [];
 
   for (const field of fields) {
     const args = getFieldArguments(field, variables);
@@ -12625,6 +12813,13 @@ export function handleProductQuery(
       }
       case 'productByIdentifier': {
         const identifier = readProductInput(args['identifier']);
+        const customId = readProductIdentifierCustomId(identifier);
+        if (customId && !getProductCustomIdDefinition(customId)) {
+          data[responseKey] = null;
+          errors.push(buildProductCustomIdDefinitionMissingError(field));
+          break;
+        }
+
         data[responseKey] = serializeProduct(findEffectiveProductByIdentifier(identifier), field, variables);
         break;
       }
@@ -12878,5 +13073,5 @@ export function handleProductQuery(
     }
   }
 
-  return { data };
+  return errors.length > 0 ? { errors, data } : { data };
 }

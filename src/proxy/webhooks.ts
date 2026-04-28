@@ -26,6 +26,19 @@ import {
 const webhookProjectionOptions = {
   shouldApplyTypeCondition: (source: Record<string, unknown>, typeCondition: string | undefined): boolean =>
     defaultGraphqlTypeConditionApplies(source, typeCondition) || typeCondition === 'WebhookSubscription',
+  projectFieldValue: ({
+    source,
+    fieldName,
+  }: {
+    source: Record<string, unknown>;
+    fieldName: string;
+  }): { handled: true; value: unknown } | { handled: false } => {
+    if (fieldName !== 'uri') {
+      return { handled: false };
+    }
+
+    return { handled: true, value: webhookSubscriptionUri(source as WebhookSubscriptionRecord) };
+  },
 };
 
 type WebhookSubscriptionUserError = {
@@ -111,6 +124,16 @@ function readOptionalStringArray(input: Record<string, unknown>, fieldName: stri
 }
 
 function endpointFromUri(uri: string): WebhookSubscriptionRecord['endpoint'] {
+  if (uri.startsWith('pubsub://')) {
+    const pubSubUri = uri.slice('pubsub://'.length);
+    const separatorIndex = pubSubUri.indexOf(':');
+    return {
+      __typename: 'WebhookPubSubEndpoint',
+      pubSubProject: separatorIndex >= 0 ? pubSubUri.slice(0, separatorIndex) : pubSubUri,
+      pubSubTopic: separatorIndex >= 0 ? pubSubUri.slice(separatorIndex + 1) : '',
+    };
+  }
+
   if (uri.startsWith('arn:aws:events:')) {
     return {
       __typename: 'WebhookEventBridgeEndpoint',
@@ -122,6 +145,29 @@ function endpointFromUri(uri: string): WebhookSubscriptionRecord['endpoint'] {
     __typename: 'WebhookHttpEndpoint',
     callbackUrl: uri,
   };
+}
+
+function uriFromEndpoint(endpoint: WebhookSubscriptionRecord['endpoint']): string | null {
+  if (!endpoint) {
+    return null;
+  }
+
+  switch (endpoint.__typename) {
+    case 'WebhookHttpEndpoint':
+      return endpoint.callbackUrl ?? null;
+    case 'WebhookEventBridgeEndpoint':
+      return endpoint.arn ?? null;
+    case 'WebhookPubSubEndpoint':
+      return endpoint.pubSubProject && endpoint.pubSubTopic
+        ? `pubsub://${endpoint.pubSubProject}:${endpoint.pubSubTopic}`
+        : null;
+    default:
+      return null;
+  }
+}
+
+function webhookSubscriptionUri(webhookSubscription: WebhookSubscriptionRecord): string | null {
+  return webhookSubscription.uri ?? uriFromEndpoint(webhookSubscription.endpoint);
 }
 
 function normalizeUri(input: Record<string, unknown> | null): string | null {
@@ -148,6 +194,8 @@ function buildWebhookSubscriptionFromCreateInput(
   return {
     id: makeProxySyntheticGid('WebhookSubscription'),
     topic: typeof topic === 'string' ? topic : null,
+    uri,
+    name: readOptionalString(input, 'name') ?? null,
     format: readOptionalString(input, 'format') ?? 'JSON',
     includeFields: readOptionalStringArray(input, 'includeFields') ?? [],
     metafieldNamespaces: readOptionalStringArray(input, 'metafieldNamespaces') ?? [],
@@ -165,6 +213,8 @@ function applyWebhookSubscriptionUpdateInput(
   const uri = normalizeUri(input);
   return {
     ...existing,
+    uri: uri ?? existing.uri ?? uriFromEndpoint(existing.endpoint),
+    name: readOptionalString(input, 'name') ?? existing.name,
     format: readOptionalString(input, 'format') ?? existing.format,
     includeFields: readOptionalStringArray(input, 'includeFields') ?? existing.includeFields,
     metafieldNamespaces: readOptionalStringArray(input, 'metafieldNamespaces') ?? existing.metafieldNamespaces,
@@ -362,16 +412,19 @@ function normalizeWebhookSubscription(raw: unknown): WebhookSubscriptionRecord |
     return null;
   }
 
+  const endpoint = normalizeEndpoint(raw['endpoint']);
   return {
     id,
     topic: typeof raw['topic'] === 'string' ? raw['topic'] : null,
+    uri: typeof raw['uri'] === 'string' ? raw['uri'] : uriFromEndpoint(endpoint),
+    name: typeof raw['name'] === 'string' || raw['name'] === null ? raw['name'] : null,
     format: typeof raw['format'] === 'string' ? raw['format'] : null,
     includeFields: normalizeStringArray(raw['includeFields']),
     metafieldNamespaces: normalizeStringArray(raw['metafieldNamespaces']),
     filter: typeof raw['filter'] === 'string' || raw['filter'] === null ? raw['filter'] : null,
     createdAt: typeof raw['createdAt'] === 'string' || raw['createdAt'] === null ? raw['createdAt'] : null,
     updatedAt: typeof raw['updatedAt'] === 'string' || raw['updatedAt'] === null ? raw['updatedAt'] : null,
-    endpoint: normalizeEndpoint(raw['endpoint']),
+    endpoint,
   };
 }
 
@@ -427,6 +480,7 @@ function webhookSubscriptionLegacyId(webhookSubscription: WebhookSubscriptionRec
 
 function matchesWebhookTerm(webhookSubscription: WebhookSubscriptionRecord, term: SearchQueryTerm): boolean {
   const field = term.field?.toLowerCase() ?? null;
+  const uri = webhookSubscriptionUri(webhookSubscription);
   let matches = false;
 
   switch (field) {
@@ -449,6 +503,12 @@ function matchesWebhookTerm(webhookSubscription: WebhookSubscriptionRecord, term
     case 'format':
       matches = matchesSearchQueryText(webhookSubscription.format, term);
       break;
+    case 'uri':
+    case 'callbackurl':
+    case 'callback_url':
+    case 'endpoint':
+      matches = matchesSearchQueryText(uri, term);
+      break;
     case 'created_at':
     case 'createdat':
       matches = matchesSearchQueryText(webhookSubscription.createdAt, term);
@@ -463,6 +523,30 @@ function matchesWebhookTerm(webhookSubscription: WebhookSubscriptionRecord, term
   }
 
   return term.negated ? !matches : matches;
+}
+
+function filterWebhookSubscriptionsByFieldArguments(
+  webhookSubscriptions: WebhookSubscriptionRecord[],
+  args: Record<string, unknown>,
+): WebhookSubscriptionRecord[] {
+  const format = typeof args['format'] === 'string' ? args['format'] : null;
+  const uri =
+    typeof args['uri'] === 'string'
+      ? args['uri']
+      : typeof args['callbackUrl'] === 'string'
+        ? args['callbackUrl']
+        : null;
+  const topics = Array.isArray(args['topics'])
+    ? args['topics'].filter((topic): topic is string => typeof topic === 'string')
+    : [];
+
+  return webhookSubscriptions
+    .filter((webhookSubscription) => !format || webhookSubscription.format === format)
+    .filter((webhookSubscription) => !uri || webhookSubscriptionUri(webhookSubscription) === uri)
+    .filter(
+      (webhookSubscription) =>
+        topics.length === 0 || (webhookSubscription.topic !== null && topics.includes(webhookSubscription.topic)),
+    );
 }
 
 function filterWebhookSubscriptionsByQuery(
@@ -530,7 +614,7 @@ function serializeWebhookSubscriptionsConnection(
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
   const filteredWebhookSubscriptions = filterWebhookSubscriptionsByQuery(
-    store.listEffectiveWebhookSubscriptions(),
+    filterWebhookSubscriptionsByFieldArguments(store.listEffectiveWebhookSubscriptions(), args),
     args['query'],
   );
   const sortedWebhookSubscriptions = sortWebhookSubscriptionsForConnection(

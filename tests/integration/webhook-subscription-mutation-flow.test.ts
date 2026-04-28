@@ -51,7 +51,9 @@ describe('webhook subscription mutation flow', () => {
         webhookSubscription {
           id
           topic
+          uri
           format
+          name
           includeFields
           metafieldNamespaces
           filter
@@ -77,6 +79,7 @@ describe('webhook subscription mutation flow', () => {
         format: 'JSON',
         includeFields: ['id', 'name'],
         metafieldNamespaces: ['custom'],
+        name: 'shop_update_sync',
         uri: 'https://example.com/hermes-webhook-local',
       },
     };
@@ -91,7 +94,9 @@ describe('webhook subscription mutation flow', () => {
     expect(created).toMatchObject({
       id: expect.stringMatching(/^gid:\/\/shopify\/WebhookSubscription\/[0-9]+\?shopify-draft-proxy=synthetic$/u),
       topic: 'SHOP_UPDATE',
+      uri: 'https://example.com/hermes-webhook-local',
       format: 'JSON',
+      name: 'shop_update_sync',
       includeFields: ['id', 'name'],
       metafieldNamespaces: ['custom'],
       filter: '',
@@ -107,7 +112,9 @@ describe('webhook subscription mutation flow', () => {
         webhookSubscription {
           id
           topic
+          uri
           format
+          name
           includeFields
           metafieldNamespaces
           filter
@@ -133,6 +140,7 @@ describe('webhook subscription mutation flow', () => {
         format: 'JSON',
         includeFields: ['id'],
         metafieldNamespaces: [],
+        name: 'shop_update_sync_renamed',
         uri: 'https://example.com/hermes-webhook-local-updated',
       },
     };
@@ -147,7 +155,9 @@ describe('webhook subscription mutation flow', () => {
     expect(updated).toMatchObject({
       id: created.id,
       topic: 'SHOP_UPDATE',
+      uri: 'https://example.com/hermes-webhook-local-updated',
       format: 'JSON',
+      name: 'shop_update_sync_renamed',
       includeFields: ['id'],
       metafieldNamespaces: [],
       filter: '',
@@ -168,6 +178,8 @@ describe('webhook subscription mutation flow', () => {
             id
             topic
             format
+            uri
+            name
             includeFields
             metafieldNamespaces
             endpoint {
@@ -209,6 +221,8 @@ describe('webhook subscription mutation flow', () => {
       id: created.id,
       topic: 'SHOP_UPDATE',
       format: 'JSON',
+      uri: 'https://example.com/hermes-webhook-local-updated',
+      name: 'shop_update_sync_renamed',
       includeFields: ['id'],
       metafieldNamespaces: [],
       endpoint: {

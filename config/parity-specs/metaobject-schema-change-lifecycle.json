@@ -128,13 +128,38 @@
             }
           }
         },
-        "excludedPaths": [
-          "$.detail.id",
-          "$.detail.updatedAt",
-          "$.byHandle.id",
-          "$.byHandle.updatedAt",
-          "$.catalog",
-          "$.definition.id"
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic pre-schema row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.detail.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic pre-schema row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The live Admin search index had not materialized the newly active row immediately, while local staging intentionally exposes supported writes immediately."
+          },
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returned the captured live-store ID."
+          }
         ]
       },
       {
@@ -185,12 +210,32 @@
             }
           }
         },
-        "excludedPaths": [
-          "$.detail.id",
-          "$.detail.updatedAt",
-          "$.byHandle.id",
-          "$.byHandle.updatedAt",
-          "$.definition.id"
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic existing row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.detail.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic existing row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returned the captured live-store ID."
+          }
         ]
       },
       {
@@ -371,19 +416,67 @@
             }
           }
         },
-        "excludedPaths": [
-          "$.detail.id",
-          "$.detail.updatedAt",
-          "$.byHandle.id",
-          "$.byHandle.updatedAt",
-          "$.catalog.edges[*].cursor",
-          "$.catalog.edges[*].node.id",
-          "$.catalog.edges[*].node.updatedAt",
-          "$.catalog.nodes[*].id",
-          "$.catalog.nodes[*].updatedAt",
-          "$.catalog.pageInfo.startCursor",
-          "$.catalog.pageInfo.endCursor",
-          "$.definition.id"
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic existing row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.detail.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic existing row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.edges[*].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.edges[*].node.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy catalog contains synthetic staged row IDs while Shopify returned captured live-store IDs."
+          },
+          {
+            "path": "$.catalog.edges[*].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned captured write timestamps."
+          },
+          {
+            "path": "$.catalog.nodes[*].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy catalog contains synthetic staged row IDs while Shopify returned captured live-store IDs."
+          },
+          {
+            "path": "$.catalog.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned captured write timestamps."
+          },
+          {
+            "path": "$.catalog.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returned the captured live-store ID."
+          }
         ]
       },
       {
@@ -410,19 +503,67 @@
             }
           }
         },
-        "excludedPaths": [
-          "$.detail.id",
-          "$.detail.updatedAt",
-          "$.byHandle.id",
-          "$.byHandle.updatedAt",
-          "$.catalog.edges[*].cursor",
-          "$.catalog.edges[*].node.id",
-          "$.catalog.edges[*].node.updatedAt",
-          "$.catalog.nodes[*].id",
-          "$.catalog.nodes[*].updatedAt",
-          "$.catalog.pageInfo.startCursor",
-          "$.catalog.pageInfo.endCursor",
-          "$.definition.id"
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic post-schema row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.detail.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy resolves the synthetic post-schema row ID while Shopify returned the captured live-store ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.edges[*].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.edges[*].node.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy catalog contains synthetic staged row IDs while Shopify returned captured live-store IDs."
+          },
+          {
+            "path": "$.catalog.edges[*].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned captured write timestamps."
+          },
+          {
+            "path": "$.catalog.nodes[*].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy catalog contains synthetic staged row IDs while Shopify returned captured live-store IDs."
+          },
+          {
+            "path": "$.catalog.nodes[*].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged row writes at replay time while Shopify returned captured write timestamps."
+          },
+          {
+            "path": "$.catalog.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returned the captured live-store ID."
+          }
         ]
       }
     ]

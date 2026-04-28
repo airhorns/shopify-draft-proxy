@@ -2955,6 +2955,150 @@ describe('product draft flow', () => {
     });
   });
 
+  it('stages productOptionsCreate variantStrategy CREATE by creating variants for option values', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('productOptionsCreate variantStrategy CREATE should not hit upstream fetch');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Variant Strategy Hat" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+
+    const createOptionsResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation CreateOptions($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) { productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) { product { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          variantStrategy: 'CREATE',
+          options: [
+            {
+              name: 'Color',
+              values: [{ name: 'Blue' }, { name: 'Green' }],
+            },
+          ],
+        },
+      });
+
+    expect(createOptionsResponse.status).toBe(200);
+    expect(createOptionsResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    expect(createOptionsResponse.body.data.productOptionsCreate.product).toMatchObject({
+      id: productId,
+      options: [
+        {
+          name: 'Color',
+          values: ['Blue', 'Green'],
+          optionValues: [
+            { name: 'Blue', hasVariants: true },
+            { name: 'Green', hasVariants: true },
+          ],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Blue',
+            selectedOptions: [{ name: 'Color', value: 'Blue' }],
+          },
+          {
+            title: 'Green',
+            selectedOptions: [{ name: 'Color', value: 'Green' }],
+          },
+        ],
+      },
+    });
+
+    const downstreamReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query VariantStrategyDownstream($id: ID!) { product(id: $id) { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } }',
+        variables: { id: productId },
+      });
+
+    expect(downstreamReadResponse.status).toBe(200);
+    expect(downstreamReadResponse.body.data.product).toEqual(
+      createOptionsResponse.body.data.productOptionsCreate.product,
+    );
+
+    const createSecondOptionResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation CreateSecondOption($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) { productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) { product { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } userErrors { field message } } }',
+        variables: {
+          productId,
+          variantStrategy: 'CREATE',
+          options: [
+            {
+              name: 'Size',
+              values: [{ name: 'Small' }, { name: 'Large' }],
+            },
+          ],
+        },
+      });
+
+    expect(createSecondOptionResponse.status).toBe(200);
+    expect(createSecondOptionResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    expect(createSecondOptionResponse.body.data.productOptionsCreate.product).toMatchObject({
+      options: [
+        {
+          name: 'Color',
+          values: ['Blue', 'Green'],
+          optionValues: [
+            { name: 'Blue', hasVariants: true },
+            { name: 'Green', hasVariants: true },
+          ],
+        },
+        {
+          name: 'Size',
+          values: ['Small', 'Large'],
+          optionValues: [
+            { name: 'Small', hasVariants: true },
+            { name: 'Large', hasVariants: true },
+          ],
+        },
+      ],
+      variants: {
+        nodes: [
+          {
+            title: 'Blue / Small',
+            selectedOptions: [
+              { name: 'Color', value: 'Blue' },
+              { name: 'Size', value: 'Small' },
+            ],
+          },
+          {
+            title: 'Blue / Large',
+            selectedOptions: [
+              { name: 'Color', value: 'Blue' },
+              { name: 'Size', value: 'Large' },
+            ],
+          },
+          {
+            title: 'Green / Small',
+            selectedOptions: [
+              { name: 'Color', value: 'Green' },
+              { name: 'Size', value: 'Small' },
+            ],
+          },
+          {
+            title: 'Green / Large',
+            selectedOptions: [
+              { name: 'Color', value: 'Green' },
+              { name: 'Size', value: 'Large' },
+            ],
+          },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns captured product option lifecycle validation userErrors locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('product option validation branches should not hit upstream fetch');

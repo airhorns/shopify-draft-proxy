@@ -1,0 +1,66 @@
+{
+  "scenarioId": "collection-create-initial-products-live-parity",
+  "operationNames": ["collectionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/collection-create-initial-products-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/collectionCreate-initial-products-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured against a disposable live Shopify collection create with `CollectionInput.products`, followed by a downstream read and cleanup delete. Shopify returns the selected product nodes and `hasProduct: true` in the mutation payload, but the mutation payload's `productsCount` aggregate remains `0` until the immediate downstream read returns the actual membership count.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local parity harness allocate collection ids independently."
+      },
+      {
+        "path": "$.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The downstream read uses the locally created collection id after replaying the captured create variables."
+      },
+      {
+        "path": "$.first.collections.nodes[0].id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The first product's newly created collection id differs between live capture and local replay."
+      },
+      {
+        "path": "$.second.collections.nodes[0].id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The second product's newly created collection id differs between live capture and local replay."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/collectionCreate-initial-products-downstream-read.graphql",
+          "variables": {
+            "collectionId": {
+              "fromPrimaryProxyPath": "$.data.collectionCreate.collection.id"
+            },
+            "firstProductId": {
+              "fromCapturePath": "$.downstreamReadVariables.firstProductId"
+            },
+            "secondProductId": {
+              "fromCapturePath": "$.downstreamReadVariables.secondProductId"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

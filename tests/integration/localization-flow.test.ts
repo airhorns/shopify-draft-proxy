@@ -41,8 +41,8 @@ function makeProduct(): ProductRecord {
     onlineStorePreviewUrl: null,
     templateSuffix: null,
     seo: {
-      title: null,
-      description: null,
+      title: 'Localization Snowboard SEO',
+      description: 'Fast localized snowboard for conformance coverage',
     },
     category: null,
   };
@@ -200,6 +200,20 @@ describe('Localization staging', () => {
             digest: digest('Snowboard'),
             locale: 'en',
             type: 'SINGLE_LINE_TEXT_FIELD',
+          },
+          {
+            key: 'meta_title',
+            value: 'Localization Snowboard SEO',
+            digest: digest('Localization Snowboard SEO'),
+            locale: 'en',
+            type: 'SINGLE_LINE_TEXT_FIELD',
+          },
+          {
+            key: 'meta_description',
+            value: 'Fast localized snowboard for conformance coverage',
+            digest: digest('Fast localized snowboard for conformance coverage'),
+            locale: 'en',
+            type: 'MULTI_LINE_TEXT_FIELD',
           },
         ],
         translations: [],
@@ -408,6 +422,246 @@ describe('Localization staging', () => {
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged', 'staged']);
+  });
+
+  it('stages product metafield translations and validates key, digest, and locale guardrails', async () => {
+    seedLocalizationState();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('metafield localization must not proxy'));
+    const app = createApp(config).callback();
+
+    const metafieldReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query MetafieldTranslatableResource($resourceId: ID!) {
+            translatableResource(resourceId: $resourceId) {
+              resourceId
+              translatableContent {
+                key
+                value
+                digest
+                locale
+                type
+              }
+              translations(locale: "fr") {
+                key
+              }
+            }
+          }
+        `,
+        variables: { resourceId: metafieldId },
+      });
+
+    expect(metafieldReadResponse.body.data.translatableResource).toEqual({
+      resourceId: metafieldId,
+      translatableContent: [
+        {
+          key: 'value',
+          value: 'Maple',
+          digest: digest('Maple'),
+          locale: 'en',
+          type: 'SINGLE_LINE_TEXT_FIELD',
+        },
+      ],
+      translations: [],
+    });
+
+    await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation EnableLocale($locale: String!) {
+            shopLocaleEnable(locale: $locale) {
+              shopLocale {
+                locale
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: { locale: 'fr' },
+      })
+      .expect(200);
+
+    const registerResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation RegisterMetafieldTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
+            translationsRegister(resourceId: $resourceId, translations: $translations) {
+              translations {
+                key
+                value
+                locale
+                outdated
+                market {
+                  id
+                }
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          resourceId: metafieldId,
+          translations: [
+            {
+              locale: 'fr',
+              key: 'value',
+              value: 'Erable',
+              translatableContentDigest: digest('Maple'),
+            },
+          ],
+        },
+      });
+
+    expect(registerResponse.body.data.translationsRegister).toMatchObject({
+      translations: [{ key: 'value', value: 'Erable', locale: 'fr', outdated: false, market: null }],
+      userErrors: [],
+    });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query DownstreamMetafield($resourceId: ID!) {
+            translatableResource(resourceId: $resourceId) {
+              translations(locale: "fr") {
+                key
+                value
+                locale
+              }
+            }
+          }
+        `,
+        variables: { resourceId: metafieldId },
+      });
+
+    expect(downstreamResponse.body.data.translatableResource.translations).toEqual([
+      { key: 'value', value: 'Erable', locale: 'fr' },
+    ]);
+
+    const invalidResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation InvalidTranslations($resourceId: ID!, $translations: [TranslationInput!]!) {
+            translationsRegister(resourceId: $resourceId, translations: $translations) {
+              translations {
+                key
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          resourceId: productId,
+          translations: [
+            {
+              locale: 'de',
+              key: 'tags',
+              value: 'Ungultig',
+              translatableContentDigest: 'not-the-current-digest',
+            },
+          ],
+        },
+      });
+
+    expect(invalidResponse.body.data.translationsRegister).toEqual({
+      translations: null,
+      userErrors: expect.arrayContaining([
+        {
+          field: ['translations', '0', 'locale'],
+          message: 'Locale is not enabled for this shop',
+          code: 'INVALID_LOCALE_FOR_SHOP',
+        },
+        {
+          field: ['translations', '0', 'key'],
+          message: 'Key tags is not translatable for this resource',
+          code: 'INVALID_KEY_FOR_MODEL',
+        },
+      ]),
+    });
+
+    const staleDigestResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation InvalidDigest($resourceId: ID!, $translations: [TranslationInput!]!) {
+            translationsRegister(resourceId: $resourceId, translations: $translations) {
+              translations {
+                key
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          resourceId: productId,
+          translations: [
+            {
+              locale: 'fr',
+              key: 'title',
+              value: 'Titre stale',
+              translatableContentDigest: 'not-the-current-digest',
+            },
+          ],
+        },
+      });
+
+    expect(staleDigestResponse.body.data.translationsRegister).toEqual({
+      translations: null,
+      userErrors: [
+        {
+          field: ['translations', '0', 'translatableContentDigest'],
+          message: 'Translatable content digest does not match the resource content',
+          code: 'INVALID_TRANSLATABLE_CONTENT',
+        },
+      ],
+    });
+
+    const removeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation RemoveMetafieldTranslation($resourceId: ID!) {
+            translationsRemove(resourceId: $resourceId, translationKeys: ["value"], locales: ["fr"]) {
+              translations {
+                key
+                value
+                locale
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: { resourceId: metafieldId },
+      });
+
+    expect(removeResponse.body.data.translationsRemove).toEqual({
+      translations: [{ key: 'value', value: 'Erable', locale: 'fr' }],
+      userErrors: [],
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   it('keeps unsupported resource and owner branches explicit', async () => {

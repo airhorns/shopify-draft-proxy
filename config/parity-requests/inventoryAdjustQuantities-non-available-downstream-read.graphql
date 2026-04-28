@@ -1,0 +1,96 @@
+query InventoryAdjustQuantitiesNonAvailableDownstreamParity(
+  $firstProductId: ID!
+  $firstVariantId: ID!
+  $firstInventoryItemId: ID!
+) {
+  firstProduct: product(id: $firstProductId) {
+    id
+    totalInventory
+    tracksInventory
+    variants(first: 10) {
+      nodes {
+        id
+        inventoryQuantity
+        inventoryItem {
+          id
+          tracked
+          inventoryLevels(first: 5) {
+            nodes {
+              id
+              quantities(
+                names: [
+                  "available"
+                  "incoming"
+                  "reserved"
+                  "damaged"
+                  "quality_control"
+                  "safety_stock"
+                  "committed"
+                  "on_hand"
+                ]
+              ) {
+                name
+                quantity
+                updatedAt
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  firstVariant: productVariant(id: $firstVariantId) {
+    id
+    inventoryQuantity
+    inventoryItem {
+      id
+      tracked
+      inventoryLevels(first: 5) {
+        nodes {
+          id
+          quantities(
+            names: [
+              "available"
+              "incoming"
+              "reserved"
+              "damaged"
+              "quality_control"
+              "safety_stock"
+              "committed"
+              "on_hand"
+            ]
+          ) {
+            name
+            quantity
+            updatedAt
+          }
+        }
+      }
+    }
+  }
+  firstInventoryItem: inventoryItem(id: $firstInventoryItemId) {
+    id
+    tracked
+    inventoryLevels(first: 5) {
+      nodes {
+        id
+        quantities(
+          names: [
+            "available"
+            "incoming"
+            "reserved"
+            "damaged"
+            "quality_control"
+            "safety_stock"
+            "committed"
+            "on_hand"
+          ]
+        ) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+  }
+}

@@ -251,6 +251,26 @@ function productContent(product: ProductRecord): TranslatableContentRecord[] {
     });
   }
 
+  if (product.seo.title !== null) {
+    content.push({
+      key: 'meta_title',
+      value: product.seo.title,
+      digest: digestValue(product.seo.title),
+      locale: 'en',
+      type: 'SINGLE_LINE_TEXT_FIELD',
+    });
+  }
+
+  if (product.seo.description !== null) {
+    content.push({
+      key: 'meta_description',
+      value: product.seo.description,
+      digest: digestValue(product.seo.description),
+      locale: 'en',
+      type: 'MULTI_LINE_TEXT_FIELD',
+    });
+  }
+
   return content;
 }
 
@@ -563,6 +583,7 @@ function handleTranslationsRegister(
     inputs.forEach((input, index) => {
       const prefix = ['translations', String(index)];
       const localeValidation = validateLocale(input['locale'], [...prefix, 'locale']);
+      errors.push(...localeValidation.errors);
       const key = typeof input['key'] === 'string' ? input['key'] : '';
       const content = resource.content.find((entry) => entry.key === key) ?? null;
       if (!content) {
@@ -577,7 +598,7 @@ function handleTranslationsRegister(
       if (typeof input['value'] !== 'string' || input['value'] === '') {
         errors.push(translationError([...prefix, 'value'], "Value can't be blank", 'BLANK'));
       }
-      if (content?.digest !== null && input['translatableContentDigest'] !== content?.digest) {
+      if (content && content.digest !== null && input['translatableContentDigest'] !== content.digest) {
         errors.push(
           translationError(
             [...prefix, 'translatableContentDigest'],

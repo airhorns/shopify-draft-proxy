@@ -321,6 +321,139 @@ describe('product query shapes', () => {
     });
   });
 
+  it('resolves productByIdentifier custom ids through id-type product metafields', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('custom-id lookup should stay local'));
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation CreateProduct { productCreate(product: { title: "Custom ID Board" }) { product { id handle title } userErrors { field message } } }',
+    });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productCreate.userErrors).toEqual([]);
+    const product = createResponse.body.data.productCreate.product;
+
+    const definitionResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateDefinition($definition: MetafieldDefinitionInput!) { metafieldDefinitionCreate(definition: $definition) { createdDefinition { id ownerType namespace key type { name } capabilities { uniqueValues { enabled } } } userErrors { field message code } } }',
+        variables: {
+          definition: {
+            name: 'External product ID',
+            ownerType: 'PRODUCT',
+            namespace: 'custom',
+            key: 'external_id',
+            type: 'id',
+            capabilities: { uniqueValues: { enabled: true } },
+          },
+        },
+      });
+
+    expect(definitionResponse.status).toBe(200);
+    expect(definitionResponse.body.data.metafieldDefinitionCreate.userErrors).toEqual([]);
+    expect(definitionResponse.body.data.metafieldDefinitionCreate.createdDefinition).toMatchObject({
+      ownerType: 'PRODUCT',
+      namespace: 'custom',
+      key: 'external_id',
+      type: { name: 'id' },
+      capabilities: { uniqueValues: { enabled: true } },
+    });
+
+    const setMetafieldResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation SetCustomId($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } } }',
+        variables: {
+          metafields: [
+            {
+              ownerId: product.id,
+              namespace: 'custom',
+              key: 'external_id',
+              type: 'id',
+              value: 'erp-product-1001',
+            },
+          ],
+        },
+      });
+
+    expect(setMetafieldResponse.status).toBe(200);
+    expect(setMetafieldResponse.body.data.metafieldsSet.userErrors).toEqual([]);
+
+    const lookupResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query Lookup($identifier: ProductIdentifierInput!) { productByIdentifier(identifier: $identifier) { id handle title metafield(namespace: "custom", key: "external_id") { namespace key type value } } }',
+        variables: {
+          identifier: {
+            customId: {
+              namespace: 'custom',
+              key: 'external_id',
+              value: 'erp-product-1001',
+            },
+          },
+        },
+      });
+
+    expect(lookupResponse.status).toBe(200);
+    expect(lookupResponse.body).toEqual({
+      data: {
+        productByIdentifier: {
+          id: product.id,
+          handle: product.handle,
+          title: 'Custom ID Board',
+          metafield: {
+            namespace: 'custom',
+            key: 'external_id',
+            type: 'id',
+            value: 'erp-product-1001',
+          },
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns Shopify-like productByIdentifier custom-id errors when the id metafield definition is missing', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('custom-id lookup should stay local'));
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query Lookup($identifier: ProductIdentifierInput!) { productByIdentifier(identifier: $identifier) { id title } }',
+        variables: {
+          identifier: {
+            customId: {
+              namespace: 'custom',
+              key: 'id',
+              value: '1001',
+            },
+          },
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      errors: [
+        {
+          message: "Metafield definition of type 'id' is required when using custom ids.",
+          locations: [{ line: 1, column: 54 }],
+          extensions: { code: 'NOT_FOUND' },
+          path: ['productByIdentifier'],
+        },
+      ],
+      data: {
+        productByIdentifier: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('keeps product resource feedback mutations registered but unsupported passthrough', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(

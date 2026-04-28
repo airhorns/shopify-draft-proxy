@@ -7,7 +7,6 @@ import {
   graphqlVariablesSchema,
   jsonValueSchema,
   parseJsonFileWithSchema,
-  type BlockerDetails,
   type ComparisonContract,
   type ComparisonTarget,
   type ExpectedDifference,
@@ -16,7 +15,6 @@ import {
   type ProxyRequestSpec,
 } from '../src/json-schemas.js';
 export type {
-  BlockerDetails,
   ComparisonContract,
   ComparisonTarget,
   ExpectedDifference,
@@ -196,7 +194,6 @@ export type ParityScenarioState =
   | 'ready-for-comparison'
   | 'enforced-by-fixture'
   | 'invalid-missing-comparison-contract'
-  | 'blocked-with-proxy-request'
   | 'not-yet-implemented';
 
 export interface Scenario {
@@ -403,15 +400,11 @@ export function classifyParityScenarioState(
       : 'invalid-missing-comparison-contract';
   }
 
-  if (paritySpec?.blocker && hasProxyRequest(paritySpec)) {
-    return 'blocked-with-proxy-request';
-  }
-
   return 'not-yet-implemented';
 }
 
 export const parityStatusNote =
-  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. enforcedByFixture means a captured multi-step fixture is enforced outside the generic parity runner by committed runtime tests. invalid captured scenarios are not allowed in checked-in inventory. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only or blocked-only parity specs.';
+  'readyForComparison means a captured scenario has a proxy request and an explicit strict-json comparison contract. enforcedByFixture means a captured multi-step fixture is enforced outside the generic parity runner by committed runtime tests. invalid captured scenarios are not allowed in checked-in inventory. notYetImplemented scenarios are legacy non-executable entries; do not add new planned-only parity specs.';
 
 export function validateParityScenarioInventoryEntry(
   scenario: Pick<Scenario, 'id' | 'status' | 'captureFiles'>,
@@ -422,12 +415,6 @@ export function validateParityScenarioInventoryEntry(
 
   if (scenario.status !== 'captured') {
     return errors;
-  }
-
-  if (paritySpec.blocker) {
-    errors.push(
-      `Captured scenario ${scenario.id} must not declare a blocker; remove it from checked-in parity inventory until it is enforceable.`,
-    );
   }
 
   if (mode === 'planned') {
@@ -7772,9 +7759,7 @@ async function executeParityScenarioInRuntime({
     throw new Error(`Scenario ${scenario.id} does not define a valid comparison contract.`);
   }
   if (readComparisonTargets(paritySpec.comparison).length === 0) {
-    throw new Error(
-      `Scenario ${scenario.id} must declare at least one comparison target or a blocker; no implicit fallback target is used.`,
-    );
+    throw new Error(`Scenario ${scenario.id} must declare at least one comparison target.`);
   }
 
   store.reset();

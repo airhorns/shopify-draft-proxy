@@ -1,0 +1,184 @@
+{
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9801098789170",
+      "title": "The Inventory Not Tracked Snowboard",
+      "handle": "the-inventory-not-tracked-snowboard",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "gid://shopify/Product/9801098821938",
+      "title": "Gift Card",
+      "handle": "gift-card",
+      "status": "ACTIVE"
+    }
+  ],
+  "mutation": {
+    "variables": {
+      "firstProductId": "gid://shopify/Product/9801098789170",
+      "input": {
+        "title": "Hermes Collection Initial Products 1777340593322",
+        "sortOrder": "MANUAL",
+        "products": ["gid://shopify/Product/9801098789170", "gid://shopify/Product/9801098821938"]
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512197427506",
+            "title": "Hermes Collection Initial Products 1777340593322",
+            "handle": "hermes-collection-initial-products-1777340593322",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "handle": "the-inventory-not-tracked-snowboard"
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "handle": "gift-card"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "hasProduct": true,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "collectionId": "gid://shopify/Collection/512197427506",
+    "firstProductId": "gid://shopify/Product/9801098789170",
+    "secondProductId": "gid://shopify/Product/9801098821938"
+  },
+  "downstreamRead": {
+    "data": {
+      "collection": {
+        "id": "gid://shopify/Collection/512197427506",
+        "title": "Hermes Collection Initial Products 1777340593322",
+        "handle": "hermes-collection-initial-products-1777340593322",
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "handle": "the-inventory-not-tracked-snowboard"
+            },
+            {
+              "id": "gid://shopify/Product/9801098821938",
+              "title": "Gift Card",
+              "handle": "gift-card"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        },
+        "hasFirstProduct": true,
+        "hasSecondProduct": true,
+        "productsCount": {
+          "count": 2,
+          "precision": "EXACT"
+        }
+      },
+      "first": {
+        "id": "gid://shopify/Product/9801098789170",
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/512197427506",
+              "title": "Hermes Collection Initial Products 1777340593322",
+              "handle": "hermes-collection-initial-products-1777340593322"
+            },
+            {
+              "id": "gid://shopify/Collection/494967390514",
+              "title": "Home page",
+              "handle": "frontpage"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      },
+      "second": {
+        "id": "gid://shopify/Product/9801098821938",
+        "collections": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Collection/512197427506",
+              "title": "Hermes Collection Initial Products 1777340593322",
+              "handle": "hermes-collection-initial-products-1777340593322"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 22,
+        "actualQueryCost": 15,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1985,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Collection/512197427506"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionDelete": {
+          "deletedCollectionId": "gid://shopify/Collection/512197427506",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

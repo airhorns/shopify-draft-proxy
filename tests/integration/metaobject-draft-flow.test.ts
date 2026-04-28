@@ -319,8 +319,8 @@ describe('metaobject draft flow', () => {
       userErrors: [
         {
           field: ['id'],
-          message: 'Metaobject not found.',
-          code: 'NOT_FOUND',
+          message: 'Record not found',
+          code: 'RECORD_NOT_FOUND',
           elementKey: null,
           elementIndex: null,
         },
@@ -385,6 +385,272 @@ describe('metaobject draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns conformance-backed validation errors without staging invalid metaobjects', async () => {
+    store.upsertBaseMetaobjectDefinitions([
+      makeDefinition({
+        fieldDefinitions: [
+          {
+            key: 'title',
+            name: 'Title',
+            description: 'Display title.',
+            required: true,
+            type: { name: 'single_line_text_field', category: 'TEXT' },
+            validations: [{ name: 'max', value: '5' }],
+          },
+          {
+            key: 'payload',
+            name: 'Payload',
+            description: 'JSON payload.',
+            required: false,
+            type: { name: 'json', category: 'JSON' },
+            validations: [],
+          },
+        ],
+        metaobjectsCount: 2,
+      }),
+    ]);
+    store.upsertBaseMetaobjects([
+      makeEntry({
+        id: 'gid://shopify/Metaobject/3001',
+        handle: 'first',
+        displayName: 'First',
+        fields: [
+          {
+            key: 'title',
+            type: 'single_line_text_field',
+            value: 'First',
+            jsonValue: 'First',
+            definition: {
+              key: 'title',
+              name: 'Title',
+              required: true,
+              type: { name: 'single_line_text_field', category: 'TEXT' },
+            },
+          },
+        ],
+      }),
+      makeEntry({
+        id: 'gid://shopify/Metaobject/3002',
+        handle: 'second',
+        displayName: 'Second',
+        fields: [
+          {
+            key: 'title',
+            type: 'single_line_text_field',
+            value: 'Two',
+            jsonValue: 'Two',
+            definition: {
+              key: 'title',
+              name: 'Title',
+              required: true,
+              type: { name: 'single_line_text_field', category: 'TEXT' },
+            },
+          },
+        ],
+      }),
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('metaobject validation branches must stay local');
+    });
+    const app = createApp(config).callback();
+
+    const missingVariableResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteMissingVariable($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code } }
+        }`,
+        variables: {},
+      });
+
+    expect(missingVariableResponse.body).toEqual({
+      errors: [
+        {
+          message: 'Variable $id of type ID! was provided invalid value',
+          extensions: {
+            code: 'INVALID_VARIABLE',
+            value: null,
+            problems: [{ path: [], explanation: 'Expected value to not be null' }],
+          },
+        },
+      ],
+    });
+
+    const unknownTypeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UnknownType($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          metaobject: {
+            type: 'codex_missing_metaobject_rows',
+            fields: [{ key: 'title', value: 'Alpha' }],
+          },
+        },
+      });
+
+    expect(unknownTypeResponse.body.data.metaobjectCreate).toEqual({
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['metaobject', 'type'],
+          message: 'No metaobject definition exists for type "codex_missing_metaobject_rows"',
+          code: 'UNDEFINED_OBJECT_TYPE',
+          elementKey: null,
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const invalidValueResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation InvalidValues($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          metaobject: {
+            type: 'codex_metaobject_rows',
+            handle: 'invalid-values',
+            fields: [
+              { key: 'title', value: 'Too long' },
+              { key: 'payload', value: '{not-json' },
+            ],
+          },
+        },
+      });
+
+    expect(invalidValueResponse.body.data.metaobjectCreate).toEqual({
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['metaobject', 'fields', '0'],
+          message: 'Value has a maximum length of 5.',
+          code: 'INVALID_VALUE',
+          elementKey: 'title',
+          elementIndex: null,
+        },
+        {
+          field: ['metaobject', 'fields', '1'],
+          message: "Value is invalid JSON: expected object key, got 'not-json' at line 1 column 2.",
+          code: 'INVALID_VALUE',
+          elementKey: 'payload',
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const duplicateCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DuplicateCreate($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          metaobject: {
+            type: 'codex_metaobject_rows',
+            handle: 'first',
+            fields: [{ key: 'title', value: 'Third' }],
+          },
+        },
+      });
+
+    expect(duplicateCreateResponse.body.data.metaobjectCreate).toMatchObject({
+      metaobject: { handle: 'first-2' },
+      userErrors: [],
+    });
+
+    const duplicateUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DuplicateUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Metaobject/3002',
+          metaobject: { handle: 'first' },
+        },
+      });
+
+    expect(duplicateUpdateResponse.body.data.metaobjectUpdate).toEqual({
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['metaobject', 'handle'],
+          message: 'Handle has already been taken',
+          code: 'TAKEN',
+          elementKey: null,
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const blankUpsertHandleResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BlankUpsertHandle($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { handle displayName }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          handle: { type: 'codex_metaobject_rows', handle: '' },
+          metaobject: { fields: [{ key: 'title', value: 'Up' }] },
+        },
+      });
+
+    expect(blankUpsertHandleResponse.body.data.metaobjectUpsert).toEqual({
+      metaobject: { handle: 'up', displayName: 'Up' },
+      userErrors: [],
+    });
+
+    const staleUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation StaleUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/Metaobject/0',
+          metaobject: { handle: 'missing' },
+        },
+      });
+
+    expect(staleUpdateResponse.body.data.metaobjectUpdate).toEqual({
+      metaobject: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Record not found',
+          code: 'RECORD_NOT_FOUND',
+          elementKey: null,
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.metaobjects).not.toHaveProperty('invalid-values');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages metaobjectBulkDelete with ordered missing-row errors and downstream absence', async () => {
     store.upsertBaseMetaobjectDefinitions([makeDefinition({ metaobjectsCount: 2 })]);
     store.upsertBaseMetaobjects([
@@ -401,7 +667,7 @@ describe('metaobject draft flow', () => {
       .send({
         operationName: 'BulkDeleteMetaobjects',
         query: `mutation BulkDeleteMetaobjects($ids: [ID!]!) {
-          metaobjectBulkDelete(ids: $ids) {
+          metaobjectBulkDelete(where: { ids: $ids }) {
             job { id done }
             userErrors { field message code elementKey elementIndex }
           }
@@ -417,8 +683,8 @@ describe('metaobject draft flow', () => {
     expect(deleteResponse.body.data.metaobjectBulkDelete.userErrors).toEqual([
       {
         field: ['ids', '1'],
-        message: 'Metaobject not found.',
-        code: 'NOT_FOUND',
+        message: 'Record not found',
+        code: 'RECORD_NOT_FOUND',
         elementKey: null,
         elementIndex: 1,
       },

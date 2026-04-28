@@ -177,41 +177,6 @@ describe('validateParityScenarioInventoryEntry', () => {
     ).toEqual(['Captured scenario captured-without-targets must declare at least one executable comparison target.']);
   });
 
-  it('rejects captured scenarios that keep blockers in checked-in inventory', () => {
-    expect(
-      validateParityScenarioInventoryEntry(
-        {
-          id: 'captured-blocked',
-          status: 'captured',
-          captureFiles: ['fixtures/conformance/example.json'],
-        },
-        {
-          comparisonMode: 'captured-vs-proxy-request',
-          proxyRequest: {
-            documentPath: 'config/parity-requests/example.graphql',
-          },
-          comparison: {
-            mode: 'strict-json',
-            expectedDifferences: [],
-            targets: [
-              {
-                name: 'data',
-                capturePath: '$.data',
-                proxyPath: '$.data',
-              },
-            ],
-          },
-          blocker: {
-            kind: 'not-promoted',
-            blockerPath: null,
-          },
-        },
-      ),
-    ).toEqual([
-      'Captured scenario captured-blocked must not declare a blocker; remove it from checked-in parity inventory until it is enforceable.',
-    ]);
-  });
-
   it('requires captured fixture scenarios to name their runtime enforcement', () => {
     expect(
       validateParityScenarioInventoryEntry(
@@ -662,47 +627,5 @@ describe('executeParityScenario', () => {
         differences: [],
       },
     ]);
-  });
-
-  it('marks blocked planned scenarios with a proxy request distinctly from generic planned work', () => {
-    const state = classifyParityScenarioState(
-      { status: 'planned' },
-      {
-        proxyRequest: {
-          documentPath: 'config/parity-requests/productPublish.graphql',
-          variablesPath: 'config/parity-requests/productPublish.json',
-        },
-        blocker: {
-          kind: 'missing-live-scopes',
-          blockerPath: null,
-          details: {
-            linearIssue: 'HAR-188',
-          },
-        },
-      },
-    );
-
-    expect(state).toBe('blocked-with-proxy-request');
-  });
-
-  it('marks captured scenarios with blockers as invalid captured inventory', () => {
-    const state = classifyParityScenarioState(
-      { status: 'captured' },
-      {
-        proxyRequest: {
-          documentPath: 'config/parity-requests/productPublish.graphql',
-          variablesPath: 'config/parity-requests/productPublish.json',
-        },
-        blocker: {
-          kind: 'missing-publication-target',
-          blockerPath: null,
-          details: {
-            linearIssue: 'HAR-188',
-          },
-        },
-      },
-    );
-
-    expect(state).toBe('invalid-missing-comparison-contract');
   });
 });

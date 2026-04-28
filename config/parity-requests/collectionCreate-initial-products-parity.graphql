@@ -1,0 +1,29 @@
+mutation CollectionCreateInitialProducts($input: CollectionInput!, $firstProductId: ID!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      handle
+      products(first: 10, sortKey: MANUAL) {
+        nodes {
+          id
+          title
+          handle
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+        }
+      }
+      hasProduct(id: $firstProductId)
+      productsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

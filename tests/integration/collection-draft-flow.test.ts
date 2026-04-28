@@ -101,6 +101,91 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages collectionCreate input products as initial manual collection memberships', async () => {
+    store.upsertBaseProducts([
+      makeBaseProduct('gid://shopify/Product/101', 'Initial Alpha Hat', 'initial-alpha-hat'),
+      makeBaseProduct('gid://shopify/Product/102', 'Initial Bravo Hat', 'initial-bravo-hat'),
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation CreateCollection($input: CollectionInput!, $productId: ID!) { collectionCreate(input: $input) { collection { id title handle products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } hasProduct(id: $productId) productsCount { count precision } } userErrors { field message } } }',
+        variables: {
+          productId: 'gid://shopify/Product/101',
+          input: {
+            title: 'Initial Product Hats',
+            sortOrder: 'MANUAL',
+            products: ['gid://shopify/Product/101', 'gid://shopify/Product/102'],
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.collectionCreate.userErrors).toEqual([]);
+    const collection = createResponse.body.data.collectionCreate.collection as { id: string };
+    expect(createResponse.body.data.collectionCreate.collection).toEqual({
+      id: collection.id,
+      title: 'Initial Product Hats',
+      handle: 'initial-product-hats',
+      products: {
+        nodes: [
+          { id: 'gid://shopify/Product/101', title: 'Initial Alpha Hat', handle: 'initial-alpha-hat' },
+          { id: 'gid://shopify/Product/102', title: 'Initial Bravo Hat', handle: 'initial-bravo-hat' },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+      hasProduct: true,
+      productsCount: { count: 0, precision: 'EXACT' },
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query InitialCollectionRead($collectionId: ID!, $productId: ID!) { collection(id: $collectionId) { id products(first: 10, sortKey: MANUAL) { nodes { id title } } productsCount { count precision } hasProduct(id: "gid://shopify/Product/102") } product(id: $productId) { id collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } collections(first: 10, query: "product_id:gid://shopify/Product/102") { nodes { id title handle } } }',
+        variables: {
+          collectionId: collection.id,
+          productId: 'gid://shopify/Product/101',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      collection: {
+        id: collection.id,
+        products: {
+          nodes: [
+            { id: 'gid://shopify/Product/101', title: 'Initial Alpha Hat' },
+            { id: 'gid://shopify/Product/102', title: 'Initial Bravo Hat' },
+          ],
+        },
+        productsCount: { count: 2, precision: 'EXACT' },
+        hasProduct: true,
+      },
+      product: {
+        id: 'gid://shopify/Product/101',
+        collections: {
+          nodes: [{ id: collection.id, title: 'Initial Product Hats', handle: 'initial-product-hats' }],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        },
+      },
+      collections: {
+        nodes: [{ id: collection.id, title: 'Initial Product Hats', handle: 'initial-product-hats' }],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages metafields for collection owners and exposes set and delete effects through collection reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp(config).callback();
@@ -1093,6 +1178,87 @@ describe('collection draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('preserves collectionAddProductsV2 input order for explicitly manual collections', async () => {
+    store.upsertBaseProducts([
+      makeBaseProduct('gid://shopify/Product/4330', 'Manual First Hat', 'manual-first-hat'),
+      makeBaseProduct('gid://shopify/Product/4331', 'Manual Second Hat', 'manual-second-hat'),
+      makeBaseProduct('gid://shopify/Product/4332', 'Manual Existing Hat', 'manual-existing-hat'),
+    ]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/9433',
+        title: 'Manual V2 Hats',
+        handle: 'manual-v2-hats',
+        sortOrder: 'MANUAL',
+      },
+    ]);
+    store.replaceBaseCollectionsForProduct('gid://shopify/Product/4332', [
+      {
+        id: 'gid://shopify/Collection/9433',
+        productId: 'gid://shopify/Product/4332',
+        title: 'Manual V2 Hats',
+        handle: 'manual-v2-hats',
+        position: 0,
+      },
+    ]);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const addResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation AddProductsV2($id: ID!, $productIds: [ID!]!) { collectionAddProductsV2(id: $id, productIds: $productIds) { job { id done } userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Collection/9433',
+          productIds: ['gid://shopify/Product/4330', 'gid://shopify/Product/4331'],
+        },
+      });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body.data.collectionAddProductsV2).toEqual({
+      job: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Job\/\d+$/),
+        done: false,
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query ManualV2Read($id: ID!, $productId: ID!) { collection(id: $id) { id products(first: 10, sortKey: MANUAL) { nodes { id title } } productsCount { count precision } } product(id: $productId) { id collections(first: 10) { nodes { id title handle } } } }',
+        variables: {
+          id: 'gid://shopify/Collection/9433',
+          productId: 'gid://shopify/Product/4331',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      collection: {
+        id: 'gid://shopify/Collection/9433',
+        products: {
+          nodes: [
+            { id: 'gid://shopify/Product/4332', title: 'Manual Existing Hat' },
+            { id: 'gid://shopify/Product/4330', title: 'Manual First Hat' },
+            { id: 'gid://shopify/Product/4331', title: 'Manual Second Hat' },
+          ],
+        },
+        productsCount: { count: 3, precision: 'EXACT' },
+      },
+      product: {
+        id: 'gid://shopify/Product/4331',
+        collections: {
+          nodes: [{ id: 'gid://shopify/Collection/9433', title: 'Manual V2 Hats', handle: 'manual-v2-hats' }],
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('keeps collectionAddProducts atomic when any product is already a member', async () => {
     store.upsertBaseProducts([
       {
@@ -1537,6 +1703,102 @@ describe('collection draft flow', () => {
         },
         status: 'staged',
       },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages collectionReorderProducts moves into the middle of manual collection order', async () => {
+    store.upsertBaseProducts([
+      makeBaseProduct('gid://shopify/Product/180', 'Alpha Middle Hat', 'alpha-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/181', 'Bravo Middle Hat', 'bravo-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/182', 'Charlie Middle Hat', 'charlie-middle-hat'),
+      makeBaseProduct('gid://shopify/Product/183', 'Delta Middle Hat', 'delta-middle-hat'),
+    ]);
+    store.upsertBaseCollections([
+      {
+        id: 'gid://shopify/Collection/1980',
+        title: 'Manual Middle Hats',
+        handle: 'manual-middle-hats',
+        sortOrder: 'MANUAL',
+      },
+    ]);
+    for (const [position, productId] of [
+      'gid://shopify/Product/180',
+      'gid://shopify/Product/181',
+      'gid://shopify/Product/182',
+      'gid://shopify/Product/183',
+    ].entries()) {
+      store.replaceBaseCollectionsForProduct(productId, [
+        {
+          id: 'gid://shopify/Collection/1980',
+          productId,
+          title: 'Manual Middle Hats',
+          handle: 'manual-middle-hats',
+          sortOrder: 'MANUAL',
+          position,
+        },
+      ]);
+    }
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const app = createApp(config).callback();
+
+    const reorderResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ReorderProducts($id: ID!, $moves: [MoveInput!]!) { collectionReorderProducts(id: $id, moves: $moves) { job { id done } userErrors { field message } } }',
+        variables: {
+          id: 'gid://shopify/Collection/1980',
+          moves: [{ id: 'gid://shopify/Product/183', newPosition: '2' }],
+        },
+      });
+
+    expect(reorderResponse.status).toBe(200);
+    expect(reorderResponse.body.data.collectionReorderProducts).toEqual({
+      job: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Job\/.+$/),
+        done: false,
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query MiddleOrder($collectionId: ID!) { collection(id: $collectionId) { id products(first: 10, sortKey: MANUAL) { nodes { id title } pageInfo { hasNextPage hasPreviousPage } } productsCount { count precision } } }',
+        variables: {
+          collectionId: 'gid://shopify/Collection/1980',
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.collection).toEqual({
+      id: 'gid://shopify/Collection/1980',
+      products: {
+        nodes: [
+          { id: 'gid://shopify/Product/180', title: 'Alpha Middle Hat' },
+          { id: 'gid://shopify/Product/181', title: 'Bravo Middle Hat' },
+          { id: 'gid://shopify/Product/183', title: 'Delta Middle Hat' },
+          { id: 'gid://shopify/Product/182', title: 'Charlie Middle Hat' },
+        ],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+      },
+      productsCount: { count: 4, precision: 'EXACT' },
+    });
+
+    const stagedMemberships = Object.values(store.getState().stagedState.productCollections).sort(
+      (left, right) => (left.position ?? 0) - (right.position ?? 0),
+    );
+    expect(stagedMemberships.map((membership) => [membership.productId, membership.position])).toEqual([
+      ['gid://shopify/Product/180', 0],
+      ['gid://shopify/Product/181', 1],
+      ['gid://shopify/Product/183', 2],
+      ['gid://shopify/Product/182', 3],
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

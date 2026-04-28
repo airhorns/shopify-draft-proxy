@@ -36,9 +36,14 @@ Explicitly unsupported:
   objects or accepting uploaded bytes. Returned URLs use
   `shopify-draft-proxy.local` placeholders and are not a supported upload
   endpoint.
+- Shopify's media guide documents staged uploads as a two-step upload flow:
+  obtain signed target metadata, upload bytes directly to Shopify storage, then
+  pass the returned `resourceUrl` to `fileCreate` or product media inputs. The
+  proxy intentionally models only the metadata placeholder today; it does not
+  accept the upload bytes or prove upload success/failure.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
 - `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status.
-- `fileUpdate` validates file ids, URL fields, alt text length, and product references before updating staged records.
+- `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion.
 - `fileAcknowledgeUpdateFailed` remains registered but unimplemented. It is a
   Files API side-effect root tied to upload/failure state that is not modeled
