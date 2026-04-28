@@ -191,6 +191,13 @@ Bulk Operations state is normalized as a shared job foundation rather than as pr
 - `bulkOperationRunQuery` stages supported product/product-variant query exports locally by parsing the submitted bulk query, validating documented bulk-query boundaries, writing a completed staged query job, and serving generated JSONL from an in-memory result URL
 - `bulkOperationRunMutation` stages product-first mutation imports locally when the staged upload content was uploaded through the proxy and the inner mutation root is already implemented by the local product mutation pipeline; unsupported inner roots create failed local jobs instead of runtime Shopify writes
 
+Apps, billing, access-scope, uninstall, and delegated-token state is normalized for local side-effect safety:
+
+- app identity, current app installation, access scopes, app subscriptions, subscription line items, one-time purchases, usage records, and delegated-token metadata live in dedicated app-domain buckets
+- billing and delegated-token mutation handlers synthesize local confirmation URLs/tokens and stage read-after-write effects without sending runtime writes to Shopify
+- delegated-token raw values are not stored in meta-visible state; only a hash and redacted preview are retained for local destroy lookup and inspection
+- live-hybrid app installation reads can hydrate the local app model, while snapshot/local reads return null/empty structures when no app installation state exists
+
 ## Mutation handling strategy
 
 Mutation handling should eventually have four steps:

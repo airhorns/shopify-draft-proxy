@@ -13,7 +13,7 @@ This endpoint group tracks Admin GraphQL app identity, app installation, app bil
 - `appInstallations(...)`
 - `currentAppInstallation`
 
-These reads are registry-only gaps for now. They are not marked implemented and do not route through a local app model yet.
+`currentAppInstallation`, `appInstallation(id:)`, `app(id:)`, `appByHandle(handle:)`, and `appByKey(apiKey:)` can now project the local app model after a staged app mutation or after live-hybrid hydration from an upstream app installation read. Snapshot reads return Shopify-like null/empty values when no app installation has been staged or hydrated. `appInstallations(first:)` serializes the current staged/hydrated installation as a connection for local read-after-write checks, but authorized multi-installation catalog behavior still needs a suitable live credential.
 
 ### Registered mutation roots
 
@@ -28,9 +28,20 @@ These reads are registry-only gaps for now. They are not marked implemented and 
 - `delegateAccessTokenCreate`
 - `delegateAccessTokenDestroy`
 
-These mutation roots are registered as local-staging gaps, but none are implemented. Runtime requests still use the unsupported mutation escape hatch and would be proxied to Shopify. The mutation log records `registeredOperation` metadata and `unsupported-app-billing-access-mutation` safety metadata so billing/access passthrough is visible.
+HAR-364 implements local staging for these roots. Supported runtime requests no longer proxy to Shopify; they append the original raw mutation request to the meta log for ordered commit replay and synthesize Shopify-like payloads from in-memory state.
 
-Do not mark these roots supported until the proxy can stage the full lifecycle locally, expose downstream read-after-write effects, and preserve the original raw mutations for ordered `__meta/commit` replay. Validation-only captures or branch-only handling are not enough support for these roots.
+Current modeled behavior:
+
+- `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL.
+- `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
+- `appSubscriptionCancel`, `appSubscriptionLineItemUpdate`, and `appSubscriptionTrialExtend` mutate staged subscription state and return userErrors for unknown local IDs.
+- `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
+- `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
+- `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
+- `delegateAccessTokenCreate` returns a synthetic delegated token once and stores only a SHA-256 hash plus redacted preview in meta-visible state.
+- `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
+
+The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
 
 ### Safety notes
 
@@ -39,7 +50,9 @@ Do not mark these roots supported until the proxy can stage the full lifecycle l
 - `appUninstall` can remove the app installation from the store.
 - Delegated-access roots can create or destroy credentials whose effects are authorization-sensitive.
 
-Until local staging exists, any live capture work must avoid these mutation roots unless the ticket explicitly requires side-effect capture and the store/app are disposable for that purpose.
+The local proxy uses synthetic confirmation URLs containing `signature=shopify-draft-proxy-local-redacted`; these URLs are not real Shopify approval links and should still be treated as sensitive in examples and fixtures. Delegated tokens are returned only in the mutation payload and are intentionally absent from `__meta/state`.
+
+Live success-path captures for billing approval, uninstall, app grant revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects. The local runtime fixture records that blocker and the integration test covers strict local behavior instead of mutating a real shop.
 
 ## Historical and developer notes
 
@@ -57,7 +70,9 @@ The capture records:
 
 ### Validation
 
+- `tests/integration/app-billing-access-flow.test.ts`
 - `tests/integration/proxy-capability-classification.test.ts`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
+- `config/parity-specs/app-billing-access-local-staging.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

@@ -193,28 +193,10 @@ describe('proxy capability classification', () => {
     expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('external Function logic');
   });
 
-  it('marks app billing and access mutations as unsafe unsupported passthrough in logs', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            appSubscriptionCancel: {
-              appSubscription: null,
-              userErrors: [
-                {
-                  field: ['id'],
-                  message: 'Subscription not found',
-                },
-              ],
-            },
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
-    );
+  it('logs app billing and access mutations as staged-local intent', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('supported app billing/access mutation should not hit upstream fetch'));
 
     const app = createApp(config);
     const query = `#graphql
@@ -237,36 +219,34 @@ describe('proxy capability classification', () => {
       .send({ query });
 
     expect(response.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(response.body.data.appSubscriptionCancel).toEqual({
+      appSubscription: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Subscription not found',
+        },
+      ],
+    });
     expect(store.getLog()).toHaveLength(1);
     expect(store.getLog()[0]).toMatchObject({
-      operationName: 'CancelAppSubscription',
-      status: 'proxied',
+      operationName: 'appSubscriptionCancel',
+      status: 'staged',
       interpreted: {
         operationType: 'mutation',
         operationName: 'CancelAppSubscription',
         rootFields: ['appSubscriptionCancel'],
         primaryRootField: 'appSubscriptionCancel',
         capability: {
-          operationName: 'CancelAppSubscription',
-          domain: 'unknown',
-          execution: 'passthrough',
-        },
-        registeredOperation: {
-          name: 'appSubscriptionCancel',
+          operationName: 'appSubscriptionCancel',
           domain: 'apps',
           execution: 'stage-locally',
-          implemented: false,
-        },
-        safety: {
-          classification: 'unsupported-app-billing-access-mutation',
-          wouldProxyToShopify: true,
         },
       },
       notes:
-        'Unsupported app billing/access mutation would be proxied to Shopify. These roots can alter merchant billing, installation state, app scopes, or delegated tokens and require conformance-backed local staging plus raw commit replay before support.',
+        'Staged locally in the in-memory app billing/access draft store; no billing, uninstall, scope, or delegated-token side effect was sent to Shopify at runtime.',
     });
-    expect(store.getLog()[0]?.interpreted.safety?.reason).toContain('merchant billing');
   });
 
   it('marks delivery customization, promise, and settings mutations as unsafe unsupported passthrough in logs', async () => {

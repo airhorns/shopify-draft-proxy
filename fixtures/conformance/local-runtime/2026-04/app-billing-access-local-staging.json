@@ -1,0 +1,78 @@
+{
+  "capturedAt": "2026-04-28T02:10:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-billing-access-local-staging",
+  "notes": [
+    "Runtime fixture enforced by tests/integration/app-billing-access-flow.test.ts.",
+    "Billing confirmation URLs and delegated access tokens are synthetic local values. Raw delegated token values are intentionally absent from meta-visible state.",
+    "Live success-path captures for billing approval, app uninstall, access-scope revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects."
+  ],
+  "operationNames": [
+    "appPurchaseOneTimeCreate",
+    "appSubscriptionCreate",
+    "appSubscriptionCancel",
+    "appSubscriptionLineItemUpdate",
+    "appSubscriptionTrialExtend",
+    "appUsageRecordCreate",
+    "appRevokeAccessScopes",
+    "appUninstall",
+    "delegateAccessTokenCreate",
+    "delegateAccessTokenDestroy"
+  ],
+  "evidence": {
+    "unknownCancel": {
+      "variables": {
+        "id": "gid://shopify/AppSubscription/0"
+      },
+      "expected": {
+        "data": {
+          "appSubscriptionCancel": {
+            "appSubscription": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Subscription not found"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "billingLifecycle": {
+      "mutationPayloads": [
+        "appSubscriptionCreate returns a PENDING staged subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
+        "appPurchaseOneTimeCreate returns a PENDING staged one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
+        "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
+        "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
+        "appSubscriptionTrialExtend updates staged trialDays.",
+        "appSubscriptionCancel returns the staged subscription with status CANCELLED."
+      ],
+      "downstreamReads": [
+        "currentAppInstallation.allSubscriptions reads the staged subscription and usage record.",
+        "currentAppInstallation.oneTimePurchases reads the staged one-time purchase.",
+        "currentAppInstallation.activeSubscriptions stays empty for pending/cancelled local billing."
+      ]
+    },
+    "accessAndInstall": {
+      "mutationPayloads": [
+        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appUninstall returns the staged app object."
+      ],
+      "downstreamReads": [
+        "currentAppInstallation.accessScopes excludes locally revoked scopes.",
+        "currentAppInstallation returns null after staged appUninstall."
+      ]
+    },
+    "delegatedTokens": {
+      "mutationPayloads": [
+        "delegateAccessTokenCreate returns the synthetic raw token once with accessScopes and expiresIn.",
+        "delegateAccessTokenDestroy returns status true for the staged token and status false with ACCESS_TOKEN_NOT_FOUND when repeated."
+      ],
+      "secretHandling": [
+        "Meta-visible delegatedAccessTokens store accessTokenSha256 and accessTokenPreview only.",
+        "The raw synthetic token returned by delegateAccessTokenCreate is not serialized in __meta/state."
+      ]
+    }
+  }
+}

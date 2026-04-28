@@ -1,0 +1,44 @@
+{
+  "scenarioId": "app-billing-access-local-staging",
+  "operationNames": [
+    "appPurchaseOneTimeCreate",
+    "appSubscriptionCreate",
+    "appSubscriptionCancel",
+    "appSubscriptionLineItemUpdate",
+    "appSubscriptionTrialExtend",
+    "appUsageRecordCreate",
+    "appRevokeAccessScopes",
+    "appUninstall",
+    "delegateAccessTokenCreate",
+    "delegateAccessTokenDestroy"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "mutation-log-replay",
+    "no-upstream-passthrough",
+    "secret-redaction"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/app-billing-access-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/app-billing-access-flow.test.ts"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/appSubscriptionCancel-unknown-local.graphql",
+    "variablesCapturePath": "$.evidence.unknownCancel.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-subscription-cancel-user-error",
+        "capturePath": "$.evidence.unknownCancel.expected.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel"
+      }
+    ]
+  },
+  "notes": "The generic parity request strictly compares the safe unknown-id cancellation branch. The multi-step billing/access/delegated-token lifecycle is additionally enforced by runtime tests because replaying real billing approval, uninstall, access-scope revocation, or delegated-token side effects against Shopify is not safe without an explicitly disposable app/store credential. The fixture documents precise live-capture blockers while runtime tests enforce strict local payloads, downstream reads, meta logs/state, no upstream passthrough, and secret handling for every operationName."
+}

@@ -3,6 +3,12 @@ import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
   AbandonmentRecord,
+  AppInstallationRecord,
+  AppOneTimePurchaseRecord,
+  AppRecord,
+  AppSubscriptionLineItemRecord,
+  AppSubscriptionRecord,
+  AppUsageRecord,
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
   B2BCompanyLocationRecord,
@@ -27,6 +33,7 @@ import type {
   CustomerRecord,
   CustomerSegmentMembersQueryRecord,
   DeliveryProfileRecord,
+  DelegatedAccessTokenRecord,
   DiscountRecord,
   DiscountBulkOperationRecord,
   DraftOrderRecord,
@@ -186,6 +193,14 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   priceListOrder: [],
   deliveryProfiles: {},
   deliveryProfileOrder: [],
+  apps: {},
+  appInstallations: {},
+  currentAppInstallationId: null,
+  appSubscriptions: {},
+  appSubscriptionLineItems: {},
+  appOneTimePurchases: {},
+  appUsageRecords: {},
+  delegatedAccessTokens: {},
   sellingPlanGroups: {},
   sellingPlanGroupOrder: [],
   abandonedCheckouts: {},
@@ -2642,6 +2657,160 @@ export class InMemoryStore {
     return (
       Object.keys(this.stagedState.deliveryProfiles).length > 0 ||
       Object.keys(this.stagedState.deletedDeliveryProfileIds).length > 0
+    );
+  }
+
+  upsertBaseApp(app: AppRecord): AppRecord {
+    this.baseState.apps[app.id] = structuredClone(app);
+    return structuredClone(app);
+  }
+
+  stageApp(app: AppRecord): AppRecord {
+    this.stagedState.apps[app.id] = structuredClone(app);
+    return structuredClone(app);
+  }
+
+  getEffectiveAppById(appId: string): AppRecord | null {
+    const app = this.stagedState.apps[appId] ?? this.baseState.apps[appId] ?? null;
+    return app ? structuredClone(app) : null;
+  }
+
+  findEffectiveAppByHandle(handle: string): AppRecord | null {
+    const app =
+      Object.values({ ...this.baseState.apps, ...this.stagedState.apps }).find(
+        (candidate) => candidate.handle === handle,
+      ) ?? null;
+    return app ? structuredClone(app) : null;
+  }
+
+  findEffectiveAppByApiKey(apiKey: string): AppRecord | null {
+    const app =
+      Object.values({ ...this.baseState.apps, ...this.stagedState.apps }).find(
+        (candidate) => candidate.apiKey === apiKey,
+      ) ?? null;
+    return app ? structuredClone(app) : null;
+  }
+
+  upsertBaseAppInstallation(installation: AppInstallationRecord, app: AppRecord): AppInstallationRecord {
+    this.baseState.apps[app.id] = structuredClone(app);
+    this.baseState.appInstallations[installation.id] = structuredClone(installation);
+    this.baseState.currentAppInstallationId = installation.id;
+    return structuredClone(installation);
+  }
+
+  stageAppInstallation(installation: AppInstallationRecord): AppInstallationRecord {
+    this.stagedState.appInstallations[installation.id] = structuredClone(installation);
+    this.stagedState.currentAppInstallationId = installation.id;
+    return structuredClone(installation);
+  }
+
+  getCurrentAppInstallation(): AppInstallationRecord | null {
+    const installationId = this.stagedState.currentAppInstallationId ?? this.baseState.currentAppInstallationId;
+    if (!installationId) {
+      return null;
+    }
+
+    return this.getEffectiveAppInstallationById(installationId);
+  }
+
+  getEffectiveAppInstallationById(installationId: string): AppInstallationRecord | null {
+    const installation =
+      this.stagedState.appInstallations[installationId] ?? this.baseState.appInstallations[installationId] ?? null;
+    if (!installation || installation.uninstalledAt !== null) {
+      return null;
+    }
+
+    return structuredClone(installation);
+  }
+
+  stageAppSubscription(subscription: AppSubscriptionRecord): AppSubscriptionRecord {
+    this.stagedState.appSubscriptions[subscription.id] = structuredClone(subscription);
+    return structuredClone(subscription);
+  }
+
+  getEffectiveAppSubscriptionById(subscriptionId: string): AppSubscriptionRecord | null {
+    const subscription =
+      this.stagedState.appSubscriptions[subscriptionId] ?? this.baseState.appSubscriptions[subscriptionId] ?? null;
+    return subscription ? structuredClone(subscription) : null;
+  }
+
+  stageAppSubscriptionLineItem(lineItem: AppSubscriptionLineItemRecord): AppSubscriptionLineItemRecord {
+    this.stagedState.appSubscriptionLineItems[lineItem.id] = structuredClone(lineItem);
+    return structuredClone(lineItem);
+  }
+
+  getEffectiveAppSubscriptionLineItemById(lineItemId: string): AppSubscriptionLineItemRecord | null {
+    const lineItem =
+      this.stagedState.appSubscriptionLineItems[lineItemId] ??
+      this.baseState.appSubscriptionLineItems[lineItemId] ??
+      null;
+    return lineItem ? structuredClone(lineItem) : null;
+  }
+
+  findEffectiveAppSubscriptionByLineItemId(lineItemId: string): AppSubscriptionRecord | null {
+    const lineItem = this.getEffectiveAppSubscriptionLineItemById(lineItemId);
+    return lineItem ? this.getEffectiveAppSubscriptionById(lineItem.subscriptionId) : null;
+  }
+
+  stageAppOneTimePurchase(purchase: AppOneTimePurchaseRecord): AppOneTimePurchaseRecord {
+    this.stagedState.appOneTimePurchases[purchase.id] = structuredClone(purchase);
+    return structuredClone(purchase);
+  }
+
+  getEffectiveAppOneTimePurchaseById(purchaseId: string): AppOneTimePurchaseRecord | null {
+    const purchase =
+      this.stagedState.appOneTimePurchases[purchaseId] ?? this.baseState.appOneTimePurchases[purchaseId] ?? null;
+    return purchase ? structuredClone(purchase) : null;
+  }
+
+  stageAppUsageRecord(record: AppUsageRecord): AppUsageRecord {
+    this.stagedState.appUsageRecords[record.id] = structuredClone(record);
+    return structuredClone(record);
+  }
+
+  listEffectiveAppUsageRecordsForLineItem(lineItemId: string): AppUsageRecord[] {
+    return Object.values({ ...this.baseState.appUsageRecords, ...this.stagedState.appUsageRecords })
+      .filter((record) => record.subscriptionLineItemId === lineItemId)
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id))
+      .map((record) => structuredClone(record));
+  }
+
+  stageDelegatedAccessToken(record: DelegatedAccessTokenRecord): DelegatedAccessTokenRecord {
+    this.stagedState.delegatedAccessTokens[record.id] = structuredClone(record);
+    return structuredClone(record);
+  }
+
+  findDelegatedAccessTokenByHash(accessTokenSha256: string): DelegatedAccessTokenRecord | null {
+    const token =
+      Object.values({ ...this.baseState.delegatedAccessTokens, ...this.stagedState.delegatedAccessTokens }).find(
+        (candidate) => candidate.accessTokenSha256 === accessTokenSha256 && candidate.destroyedAt === null,
+      ) ?? null;
+    return token ? structuredClone(token) : null;
+  }
+
+  destroyDelegatedAccessToken(id: string, destroyedAt: string): DelegatedAccessTokenRecord | null {
+    const token = this.stagedState.delegatedAccessTokens[id] ?? this.baseState.delegatedAccessTokens[id] ?? null;
+    if (!token || token.destroyedAt !== null) {
+      return null;
+    }
+
+    const destroyed = { ...token, destroyedAt };
+    this.stagedState.delegatedAccessTokens[id] = structuredClone(destroyed);
+    return structuredClone(destroyed);
+  }
+
+  hasAppDomainState(): boolean {
+    return (
+      this.baseState.currentAppInstallationId !== null ||
+      this.stagedState.currentAppInstallationId !== null ||
+      Object.keys(this.baseState.apps).length > 0 ||
+      Object.keys(this.stagedState.apps).length > 0 ||
+      Object.keys(this.baseState.appSubscriptions).length > 0 ||
+      Object.keys(this.stagedState.appSubscriptions).length > 0 ||
+      Object.keys(this.baseState.appOneTimePurchases).length > 0 ||
+      Object.keys(this.stagedState.appOneTimePurchases).length > 0 ||
+      Object.keys(this.baseState.delegatedAccessTokens).length > 0 ||
+      Object.keys(this.stagedState.delegatedAccessTokens).length > 0
     );
   }
 

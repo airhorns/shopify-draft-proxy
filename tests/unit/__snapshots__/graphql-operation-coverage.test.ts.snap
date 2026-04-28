@@ -3,14 +3,6 @@
 exports[`GraphQL operation coverage > separates declared mutation gaps from unregistered introspected mutation roots 1`] = `
 {
   "declaredGaps": [
-    "appPurchaseOneTimeCreate",
-    "appRevokeAccessScopes",
-    "appSubscriptionCancel",
-    "appSubscriptionCreate",
-    "appSubscriptionLineItemUpdate",
-    "appSubscriptionTrialExtend",
-    "appUninstall",
-    "appUsageRecordCreate",
     "bulkProductResourceFeedbackCreate",
     "combinedListingUpdate",
     "companiesDelete",
@@ -51,8 +43,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
     "customerPaymentMethodPaypalBillingAgreementUpdate",
     "customerPaymentMethodRemoteCreate",
     "customerPaymentMethodRevoke",
-    "delegateAccessTokenCreate",
-    "delegateAccessTokenDestroy",
     "deliveryCustomizationActivation",
     "deliveryCustomizationCreate",
     "deliveryCustomizationDelete",
@@ -188,14 +178,6 @@ exports[`GraphQL operation coverage > separates declared mutation gaps from unre
 
 exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutations that are not formally supported yet 1`] = `
 [
-  "appPurchaseOneTimeCreate",
-  "appRevokeAccessScopes",
-  "appSubscriptionCancel",
-  "appSubscriptionCreate",
-  "appSubscriptionLineItemUpdate",
-  "appSubscriptionTrialExtend",
-  "appUninstall",
-  "appUsageRecordCreate",
   "backupRegionUpdate",
   "bulkProductResourceFeedbackCreate",
   "combinedListingUpdate",
@@ -237,8 +219,6 @@ exports[`GraphQL operation coverage > snapshots introspected Admin GraphQL mutat
   "customerPaymentMethodPaypalBillingAgreementUpdate",
   "customerPaymentMethodRemoteCreate",
   "customerPaymentMethodRevoke",
-  "delegateAccessTokenCreate",
-  "delegateAccessTokenDestroy",
   "deliveryCustomizationActivation",
   "deliveryCustomizationCreate",
   "deliveryCustomizationDelete",

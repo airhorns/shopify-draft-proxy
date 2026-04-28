@@ -2111,6 +2111,87 @@ export const deliveryProfileRecordSchema = z.strictObject({
 });
 export type DeliveryProfileRecord = z.infer<typeof deliveryProfileRecordSchema>;
 
+export const accessScopeRecordSchema = z.strictObject({
+  handle: z.string(),
+  description: nullableStringSchema,
+});
+export type AccessScopeRecord = z.infer<typeof accessScopeRecordSchema>;
+
+export const appRecordSchema = z.strictObject({
+  id: z.string(),
+  apiKey: nullableStringSchema,
+  handle: nullableStringSchema,
+  title: nullableStringSchema,
+  developerName: nullableStringSchema,
+  embedded: nullableBooleanSchema,
+  previouslyInstalled: nullableBooleanSchema,
+  requestedAccessScopes: z.array(accessScopeRecordSchema).default([]),
+});
+export type AppRecord = z.infer<typeof appRecordSchema>;
+
+export const appSubscriptionLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  subscriptionId: z.string(),
+  plan: z.record(z.string(), jsonValueSchema),
+});
+export type AppSubscriptionLineItemRecord = z.infer<typeof appSubscriptionLineItemRecordSchema>;
+
+export const appSubscriptionRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  test: z.boolean(),
+  trialDays: nullableNumberSchema,
+  currentPeriodEnd: nullableStringSchema,
+  createdAt: z.string(),
+  lineItemIds: z.array(z.string()).default([]),
+});
+export type AppSubscriptionRecord = z.infer<typeof appSubscriptionRecordSchema>;
+
+export const appOneTimePurchaseRecordSchema = z.strictObject({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  test: z.boolean(),
+  createdAt: z.string(),
+  price: moneyV2Schema,
+});
+export type AppOneTimePurchaseRecord = z.infer<typeof appOneTimePurchaseRecordSchema>;
+
+export const appUsageRecordSchema = z.strictObject({
+  id: z.string(),
+  subscriptionLineItemId: z.string(),
+  description: z.string(),
+  price: moneyV2Schema,
+  createdAt: z.string(),
+  idempotencyKey: nullableStringSchema,
+});
+export type AppUsageRecord = z.infer<typeof appUsageRecordSchema>;
+
+export const delegatedAccessTokenRecordSchema = z.strictObject({
+  id: z.string(),
+  accessTokenSha256: z.string(),
+  accessTokenPreview: z.string(),
+  accessScopes: z.array(z.string()),
+  createdAt: z.string(),
+  expiresIn: nullableNumberSchema,
+  destroyedAt: nullableStringSchema,
+});
+export type DelegatedAccessTokenRecord = z.infer<typeof delegatedAccessTokenRecordSchema>;
+
+export const appInstallationRecordSchema = z.strictObject({
+  id: z.string(),
+  appId: z.string(),
+  launchUrl: nullableStringSchema,
+  uninstallUrl: nullableStringSchema,
+  accessScopes: z.array(accessScopeRecordSchema).default([]),
+  activeSubscriptionIds: z.array(z.string()).default([]),
+  allSubscriptionIds: z.array(z.string()).default([]),
+  oneTimePurchaseIds: z.array(z.string()).default([]),
+  uninstalledAt: nullableStringSchema,
+});
+export type AppInstallationRecord = z.infer<typeof appInstallationRecordSchema>;
+
 export const sellingPlanRecordSchema = z.strictObject({
   id: z.string(),
   data: jsonObjectSchema.default({}),
@@ -2260,6 +2341,14 @@ export const stateSnapshotSchema = z.strictObject({
   priceListOrder: z.array(z.string()).default([]),
   deliveryProfiles: z.record(z.string(), deliveryProfileRecordSchema).default({}),
   deliveryProfileOrder: z.array(z.string()).default([]),
+  apps: z.record(z.string(), appRecordSchema).default({}),
+  appInstallations: z.record(z.string(), appInstallationRecordSchema).default({}),
+  currentAppInstallationId: nullableStringSchema.default(null),
+  appSubscriptions: z.record(z.string(), appSubscriptionRecordSchema).default({}),
+  appSubscriptionLineItems: z.record(z.string(), appSubscriptionLineItemRecordSchema).default({}),
+  appOneTimePurchases: z.record(z.string(), appOneTimePurchaseRecordSchema).default({}),
+  appUsageRecords: z.record(z.string(), appUsageRecordSchema).default({}),
+  delegatedAccessTokens: z.record(z.string(), delegatedAccessTokenRecordSchema).default({}),
   sellingPlanGroups: z.record(z.string(), sellingPlanGroupRecordSchema).default({}),
   sellingPlanGroupOrder: z.array(z.string()).default([]),
   abandonedCheckouts: z.record(z.string(), abandonedCheckoutRecordSchema).default({}),

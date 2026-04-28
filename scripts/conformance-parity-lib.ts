@@ -28,6 +28,7 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
+import { handleAppMutation, handleAppQuery, hydrateAppsFromUpstreamResponse } from '../src/proxy/apps.js';
 import { handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
@@ -937,6 +938,30 @@ async function executeGraphQLAgainstLocalProxy(
     }
   }
 
+  if (capability.execution === 'stage-locally' && capability.domain === 'apps') {
+    const responseBody = handleAppMutation(document, variables, 'https://conformance.local');
+    if (!responseBody) {
+      throw new Error(`App parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.appendLog({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2026-04/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity app billing/access proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body: responseBody,
+    };
+  }
+
   if (
     capability.execution === 'stage-locally' &&
     (capability.domain === 'products' ||
@@ -1770,6 +1795,17 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (capability.execution === 'overlay-read' && capability.domain === 'apps') {
+    if (upstreamPayload !== undefined) {
+      hydrateAppsFromUpstreamResponse(upstreamPayload);
+    }
+
+    return {
+      status: 200,
+      body: handleAppQuery(document, variables),
+    };
+  }
+
   if (capability.execution === 'overlay-read' && capability.domain === 'webhooks') {
     if (upstreamPayload !== undefined) {
       hydrateWebhookSubscriptionsFromUpstreamResponse(document, variables, upstreamPayload);
@@ -1820,6 +1856,10 @@ function hasStagedState(): boolean {
     Object.keys(stagedState.calculatedOrders).length > 0 ||
     Object.keys(stagedState.giftCards).length > 0 ||
     Object.keys(stagedState.deletedGiftCardIds).length > 0 ||
+    Object.keys(stagedState.appSubscriptions).length > 0 ||
+    Object.keys(stagedState.appOneTimePurchases).length > 0 ||
+    Object.keys(stagedState.appUsageRecords).length > 0 ||
+    Object.keys(stagedState.delegatedAccessTokens).length > 0 ||
     Object.keys(stagedState.webhookSubscriptions).length > 0 ||
     Object.keys(stagedState.deletedWebhookSubscriptionIds).length > 0
   );
