@@ -1,0 +1,123 @@
+fragment MetaobjectSchemaChangeDefinitionFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  hasThumbnailField
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+fragment MetaobjectSchemaChangeEntryFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  summaryField: field(key: "summary") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+query MetaobjectSchemaChangeRead($id: ID!, $handle: MetaobjectHandleInput!, $deletedId: ID!, $type: String!) {
+  detail: metaobject(id: $id) {
+    ...MetaobjectSchemaChangeEntryFields
+  }
+  byHandle: metaobjectByHandle(handle: $handle) {
+    ...MetaobjectSchemaChangeEntryFields
+  }
+  deleted: metaobject(id: $deletedId) {
+    id
+  }
+  catalog: metaobjects(type: $type, first: 10, sortKey: "display_name") {
+    edges {
+      cursor
+      node {
+        ...MetaobjectSchemaChangeEntryFields
+      }
+    }
+    nodes {
+      ...MetaobjectSchemaChangeEntryFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  definition: metaobjectDefinitionByType(type: $type) {
+    ...MetaobjectSchemaChangeDefinitionFields
+  }
+}
