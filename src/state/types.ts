@@ -1749,6 +1749,60 @@ export const orderReturnLineItemRecordSchema = z.strictObject({
 });
 export type OrderReturnLineItemRecord = z.infer<typeof orderReturnLineItemRecordSchema>;
 
+export const orderReverseDeliveryLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  reverseFulfillmentOrderLineItemId: z.string(),
+  quantity: z.number(),
+});
+export type OrderReverseDeliveryLineItemRecord = z.infer<typeof orderReverseDeliveryLineItemRecordSchema>;
+
+export const orderReverseDeliveryRecordSchema = z.strictObject({
+  id: z.string(),
+  reverseFulfillmentOrderId: z.string(),
+  reverseDeliveryLineItems: z.array(orderReverseDeliveryLineItemRecordSchema),
+  tracking: z
+    .strictObject({
+      number: nullableStringSchema.optional(),
+      url: nullableStringSchema.optional(),
+      company: nullableStringSchema.optional(),
+    })
+    .nullable()
+    .optional(),
+  label: z
+    .strictObject({
+      publicFileUrl: nullableStringSchema.optional(),
+    })
+    .nullable()
+    .optional(),
+});
+export type OrderReverseDeliveryRecord = z.infer<typeof orderReverseDeliveryRecordSchema>;
+
+export const orderReverseFulfillmentOrderLineItemRecordSchema = z.strictObject({
+  id: z.string(),
+  returnLineItemId: z.string(),
+  fulfillmentLineItemId: z.string(),
+  lineItemId: nullableStringSchema,
+  title: nullableStringSchema,
+  totalQuantity: z.number(),
+  remainingQuantity: z.number(),
+  disposedQuantity: z.number().optional(),
+  dispositionType: nullableStringSchema.optional(),
+  dispositionLocationId: nullableStringSchema.optional(),
+});
+export type OrderReverseFulfillmentOrderLineItemRecord = z.infer<
+  typeof orderReverseFulfillmentOrderLineItemRecordSchema
+>;
+
+export const orderReverseFulfillmentOrderRecordSchema = z.strictObject({
+  id: z.string(),
+  orderId: z.string(),
+  returnId: z.string(),
+  status: nullableStringSchema,
+  lineItems: z.array(orderReverseFulfillmentOrderLineItemRecordSchema),
+  reverseDeliveries: z.array(orderReverseDeliveryRecordSchema).optional(),
+});
+export type OrderReverseFulfillmentOrderRecord = z.infer<typeof orderReverseFulfillmentOrderRecordSchema>;
+
 export const orderReturnRecordSchema = z.strictObject({
   id: z.string(),
   orderId: z.string().optional(),
@@ -1756,8 +1810,16 @@ export const orderReturnRecordSchema = z.strictObject({
   status: nullableStringSchema,
   createdAt: z.string().optional(),
   closedAt: nullableStringSchema.optional(),
+  decline: z
+    .strictObject({
+      reason: nullableStringSchema,
+      note: nullableStringSchema.optional(),
+    })
+    .nullable()
+    .optional(),
   totalQuantity: z.number().optional(),
   returnLineItems: z.array(orderReturnLineItemRecordSchema).optional(),
+  reverseFulfillmentOrders: z.array(orderReverseFulfillmentOrderRecordSchema).optional(),
 });
 export type OrderReturnRecord = z.infer<typeof orderReturnRecordSchema>;
 

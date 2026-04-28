@@ -1,0 +1,44 @@
+{
+  "scenarioId": "removeFromReturn-local-staging",
+  "operationNames": ["returnCreate", "removeFromReturn"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/return-lifecycle-local-staging.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/return-reverse-logistics-introspection.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-return-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/return-create-local-staging.graphql",
+    "variablesCapturePath": "$.returnCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "remove-from-return",
+        "capturePath": "$.expected.remove",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/remove-from-return-local-staging.graphql",
+          "variables": {
+            "returnId": {
+              "fromPrimaryProxyPath": "$.data.returnCreate.return.id"
+            },
+            "returnLineItems": [
+              {
+                "returnLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.returnCreate.return.returnLineItems.nodes[0].id"
+                },
+                "quantity": 1
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-370 return line removal. The scenario verifies local quantity recomputation and reverse-fulfillment line recomputation without upstream mutation writes."
+}

@@ -104,10 +104,18 @@ const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTerm
 const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnCreate',
   'returnRequest',
+  'returnApproveRequest',
+  'returnDeclineRequest',
   'returnCancel',
   'returnClose',
   'returnReopen',
+  'removeFromReturn',
+  'returnProcess',
+  'reverseDeliveryCreateWithShipping',
+  'reverseDeliveryShippingUpdate',
+  'reverseFulfillmentOrderDispose',
 ]);
+const ORDER_BACKED_REVERSE_LOGISTICS_QUERY_ROOTS = new Set(['reverseDelivery', 'reverseFulfillmentOrder']);
 const DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS = new Set(['draftOrderAvailableDeliveryOptions', 'draftOrderTag']);
 const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCapture',
@@ -123,9 +131,16 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'orderCancel',
   'returnCreate',
   'returnRequest',
+  'returnApproveRequest',
+  'returnDeclineRequest',
   'returnCancel',
   'returnClose',
   'returnReopen',
+  'removeFromReturn',
+  'returnProcess',
+  'reverseDeliveryCreateWithShipping',
+  'reverseDeliveryShippingUpdate',
+  'reverseFulfillmentOrderDispose',
   'paymentTermsCreate',
   'paymentTermsUpdate',
   'paymentTermsDelete',
@@ -732,12 +747,17 @@ function isOrderBackedLocalFulfillmentMutation(rootField: string | null): boolea
   return rootField !== null && ORDER_BACKED_LOCAL_FULFILLMENT_MUTATION_ROOTS.has(rootField);
 }
 
+function isOrderBackedReverseLogisticsMutation(rootField: string | null): boolean {
+  return rootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(rootField);
+}
+
 function shouldTryLocalOrderMutation(request: ProxyDispatchRequest): boolean {
   return (
     request.capability.execution === 'stage-locally' &&
     (request.capability.domain === 'orders' ||
       (request.capability.domain === 'shipping-fulfillments' &&
-        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)))
+        (isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
+          isOrderBackedReverseLogisticsMutation(request.primaryRootField))))
   );
 }
 
@@ -1290,9 +1310,14 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       request.capability.domain === 'orders' ||
       (request.capability.domain === 'payments' && ORDER_PAYMENT_MUTATION_ROOTS.has(request.primaryRootField ?? '')) ||
       (request.capability.domain === 'shipping-fulfillments' &&
-        isOrderBackedLocalFulfillmentMutation(request.primaryRootField)) ||
+        (isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
+          isOrderBackedReverseLogisticsMutation(request.primaryRootField))) ||
       (request.parsed.type === 'query' &&
-        request.parsed.rootFields.some((rootField) => DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS.has(rootField))),
+        request.parsed.rootFields.some(
+          (rootField) =>
+            DRAFT_ORDER_LOCAL_HELPER_QUERY_ROOTS.has(rootField) ||
+            ORDER_BACKED_REVERSE_LOGISTICS_QUERY_ROOTS.has(rootField),
+        )),
     async handleQuery(request) {
       if (request.capability.execution !== 'overlay-read') {
         return false;
@@ -1320,6 +1345,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request.primaryRootField === 'return' &&
           liveHybridOrderId !== null &&
           store.getOrders().some((order) => order.returns.some((orderReturn) => orderReturn.id === liveHybridOrderId));
+        const canServeLocalReverseLogisticsDetail =
+          (request.primaryRootField === 'reverseDelivery' || request.primaryRootField === 'reverseFulfillmentOrder') &&
+          liveHybridOrderId !== null;
         const canServeLocalOrderCatalog =
           (request.primaryRootField === 'orders' || request.primaryRootField === 'ordersCount') &&
           hasStagedOrders &&
@@ -1354,6 +1382,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         if (
           canServeLocalOrderDetail ||
           canServeLocalReturnDetail ||
+          canServeLocalReverseLogisticsDetail ||
           canServeLocalOrderCatalog ||
           canServeLocalDraftOrderDetail ||
           canServeLocalDraftOrderCatalog ||
@@ -1424,7 +1453,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
             responseBody,
             notes: isOrderBackedLocalFulfillmentMutation(request.primaryRootField)
               ? 'Staged locally in the in-memory order-backed fulfillment store.'
-              : 'Staged locally in the in-memory order draft store.',
+              : isOrderBackedReverseLogisticsMutation(request.primaryRootField)
+                ? 'Staged locally in the in-memory order-backed return/reverse-logistics store.'
+                : 'Staged locally in the in-memory order draft store.',
           });
         }
 
@@ -1437,6 +1468,7 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         request.config.readMode === 'live-hybrid' &&
         (LIVE_HYBRID_LOCAL_ORDER_MUTATION_ROOTS.has(request.primaryRootField ?? '') ||
           isOrderBackedLocalFulfillmentMutation(request.primaryRootField) ||
+          isOrderBackedReverseLogisticsMutation(request.primaryRootField) ||
           (request.primaryRootField !== null && ORDER_RETURN_MUTATION_ROOTS.has(request.primaryRootField)))
       ) {
         const responseBody = handleOrderMutation(
