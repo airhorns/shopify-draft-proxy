@@ -331,6 +331,163 @@ describe('online-store content flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages article image and article-owned metafields locally with downstream reads', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('article media/metafield mutations must not fetch upstream'));
+    const app = createApp(config).callback();
+
+    const blogCreate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateBlog($blog: BlogCreateInput!) {
+          blogCreate(blog: $blog) { blog { id } userErrors { field message } }
+        }`,
+        variables: { blog: { title: 'Media blog' } },
+      });
+    const blogId = blogCreate.body.data.blogCreate.blog.id;
+
+    const articleCreate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateArticle($article: ArticleCreateInput!) {
+          articleCreate(article: $article) {
+            article {
+              id
+              image { id altText url width height }
+              metafield(namespace: "har_410", key: "hero") { id namespace key type value jsonValue ownerType }
+              metafields(first: 5, namespace: "har_410") {
+                nodes { id namespace key type value jsonValue ownerType }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          article: {
+            blogId,
+            title: 'Media article',
+            author: { name: 'Media Author' },
+            image: { altText: 'Created hero', url: 'https://placehold.co/64x64/png' },
+            metafields: [{ namespace: 'har_410', key: 'hero', type: 'single_line_text_field', value: 'created hero' }],
+          },
+        },
+      });
+
+    expect(articleCreate.body.data.articleCreate.userErrors).toEqual([]);
+    const articleId = articleCreate.body.data.articleCreate.article.id;
+    const createdImageId = articleCreate.body.data.articleCreate.article.image.id;
+    const metafieldId = articleCreate.body.data.articleCreate.article.metafield.id;
+    expect(articleCreate.body.data.articleCreate.article).toMatchObject({
+      image: {
+        id: expect.stringContaining('gid://shopify/ArticleImage/'),
+        altText: 'Created hero',
+        url: 'https://placehold.co/64x64/png',
+        width: null,
+        height: null,
+      },
+      metafield: {
+        namespace: 'har_410',
+        key: 'hero',
+        type: 'single_line_text_field',
+        value: 'created hero',
+        jsonValue: 'created hero',
+        ownerType: 'ARTICLE',
+      },
+      metafields: {
+        nodes: [
+          {
+            namespace: 'har_410',
+            key: 'hero',
+            type: 'single_line_text_field',
+            value: 'created hero',
+            jsonValue: 'created hero',
+            ownerType: 'ARTICLE',
+          },
+        ],
+        pageInfo: { hasNextPage: false, hasPreviousPage: false },
+      },
+    });
+
+    const articleUpdate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateArticle($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              id
+              image { id altText url width height }
+              metafield(namespace: "har_410", key: "hero") { id namespace key type value jsonValue ownerType }
+              metafields(first: 5, namespace: "har_410") { nodes { id namespace key value ownerType } }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          id: articleId,
+          article: {
+            image: { altText: 'Updated hero', url: 'https://placehold.co/80x80/png' },
+            metafields: [{ namespace: 'har_410', key: 'hero', type: 'single_line_text_field', value: 'updated hero' }],
+          },
+        },
+      });
+
+    expect(articleUpdate.body.data.articleUpdate.userErrors).toEqual([]);
+    expect(articleUpdate.body.data.articleUpdate.article.image).toMatchObject({
+      id: expect.stringContaining('gid://shopify/ArticleImage/'),
+      altText: 'Updated hero',
+      url: 'https://placehold.co/80x80/png',
+      width: null,
+      height: null,
+    });
+    expect(articleUpdate.body.data.articleUpdate.article.image.id).not.toBe(createdImageId);
+    expect(articleUpdate.body.data.articleUpdate.article.metafield).toMatchObject({
+      id: metafieldId,
+      namespace: 'har_410',
+      key: 'hero',
+      value: 'updated hero',
+      jsonValue: 'updated hero',
+      ownerType: 'ARTICLE',
+    });
+
+    const readAfterUpdate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadArticle($id: ID!) {
+          article(id: $id) {
+            id
+            image { id altText url width height }
+            metafield(namespace: "har_410", key: "hero") { id namespace key value jsonValue ownerType }
+            metafields(first: 5, namespace: "har_410", keys: ["hero"]) {
+              nodes { id namespace key value ownerType }
+              pageInfo { hasNextPage hasPreviousPage }
+            }
+          }
+        }`,
+        variables: { id: articleId },
+      });
+
+    expect(readAfterUpdate.body.data.article).toMatchObject({
+      id: articleId,
+      image: articleUpdate.body.data.articleUpdate.article.image,
+      metafield: {
+        id: metafieldId,
+        namespace: 'har_410',
+        key: 'hero',
+        value: 'updated hero',
+        jsonValue: 'updated hero',
+        ownerType: 'ARTICLE',
+      },
+      metafields: {
+        nodes: [{ id: metafieldId, namespace: 'har_410', key: 'hero', value: 'updated hero', ownerType: 'ARTICLE' }],
+        pageInfo: { hasNextPage: false, hasPreviousPage: false },
+      },
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages comment moderation and deletion locally for snapshot comments', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

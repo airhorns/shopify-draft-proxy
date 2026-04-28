@@ -43,7 +43,14 @@ Nested content behavior:
 
 The HAR-352 parity promotion captures a Shopify quirk where top-level `articles` omitted a locally updated unpublished article while the same article still appeared through `Blog.articles`, `Article.blog`, `articleAuthors`, and `articleTags`. The proxy now mirrors that boundary: top-level `articles` filters out records with `isPublished: false`, while nested blog/article helper reads continue to expose the effective local graph.
 
-Metafield, translation, and event subresources on these content types remain shallow: local reads return empty connections, empty translation lists, or `null` singular metafields rather than inventing unsupported subresource data.
+HAR-410 expands article subresource fidelity for the Admin GraphQL fields that are actually present in the captured schema:
+
+- `Article.image` is staged from `ArticleImageInput.url` / `altText` on create and update, and downstream article reads return the latest local image object
+- `Article.metafield(namespace:, key:)` and `Article.metafields(...)` are backed by ARTICLE-owned metafield inputs on `articleCreate` and `articleUpdate`
+- Shopify replaces an existing article metafield by `(namespace, key)` while preserving its metafield ID; the local model mirrors that replacement behavior for staged article metafields
+- Shopify creates a new `ArticleImage` ID when article image input is replaced; the local model also generates a new synthetic image ID for explicit image replacement
+
+The local proxy does not fetch remote image bytes during staging, so synthetic article images preserve the selected ID, alt text, and input URL but return `null` for derived dimensions. Hydrated upstream images keep whatever dimensions Shopify returned. Translation and event subresources on content types remain shallow: local reads return empty translation lists or empty event connections rather than inventing unsupported subresource data. Non-article content metafields still return empty connections or `null` singular metafields until separately captured.
 
 ### Content mutation behavior
 
@@ -51,7 +58,7 @@ Implemented local staging:
 
 - `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes
 - `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, body/body summary, template suffix, and publication fields
-- `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
+- `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, image fields, ARTICLE-owned metafields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
 - `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation or tombstones for comments that already exist in hydrated/snapshot local state; approval sets `status: "PUBLISHED"`, `isPublished: true`, and a local `publishedAt` timestamp when the comment did not already have one
 
 Unknown content IDs return local `userErrors` for supported mutations instead of proxying upstream. Delete mutations stage tombstones so downstream detail reads return `null` and catalog/nested connections omit the deleted row.
@@ -78,6 +85,8 @@ The local model preserves original raw mutations in the meta log for eventual co
 
 The 2025-01 live capture showed `comment(id:)` with an unknown synthetic ID returning a Shopify internal error, while unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal `userErrors` with `field: ["id"]` and message `Comment does not exist`. The proxy does not emulate the internal-error branch for local snapshot reads; local missing comments return `null` to preserve stable no-data behavior.
 
+HAR-410 live schema evidence showed `Page.onlineStoreUrl` is not an Admin GraphQL `Page` field in the probed versions, including 2025-01, 2026-04, and `unstable`; selecting it returned a GraphQL schema error rather than a nullable field. The same capture showed `Article.seo` is absent from the Article schema, even though `ArticleCreateInput` and `ArticleUpdateInput` expose `image` and `metafields`. Do not synthesize page online-store URLs or article SEO fields locally unless a later Shopify schema capture proves a supported Admin GraphQL surface.
+
 ### Remaining navigation gaps tracked by the registry
 
 - `menu`
@@ -88,12 +97,15 @@ The 2025-01 live capture showed `comment(id:)` with an unknown synthetic ID retu
 
 Navigation/menu support remains blocked on menu item tree shape, nested resource references, navigation-specific validation, and downstream read-after-write evidence. Do not promote those roots until a local navigation model exists.
 
+HAR-410 removed the previous credential blocker and captured a disposable page-to-menu flow. `menuCreate` with a PAGE item returned `Menu.items[0]` with `type: "PAGE"`, `resourceId` equal to the created page ID, and `url: "/pages/<page-handle>"`; `menu(id:)` returned the created menu, `menuUpdate` replaced items and generated new menu-item IDs, `menuDelete` returned `deletedMenuId`, and a downstream `menu(id:)` read returned `null`. The same capture showed `menus(first: 5, query: "handle:<created-handle>")` returning the shop default menus rather than the newly created custom menu, so menu catalog behavior needs dedicated navigation coverage before these roots can be marked implemented.
+
 ## Historical and developer notes
 
 ### Evidence and blockers
 
 - Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors. HAR-352 promotes this fixture through `config/parity-specs/online-store-content-lifecycle.json` and `config/parity-requests/online-store-content-*.graphql`; `corepack pnpm conformance:parity` seeds the captured baseline read, replays local create/update/read/delete/comment guardrail requests, and strictly compares stable payload/count/null-empty/userErrors fields against the recording.
-- HAR-393 executable review added local integration coverage for Shopify-style boolean/fielded content search and comment approval `publishedAt` materialization. It also adds `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-search-filters.json` plus `config/parity-specs/online-store-content-search-filters.json`, which prove article tag/author, blog title, and page published-status/title filters against live Shopify and replay them through `corepack pnpm conformance:parity`. External examples reviewed during the ticket show apps commonly requesting page `onlineStoreUrl`, article image/SEO/metafield fields, and navigation-menu insertion after page creation; those surfaces remain outside the current content lifecycle model unless separately captured and implemented.
+- HAR-393 executable review added local integration coverage for Shopify-style boolean/fielded content search and comment approval `publishedAt` materialization. It also adds `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-search-filters.json` plus `config/parity-specs/online-store-content-search-filters.json`, which prove article tag/author, blog title, and page published-status/title filters against live Shopify and replay them through `corepack pnpm conformance:parity`. External examples reviewed during the ticket show apps commonly requesting page `onlineStoreUrl`, article image/SEO/metafield fields, and navigation-menu insertion after page creation; HAR-410 now covers the supported article media/metafield subset and leaves schema-absent page/SEO fields plus navigation roots as explicit boundaries.
+- HAR-410 evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-article-media-navigation-follow-through.json` records live article image/metafield create/update/read behavior, confirms the Page `onlineStoreUrl` and Article `seo` schema boundaries, and captures page-to-menu follow-through behavior for future navigation modeling. Runtime coverage for the newly supported article image/metafield behavior lives in `tests/integration/online-store-content-flow.test.ts`; menu roots remain unimplemented.
 - HAR-372 live evidence: `corepack pnpm conformance:probe` and `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe` succeeded against `harry-test-heelo.myshopify.com` during implementation. Live 2026-04 safe-read probes confirmed `themes` and `shop.storefrontAccessTokens` response shape, and confirmed current credential blockers for `scriptTags`, `webPixel`, `serverPixel`, and `mobilePlatformApplications` (`ACCESS_DENIED` / missing read scopes). Runtime support for blocked-scope families is based on schema introspection plus local executable tests, with the scope blocker recorded here rather than a checked-in passive parity spec.
 - Current presentation/integration schema evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-372 root names exist in the captured Admin GraphQL schema. Live 2026-04 introspection confirmed payload, input, union, and theme-file result fields used by the local model.
 - Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible in Shopify. Supported proxy handling stages them locally only; real Shopify effects happen only during explicit commit replay or deliberate conformance setup/cleanup.
