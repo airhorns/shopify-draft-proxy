@@ -33,6 +33,8 @@ Supported mutation roots stage locally and append the original raw GraphQL reque
 
 When a validation or cart transform references a `ShopifyFunction` already present in local state, the proxy preserves that Function's captured metadata, including `description`, `appKey`, and selected `app` fields. This is ownership evidence for Admin GraphQL metadata reads only. The proxy does not verify that the inbound token belongs to the same installed app, does not check Partner Dashboard extension release state, and does not enforce Function API-type eligibility beyond recording the Admin root that staged the metadata. When no local Function metadata exists, the proxy still creates a metadata row from the submitted `functionId` or `functionHandle` so draft-proxy read-after-write behavior remains deterministic.
 
+HAR-416 added live Shopify evidence for the conformance app's released Function catalog rows. On Admin API `2026-04`, `ShopifyFunction.id` is returned as a raw Function string ID, `apiType` is returned as lowercase strings such as `cart_checkout_validation` and `cart_transform`, and app ownership is exposed through `appKey` plus selected `app` fields. The local model preserves those exact values when they are seeded from conformance evidence; it does not normalize them to synthetic GIDs or enum-like uppercase values.
+
 Local validation guardrails currently cover missing Function references plus unknown validation/cart-transform update or delete IDs. These branches return `userErrors` locally and still avoid runtime Shopify writes.
 
 ### Boundaries
@@ -48,14 +50,16 @@ Local validation guardrails currently cover missing Function references plus unk
 - Root availability is captured in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`.
 - Runtime local-staging evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-metadata-flow.json` and enforced by `tests/integration/functions-flow.test.ts`.
 - App/owner metadata evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions/functions-owner-metadata-flow.json` and enforced by the `functions-owner-metadata-local-staging` parity spec plus `tests/integration/functions-flow.test.ts`; the scenario seeds known `ShopifyFunction` records and verifies validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
+- Live app ownership evidence is recorded in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json` and enforced by `config/parity-specs/functions/functions-live-owner-metadata-read.json`. The fixture was captured after deploying the repo-local conformance app with released `conformance-validation` and `conformance-cart-transform` Function extensions, and the parity request verifies `shopifyFunction` / `shopifyFunctions` reads preserve `appKey` and selected `app` fields without Function execution.
+- HAR-416 mutation probes against the live store now reach validation/cart-transform resolver userErrors. The fixture records wrong Function API type, unknown/unowned Function handle, invalid metafield, and duplicate cart-transform registration branches. Shopify allowed duplicate `validationCreate` calls for the same validation Function on this shop, so that branch is recorded as live success evidence plus cleanup rather than a duplicate userError. True cross-app references still require a second installed app; the fixture records unknown/unowned handles as the reachable unattended authority boundary. `taxAppConfigure` remains blocked by tax-calculation-app authority even with the refreshed grant, and the access-denied payload is preserved as blocker evidence.
 - Shopify Admin docs for the current API describe `validationCreate` / `validationUpdate` inputs as Function-handle based validation metadata with `enable`, `blockOnFailure`, `metafields`, and `title`.
 - Shopify Admin docs for `cartTransformCreate` expose direct `functionId` / `functionHandle`, `blockOnFailure`, and optional metafield inputs.
 - Shopify Admin docs for `taxAppConfigure` expose a `ready: Boolean!` mutation returning `taxAppConfiguration` and `userErrors`.
 
 ### Follow-up gaps
 
-- Promote app ownership and Function eligibility checks to live parity only after a conformance app install can expose released validation/cart-transform Function catalog rows through `shopifyFunctions`.
-- Capture real Shopify userErrors for wrong Function API type, cross-app Function references, duplicate validation/cart-transform constraints, metafield validation, and tax app readiness authority before tightening local guardrails beyond the current safe missing/unknown-id branches.
+- Capture true cross-app Function reference behavior only after a second installed conformance app exposes released validation/cart-transform Functions in the same shop.
+- Capture tax app readiness userErrors only with a grant/app that has `write_taxes` and is authorized as a tax calculations app; until then, keep local `taxAppConfigure` as metadata-only readiness staging.
 - Keep checkout cart transform execution, validation execution, and tax calculation callbacks out of this metadata endpoint group until separate runtime side-effect evidence exists.
 
 ### Validation

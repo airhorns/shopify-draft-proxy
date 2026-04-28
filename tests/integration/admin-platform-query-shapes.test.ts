@@ -11,6 +11,7 @@ import type {
   DiscountRecord,
   FileRecord,
   PaymentTermsTemplateRecord,
+  ProductMetafieldRecord,
   ProductRecord,
   SavedSearchRecord,
   ShopRecord,
@@ -163,6 +164,22 @@ function makeFile(id: string, contentType: FileRecord['contentType'], filename: 
     imageUrl: contentType === 'IMAGE' ? `https://cdn.example.com/${filename}` : null,
     imageWidth: contentType === 'IMAGE' ? 1200 : null,
     imageHeight: contentType === 'IMAGE' ? 800 : null,
+  };
+}
+
+function makeProductMetafield(id: string, productId: string): ProductMetafieldRecord {
+  return {
+    id,
+    productId,
+    namespace: 'custom',
+    key: 'material',
+    type: 'single_line_text_field',
+    value: 'Canvas',
+    compareDigest: 'relay-metafield-digest',
+    jsonValue: 'Canvas',
+    createdAt: '2026-04-28T00:00:00.000Z',
+    updatedAt: '2026-04-28T00:00:00.000Z',
+    ownerType: 'PRODUCT',
   };
 }
 
@@ -353,8 +370,8 @@ const capturedTaxonomyCategories: TaxonomyCategoryRecord[] = [
   },
 ];
 
-function makeShop(): ShopRecord {
-  return {
+function makeShop(overrides: Partial<ShopRecord> = {}): ShopRecord {
+  const shop: ShopRecord = {
     id: 'gid://shopify/Shop/400',
     name: 'Node Test Shop',
     myshopifyDomain: 'node-test-shop.myshopify.com',
@@ -441,6 +458,36 @@ function makeShop(): ShopRecord {
     },
     shopPolicies: [],
   };
+
+  return {
+    ...shop,
+    ...overrides,
+  };
+}
+
+function makeShopForCountry(myshopifyDomain: string, countryCode: string, country: string): ShopRecord {
+  const baseShop = makeShop();
+  return makeShop({
+    name: myshopifyDomain.split('.').at(0) ?? baseShop.name,
+    myshopifyDomain,
+    url: `https://${myshopifyDomain}`,
+    primaryDomain: {
+      ...baseShop.primaryDomain,
+      host: myshopifyDomain,
+      url: `https://${myshopifyDomain}`,
+    },
+    shopAddress: {
+      ...baseShop.shopAddress,
+      country,
+      countryCodeV2: countryCode,
+      formatted: [
+        baseShop.shopAddress.address1 ?? '',
+        `${baseShop.shopAddress.city} ${baseShop.shopAddress.zip}`,
+        country,
+      ],
+      formattedArea: `${baseShop.shopAddress.city}, ${country}`,
+    },
+  });
 }
 
 describe('admin platform utility query shapes', () => {
@@ -570,6 +617,97 @@ describe('admin platform utility query shapes', () => {
         },
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the effective conformance shop country for the captured Canada backupRegion', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should resolve locally from effective shop state');
+    });
+    store.upsertBaseShop(makeShopForCountry('harry-test-heelo.myshopify.com', 'CA', 'Canada'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toEqual({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110417202',
+      name: 'Canada',
+      code: 'CA',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses conformance market-region evidence for an additional mapped shop country', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should resolve locally from mapped country evidence');
+    });
+    store.upsertBaseShop(makeShopForCountry('very-big-test-store.myshopify.com', 'US', 'United States'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toEqual({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454910378217',
+      name: 'United States',
+      code: 'US',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns null for an effective shop country outside the backed backupRegion map', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should not proxy for unknown local country mapping');
+    });
+    store.upsertBaseShop(makeShop());
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -1089,6 +1227,152 @@ describe('admin platform utility query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('resolves staged product option and option value IDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('product option node reads should resolve locally in snapshot mode');
+    });
+    const productId = 'gid://shopify/Product/42400';
+    store.upsertBaseProducts([makeProduct(productId, 'Relay Option Product')]);
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation CreateProductOptions($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product {
+              id
+              options {
+                id
+                name
+                position
+                values
+                optionValues {
+                  id
+                  name
+                  hasVariants
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          productId,
+          options: [
+            {
+              name: 'Color',
+              values: [{ name: 'Red' }, { name: 'Blue' }],
+            },
+          ],
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    const [option] = createResponse.body.data.productOptionsCreate.product.options;
+    const [redValue, blueValue] = option.optionValues;
+
+    const nodeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `query ProductOptionNodeResolution($optionId: ID!, $ids: [ID!]!) {
+          optionNode: node(id: $optionId) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on ProductOption {
+              name
+              position
+              values
+              optionValues {
+                __typename
+                id
+                name
+                hasVariants
+              }
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on ProductOption {
+              name
+              position
+              values
+            }
+            ... on ProductOptionValue {
+              name
+              hasVariants
+            }
+          }
+        }`,
+        variables: {
+          optionId: option.id,
+          ids: [redValue.id, option.id, blueValue.id, 'gid://shopify/ProductOptionValue/404'],
+        },
+      });
+
+    expect(nodeResponse.status).toBe(200);
+    expect(nodeResponse.body).toEqual({
+      data: {
+        optionNode: {
+          __typename: 'ProductOption',
+          nodeId: option.id,
+          name: 'Color',
+          position: 1,
+          values: [],
+          optionValues: [
+            {
+              __typename: 'ProductOptionValue',
+              id: redValue.id,
+              name: 'Red',
+              hasVariants: false,
+            },
+            {
+              __typename: 'ProductOptionValue',
+              id: blueValue.id,
+              name: 'Blue',
+              hasVariants: false,
+            },
+          ],
+        },
+        nodes: [
+          {
+            __typename: 'ProductOptionValue',
+            nodeId: redValue.id,
+            name: 'Red',
+            hasVariants: false,
+          },
+          {
+            __typename: 'ProductOption',
+            nodeId: option.id,
+            name: 'Color',
+            position: 1,
+            values: [],
+          },
+          {
+            __typename: 'ProductOptionValue',
+            nodeId: blueValue.id,
+            name: 'Blue',
+            hasVariants: false,
+          },
+          null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toMatchObject([{ operationName: 'productOptionsCreate', status: 'staged' }]);
+  });
+
   it('resolves supported Node IDs that do not have a one-to-one singular root', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('direct admin platform node serializers should resolve locally in snapshot mode');
@@ -1098,11 +1382,41 @@ describe('admin platform utility query shapes', () => {
     store.upsertBaseCustomerPaymentMethods([
       makeCustomerPaymentMethod('gid://shopify/CustomerPaymentMethod/9100', 'gid://shopify/Customer/9100'),
     ]);
+    store.upsertBaseProducts([makeProduct('gid://shopify/Product/9100', 'Relay Metafield Product')]);
+    store.replaceBaseMetafieldsForProduct('gid://shopify/Product/9100', [
+      makeProductMetafield('gid://shopify/Metafield/9100', 'gid://shopify/Product/9100'),
+    ]);
     store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
     store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
     store.stageCreateFiles([
       makeFile('gid://shopify/GenericFile/9100', 'FILE', 'relay.pdf'),
       makeFile('gid://shopify/MediaImage/9101', 'IMAGE', 'relay.jpg'),
+    ]);
+    store.stageBackupRegion({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110417202',
+      name: 'Canada',
+      code: 'CA',
+    });
+    store.upsertBaseWebPresences([
+      {
+        id: 'gid://shopify/MarketWebPresence/9100',
+        __typename: 'MarketWebPresence',
+        subfolderSuffix: 'ca',
+        domain: {
+          id: 'gid://shopify/Domain/9100',
+          host: 'relay.example.com',
+          url: 'https://relay.example.com',
+          sslEnabled: true,
+        },
+        defaultLocale: {
+          locale: 'en',
+          name: 'English',
+          primary: true,
+          published: true,
+        },
+        rootUrls: [{ locale: 'en', url: 'https://relay.example.com/ca' }],
+      },
     ]);
 
     const app = createApp(snapshotConfig).callback();
@@ -1127,10 +1441,27 @@ describe('admin platform utility query shapes', () => {
               resourceType
               query
             }
+            ... on Metafield {
+              namespace
+              key
+              type
+              value
+              ownerType
+            }
             ... on PaymentTermsTemplate {
               name
               dueInDays
               paymentTermsType
+            }
+            ... on MarketRegionCountry {
+              name
+              code
+            }
+            ... on MarketWebPresence {
+              subfolderSuffix
+              defaultLocale {
+                locale
+              }
             }
             ... on GenericFile {
               filename
@@ -1152,7 +1483,10 @@ describe('admin platform utility query shapes', () => {
             'gid://shopify/Shop/400',
             'gid://shopify/CustomerPaymentMethod/9100',
             'gid://shopify/SavedSearch/9100',
+            'gid://shopify/Metafield/9100',
             'gid://shopify/PaymentTermsTemplate/14',
+            'gid://shopify/MarketRegionCountry/4062110417202',
+            'gid://shopify/MarketWebPresence/9100',
             'gid://shopify/GenericFile/9100',
             'gid://shopify/MediaImage/9101',
           ],
@@ -1182,11 +1516,34 @@ describe('admin platform utility query shapes', () => {
             query: 'tag:relay',
           },
           {
+            __typename: 'Metafield',
+            nodeId: 'gid://shopify/Metafield/9100',
+            namespace: 'custom',
+            key: 'material',
+            type: 'single_line_text_field',
+            value: 'Canvas',
+            ownerType: 'PRODUCT',
+          },
+          {
             __typename: 'PaymentTermsTemplate',
             nodeId: 'gid://shopify/PaymentTermsTemplate/14',
             name: 'Relay Net 14',
             dueInDays: 14,
             paymentTermsType: 'NET',
+          },
+          {
+            __typename: 'MarketRegionCountry',
+            nodeId: 'gid://shopify/MarketRegionCountry/4062110417202',
+            name: 'Canada',
+            code: 'CA',
+          },
+          {
+            __typename: 'MarketWebPresence',
+            nodeId: 'gid://shopify/MarketWebPresence/9100',
+            subfolderSuffix: 'ca',
+            defaultLocale: {
+              locale: 'en',
+            },
           },
           {
             __typename: 'GenericFile',

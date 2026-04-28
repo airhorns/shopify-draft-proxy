@@ -4792,6 +4792,28 @@ function serializeWebPresencesConnection(
   });
 }
 
+export function serializeMarketWebPresenceNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+): Record<string, unknown> | null {
+  const webPresence = runtime.store.getEffectiveWebPresenceById(id);
+  if (!isPlainObject(webPresence)) {
+    return null;
+  }
+
+  const projected = projectMarketValue(
+    runtime,
+    webPresence,
+    field.selectionSet?.selections ?? [],
+    fragments,
+    variables,
+  );
+  return isPlainObject(projected) ? projected : null;
+}
+
 function marketRegionCountryEdges(market: MarketRecord): ConnectionEdge[] {
   const conditions = isPlainObject(market.data['conditions']) ? market.data['conditions'] : {};
   const regionsCondition = isPlainObject(conditions['regionsCondition'])
