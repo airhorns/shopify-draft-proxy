@@ -240,7 +240,7 @@ describe('order payment capture, void, and mandate flows', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `mutation Void($id: ID!) {
-          transactionVoid(id: $id) {
+          transactionVoid(parentTransactionId: $id) {
             transaction ${transactionSelection}
             userErrors { field message }
           }
@@ -249,7 +249,7 @@ describe('order payment capture, void, and mandate flows', () => {
       });
     expect(missingResponse.body.data.transactionVoid).toEqual({
       transaction: null,
-      userErrors: [{ field: ['id'], message: 'Transaction does not exist' }],
+      userErrors: [{ field: ['parentTransactionId'], message: 'Transaction does not exist' }],
     });
     const metaAfterMissingVoid = await snapshotMeta(app);
     expect(metaAfterMissingVoid.log.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
@@ -260,7 +260,7 @@ describe('order payment capture, void, and mandate flows', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `mutation Void($id: ID!) {
-          transactionVoid(id: $id) {
+          transactionVoid(parentTransactionId: $id) {
             transaction ${transactionSelection}
             userErrors { field message }
           }
@@ -281,7 +281,7 @@ describe('order payment capture, void, and mandate flows', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `mutation Void($id: ID!) {
-          transactionVoid(id: $id) {
+          transactionVoid(parentTransactionId: $id) {
             transaction ${transactionSelection}
             userErrors { field message }
           }
@@ -411,7 +411,7 @@ describe('order payment capture, void, and mandate flows', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `mutation Void($id: ID!) {
-          transactionVoid(id: $id) {
+          transactionVoid(parentTransactionId: $id) {
             transaction ${transactionSelection}
             userErrors { field message }
           }
@@ -427,15 +427,15 @@ describe('order payment capture, void, and mandate flows', () => {
     const missingIdempotencyKey = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
-        query: `mutation Mandate($id: ID!) {
-          orderCreateMandatePayment(id: $id) {
+        query: `mutation Mandate($id: ID!, $mandateId: ID!) {
+          orderCreateMandatePayment(id: $id, mandateId: $mandateId) {
             job { id done }
             paymentReferenceId
             order ${paymentOrderSelection}
             userErrors { field message }
           }
         }`,
-        variables: { id: orderId },
+        variables: { id: orderId, mandateId: 'gid://shopify/PaymentMandate/har-397' },
       });
     expect(missingIdempotencyKey.body.data.orderCreateMandatePayment.userErrors).toEqual([
       { field: ['idempotencyKey'], message: 'Idempotency key is required' },
@@ -451,8 +451,8 @@ describe('order payment capture, void, and mandate flows', () => {
     const app = createApp(snapshotConfig).callback();
     const createResponse = await createOrder(app, []);
     const orderId = createResponse.body.data.orderCreate.order.id;
-    const mutation = `mutation Mandate($id: ID!, $idempotencyKey: String!, $amount: MoneyInput) {
-      orderCreateMandatePayment(id: $id, idempotencyKey: $idempotencyKey, amount: $amount) {
+    const mutation = `mutation Mandate($id: ID!, $mandateId: ID!, $idempotencyKey: String!, $amount: MoneyInput) {
+      orderCreateMandatePayment(id: $id, mandateId: $mandateId, idempotencyKey: $idempotencyKey, amount: $amount) {
         job { id done }
         paymentReferenceId
         order ${paymentOrderSelection}
@@ -461,6 +461,7 @@ describe('order payment capture, void, and mandate flows', () => {
     }`;
     const variables = {
       id: orderId,
+      mandateId: 'gid://shopify/PaymentMandate/har-397',
       idempotencyKey: 'har-226-idempotent-payment',
       amount: { amount: '25.00', currencyCode: 'CAD' },
     };

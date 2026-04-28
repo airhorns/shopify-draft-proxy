@@ -1,5 +1,5 @@
-mutation OrderPaymentMandate($id: ID!, $idempotencyKey: String, $amount: MoneyInput) {
-  orderCreateMandatePayment(id: $id, idempotencyKey: $idempotencyKey, amount: $amount) {
+mutation OrderPaymentMandate($id: ID!, $mandateId: ID!, $idempotencyKey: String, $amount: MoneyInput) {
+  orderCreateMandatePayment(id: $id, mandateId: $mandateId, idempotencyKey: $idempotencyKey, amount: $amount) {
     job {
       id
       done

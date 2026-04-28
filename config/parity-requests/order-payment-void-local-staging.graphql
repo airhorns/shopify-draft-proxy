@@ -1,5 +1,5 @@
 mutation OrderPaymentVoid($id: ID!) {
-  transactionVoid(id: $id) {
+  transactionVoid(parentTransactionId: $id) {
     transaction {
       id
       kind
