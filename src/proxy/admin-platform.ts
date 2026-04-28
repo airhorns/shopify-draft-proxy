@@ -513,22 +513,50 @@ function serializeTaxonomyCategory(
   return result;
 }
 
+function serializeTaxonomyCategoryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const category = runtime.store.getEffectiveTaxonomyCategories().find((candidate) => candidate.id === id) ?? null;
+  return category ? serializeTaxonomyCategory(category, selectedFields) : null;
+}
+
 function serializeTaxonomyCategories(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
+  const rawChildrenOf = args['childrenOf'];
+  const rawDescendantsOf = args['descendantsOf'];
+  const rawSiblingsOf = args['siblingsOf'];
   const rawSearch = args['search'];
+  const allCategories = runtime.store.getEffectiveTaxonomyCategories();
+  const hierarchyFilteredCategories =
+    typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0
+      ? allCategories.filter((category) => category.parentId === rawChildrenOf)
+      : typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0
+        ? allCategories.filter((category) => category.ancestorIds.includes(rawDescendantsOf))
+        : typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0
+          ? allCategories.filter((category) => {
+              const siblingSubject = allCategories.find((candidate) => candidate.id === rawSiblingsOf) ?? null;
+              return (
+                siblingSubject?.parentId !== undefined &&
+                category.parentId === siblingSubject.parentId &&
+                category.id !== rawSiblingsOf
+              );
+            })
+          : allCategories;
   const categories =
     typeof rawSearch === 'string' && rawSearch.trim().length > 0
       ? applySearchQueryTerms(
-          runtime.store.getEffectiveTaxonomyCategories(),
+          hierarchyFilteredCategories,
           rawSearch,
           { ignoredKeywords: ['AND'], dropEmptyValues: true },
           taxonomyCategoryMatchesSearchTerm,
         )
-      : runtime.store.getEffectiveTaxonomyCategories();
+      : hierarchyFilteredCategories;
   const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
   const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
 
@@ -681,6 +709,10 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'MarketRegionCountry',
     typeConditions: ['MarketRegion'],
     serialize: (runtime, id, selectedFields) => serializeMarketRegionCountryNodeById(runtime, id, selectedFields),
+  },
+  TaxonomyCategory: {
+    typename: 'TaxonomyCategory',
+    serialize: (runtime, id, selectedFields) => serializeTaxonomyCategoryNodeById(runtime, id, selectedFields),
   },
 
   PaymentCustomization: {
