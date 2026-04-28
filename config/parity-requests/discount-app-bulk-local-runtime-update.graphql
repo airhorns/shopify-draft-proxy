@@ -1,0 +1,37 @@
+mutation DiscountAppBulkUpdate(
+  $codeId: ID!
+  $codeInput: DiscountCodeAppInput!
+  $automaticId: ID!
+  $automaticInput: DiscountAutomaticAppInput!
+) {
+  discountCodeAppUpdate(id: $codeId, codeAppDiscount: $codeInput) {
+    codeAppDiscount {
+      discountId
+      title
+      codes(first: 5) {
+        nodes {
+          code
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticInput) {
+    automaticAppDiscount {
+      discountId
+      title
+      recurringCycleLimit
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

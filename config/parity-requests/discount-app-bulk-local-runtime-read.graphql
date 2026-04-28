@@ -1,0 +1,67 @@
+query DiscountAppBulkRead(
+  $codeId: ID!
+  $automaticId: ID!
+  $deletedCodeId: ID!
+  $deletedAutomaticId: ID!
+  $redeemDiscountId: ID!
+  $removedCode: String!
+) {
+  codeDiscountNode(id: $codeId) {
+    codeDiscount {
+      ... on DiscountCodeApp {
+        title
+        appDiscountType {
+          functionId
+        }
+        codes(first: 5) {
+          nodes {
+            code
+          }
+        }
+      }
+    }
+  }
+  automaticDiscountNode(id: $automaticId) {
+    automaticDiscount {
+      ... on DiscountAutomaticApp {
+        title
+        recurringCycleLimit
+        appDiscountType {
+          functionId
+        }
+      }
+    }
+  }
+  active: discountNodesCount(query: "status:active") {
+    count
+    precision
+  }
+  expired: discountNodesCount(query: "status:expired") {
+    count
+    precision
+  }
+  deletedCode: codeDiscountNode(id: $deletedCodeId) {
+    id
+  }
+  deletedAutomatic: automaticDiscountNode(id: $deletedAutomaticId) {
+    id
+  }
+  redeemDiscount: codeDiscountNode(id: $redeemDiscountId) {
+    codeDiscount {
+      ... on DiscountCodeBasic {
+        codes(first: 5) {
+          nodes {
+            code
+          }
+        }
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+  removedRedeemCode: codeDiscountNodeByCode(code: $removedCode) {
+    id
+  }
+}

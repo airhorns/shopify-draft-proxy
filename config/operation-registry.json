@@ -5481,50 +5481,57 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkActivate", "DiscountCodeBulkActivate"],
-    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 keeps the broad code-bulk status root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
+    "runtimeTests": [
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount activation locally with a completed Job payload, meta state/log visibility, downstream status reads, and local refusal of missing, blank, or conflicting broad selectors."
   },
   {
     "name": "discountCodeBulkDeactivate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkDeactivate", "DiscountCodeBulkDeactivate"],
     "runtimeTests": [
       "tests/integration/discount-mutation-validation.test.ts",
-      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
     ],
-    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount deactivation locally with a completed Job payload, meta state/log visibility, downstream status reads, and captured selector-conflict guardrails."
   },
   {
     "name": "discountCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeBulkDelete", "DiscountCodeBulkDelete"],
-    "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 keeps the broad code-bulk delete root unimplemented. Blank/all-discount destructive selectors are refused locally; other unsupported selectors remain visible through unsupported mutation passthrough observability until full bulk lifecycle staging exists."
+    "runtimeTests": [
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped code-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and local refusal of missing, blank, or conflicting broad selectors."
   },
   {
     "name": "discountRedeemCodeBulkAdd",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountRedeemCodeBulkAdd", "DiscountRedeemCodeBulkAdd"],
     "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 locally stages safe explicit-code add branches and records completed bulk-creation state, but keeps the root unimplemented until full async job lifecycle and conformance-backed failure semantics are modeled."
+    "supportNotes": "HAR-366 supports explicit-code redeem-code bulk add locally with a completed DiscountRedeemCodeBulkCreation payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering."
   },
   {
     "name": "discountCodeRedeemCodeBulkDelete",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": [
       "discountCodeRedeemCodeBulkDelete",
       "DiscountCodeRedeemCodeBulkDelete",
@@ -5532,7 +5539,7 @@
       "DiscountRedeemCodeBulkDelete"
     ],
     "runtimeTests": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
-    "supportNotes": "HAR-197 locally stages safe id-scoped delete branches and records completed job state, but keeps the root unimplemented until search/saved-search selectors, async lifecycle, and conformance-backed failure semantics are modeled."
+    "supportNotes": "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Search and saved-search redeem-code selectors remain locally refused to avoid broad code deletion without captured redeem-code matching semantics."
   },
   {
     "name": "discountAutomaticBasicCreate",
@@ -5631,53 +5638,57 @@
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticBulkDelete", "DiscountAutomaticBulkDelete"],
     "runtimeTests": [
       "tests/integration/discount-mutation-validation.test.ts",
-      "tests/integration/discount-redeem-code-bulk-flow.test.ts"
+      "tests/integration/discount-redeem-code-bulk-flow.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
     ],
-    "supportNotes": "HAR-198 captures selector-conflict validation guardrails only. HAR-197 additionally refuses blank/all-discount destructive selectors locally. Keep unimplemented until full local discount lifecycle staging and read-after-write emulation exist."
+    "supportNotes": "HAR-366 stages id-, search-, and saved-search-scoped automatic-discount deletion locally with a completed Job payload, meta state/log visibility, downstream absence/count reads, and captured selector-conflict guardrails."
   },
   {
     "name": "discountCodeAppCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeAppCreate", "DiscountCodeAppCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/discount-app-bulk-flow.test.ts"
+    ],
+    "supportNotes": "HAR-366 stages app-managed code discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts."
   },
   {
     "name": "discountCodeAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountCodeAppUpdate", "DiscountCodeAppUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed code discount updates locally for existing local DiscountCodeApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes."
   },
   {
     "name": "discountAutomaticAppCreate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticAppCreate", "DiscountAutomaticAppCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed automatic discount creates locally only when the submitted functionId/functionHandle resolves to known Shopify Function metadata in local state. The proxy records appDiscountType/function ownership metadata, does not execute external Function logic, and exposes downstream app discount reads/counts."
   },
   {
     "name": "discountAutomaticAppUpdate",
     "type": "mutation",
     "domain": "discounts",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["discountAutomaticAppUpdate", "DiscountAutomaticAppUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registry-only app-managed discount safety gap. Unsupported runtime requests still use the generic passthrough escape hatch, which would hit Shopify, because Shopify Functions app-discount staging requires captured appDiscountType/functionId fixtures and a local model that does not execute external Function logic."
+    "runtimeTests": ["tests/integration/discount-app-bulk-flow.test.ts"],
+    "supportNotes": "HAR-366 stages app-managed automatic discount updates locally for existing local DiscountAutomaticApp records when functionId/functionHandle resolves to known Shopify Function metadata. The proxy preserves appDiscountType/function ownership metadata and downstream reads without runtime Shopify writes."
   },
   {
     "name": "marketingActivities",
