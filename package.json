@@ -43,6 +43,7 @@
     "conformance:capture-staged-upload-targets": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-staged-upload-target-conformance.ts",
     "conformance:capture-file-acknowledge-update-failed": "SHOPIFY_CONFORMANCE_API_VERSION=2026-04 tsx ./scripts/capture-file-acknowledge-update-failed-conformance.ts",
     "conformance:capture-product-option-mutations": "tsx ./scripts/capture-product-option-mutation-conformance.mts",
+    "conformance:capture-product-option-variant-strategy-edges": "tsx ./scripts/capture-product-option-variant-strategy-edge-conformance.mts",
     "conformance:capture-product-variant-mutations": "tsx ./scripts/capture-product-variant-mutation-conformance.mts",
     "conformance:capture-product-variant-validations": "tsx ./scripts/capture-product-variant-validation-conformance.mts",
     "conformance:capture-inventory-item-mutations": "tsx ./scripts/capture-inventory-item-mutation-conformance.mts",

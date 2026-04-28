@@ -1,0 +1,60 @@
+{
+  "scenarioId": "product-options-create-variant-strategy-leave-as-is",
+  "operationNames": ["productOptionsCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/product-options-create-variant-strategy-leave-as-is-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/productOptionsCreate-variant-strategy-edge.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity for explicit `productOptionsCreate(variantStrategy: LEAVE_AS_IS)`: Shopify updates the standalone variant to the first new option value, keeps additional option values non-variant-backed, and returns no userErrors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.productOptionsCreate.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "Product option IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.productOptionsCreate.product.options[0].optionValues[*].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.options[0].id",
+        "matcher": "shopify-gid:ProductOption",
+        "reason": "The downstream proxy read returns the locally generated product option ID."
+      },
+      {
+        "path": "$.product.options[0].optionValues[*].id",
+        "matcher": "shopify-gid:ProductOptionValue",
+        "reason": "The downstream proxy read returns locally generated product option value IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/product-option-variant-strategy-edge-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

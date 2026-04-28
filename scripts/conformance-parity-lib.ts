@@ -7722,22 +7722,31 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       mutationName === 'productVariantsBulkUpdate' ||
       mutationName === 'productVariantsBulkDelete'
     ) {
+      const preMutationProduct =
+        mutationName === 'productVariantsBulkCreate' ? readPreMutationProduct(capture, productId) : null;
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
         'product',
       );
       const variantsSource =
-        readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+        preMutationProduct ??
+        (readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload);
       const variants =
         mutationName === 'productVariantsBulkCreate'
-          ? readCapturedProductVariants(productId, variantsSource).filter(
-              (variant) => !readCapturedCreatedVariantIds(payload).has(variant.id),
+          ? readCapturedProductVariants(productId, variantsSource).filter((variant) =>
+              preMutationProduct ? true : !readCapturedCreatedVariantIds(payload).has(variant.id),
             )
           : mutationName === 'productVariantsBulkUpdate'
             ? readBulkUpdateSeedVariants(productId, variantsSource)
             : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
+      }
+      if (preMutationProduct) {
+        const options = readCapturedProductOptions(productId, preMutationProduct);
+        if (options.length > 0) {
+          store.replaceBaseOptionsForProduct(productId, options);
+        }
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {
