@@ -195,12 +195,20 @@ move the issue to Human Review, and stop without commit/push/PR.
 ### Capture product-domain fixtures from the live store
 
 ```bash
-corepack pnpm conformance:capture-products
-corepack pnpm conformance:capture-product-mutations
-corepack pnpm conformance:capture-product-state-mutations
-corepack pnpm conformance:capture-product-option-mutations
-corepack pnpm conformance:capture-collections
-corepack pnpm conformance:capture-collection-mutations
+corepack pnpm conformance:capture -- --run products
+corepack pnpm conformance:capture -- --run product-mutations
+corepack pnpm conformance:capture -- --run product-state-mutations
+corepack pnpm conformance:capture -- --run product-option-mutations
+corepack pnpm conformance:capture -- --run collections
+corepack pnpm conformance:capture -- --run collection-mutations
+```
+
+The package file intentionally does not expose one shortcut per recorder. Use
+the central runner above, inspect it with `corepack pnpm conformance:capture`,
+or execute a recorder directly:
+
+```bash
+corepack pnpm exec tsx ./scripts/capture-product-mutation-conformance.mts
 ```
 
 This writes live Admin GraphQL captures under:

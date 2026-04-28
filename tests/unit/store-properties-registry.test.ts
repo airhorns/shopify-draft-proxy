@@ -7,6 +7,7 @@ import {
   buildConformanceStatusDocument,
   loadConformanceScenarios,
 } from '../../scripts/conformance-scenario-registry.js';
+import { conformanceCaptureIndex } from '../../scripts/conformance-capture-index.js';
 import { operationRegistrySchema } from '../../src/json-schemas.js';
 import { getOperationCapability } from '../../src/proxy/capabilities.js';
 
@@ -277,10 +278,9 @@ describe('Store properties registry scaffold', () => {
     }
   });
 
-  it('wires the Store properties capture path through the canonical conformance auth helper', () => {
-    const packageJson = JSON.parse(readText('package.json')) as { scripts?: Record<string, string> };
-    expect(packageJson.scripts?.['conformance:capture-store-properties']).toBe(
-      'tsx ./scripts/capture-location-conformance.mts',
+  it('wires the Store properties capture path through the central capture index and canonical auth helper', () => {
+    expect(conformanceCaptureIndex.find((entry) => entry.captureId === 'store-properties')?.scriptPath).toBe(
+      'scripts/capture-location-conformance.mts',
     );
 
     const captureScript = readText('scripts/capture-location-conformance.mts');
