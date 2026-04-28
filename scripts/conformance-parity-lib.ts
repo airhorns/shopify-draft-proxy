@@ -967,7 +967,7 @@ async function executeGraphQLAgainstLocalProxy(
       }
 
       if (inventoryShipmentMutation.staged) {
-        store.appendLog({
+        store.recordMutationLogEntry({
           id: makeSyntheticGid('MutationLogEntry'),
           receivedAt: makeSyntheticTimestamp(),
           operationName: capability.operationName,
@@ -987,7 +987,7 @@ async function executeGraphQLAgainstLocalProxy(
       };
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1013,7 +1013,7 @@ async function executeGraphQLAgainstLocalProxy(
       capability.operationName === 'publishableUnpublish' ||
       capability.operationName === 'PublishableUnpublish')
   ) {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1032,7 +1032,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'media') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1056,7 +1056,7 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Order-domain parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1075,7 +1075,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1094,7 +1094,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'gift-cards') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1113,7 +1113,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'functions') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1132,7 +1132,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'privacy') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1151,7 +1151,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'markets') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1170,7 +1170,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'localization') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1189,7 +1189,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'segments') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1217,7 +1217,7 @@ async function executeGraphQLAgainstLocalProxy(
       );
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1243,7 +1243,7 @@ async function executeGraphQLAgainstLocalProxy(
     }
 
     if (marketingMutation.shouldLog) {
-      store.appendLog({
+      store.recordMutationLogEntry({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
@@ -1269,7 +1269,7 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Online-store parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1294,7 +1294,7 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1320,7 +1320,7 @@ async function executeGraphQLAgainstLocalProxy(
     }
 
     if (webhookSubscriptionMutation.staged) {
-      store.appendLog({
+      store.recordMutationLogEntry({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
@@ -1341,7 +1341,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'metafields') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1362,7 +1362,7 @@ async function executeGraphQLAgainstLocalProxy(
   if (capability.execution === 'stage-locally' && capability.domain === 'metaobjects') {
     const body = handleMetaobjectDefinitionMutation(document, variables);
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1381,7 +1381,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'store-properties') {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1403,7 +1403,7 @@ async function executeGraphQLAgainstLocalProxy(
   if (shippingCapability.execution === 'stage-locally' && shippingCapability.domain === 'shipping-fulfillments') {
     const deliveryProfileMutation = handleDeliveryProfileMutation(document, variables);
     if (deliveryProfileMutation) {
-      store.appendLog({
+      store.recordMutationLogEntry({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
@@ -1424,7 +1424,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     const orderMutationBody = handleOrderMutation(document, variables, 'snapshot');
     if (orderMutationBody) {
-      store.appendLog({
+      store.recordMutationLogEntry({
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
@@ -1450,7 +1450,7 @@ async function executeGraphQLAgainstLocalProxy(
       );
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: shippingCapability.operationName,
@@ -1473,7 +1473,7 @@ async function executeGraphQLAgainstLocalProxy(
     capability.domain === 'payments' &&
     parsed.rootFields.some((rootField) => PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(rootField))
   ) {
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
@@ -1503,7 +1503,7 @@ async function executeGraphQLAgainstLocalProxy(
       throw new Error(`Order-payment parity request was not handled locally: ${capability.operationName}`);
     }
 
-    store.appendLog({
+    store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,

@@ -4,8 +4,7 @@ import { createApp } from '../support/runtime.js';
 import { createApp as createRuntimeApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
 import { createDraftProxy } from '../../src/proxy-instance.js';
-import { makeSyntheticGid } from '../../src/state/synthetic-identity.js';
-import { store as runtimeStore } from '../../src/state/store.js';
+import type { MutationLogEntry } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
@@ -46,6 +45,11 @@ function readProductCreateId(responseBody: unknown): string {
   }
 
   return id;
+}
+
+function comparableLogEntry(entry: MutationLogEntry): Omit<MutationLogEntry, 'id' | 'receivedAt'> {
+  const { id: _id, receivedAt: _receivedAt, ...comparable } = entry;
+  return comparable;
 }
 
 describe('draft proxy public instance API', () => {
@@ -162,8 +166,28 @@ describe('draft proxy public instance API', () => {
     expect(secondStateResponse.body.stagedState.products).toEqual({});
   });
 
-  it('fails direct runtime helper access outside a DraftProxy request context', () => {
-    expect(() => runtimeStore.getState()).toThrow('No DraftProxy runtime store is active');
-    expect(() => makeSyntheticGid('Product')).toThrow('No DraftProxy synthetic identity registry is active');
+  it('records equivalent mutation logs through the direct instance and HTTP app paths', async () => {
+    const directProxy = createDraftProxy(config);
+    const httpProxy = createDraftProxy(config);
+    const app = createRuntimeApp(config, httpProxy).callback();
+
+    const directResponse = await directProxy.processGraphQLRequest(productCreateBody, {
+      apiVersion: '2025-01',
+    });
+    const httpResponse = await request(app).post('/admin/api/2025-01/graphql.json').send(productCreateBody);
+
+    expect(directResponse.status).toBe(200);
+    expect(httpResponse.status).toBe(200);
+    expect(directResponse.body).toEqual(httpResponse.body);
+
+    const directEntry = directProxy.getLog().entries[0];
+    const httpEntry = httpProxy.getLog().entries[0];
+
+    expect(directEntry).toBeDefined();
+    expect(httpEntry).toBeDefined();
+    if (!directEntry || !httpEntry) {
+      throw new Error('Expected both proxy paths to record a mutation log entry');
+    }
+    expect(comparableLogEntry(directEntry)).toEqual(comparableLogEntry(httpEntry));
   });
 });

@@ -1,10 +1,8 @@
-import Router from '@koa/router';
-import type Koa from 'koa';
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL, type IncomingGraphQLRequestContext } from '../shopify/upstream-request.js';
 import type { InMemoryStore } from '../state/store.js';
-import { isProxySyntheticGid, type SyntheticIdentityRegistry } from '../state/synthetic-identity.js';
+import { isProxySyntheticGid } from '../state/synthetic-identity.js';
 import type { MutationLogEntry } from '../state/types.js';
 
 export interface CommitAttempt {
@@ -141,25 +139,6 @@ function recordCommitIdMappings(entry: MutationLogEntry, responseBody: unknown, 
       idMap.set(stagedId, authoritativeId);
     }
   }
-}
-
-async function readRequestText(ctx: Koa.Context): Promise<string> {
-  const parsedBody = ctx.request.body;
-  if (typeof parsedBody === 'string') {
-    return parsedBody;
-  }
-  if (Buffer.isBuffer(parsedBody)) {
-    return parsedBody.toString('utf8');
-  }
-  if (parsedBody && typeof parsedBody === 'object' && Object.keys(parsedBody).length > 0) {
-    return JSON.stringify(parsedBody);
-  }
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of ctx.req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
 }
 
 function escapeHtml(value: string): string {
@@ -657,28 +636,6 @@ export function getMetaConfig(config: AppConfig): Record<string, unknown> {
   };
 }
 
-export function getMetaLog(runtimeStore: InMemoryStore): { entries: MutationLogEntry[] } {
-  return {
-    entries: runtimeStore.getLog(),
-  };
-}
-
-export function getMetaState(runtimeStore: InMemoryStore): ReturnType<InMemoryStore['getState']> {
-  return runtimeStore.getState();
-}
-
-export function resetMetaState(
-  runtimeStore: InMemoryStore,
-  syntheticIdentity: SyntheticIdentityRegistry,
-): MetaResetResponse {
-  runtimeStore.restoreInitialState();
-  syntheticIdentity.reset();
-  return {
-    ok: true,
-    message: 'state reset',
-  };
-}
-
 export async function commitMetaState(
   config: AppConfig,
   requestContext: IncomingGraphQLRequestContext,
@@ -755,101 +712,4 @@ export async function commitMetaState(
     stopIndex,
     attempts,
   };
-}
-
-export function createMetaRouter(
-  config: AppConfig,
-  runtimeStore: InMemoryStore,
-  syntheticIdentity: SyntheticIdentityRegistry,
-): Router {
-  const router = new Router();
-
-  router.get('/__meta', (ctx: Koa.Context) => {
-    ctx.type = 'html';
-    ctx.body = renderMetaWebUi(config, runtimeStore);
-  });
-
-  router.get('/__meta/health', (ctx: Koa.Context) => {
-    ctx.body = getMetaHealth();
-  });
-
-  router.get('/__meta/config', (ctx: Koa.Context) => {
-    ctx.body = getMetaConfig(config);
-  });
-
-  router.get('/__meta/log', (ctx: Koa.Context) => {
-    ctx.body = getMetaLog(runtimeStore);
-  });
-
-  router.get('/__meta/state', (ctx: Koa.Context) => {
-    ctx.body = getMetaState(runtimeStore);
-  });
-
-  router.get('/__meta/bulk-operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
-    const params = ctx['params'] as Record<string, string | undefined>;
-    const operationId = params['operationId'];
-    const operation = operationId ? runtimeStore.getEffectiveBulkOperationById(operationId) : null;
-
-    if (!operation?.resultJsonl) {
-      ctx.status = 404;
-      ctx.body = 'Bulk operation result not found';
-      return;
-    }
-
-    ctx.type = 'application/jsonl';
-    ctx.body = operation.resultJsonl;
-  });
-
-  async function handleStagedUpload(ctx: Koa.Context): Promise<void> {
-    const captures = (ctx as Koa.Context & { captures?: string[] }).captures ?? [];
-    const params = ctx['params'] as Record<string, string | undefined>;
-    const targetId = decodeURIComponent(params[0] ?? captures[0] ?? '');
-    const filename = decodeURIComponent(params[1] ?? captures[1] ?? '');
-    const content = await readRequestText(ctx);
-    const key = `shopify-draft-proxy/${targetId}/${filename}`;
-    const encodedId = encodeURIComponent(targetId);
-    const encodedFilename = encodeURIComponent(filename);
-
-    runtimeStore.stageUploadContent(
-      [
-        key,
-        `/staged-uploads/${encodedId}/${encodedFilename}`,
-        `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
-      ],
-      content,
-    );
-
-    ctx.status = 201;
-    ctx.body = { ok: true, key };
-  }
-
-  router.post(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
-  router.put(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
-
-  router.get('/__bulk_operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
-    const operationId = ctx['params']['operationId'];
-    const jsonl =
-      typeof operationId === 'string'
-        ? runtimeStore.getEffectiveBulkOperationResultJsonl(`gid://shopify/BulkOperation/${operationId}`)
-        : null;
-
-    if (jsonl === null) {
-      ctx.status = 404;
-      ctx.body = 'Bulk operation result not found';
-      return;
-    }
-
-    ctx.type = 'application/jsonl';
-    ctx.body = jsonl;
-  });
-
-  router.post('/__meta/reset', (ctx: Koa.Context) => {
-    ctx.body = resetMetaState(runtimeStore, syntheticIdentity);
-  });
-
-  router.post('/__meta/commit', async (ctx: Koa.Context) => {
-    ctx.body = await commitMetaState(config, ctx, runtimeStore);
-  });
-
-  return router;
 }

@@ -3,9 +3,7 @@ import {
   commitMetaState,
   getMetaConfig,
   getMetaHealth,
-  getMetaLog,
   renderMetaWebUi,
-  resetMetaState,
   type MetaCommitResponse,
   type MetaHealthResponse,
   type MetaResetResponse,
@@ -42,7 +40,7 @@ export interface DraftProxyOptions {
 }
 
 export type DraftProxyConfigResponse = ReturnType<typeof getMetaConfig>;
-export type DraftProxyLogResponse = ReturnType<typeof getMetaLog>;
+export type DraftProxyLogResponse = ReturnType<InMemoryStore['getMetaLog']>;
 export type DraftProxyStateResponse = ReturnType<InMemoryStore['getState']>;
 
 const ADMIN_GRAPHQL_ROUTE_PATTERN = /^\/admin\/api\/[^/]+\/graphql\.json$/u;
@@ -89,11 +87,18 @@ function requestBodyToText(body: unknown): string {
 }
 
 export class DraftProxy {
+  /** Immutable runtime configuration used for upstream Shopify requests and proxy behavior. */
   readonly config: AppConfig;
 
   private readonly runtimeStore: InMemoryStore;
   private readonly syntheticIdentity: SyntheticIdentityRegistry;
 
+  /**
+   * Creates an isolated draft proxy runtime.
+   *
+   * Each instance owns its in-memory store and synthetic identity registry unless
+   * explicit test/runtime dependencies are supplied.
+   */
   constructor(config: AppConfig, options: DraftProxyOptions = {}) {
     this.config = config;
     this.runtimeStore = options.store ?? new InMemoryStore();
@@ -104,10 +109,17 @@ export class DraftProxy {
     }
   }
 
-  withRuntimeContext<T>(callback: () => T): T {
+  private withRuntimeContext<T>(callback: () => T): T {
     return runWithStore(this.runtimeStore, () => runWithSyntheticIdentity(this.syntheticIdentity, callback));
   }
 
+  /**
+   * Processes a full HTTP-shaped request without requiring a Koa server.
+   *
+   * This is the primary embedding API for workers, tests, and other virtualized
+   * runtimes that need Shopify-like routing and meta endpoints without opening a
+   * listening socket.
+   */
   async processRequest(input: DraftProxyRequest): Promise<DraftProxyResponse> {
     if (input.path === '/__meta') {
       if (!methodIs(input, 'GET')) {
@@ -234,22 +246,11 @@ export class DraftProxy {
 
       const targetId = decodeURIComponent(encodedTargetId);
       const filename = decodeURIComponent(encodedFilenameFromPath);
-      const key = `shopify-draft-proxy/${targetId}/${filename}`;
-      const encodedId = encodeURIComponent(targetId);
-      const encodedFilename = encodeURIComponent(filename);
-
-      this.runtimeStore.stageUploadContent(
-        [
-          key,
-          `/staged-uploads/${encodedId}/${encodedFilename}`,
-          `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
-        ],
-        requestBodyToText(input.body),
-      );
+      const body = this.runtimeStore.stageStagedUpload(targetId, filename, requestBodyToText(input.body));
 
       return {
         status: 201,
-        body: { ok: true, key },
+        body,
       };
     }
 
@@ -267,6 +268,7 @@ export class DraftProxy {
             },
             input.headers,
           ),
+          { store: this.runtimeStore, syntheticIdentity: this.syntheticIdentity },
         );
       }
 
@@ -277,6 +279,7 @@ export class DraftProxy {
     });
   }
 
+  /** Processes a Shopify Admin GraphQL request through the same runtime path as the HTTP API. */
   processGraphQLRequest(body: unknown, options: DraftProxyGraphQLRequestOptions = {}): Promise<DraftProxyResponse> {
     return this.processRequest(
       withOptionalHeaders(
@@ -290,30 +293,37 @@ export class DraftProxy {
     );
   }
 
+  /** Returns liveness metadata for embedded health checks. */
   health(): MetaHealthResponse {
-    return this.withRuntimeContext(() => getMetaHealth());
+    return getMetaHealth();
   }
 
+  /** Returns the sanitized runtime configuration exposed by `GET /__meta/config`. */
   getConfig(): DraftProxyConfigResponse {
     return getMetaConfig(this.config);
   }
 
+  /** Returns the mutation log in original replay order. */
   getLog(): DraftProxyLogResponse {
-    return getMetaLog(this.runtimeStore);
+    return this.runtimeStore.getMetaLog();
   }
 
+  /** Returns the current base and staged in-memory state snapshot. */
   getState(): DraftProxyStateResponse {
     return this.runtimeStore.getState();
   }
 
+  /** Clears staged state, mutation log, and synthetic identity counters for this instance. */
   reset(): MetaResetResponse {
-    return resetMetaState(this.runtimeStore, this.syntheticIdentity);
+    return this.runtimeStore.resetRuntimeState(this.syntheticIdentity);
   }
 
+  /** Alias for `reset()` for callers that prefer cache-style terminology. */
   clear(): MetaResetResponse {
     return this.reset();
   }
 
+  /** Replays staged raw mutations to upstream Shopify in original order. */
   commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<MetaCommitResponse> {
     return commitMetaState(
       this.config,
@@ -325,6 +335,7 @@ export class DraftProxy {
     );
   }
 
+  /** Alias for `commit()` for callers that treat staged mutations as a flush queue. */
   flush(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<MetaCommitResponse> {
     return this.commit(headers);
   }

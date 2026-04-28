@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { defaultPaymentTermsTemplateOrder, defaultPaymentTermsTemplateRecordMap } from './types.js';
+import type { SyntheticIdentityRegistry } from './synthetic-identity.js';
 import type {
   AbandonedCheckoutRecord,
   AbandonmentDeliveryActivityRecord,
@@ -674,8 +675,31 @@ export class InMemoryStore {
     };
   }
 
-  appendLog(entry: MutationLogEntry): void {
+  getMetaLog(): { entries: MutationLogEntry[] } {
+    return {
+      entries: this.getLog(),
+    };
+  }
+
+  getMetaState(): MetaRuntimeState {
+    return this.getState();
+  }
+
+  resetRuntimeState(syntheticIdentity: SyntheticIdentityRegistry): { ok: true; message: string } {
+    this.restoreInitialState();
+    syntheticIdentity.reset();
+    return {
+      ok: true,
+      message: 'state reset',
+    };
+  }
+
+  private appendLog(entry: MutationLogEntry): void {
     this.mutationLog.push(structuredClone(entry));
+  }
+
+  recordMutationLogEntry(entry: MutationLogEntry): void {
+    this.appendLog(entry);
   }
 
   getLog(): MutationLogEntry[] {
@@ -686,6 +710,23 @@ export class InMemoryStore {
     for (const key of keys) {
       this.stagedUploadContents.set(key, content);
     }
+  }
+
+  stageStagedUpload(targetId: string, filename: string, content: string): { ok: true; key: string } {
+    const key = `shopify-draft-proxy/${targetId}/${filename}`;
+    const encodedId = encodeURIComponent(targetId);
+    const encodedFilename = encodeURIComponent(filename);
+
+    this.stageUploadContent(
+      [
+        key,
+        `/staged-uploads/${encodedId}/${encodedFilename}`,
+        `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
+      ],
+      content,
+    );
+
+    return { ok: true, key };
   }
 
   getStagedUploadContent(key: string): string | null {
