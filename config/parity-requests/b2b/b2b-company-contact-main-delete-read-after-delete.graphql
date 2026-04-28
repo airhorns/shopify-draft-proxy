@@ -1,0 +1,17 @@
+query B2BCompanyLifecycleReadAfterDelete($companyId: ID!, $companyQuery: String!) {
+  company(id: $companyId) {
+    id
+  }
+  companies(first: 5, query: $companyQuery) {
+    nodes {
+      id
+      name
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

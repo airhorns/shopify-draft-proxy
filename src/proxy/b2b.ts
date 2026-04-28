@@ -3,6 +3,7 @@ import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
+import { applySearchQuery, matchesSearchQueryString, type SearchQueryTerm } from '../search-query-parser.js';
 import type {
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
@@ -303,7 +304,7 @@ function serializeCompany(
             value: serializeCount(childField, readOptionalCount(source['locationsCount'], locations.length)),
           };
         case 'mainContact': {
-          const mainContact = contacts.find((contact) => contact.data['isMainContact'] === true) ?? contacts[0] ?? null;
+          const mainContact = contacts.find((contact) => contact.data['isMainContact'] === true) ?? null;
           return {
             handled: true,
             value: mainContact ? serializeCompanyContact(runtime, mainContact, childField) : null,
@@ -332,9 +333,39 @@ function serializeCompanies(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return serializeRecordConnection(field, variables, runtime.store.listEffectiveB2BCompanies(), (company, nodeField) =>
+  const args = getFieldArguments(field, variables);
+  const companies = filterCompaniesByQuery(runtime.store.listEffectiveB2BCompanies(), args['query']);
+  return serializeRecordConnection(field, variables, companies, (company, nodeField) =>
     serializeCompany(runtime, company, nodeField, variables),
   );
+}
+
+function matchesPositiveCompanyQueryTerm(company: B2BCompanyRecord, term: SearchQueryTerm): boolean {
+  const field = term.field?.toLowerCase() ?? null;
+  switch (field) {
+    case null:
+      return (
+        matchesSearchQueryString(readStringValue(company.data['name']), term.value, 'includes', { wordPrefix: true }) ||
+        matchesSearchQueryString(readStringValue(company.data['externalId']), term.value, 'includes', {
+          wordPrefix: true,
+        })
+      );
+    case 'id':
+      return matchesSearchQueryString(company.id, term.value);
+    case 'name':
+      return matchesSearchQueryString(readStringValue(company.data['name']), term.value, 'includes', {
+        wordPrefix: true,
+      });
+    case 'external_id':
+    case 'externalid':
+      return matchesSearchQueryString(readStringValue(company.data['externalId']), term.value);
+    default:
+      return false;
+  }
+}
+
+function filterCompaniesByQuery(companies: B2BCompanyRecord[], rawQuery: unknown): B2BCompanyRecord[] {
+  return applySearchQuery(companies, rawQuery, { recognizeNotKeyword: true }, matchesPositiveCompanyQueryTerm);
 }
 
 function serializeCompanyLocations(
@@ -576,6 +607,17 @@ function createContact(
 ): B2BCompanyContactRecord {
   const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContact');
   const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const email = readStringValue(input['email']);
+  const customer =
+    email === null
+      ? null
+      : {
+          __typename: 'Customer',
+          id: runtime.syntheticIdentity.makeProxySyntheticGid('Customer'),
+          email,
+          firstName: readStringValue(input['firstName']),
+          lastName: readStringValue(input['lastName']),
+        };
   return {
     id,
     companyId,
@@ -585,6 +627,12 @@ function createContact(
       isMainContact,
       roleAssignments: [],
       ...contactDataFromInput(input, now),
+      ...(customer
+        ? {
+            customerId: customer.id,
+            customer: jsonRecord(customer),
+          }
+        : {}),
     },
   };
 }

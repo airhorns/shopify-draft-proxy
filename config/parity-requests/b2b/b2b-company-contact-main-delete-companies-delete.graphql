@@ -1,0 +1,10 @@
+mutation B2BCompanyLifecycleCompaniesDelete($companyIds: [ID!]!) {
+  companiesDelete(companyIds: $companyIds) {
+    deletedCompanyIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
