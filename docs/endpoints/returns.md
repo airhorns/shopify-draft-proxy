@@ -4,7 +4,9 @@ The returns group is modeled as an order-backed reverse-logistics slice. The loc
 `Order.returns` array, so supported return writes update order state and downstream reads without sending runtime
 mutations to Shopify.
 
-## Supported roots
+## Current support and limitations
+
+### Supported roots
 
 Overlay reads:
 
@@ -18,7 +20,7 @@ Local staged mutations:
 - `returnClose`
 - `returnReopen`
 
-## Behavior notes
+### Behavior notes
 
 - `return(id:)` resolves returns already present on the local order graph and returns `null` for missing IDs in snapshot
   mode. It serializes the supported Return detail slice from the same record used by nested `Order.returns`.
@@ -38,7 +40,7 @@ Local staged mutations:
   branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
   evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
 
-## Blocked roots
+### Blocked roots
 
 - `returnCalculate` is blocked on calculation parity for restocking fees, exchange lines, return shipping fees, taxes,
   discounts, and error behavior.
@@ -54,7 +56,9 @@ Local staged mutations:
 - `returnApprove` and `returnDecline` are not exposed by live 2025-01 or 2026-04 Admin GraphQL root introspection on the
   current conformance shop.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Runtime behavior: `tests/integration/order-return-flow.test.ts`
 - Executable parity: `config/parity-specs/return-lifecycle-local-staging.json`

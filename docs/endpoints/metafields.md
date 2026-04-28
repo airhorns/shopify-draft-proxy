@@ -1,6 +1,8 @@
 # Metafields
 
-## Metafield definition reads
+## Current support and limitations
+
+### Metafield definition reads
 
 The product-owner definition slice supports the Admin GraphQL read roots:
 
@@ -27,7 +29,7 @@ The serializer currently covers these selected definition fields:
 
 Catalog filters are intentionally limited to the fixture-backed product-owner slice: owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
 
-## Metafield definition lifecycle mutations
+### Metafield definition lifecycle mutations
 
 The product-owner lifecycle slice stages these roots locally without runtime Shopify writes:
 
@@ -47,7 +49,7 @@ Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/meta
 
 HAR-351 promotes that fixture from runtime-test-backed fixture evidence into `config/parity-specs/metafield-definition-lifecycle-mutations.json` as a strict generic proxy-vs-recording parity scenario. The parity runner seeds the recorded setup product, replays create, definition-backed `metafieldsSet`, downstream definition/product reads, update, delete, and post-delete no-data reads against the local proxy harness. Accepted differences are limited to local synthetic GIDs and the pinned-position offset caused by unrelated pinned definitions already present in the live capture shop.
 
-## Standard metafield definition enablement
+### Standard metafield definition enablement
 
 `standardMetafieldDefinitionEnable` stages a normalized metafield definition locally from the HAR-257 captured standard template slice. Supported selectors are the fixture-backed template IDs/namespaces in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/standard-metafield-definition-enable-validation.json`.
 
@@ -68,7 +70,7 @@ HAR-257 captured validation behavior in `fixtures/conformance/harry-test-heelo.m
 
 That fixture scope is not a rule against live success captures. Normal supported proxy runtime handling must not send this mutation to Shopify, but explicit conformance recording may create and clean up real standard definitions in a disposable test shop, and `__meta/commit` replay should let the queued raw mutation create its Shopify-side schema effect.
 
-## Metafield definition pinning
+### Metafield definition pinning
 
 The product-owner pinning slice supports local staging for existing normalized definition records:
 
@@ -80,6 +82,8 @@ The product-owner pinning slice supports local staging for existing normalized d
 Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
 
 The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. It does not create missing definitions through pin/unpin and does not model app-configuration-managed / unsupported-owner error branches yet.
+
+## Historical and developer notes
 
 Validation entry points:
 

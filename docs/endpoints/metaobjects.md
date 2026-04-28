@@ -4,7 +4,9 @@ The metaobjects group covers Shopify Admin GraphQL custom data roots. Runtime su
 
 HAR-131 is the source related issue for the metaobjects area.
 
-## Supported definition read roots
+## Current support and limitations
+
+### Supported definition read roots
 
 HAR-241 promotes the first metaobject runtime slice from registry-only coverage to executable snapshot and live-hybrid reads for normalized definition state:
 
@@ -26,7 +28,7 @@ Live-hybrid mode still fetches upstream first. When local staged or snapshot def
 
 Local catalog cursors use the proxy's stable `cursor:<definition gid>` form. Shopify's captured live catalog cursors are opaque and should not be treated as client-visible semantics.
 
-## Supported entry read roots
+### Supported entry read roots
 
 HAR-243 promotes normalized metaobject entry reads for:
 
@@ -49,7 +51,7 @@ Snapshot mode reads entries from normalized `metaobjects` state and returns `nul
 
 Live-hybrid mode fetches upstream first. When local snapshot or staged entry state exists, the proxy overlays normalized entries onto the selected roots; when no local entry exists, upstream no-data/null responses are returned unchanged.
 
-## Supported definition mutation roots
+### Supported definition mutation roots
 
 HAR-242 adds local staging for these Admin GraphQL 2026-04 definition mutation roots:
 
@@ -78,7 +80,7 @@ Delete support stages deletion for definitions whose effective `metaobjectsCount
 
 `standardMetaobjectDefinitionEnable` is limited to the bounded local template catalog currently represented by runtime tests. Known templates stage a standard definition locally with `standardTemplate` metadata; unknown template types return `TEMPLATE_NOT_FOUND` locally.
 
-## Supported entry mutation roots
+### Supported entry mutation roots
 
 HAR-244 adds local staging for the core Admin GraphQL 2026-04 metaobject row lifecycle roots:
 
@@ -100,14 +102,14 @@ Delete support stages a tombstone for base or staged rows, returns the selected 
 
 Bulk delete support accepts the local `ids` branch used by runtime tests and a type-scoped `where.type` branch for local cleanup-style selection. It stages tombstones for found rows, returns a completed local `Job` payload when at least one row is deleted, preserves ordered `elementIndex` userErrors for missing IDs, updates definition counts per type, and keeps all effects local.
 
-## Coverage boundaries
+### Coverage boundaries
 
 - Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.
 - `implemented` must remain `false` until a root has executable runtime behavior, targeted tests, captured conformance/runtime evidence, and documented field behavior. HAR-241 satisfies that bar for definition reads; HAR-242 satisfies that bar for definition mutation roots; HAR-243 satisfies that bar for entry reads; HAR-244 satisfies that bar for entry row mutation roots.
 - Unsupported metaobjects mutations must not be registered as permanent passthrough support. The generic unknown-operation passthrough path can still handle unsupported runtime requests outside snapshot-only parity execution, but that is not a support commitment for any declared root.
 - Do not add planned-only parity specs or request placeholders for this group. Add parity specs only after a captured Shopify interaction can run as evidence.
 
-## Schema-change lifecycle behavior
+### Schema-change lifecycle behavior
 
 HAR-245's live 2026-04 schema-change fixture (`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-schema-change-lifecycle.json`) is replayed by `config/parity-specs/metaobject-schema-change-lifecycle.json`.
 
@@ -117,20 +119,20 @@ Rows created before the schema edit continue to resolve by ID and handle after t
 
 Rows created after publishable capability is disabled serialize `capabilities.publishable: null`; singular ID/handle reads observe them immediately, while the captured immediate catalog read did not include the newly created post-disable row. The local catalog model preserves the captured distinction between rows that had an active publishable status before capability disable and rows created after publishable is disabled.
 
-## Planned local-staging posture
+### Planned local-staging posture
 
 - Definition mutation support does not yet migrate modeled entries or cascade definition deletes into entry state. Future definition/entry coupling needs conformance-backed migration and cascade behavior.
 - Broader bulk delete selection semantics and Shopify async job timing need additional live conformance before widening beyond the local ids/type branches.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 
-## Empty and no-data expectations
+### Empty and no-data expectations
 
 - Singular entry and definition lookup misses should match Shopify null behavior once captured, including ID, type, and handle lookup branches.
 - Connection roots should return Shopify-like empty `edges`, `nodes`, and `pageInfo` structures for known empty datasets instead of inventing records.
 - Type-scoped entry reads must not synthesize arbitrary metaobjects when the snapshot or staged state lacks that type.
 - Definition reads must not invent field definitions, capabilities, access settings, standard-template metadata, or associated entry counts without captured or staged state. HAR-241's serializer only projects normalized definition records and returns Shopify-like null/empty structures when no record exists.
 
-## Conformance evidence needed before support
+### Conformance evidence needed before support
 
 - Capture baseline definition catalog and definition detail reads, including empty catalog behavior and missing ID/type lookup behavior.
 - Capture entry catalog reads by type, singular ID lookup, handle lookup, empty type behavior, pagination, reverse ordering, supported sort keys, and field-value query filters.
@@ -138,7 +140,9 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 - Expand definition mutation live captures for update, associated-entry delete cascades, and additional standard templates before broadening the HAR-242 local support boundaries.
 - Promote parity specs only after comparison targets can verify Shopify payload shape, userErrors, nullability, empty connections, cursor treatment, and downstream read-after-write or read-after-delete behavior.
 
-## Captured read fixture slice
+## Historical and developer notes
+
+### Captured read fixture slice
 
 HAR-240 adds a live 2026-04 read fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json`, recorded by `corepack pnpm conformance:capture-metaobjects`.
 
@@ -162,7 +166,7 @@ HAR-244 adds `config/parity-specs/metaobject-entry-lifecycle-local-staging.json`
 
 HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
-## Validation anchors
+### Validation anchors
 
 - Registry and coverage tests: `tests/unit/operation-registry.test.ts`, `tests/unit/graphql-operation-coverage.test.ts`
 - Definition read runtime tests: `tests/integration/metaobject-definition-query-shapes.test.ts`

@@ -2,7 +2,9 @@
 
 The discounts group has catalog-first local read support. Keep discount-specific capture, access-scope, and compatibility notes here instead of in `docs/architecture.md`.
 
-## Local read support and staged native lifecycle support
+## Current support and limitations
+
+### Local read support and staged native lifecycle support
 
 Overlay reads:
 
@@ -59,7 +61,7 @@ Captured mutation validation guardrails, not implemented lifecycle support:
 - `discountCodeBulkDeactivate`
 - `discountAutomaticBulkDelete`
 
-## Unsupported roots still tracked by the registry
+### Unsupported roots still tracked by the registry
 
 - `codeDiscountNodes`
 - `automaticDiscounts`
@@ -69,7 +71,7 @@ Captured mutation validation guardrails, not implemented lifecycle support:
   - `discountAutomaticAppCreate`
   - `discountAutomaticAppUpdate`
 
-## Behavior notes
+### Behavior notes
 
 - `discountNodes` and `discountNodesCount` are served locally in snapshot mode from normalized `DiscountRecord` state.
 - Singular detail roots are served locally in snapshot mode from the same normalized `DiscountRecord` state:
@@ -126,7 +128,9 @@ Captured mutation validation guardrails, not implemented lifecycle support:
 - Discount capture fails before discount reads or writes when either required discount scope is missing.
 - Discount capture files use the `discount-*` conformance naming convention only after scope checks pass.
 
-## Validation anchors
+## Historical and developer notes
+
+### Validation anchors
 
 - Discount reads: `tests/integration/discount-query-shapes.test.ts`
 - Discount code-basic lifecycle: `tests/integration/discount-code-basic-lifecycle-flow.test.ts`
