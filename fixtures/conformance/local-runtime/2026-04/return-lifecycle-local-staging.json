@@ -108,6 +108,40 @@
       }
     }
   },
+  "declineRequest": {
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/return-flow",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-flow",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "declineInput": {
+      "declineReason": "RETURN_PERIOD_ENDED",
+      "declineNote": "Outside policy",
+      "notifyCustomer": true
+    }
+  },
+  "reverseLogistics": {
+    "trackingInput": {
+      "number": "TRACK-1",
+      "url": "https://tracking.example/1",
+      "company": "Example Carrier"
+    },
+    "updatedTrackingInput": {
+      "number": "TRACK-2",
+      "url": "https://tracking.example/2",
+      "company": "Updated Carrier"
+    },
+    "labelInput": {
+      "publicFileUrl": "https://labels.example/return.pdf"
+    }
+  },
   "expected": {
     "create": {
       "data": {
@@ -138,7 +172,11 @@
               ]
             },
             "reverseFulfillmentOrders": {
-              "nodes": []
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrder/4"
+                }
+              ]
             },
             "id": "gid://shopify/Return/2"
           },
@@ -210,7 +248,7 @@
         "returnRequest": {
           "return": {
             "status": "REQUESTED",
-            "id": "gid://shopify/Return/8"
+            "id": "gid://shopify/Return/10"
           },
           "userErrors": []
         }
@@ -227,6 +265,265 @@
               "code": null
             }
           ]
+        }
+      }
+    },
+    "reverseRequest": {
+      "data": {
+        "returnRequest": {
+          "return": {
+            "id": "gid://shopify/Return/2",
+            "status": "REQUESTED",
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/1",
+                  "quantity": 1,
+                  "processedQuantity": 0,
+                  "unprocessedQuantity": 1
+                }
+              ]
+            },
+            "reverseFulfillmentOrders": {
+              "nodes": []
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "approveRequest": {
+      "data": {
+        "returnApproveRequest": {
+          "return": {
+            "id": "gid://shopify/Return/2",
+            "status": "OPEN",
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/1",
+                  "quantity": 1,
+                  "processedQuantity": 0,
+                  "unprocessedQuantity": 1
+                }
+              ]
+            },
+            "reverseFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "status": "OPEN",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 1,
+                        "returnLineItem": {
+                          "id": "gid://shopify/ReturnLineItem/1"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "reverseDeliveryCreate": {
+      "data": {
+        "reverseDeliveryCreateWithShipping": {
+          "reverseDelivery": {
+            "id": "gid://shopify/ReverseDelivery/8",
+            "reverseFulfillmentOrder": {
+              "id": "gid://shopify/ReverseFulfillmentOrder/5"
+            },
+            "reverseDeliveryLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseDeliveryLineItem/7",
+                  "quantity": 1,
+                  "reverseFulfillmentOrderLineItem": {
+                    "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                    "remainingQuantity": 1
+                  }
+                }
+              ]
+            },
+            "deliverable": {
+              "__typename": "ReverseDeliveryShippingDeliverable",
+              "tracking": {
+                "number": "TRACK-1",
+                "url": "https://tracking.example/1",
+                "company": "Example Carrier"
+              },
+              "label": {
+                "publicFileUrl": "https://labels.example/return.pdf"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "reverseDeliveryUpdate": {
+      "data": {
+        "reverseDeliveryShippingUpdate": {
+          "reverseDelivery": {
+            "id": "gid://shopify/ReverseDelivery/8",
+            "deliverable": {
+              "__typename": "ReverseDeliveryShippingDeliverable",
+              "tracking": {
+                "number": "TRACK-2",
+                "url": "https://tracking.example/2",
+                "company": "Updated Carrier"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "dispose": {
+      "data": {
+        "reverseFulfillmentOrderDispose": {
+          "reverseFulfillmentOrderLineItems": [
+            {
+              "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+              "remainingQuantity": 0,
+              "dispositionType": "RESTOCKED"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    },
+    "process": {
+      "data": {
+        "returnProcess": {
+          "return": {
+            "id": "gid://shopify/Return/2",
+            "status": "CLOSED",
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/1",
+                  "quantity": 1,
+                  "processedQuantity": 1,
+                  "unprocessedQuantity": 0
+                }
+              ]
+            },
+            "reverseFulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "status": "CLOSED",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "remainingQuantity": 0,
+                        "dispositionType": "RESTOCKED"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "reverseRead": {
+      "data": {
+        "return": {
+          "id": "gid://shopify/Return/2",
+          "status": "CLOSED",
+          "totalQuantity": 1
+        },
+        "order": {
+          "id": "gid://shopify/Order/return-flow",
+          "returns": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Return/2",
+                "status": "CLOSED",
+                "totalQuantity": 1
+              }
+            ]
+          }
+        },
+        "reverseDelivery": {
+          "id": "gid://shopify/ReverseDelivery/8",
+          "deliverable": {
+            "__typename": "ReverseDeliveryShippingDeliverable",
+            "tracking": {
+              "number": "TRACK-2"
+            }
+          }
+        },
+        "reverseFulfillmentOrder": {
+          "id": "gid://shopify/ReverseFulfillmentOrder/5",
+          "status": "CLOSED",
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "remainingQuantity": 0,
+                "dispositionType": "RESTOCKED"
+              }
+            ]
+          },
+          "reverseDeliveries": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ReverseDelivery/8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "declineRequest": {
+      "data": {
+        "returnDeclineRequest": {
+          "return": {
+            "id": "gid://shopify/Return/2",
+            "status": "DECLINED",
+            "decline": {
+              "reason": "RETURN_PERIOD_ENDED",
+              "note": "Outside policy"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "remove": {
+      "data": {
+        "removeFromReturn": {
+          "return": {
+            "id": "gid://shopify/Return/2",
+            "totalQuantity": 0,
+            "returnLineItems": {
+              "nodes": []
+            },
+            "reverseFulfillmentOrders": {
+              "nodes": [
+                {
+                  "lineItems": {
+                    "nodes": []
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
         }
       }
     }

@@ -1,0 +1,133 @@
+query ProductContextualPricingRead($productId: ID!, $variantId: ID!, $country: CountryCode!) {
+  product(id: $productId) {
+    id
+    title
+    contextualPricing(context: { country: $country }) {
+      fixedQuantityRulesCount
+      priceRange {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      minVariantPricing {
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        quantityRule {
+          minimum
+          maximum
+          increment
+        }
+        quantityPriceBreaks(first: 3) {
+          edges {
+            cursor
+            node {
+              minimumQuantity
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+      maxVariantPricing {
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        quantityRule {
+          minimum
+          maximum
+          increment
+        }
+        quantityPriceBreaks(first: 3) {
+          edges {
+            cursor
+            node {
+              minimumQuantity
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            hasPreviousPage
+            startCursor
+            endCursor
+          }
+        }
+      }
+    }
+  }
+  productVariant(id: $variantId) {
+    id
+    title
+    sku
+    price
+    compareAtPrice
+    product {
+      id
+      title
+    }
+    contextualPricing(context: { country: $country }) {
+      price {
+        amount
+        currencyCode
+      }
+      compareAtPrice {
+        amount
+        currencyCode
+      }
+      unitPrice {
+        amount
+        currencyCode
+      }
+      quantityRule {
+        minimum
+        maximum
+        increment
+      }
+      quantityPriceBreaks(first: 3) {
+        edges {
+          cursor
+          node {
+            minimumQuantity
+            price {
+              amount
+              currencyCode
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+}

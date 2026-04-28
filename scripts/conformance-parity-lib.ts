@@ -10,6 +10,7 @@ import {
   type ComparisonContract,
   type ComparisonTarget,
   type ExpectedDifference,
+  type JsonValue,
   type Matcher,
   type ParitySpec,
   type ProxyRequestSpec,
@@ -1073,6 +1074,38 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'shipping-fulfillments' &&
+    parsed.rootFields.some((rootField) =>
+      ['reverseDeliveryCreateWithShipping', 'reverseDeliveryShippingUpdate', 'reverseFulfillmentOrderDispose'].includes(
+        rootField,
+      ),
+    )
+  ) {
+    const body = handleOrderMutation(document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Reverse-logistics parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    store.recordMutationLogEntry({
+      id: makeSyntheticGid('MutationLogEntry'),
+      receivedAt: makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: '/admin/api/2025-01/graphql.json',
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
   if (capability.execution === 'stage-locally' && capability.domain === 'customers') {
     store.recordMutationLogEntry({
       id: makeSyntheticGid('MutationLogEntry'),
@@ -1728,6 +1761,8 @@ async function executeGraphQLAgainstLocalProxy(
           'fulfillmentOrders',
           'assignedFulfillmentOrders',
           'manualHoldsFulfillmentOrders',
+          'reverseDelivery',
+          'reverseFulfillmentOrder',
         ].includes(rootField),
       )
     ) {
@@ -5210,7 +5245,13 @@ function makeSeedProduct(
       description: readStringField(rawSeo, 'description'),
     },
     category: null,
+    ...readSeedContextualPricing(source),
   };
+}
+
+function readSeedContextualPricing(source: Record<string, unknown> | null): { contextualPricing?: JsonValue } {
+  const result = jsonValueSchema.safeParse(source?.['contextualPricing']);
+  return result.success ? { contextualPricing: structuredClone(result.data) } : {};
 }
 
 function makeSeedVariant(
@@ -5285,6 +5326,7 @@ function makeCapturedVariant(productId: string, source: Record<string, unknown>)
           inventoryLevels,
         }
       : null,
+    ...readSeedContextualPricing(source),
   };
 }
 
@@ -5335,6 +5377,38 @@ function readCapturedProductOptions(productId: string, product: Record<string, u
       };
     })
     .filter((option): option is ProductOptionRecord => option !== null);
+}
+
+function seedProductContextualPricingReadPreconditions(capture: unknown): boolean {
+  const data = readRecordField(capture as Record<string, unknown>, 'data');
+  const product = readRecordField(data, 'product');
+  const variant = readRecordField(data, 'productVariant');
+  const productId = readStringField(product, 'id') ?? readStringField(readRecordField(variant, 'product'), 'id');
+  if (!productId?.startsWith('gid://shopify/Product/')) {
+    return false;
+  }
+
+  const seedProduct = readArrayField(capture as Record<string, unknown>, 'seedProducts').find(
+    (candidate): candidate is Record<string, unknown> =>
+      isPlainObject(candidate) && readStringField(candidate, 'id') === productId,
+  );
+  store.upsertBaseProducts([makeSeedProduct(productId, product ?? seedProduct ?? null)]);
+
+  const variants: ProductVariantRecord[] = [];
+  if (variant) {
+    const capturedVariant = makeCapturedVariant(productId, variant);
+    if (capturedVariant) {
+      variants.push(capturedVariant);
+    }
+  }
+  if (variants.length === 0) {
+    variants.push(...readCapturedProductVariants(productId, seedProduct ?? null));
+  }
+  if (variants.length > 0) {
+    store.replaceBaseVariantsForProduct(productId, variants);
+  }
+
+  return true;
 }
 
 function readPreMutationProduct(capture: unknown, productId: string): Record<string, unknown> | null {
@@ -7060,6 +7134,9 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     if (options.length > 0) {
       store.replaceBaseOptionsForProduct(productId, options);
     }
+  }
+  if (seedProductContextualPricingReadPreconditions(capture)) {
+    return;
   }
   const seedCollections = readArrayField(capture as Record<string, unknown>, 'seedCollections').filter(isPlainObject);
   for (const seedCollection of seedCollections) {

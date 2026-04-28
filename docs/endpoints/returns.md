@@ -16,20 +16,35 @@ Local staged mutations:
 
 - `returnCreate`
 - `returnRequest`
+- `returnApproveRequest`
+- `returnDeclineRequest`
 - `returnCancel`
 - `returnClose`
 - `returnReopen`
+- `removeFromReturn`
+- `returnProcess`
 
 ### Behavior notes
 
 - `return(id:)` resolves returns already present on the local order graph and returns `null` for missing IDs in snapshot
   mode. It serializes the supported Return detail slice from the same record used by nested `Order.returns`.
 - `returnCreate` stages a local `OPEN` return for a known order and known fulfillment line items. The local return stores a
-  stable synthetic Return ID, ReturnLineItem IDs, status, name, timestamps, quantity, reason, reason note, and order
-  linkage. The original raw mutation is retained in the meta log for explicit commit replay.
+  stable synthetic Return ID, ReturnLineItem IDs, status, name, timestamps, quantity, reason, reason note, order linkage,
+  and reverse fulfillment order work for the returned quantities. The original raw mutation is retained in the meta log
+  for explicit commit replay.
 - `returnRequest` stages the same order-backed shape with status `REQUESTED`.
+- `returnApproveRequest` transitions a local `REQUESTED` return to `OPEN`, clears any decline metadata, and creates a
+  reverse fulfillment order with line work for the approved return line quantities.
+- `returnDeclineRequest` transitions a local `REQUESTED` return to `DECLINED` and stores the selected decline reason/note.
+  Customer notification side effects are not sent.
 - `returnCancel`, `returnClose`, and `returnReopen` update the status of known local returns. `returnClose` records a local
   `closedAt` timestamp; `returnReopen` clears it.
+- `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
+  reverse fulfillment order line quantities. Exchange-line removal remains explicitly unsupported until exchange fixtures
+  exist.
+- `returnProcess` updates processed quantities for local return line items, closes the return when all lines are processed,
+  and syncs reverse fulfillment order remaining quantities. Refund duties, refund shipping, financial transfers, exchange
+  processing, and notification behavior are not emulated beyond local metadata and validation boundaries.
 - Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
@@ -39,6 +54,11 @@ Local staged mutations:
   downstream `return(id:)` and `Order.returns` reads, `returnRequest`, and a missing fulfillment-line-item validation
   branch against an explicit local-runtime fixture. The live reverse-logistics introspection fixture remains schema
   evidence for root availability and blocked roots; it is not the behavior payload for the strict local lifecycle replay.
+- HAR-370 adds executable local-runtime parity for `returnApproveRequest`, `returnDeclineRequest`, `removeFromReturn`,
+  `returnProcess`, reverse delivery creation/update, reverse fulfillment disposal, and downstream reverse logistics reads.
+  The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
+  return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
+  refund-transfer, exchange, notification, or inventory movement fidelity.
 
 ### Blocked roots
 
@@ -46,13 +66,9 @@ Local staged mutations:
   discounts, and error behavior.
 - `returnableFulfillment` and `returnableFulfillments` are blocked on returnability eligibility and line-item quantity
   parity over fulfilled orders.
-- `removeFromReturn` is blocked on captured removal semantics for return and exchange line items, quantity recomputation,
-  and downstream read effects.
-- `returnProcess` is blocked on processing semantics for returned/exchanged items, refunds, duties, shipping, financial
-  transfers, notification behavior, and downstream order/refund/return effects.
-- `reverseDelivery`, `reverseFulfillmentOrder`, `reverseDeliveryCreateWithShipping`,
-  `reverseDeliveryShippingUpdate`, and `reverseFulfillmentOrderDispose` are blocked on a normalized reverse fulfillment
-  order and reverse delivery graph with captured tracking, label, disposition, and inventory/location effects.
+- Exchange-line removal/processing is blocked on captured exchange item semantics and downstream order/return effects.
+- Refund duties, refund shipping, financial transfers, notification sends, carrier labels, and inventory/location movement
+  remain local-only boundaries until live success-path captures prove the side effects and cleanup path.
 - `returnApprove` and `returnDecline` are not exposed by live 2025-01 or 2026-04 Admin GraphQL root introspection on the
   current conformance shop.
 
@@ -62,6 +78,10 @@ Local staged mutations:
 
 - Runtime behavior: `tests/integration/order-return-flow.test.ts`
 - Executable parity: `config/parity-specs/return-lifecycle-local-staging.json`
+- HAR-370 executable parity:
+  `config/parity-specs/return-reverse-logistics-local-staging.json`,
+  `config/parity-specs/return-request-decline-local-staging.json`, and
+  `config/parity-specs/removeFromReturn-local-staging.json`
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.
