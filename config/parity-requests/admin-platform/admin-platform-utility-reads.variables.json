@@ -1,5 +1,6 @@
 {
   "ids": ["gid://shopify/Product/0", "gid://shopify/Job/0", "gid://shopify/Domain/0"],
   "domainId": "gid://shopify/Domain/0",
-  "jobId": "gid://shopify/Job/0"
+  "jobId": "gid://shopify/Job/0",
+  "taxonomyAfter": "eyJpZCI6ODUyfQ=="
 }
