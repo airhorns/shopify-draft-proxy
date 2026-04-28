@@ -11,7 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-item-update-parity.json');
 const { runGraphql } = createAdminGraphqlClient({
   adminOrigin,

@@ -24,7 +24,7 @@ const draftOrderReadBlockerNotePath = path.join('pending', 'draft-order-read-con
 const fulfillmentLifecycleBlockerNotePath = path.join('pending', 'fulfillment-lifecycle-conformance-scope-blocker.md');
 const manualStoreAuthTokenPath = '.manual-store-auth-token.json';
 
-const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'orders');
 const orderEmptyStateFixturePath = path.join(fixtureDir, 'order-empty-state.json');
 const orderUpdateUnknownIdFixturePath = path.join(fixtureDir, 'order-update-unknown-id.json');
 const orderUpdateMissingIdFixturePath = path.join(fixtureDir, 'order-update-missing-id.json');
@@ -2467,13 +2467,13 @@ ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 ## Practical next step for order-edit parity
 
 1. keep the checked-in calculated-order edit flow and captured workflow specs as the source of truth:
-   - \`config/parity-specs/orderEditBegin-parity-plan.json\`
-   - \`config/parity-specs/orderEditAddVariant-parity-plan.json\`
-   - \`config/parity-specs/orderEditSetQuantity-parity-plan.json\`
-   - \`config/parity-specs/orderEditCommit-parity-plan.json\`
-   - \`config/parity-specs/orderEditExistingOrder-happy-path.json\`
-   - \`config/parity-specs/orderEditExistingOrder-validation.json\`
-   - \`config/parity-specs/orderEditExistingOrder-zero-removal.json\`
+   - \`config/parity-specs/orders/orderEditBegin-parity-plan.json\`
+   - \`config/parity-specs/orders/orderEditAddVariant-parity-plan.json\`
+   - \`config/parity-specs/orders/orderEditSetQuantity-parity-plan.json\`
+   - \`config/parity-specs/orders/orderEditCommit-parity-plan.json\`
+   - \`config/parity-specs/orders/orderEditExistingOrder-happy-path.json\`
+   - \`config/parity-specs/orders/orderEditExistingOrder-validation.json\`
+   - \`config/parity-specs/orders/orderEditExistingOrder-zero-removal.json\`
 2. rerun:
    - \`corepack pnpm conformance:probe\`
    - \`corepack pnpm conformance:capture-orders\`
@@ -2485,9 +2485,9 @@ ${renderManualStoreAuthSection(manualStoreAuthSummary)}
 
   if (authRegressed) {
     const draftOrdersCatalogLastVerified =
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json';
+      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-catalog.json';
     const draftOrdersCountLastVerified =
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json';
+      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-count.json';
     const draftOrderReadNote = `# Draft-order read conformance blocker
 
 ## What this run checked

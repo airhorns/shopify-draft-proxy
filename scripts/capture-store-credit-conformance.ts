@@ -191,7 +191,7 @@ function readStringAtPath(value: unknown, pathSegments: string[]): string | null
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'payments');
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,

@@ -6,29 +6,44 @@ import { describe, expect, it } from 'vitest';
 describe('customer parity request scaffolds', () => {
   it('keep the richer customer detail and catalog field slices aligned with the supported overlay serializer', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const detailDocumentPath = resolve(repoRoot, 'config/parity-requests/customer-detail-parity-plan.graphql');
-    const catalogDocumentPath = resolve(repoRoot, 'config/parity-requests/customers-catalog-parity-plan.graphql');
-    const searchDocumentPath = resolve(repoRoot, 'config/parity-requests/customers-search-read.graphql');
+    const detailDocumentPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customer-detail-parity-plan.graphql',
+    );
+    const catalogDocumentPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customers-catalog-parity-plan.graphql',
+    );
+    const searchDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customers-search-read.graphql');
     const advancedSearchDocumentPath = resolve(
       repoRoot,
-      'config/parity-requests/customers-advanced-search-read.graphql',
+      'config/parity-requests/customers/customers-advanced-search-read.graphql',
     );
     const advancedSearchVariablesPath = resolve(
       repoRoot,
-      'config/parity-requests/customers-advanced-search-read.variables.json',
+      'config/parity-requests/customers/customers-advanced-search-read.variables.json',
     );
-    const sortKeysDocumentPath = resolve(repoRoot, 'config/parity-requests/customers-sort-keys-read.graphql');
-    const sortKeysVariablesPath = resolve(repoRoot, 'config/parity-requests/customers-sort-keys-read.variables.json');
-    const relevanceDocumentPath = resolve(repoRoot, 'config/parity-requests/customers-relevance-search-read.graphql');
+    const sortKeysDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customers-sort-keys-read.graphql');
+    const sortKeysVariablesPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customers-sort-keys-read.variables.json',
+    );
+    const relevanceDocumentPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customers-relevance-search-read.graphql',
+    );
     const relevanceVariablesPath = resolve(
       repoRoot,
-      'config/parity-requests/customers-relevance-search-read.variables.json',
+      'config/parity-requests/customers/customers-relevance-search-read.variables.json',
     );
-    const countDocumentPath = resolve(repoRoot, 'config/parity-requests/customers-count-read.graphql');
-    const countVariablesPath = resolve(repoRoot, 'config/parity-requests/customers-count-read.variables.json');
+    const countDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customers-count-read.graphql');
+    const countVariablesPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customers-count-read.variables.json',
+    );
     const countFixturePath = resolve(
       repoRoot,
-      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers-count.json',
+      'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customers-count.json',
     );
 
     expect(existsSync(detailDocumentPath)).toBe(true);

@@ -1,0 +1,32 @@
+{
+  "scenarioId": "productDelete-variable-missing-id-parity",
+  "operationNames": ["productDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productDelete-variable-missing-id-parity.graphql",
+    "variablesCapturePath": "$.invalidInput.variableMissingId.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured variable coercion error when productDelete input.id is omitted.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.errors[0].locations[0].column",
+        "matcher": "any-number",
+        "reason": "The checked-in proxy request is repo-formatted while the live capture came from the indented capture script document; both point at the ProductDeleteInput variable definition."
+      }
+    ],
+    "targets": [
+      {
+        "name": "variable-missing-id-product-delete-error",
+        "capturePath": "$.invalidInput.variableMissingId.response",
+        "proxyPath": "$"
+      }
+    ]
+  }
+}

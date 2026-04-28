@@ -20,7 +20,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'gift-cards');
 const outputPath = path.join(outputDir, 'gift-card-lifecycle.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({

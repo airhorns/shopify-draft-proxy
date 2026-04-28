@@ -1,0 +1,27 @@
+{
+  "scenarioId": "product-empty-state-read",
+  "operationNames": ["product", "products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-empty-state.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-empty-state-read.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify no-data product reads: missing singular product returns null, unmatched product count returns zero with EXACT precision, and unmatched product connection returns empty edges with null cursors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "empty-product-read-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

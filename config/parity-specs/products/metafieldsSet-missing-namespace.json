@@ -1,0 +1,66 @@
+{
+  "scenarioId": "metafields-set-missing-namespace",
+  "operationNames": ["metafieldsSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-parity-plan.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Missing namespace on MetafieldsSetInput is not an error in the captured Shopify branch; Shopify stores the metafield under the installed app namespace.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldsSet.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Product metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[*].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.nodes[3].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Product metafield IDs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.product.metafields.nodes[3].compareDigest",
+        "matcher": "non-empty-string",
+        "reason": "Shopify compareDigest values are opaque CAS tokens while local staged metafields use deterministic draft digests."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.startCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      },
+      {
+        "path": "$.product.metafields.pageInfo.endCursor",
+        "matcher": "non-empty-string",
+        "reason": "Shopify connection cursors are opaque while local replay uses stable synthetic metafield cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamReadVariables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

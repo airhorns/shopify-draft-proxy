@@ -20,7 +20,7 @@ const status = {
   regrettableDivergences: [
     {
       scenarioId: 'product-create-live-parity',
-      paritySpecPath: 'config/parity-specs/productCreate-parity-plan.json',
+      paritySpecPath: 'config/parity-specs/products/productCreate-parity-plan.json',
       expectedDifferenceIndex: 0,
       path: '$.data.productCreate.product.id',
       reason: 'Shopify and the proxy allocate different product ids.',

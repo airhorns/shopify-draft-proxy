@@ -29,7 +29,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
   exitOnMissing: true,
 });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'metaobjects');
 const outputPath = path.join(outputDir, 'metaobjects-read.json');
 const runId = Date.now().toString();
 const seed: SeedState = {

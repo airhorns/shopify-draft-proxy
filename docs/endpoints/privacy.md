@@ -44,7 +44,7 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - Local staging keeps the operation under the privacy registry domain, but stores its read-after-write effect on the normalized customer record so `customer(id:)` and `customerByIdentifier(...)` can serialize `dataSaleOptOut`.
 - Customer email/SMS marketing consent is already tracked under the customers endpoint group and HAR-153 through `customerEmailMarketingConsentUpdate` and `customerSmsMarketingConsentUpdate`.
 - Legal policy body updates are already tracked under store properties and HAR-173 through `shopPolicyUpdate`.
-- `dataSaleOptOut` is present as a mutation root in the checked-in 2025-01 root introspection fixture. Fixture-backed parity coverage lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/data-sale-opt-out-parity.json`.
+- `dataSaleOptOut` is present as a mutation root in the checked-in 2025-01 root introspection fixture. Fixture-backed parity coverage lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-parity.json`.
 
 ## Historical and developer notes
 
@@ -65,6 +65,6 @@ Do not check in planned-only parity specs or parity request placeholders for thi
 
 - Local data-sale opt-out staging and read-after-write behavior: `tests/integration/customer-draft-flow.test.ts`
 - Privacy mutation observability and capability behavior: `tests/integration/proxy-capability-classification.test.ts`
-- Fixture-backed parity scenario: `config/parity-specs/dataSaleOptOut-parity.json`
+- Fixture-backed parity scenario: `config/parity-specs/privacy/dataSaleOptOut-parity.json`
 - General registry checks: `tests/unit/operation-registry.test.ts`
-- Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`
+- Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

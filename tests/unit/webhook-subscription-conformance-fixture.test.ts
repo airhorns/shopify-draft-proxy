@@ -11,8 +11,9 @@ import { getOperationCapability } from '../../src/proxy/capabilities.js';
 import { findOperationRegistryEntry } from '../../src/proxy/operation-registry.js';
 
 const repoRoot = resolve(import.meta.dirname, '../..');
-const fixturePath = 'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhook-subscription-conformance.json';
-const specPath = 'config/parity-specs/webhook-subscription-conformance.json';
+const fixturePath =
+  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json';
+const specPath = 'config/parity-specs/webhooks/webhook-subscription-conformance.json';
 
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -61,8 +62,12 @@ describe('webhook subscription conformance fixture', () => {
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');
     expect(paritySpec.comparison?.targets?.length).toBeGreaterThan(0);
 
-    const parsedCreate = parseOperation(readText('config/parity-requests/webhookSubscriptionCreate-parity.graphql'));
-    const parsedCatalog = parseOperation(readText('config/parity-requests/webhook-subscription-catalog-read.graphql'));
+    const parsedCreate = parseOperation(
+      readText('config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql'),
+    );
+    const parsedCatalog = parseOperation(
+      readText('config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql'),
+    );
     expect(getOperationCapability(parsedCatalog)).toMatchObject({
       domain: 'webhooks',
       execution: 'overlay-read',
@@ -84,25 +89,25 @@ describe('webhook subscription conformance fixture', () => {
   });
 
   it('keeps request files aligned with the captured root-operation surface', () => {
-    expect(rootFieldNames('config/parity-requests/webhook-subscription-catalog-read.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-catalog-read.graphql')).toEqual([
       'webhookSubscriptions',
       'webhookSubscriptionsCount',
       'webhookSubscriptionsCount',
       'webhookSubscription',
     ]);
-    expect(rootFieldNames('config/parity-requests/webhook-subscription-detail-read.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-detail-read.graphql')).toEqual([
       'webhookSubscription',
     ]);
-    expect(rootFieldNames('config/parity-requests/webhookSubscriptionCreate-parity.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql')).toEqual([
       'webhookSubscriptionCreate',
     ]);
-    expect(rootFieldNames('config/parity-requests/webhookSubscriptionUpdate-parity.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql')).toEqual([
       'webhookSubscriptionUpdate',
     ]);
-    expect(rootFieldNames('config/parity-requests/webhookSubscriptionDelete-parity.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql')).toEqual([
       'webhookSubscriptionDelete',
     ]);
-    expect(rootFieldNames('config/parity-requests/webhook-subscription-validation-branches.graphql')).toEqual([
+    expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-validation-branches.graphql')).toEqual([
       'webhookSubscriptionUpdate',
       'webhookSubscriptionDelete',
       'webhookSubscriptionCreate',

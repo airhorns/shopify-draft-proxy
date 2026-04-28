@@ -18,8 +18,8 @@ import type { BulkOperationRecord, ProductRecord, ProductVariantRecord } from '.
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const fixturePath =
-  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operation-status-catalog-cancel.json';
-const specPath = 'config/parity-specs/bulk-operation-status-catalog-cancel.json';
+  'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json';
+const specPath = 'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json';
 
 const config: AppConfig = {
   port: 3000,
@@ -249,8 +249,8 @@ describe('BulkOperation conformance fixture and local model', () => {
         'currentBulkOperation',
         'bulkOperationCancel',
         'bulkOperationRunQuery',
-        'bulkOperationRunMutation',
       ],
+      runtimeTestFiles: ['tests/integration/bulk-operation-conformance-flow.test.ts'],
       captureFiles: [fixturePath],
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');

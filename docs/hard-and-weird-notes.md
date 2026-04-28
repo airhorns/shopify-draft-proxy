@@ -173,26 +173,26 @@ Current and historical live findings on this host:
   - `ordersCount` returned `{ count: 0, precision: EXACT }`
   - practical consequence: the repo can safely preserve a conservative direct-order empty-state fixture without guessing non-empty order detail/list behavior yet
 - `draftOrder` detail reads are now reachable on this host immediately after a safe `draftOrderCreate`
-  - checked-in detail fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json`
+  - checked-in detail fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-detail.json`
 - `draftOrders` catalog reads are also now reachable on the healthy repo credential for a first non-empty baseline:
-  - checked-in catalog fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-catalog.json`
+  - checked-in catalog fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-catalog.json`
   - the captured window is newest-first with opaque Shopify cursors and non-empty `pageInfo`, so the first catalog/count read slice no longer has to stay declared-gap
 - `draftOrdersCount(query:)` is likewise reachable for an aggregate baseline on this host:
-  - checked-in count fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-orders-count.json`
+  - checked-in count fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-count.json`
   - the first covered count slice is intentionally unfiltered (`query: null`), not evidence that broader draft-order `query:` semantics are settled
 - `orderCreate` exists in the 2025-01 schema and is still the highest-value direct order creation root for the proxy's eventual orders-domain digital twin
 - an earlier unattended pass on this host saw `orderCreate` fail with GraphQL `ACCESS_DENIED`
   - required access included `write_orders`
   - Shopify also reported a second gate: `orderCreate` is only accessible to apps authenticated with **offline tokens**
 - newer live capture on this host changed the practical picture: `orderCreate` now succeeds under the repo's current conformance credential and returns the first merchant-realistic happy-path order payload worth staging locally
-  - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-create-parity.json`
+  - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-create-parity.json`
   - the captured create slice includes custom line items, one shipping line, billing + shipping addresses, `customAttributes`, `customer`, and paid/unfulfilled status fields
   - immediate downstream `order(id: <created order id>)` reads also succeeded for that same created order
   - practical consequence: `orderCreate` is no longer blocker-only on this host, but broader live `orders` / `ordersCount` parity after create is still a separate problem because the real store catalog can already contain other merchant orders
 - `draftOrderCreate` also exists in the current schema and remains the most practical merchant-facing fallback creation surface worth tracking alongside direct order creation
 - the checked-in happy-path fixtures are:
-  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-parity.json`
-  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json`
+  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-parity.json`
+  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-detail.json`
 - a later healthy-probe pass confirmed the current repo credential can now recapture that same happy-path slice directly on this host
   - practical consequence: `draftOrderCreate` is no longer the remaining live creation blocker on the current repo credential
   - historical consequence at that point: `draftOrderComplete` became the next creation blocker, but newer evidence below and `docs/endpoints/orders.md` now cover the supported local completion slice
@@ -371,11 +371,11 @@ Important live findings:
 
 - `draftOrderCreate` now succeeds on this host under the bearer-token fallback path
 - the newly captured happy-path fixture is:
-  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-parity.json`
+  - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-parity.json`
 - immediate downstream detail read also succeeds on this host:
   - `draftOrder(id: <created draft id>)` returned the same open-draft detail slice
   - fixture:
-    - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-detail.json`
+    - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-detail.json`
 - the first captured happy-path slice includes:
   - custom line items
   - billing + shipping addresses
@@ -488,7 +488,7 @@ Important live findings:
 Practical rule:
 
 1. keep the inline missing/null draft-order create validation branches separate from the missing-`$input` variables-path `INVALID_VARIABLE` response; Shopify does **not** collapse them to one shared error shape
-2. it was valid to capture these branches in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-missing-input.json`, `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-inline-null-input.json`, and `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/draft-order-create-missing-input.json` and wire snapshot-mode local parity to them even before real `draftOrderCreate` happy-path access was available
+2. it was valid to capture these branches in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-missing-input.json`, `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-inline-null-input.json`, and `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-order-create-missing-input.json` and wire snapshot-mode local parity to them even before real `draftOrderCreate` happy-path access was available
 3. do not overclaim from this small win: a present-but-empty `{ input: {} }` payload still hits the access-denied blocker on this host rather than revealing deeper resolver-level validation
 
 ## 8. `orderUpdate` is the first order-edit root with a safe live validation slice on this host
@@ -518,7 +518,7 @@ After the initial orders-domain creation scaffolding landed, the next easy mista
   - it bumps `updatedAt`
   - and it preserves the edited values through immediate downstream `order(id:)` / `orders(first: ...)` / `ordersCount` replay without hitting upstream
 - a later live capture now closes the adjacent evidence gap for that same narrow slice on this host: a live `orderUpdate` happy path against a freshly created order successfully updated `note` / `tags`, returned `userErrors: []`, preserved the same order id/name, and the immediate downstream `order(id:)` read kept the updated `note` / `tags` visible
-  - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/order-update-parity.json`
+  - checked-in happy-path fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json`
   - practical consequence: the narrow local `orderUpdate` runtime slice is no longer backed only by synthetic/local integration tests; it now has matching live payload + immediate read-after-write evidence for the same merchant-visible fields
 - a later local increment expanded known-order staging to the current `OrderInput` simple-update fields from Shopify docs:
   - `email`, `phone`, `poNumber`, `shippingAddress`, `customAttributes`, and order-scoped `metafields`
@@ -1206,7 +1206,7 @@ The implemented local slice is intentionally limited to existing normalized defi
 
 ## 19c. Product definition lifecycle deletes make matching product metafields disappear immediately
 
-HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafield-definition-lifecycle-mutations.json`.
+HAR-145 captured product-owner `metafieldDefinitionCreate`, `metafieldDefinitionUpdate`, and `metafieldDefinitionDelete` against the 2025-01 conformance store in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`.
 
 Useful behavior:
 
@@ -1221,7 +1221,7 @@ The local model mirrors the immediate no-data effect for product-owned metafield
 
 HAR-240 captured the first Admin GraphQL 2026-04 metaobject read fixture against `harry-test-heelo.myshopify.com`.
 
-Useful read behavior from `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects-read.json`:
+Useful read behavior from `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobjects-read.json`:
 
 - unknown `metaobjectDefinitionByType(type:)` returns `null`
 - unknown `metaobjectDefinition(id:)` returns `null`
@@ -2378,7 +2378,7 @@ Observed current-version surface:
 Access-scope trap:
 
 - selecting `MarketWebPresence.defaultLocale` or `MarketWebPresence.alternateLocales` requires `read_locales` or `read_markets_home`; earlier credentials failed with `ACCESS_DENIED`, while the refreshed credential captures both fields successfully
-- keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets-baseline.json`
+- keep locale fields in Markets parity requests only while the capture credential retains one of those scopes; the successful scope probe is preserved in `fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/markets-baseline.json`
 - HAR-376 live web-presence delete parity used a disposable letters-only subfolder on `harry-test-heelo.myshopify.com`: `webPresenceDelete` returns only `deletedId` and `userErrors`, unknown and already-deleted IDs return `WEB_PRESENCE_NOT_FOUND`, and a failed setup attempt confirmed 2026-04 rejects subfolder suffixes containing digits or hyphens with `SUBFOLDER_SUFFIX_MUST_CONTAIN_ONLY_LETTERS`
 
 Safety rule:
@@ -2555,7 +2555,7 @@ Observed current-version surface:
 
 - read roots: `customerPaymentMethod`, `orderPaymentStatus`, `paymentCustomization`, `paymentCustomizations`, `paymentTermsTemplates`, `shopPayPaymentRequestReceipt`, `shopPayPaymentRequestReceipts`, `shopifyPaymentsAccount`, and `tenderTransactions`
 - scaffold-only mutation roots: customer payment method create/update/revoke/update-url/duplication roots, `orderCapture`, `orderCreateMandatePayment`, payment customization create/update/delete/activation, `paymentReminderSend`, payment terms create/update/delete, `shopifyPaymentsPayoutAlternateCurrencyCreate`, and `transactionVoid`
-- already implemented payment-adjacent slice: `orderCreateManualPayment` remains the captured access-denied local staging branch covered by `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
+- payment-adjacent guardrail: `orderCreateManualPayment` remains a captured access-denied branch that the runtime mirrors locally without passthrough, but it is not implemented operation support until Plus/manual-payment success semantics are captured and modeled.
 
 2026-04-25 live probe on `harry-test-heelo.myshopify.com`:
 
@@ -2829,7 +2829,7 @@ Practical rule:
 
 ## 70. Fulfillment-order lifecycle roots split work into replacement orders
 
-HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/fulfillment-order-lifecycle.json`.
+HAR-234 captured fulfillment-order lifecycle evidence on Admin GraphQL 2026-04 at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`.
 
 Captured facts:
 
@@ -2886,7 +2886,7 @@ Practical rule:
 
 ## 72. Finance/risk/POS roots need strong data minimization
 
-HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/finance-risk-access-read.json`.
+HAR-316 captured finance/risk root evidence on Admin GraphQL 2025-01 against `harry-test-heelo.myshopify.com` in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json`.
 
 Captured facts:
 

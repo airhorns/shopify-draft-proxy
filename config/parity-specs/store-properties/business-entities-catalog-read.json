@@ -1,0 +1,26 @@
+{
+  "scenarioId": "business-entities-catalog-read",
+  "operationNames": ["businessEntities"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "list-ordering", "payment-account-access"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/business-entities-catalog.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/business-entities-catalog-read.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict data comparison covers the captured `businessEntities` list order and core BusinessEntity fields. The live store denied `shopifyPaymentsAccount` without Shopify Payments scopes, so the local snapshot keeps that account link null unless fixture-backed safe account fields are supplied.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "business-entities-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

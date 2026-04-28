@@ -22,7 +22,7 @@ type SavedSearchMutationResult = {
 };
 
 type UserError = {
-  field: string[];
+  field: string[] | null;
   message: string;
 };
 
@@ -40,17 +40,38 @@ const SAVED_SEARCH_ROOT_RESOURCE_TYPES: Record<string, string> = {
 
 const SUPPORTED_SAVED_SEARCH_RESOURCE_TYPES = new Set(Object.values(SAVED_SEARCH_ROOT_RESOURCE_TYPES));
 
-function defaultSavedSearchesForResourceType(resourceType: string): SavedSearchRecord[] {
-  if (resourceType !== 'DRAFT_ORDER') {
-    return [];
-  }
-
-  return DRAFT_ORDER_SAVED_SEARCHES.map((savedSearch) => ({
-    ...savedSearch,
-    cursor: null,
-    filters: [],
-  }));
-}
+const ORDER_SAVED_SEARCHES: Array<
+  Pick<SavedSearchRecord, 'id' | 'legacyResourceId' | 'name' | 'query' | 'resourceType'>
+> = [
+  {
+    id: 'gid://shopify/SavedSearch/3634391515442',
+    legacyResourceId: '3634391515442',
+    name: 'Unfulfilled',
+    query: 'status:open fulfillment_status:unshipped,partial',
+    resourceType: 'ORDER',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634391548210',
+    legacyResourceId: '3634391548210',
+    name: 'Unpaid',
+    query: 'status:open financial_status:unpaid',
+    resourceType: 'ORDER',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634391580978',
+    legacyResourceId: '3634391580978',
+    name: 'Open',
+    query: 'status:open',
+    resourceType: 'ORDER',
+  },
+  {
+    id: 'gid://shopify/SavedSearch/3634391613746',
+    legacyResourceId: '3634391613746',
+    name: 'Archived',
+    query: 'status:closed',
+    resourceType: 'ORDER',
+  },
+];
 
 function readInput(args: Record<string, unknown>): Record<string, unknown> | null {
   return isPlainObject(args['input']) ? args['input'] : null;
@@ -64,13 +85,17 @@ function readOptionalString(input: Record<string, unknown>, field: string): stri
   return typeof input[field] === 'string' ? input[field] : undefined;
 }
 
-function userError(field: string[], message: string): UserError {
+function userError(field: string[] | null, message: string): UserError {
   return { field, message };
 }
 
 function readLegacyResourceId(id: string): string {
   const [gidWithoutQuery] = id.split('?');
   return gidWithoutQuery?.split('/').at(-1) ?? id;
+}
+
+function escapeSavedSearchTermForStoredQuery(term: string): string {
+  return term.replace(/-/gu, '\\-');
 }
 
 function parseSavedSearchQuery(rawQuery: string): Pick<SavedSearchRecord, 'filters' | 'query' | 'searchTerms'> {
@@ -89,11 +114,38 @@ function parseSavedSearchQuery(rawQuery: string): Pick<SavedSearchRecord, 'filte
     }
   }
 
+  const searchTermsText = searchTerms.join(' ');
+  const storedSearchTermsText = searchTerms.map(escapeSavedSearchTermForStoredQuery).join(' ');
   return {
     filters,
-    searchTerms: searchTerms.join(' '),
-    query: [...searchTerms, ...filters.map((filter) => `${filter.key}:${filter.value}`)].join(' '),
+    searchTerms: searchTermsText,
+    query: [
+      ...(storedSearchTermsText ? [storedSearchTermsText] : []),
+      ...filters.map((filter) => `${filter.key}:${filter.value}`),
+    ].join(' '),
   };
+}
+
+function makeDefaultSavedSearch(
+  savedSearch: Pick<SavedSearchRecord, 'id' | 'legacyResourceId' | 'name' | 'query' | 'resourceType'>,
+): SavedSearchRecord {
+  return {
+    ...savedSearch,
+    ...parseSavedSearchQuery(savedSearch.query),
+    cursor: null,
+  };
+}
+
+function defaultSavedSearchesForResourceType(resourceType: string): SavedSearchRecord[] {
+  if (resourceType === 'DRAFT_ORDER') {
+    return DRAFT_ORDER_SAVED_SEARCHES.map(makeDefaultSavedSearch);
+  }
+
+  if (resourceType === 'ORDER') {
+    return ORDER_SAVED_SEARCHES.map(makeDefaultSavedSearch);
+  }
+
+  return [];
 }
 
 function makeSavedSearch(input: Record<string, unknown>, existing: SavedSearchRecord | null = null): SavedSearchRecord {
@@ -138,6 +190,8 @@ function validateSavedSearchInput(
   if (options.requireResourceType) {
     if (!resourceType) {
       errors.push(userError(['input', 'resourceType'], "Resource type can't be blank"));
+    } else if (resourceType === 'CUSTOMER') {
+      errors.push(userError(null, 'Customer saved searches have been deprecated. Use Segmentation API instead.'));
     } else if (!SUPPORTED_SAVED_SEARCH_RESOURCE_TYPES.has(resourceType)) {
       errors.push(
         userError(
@@ -211,7 +265,7 @@ export function serializeSavedSearchNodeById(
 function sanitizedUpdateInput(input: Record<string, unknown>, errors: UserError[]): Record<string, unknown> {
   const sanitized = { ...input };
   for (const error of errors) {
-    const invalidField = error.field.at(-1);
+    const invalidField = error.field?.at(-1);
     if (invalidField === 'name' || invalidField === 'query') {
       delete sanitized[invalidField];
     }

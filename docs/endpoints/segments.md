@@ -68,12 +68,12 @@ Staged mutations:
 - Segment reads: `tests/integration/segment-query-shapes.test.ts`
 - Segment lifecycle: `tests/integration/segment-lifecycle-flow.test.ts`
 - Customer segment members: `tests/integration/customer-segment-member-flow.test.ts`
-- Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments-baseline.json`
-- Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segment-lifecycle-validation.json`
-- Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customer-segment-members-query-lifecycle.json`
-- Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segment-query-grammar-not-contains.json`
-- Conformance request/spec: `config/parity-requests/segments-baseline-read.graphql`, `config/parity-specs/segments-baseline-read.json`
-- Segment lifecycle validation specs: `config/parity-specs/segment-create-invalid-query-validation.json`, `config/parity-specs/segment-update-unknown-id-validation.json`, `config/parity-specs/segment-delete-unknown-id-validation.json`
-- Customer segment member parity spec: `config/parity-specs/customer-segment-members-query-lifecycle.json`
-- Segment query grammar parity spec: `config/parity-specs/segment-query-grammar-not-contains.json`
+- Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
+- Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
+- Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
+- Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
+- Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
+- Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
+- Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
+- Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`

@@ -109,7 +109,7 @@ function readIntrospectionRoots() {
   const fixture = rootOperationIntrospectionFixtureSchema.parse(
     JSON.parse(
       readText(
-        'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json',
+        'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json',
       ),
     ),
   );

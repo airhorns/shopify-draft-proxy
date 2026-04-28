@@ -1,0 +1,40 @@
+{
+  "scenarioId": "products-variant-search-read",
+  "operationNames": ["products", "productsCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "search-filter-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-variant-search.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/products-variant-search-read.graphql",
+    "variablesPath": "config/parity-requests/products/products-variant-search-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.products.pageInfo.startCursor",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
+      },
+      {
+        "path": "$.products.pageInfo.endCursor",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify connection cursors are opaque; the proxy guarantees stable cursor-window behavior but not Shopify's internal cursor encoding."
+      }
+    ],
+    "targets": [
+      {
+        "name": "products-variant-search-data",
+        "capturePath": "$.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  },
+  "notes": "Live capture seeds a real product variant SKU from the conformance store, then replays the products/productsCount search locally from normalized product and variant state."
+}

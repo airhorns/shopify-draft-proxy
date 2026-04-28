@@ -1,0 +1,37 @@
+{
+  "scenarioId": "admin-platform-flow-trigger-receive",
+  "operationNames": ["flowTriggerReceive"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-invalid.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-374 executable parity for Flow trigger receive validation branches. Success-path local behavior is intentionally runtime-test-backed because live success would deliver an external Flow side effect.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-handle-user-errors",
+        "capturePath": "$.captures.flowTriggerReceiveInvalid.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "oversize-payload-user-errors",
+        "capturePath": "$.captures.flowTriggerReceiveOversize.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-oversize.graphql",
+          "variablesCapturePath": "$.captures.flowTriggerReceiveOversize.variables"
+        }
+      }
+    ]
+  }
+}

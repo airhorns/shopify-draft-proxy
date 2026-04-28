@@ -1,0 +1,57 @@
+{
+  "scenarioId": "customer-delete-live-parity",
+  "operationNames": ["customerDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/customers/customer-delete-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerDelete-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/customers/customerDelete-parity-plan.variables.json",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison targets cover the staged `customerDelete` mutation payload, immediate downstream `customer`, `customers`, and `customersCount` visibility, and the captured unknown-id validation branch. Expected differences are limited to Shopify shop IDs synthesized by the local proxy.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerDelete.shop.id",
+        "matcher": "shopify-gid:Shop",
+        "reason": "The proxy stages customerDelete locally and synthesizes a stable Shop GID instead of Shopify's live Shop GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-mutation-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerDelete.deletedCustomerId"
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        }
+      },
+      {
+        "name": "validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerDelete-parity-plan.graphql",
+          "variablesCapturePath": "$.validation.variables"
+        }
+      }
+    ]
+  }
+}

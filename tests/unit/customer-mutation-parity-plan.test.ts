@@ -7,15 +7,24 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 
 describe('customer mutation parity request scaffolds', () => {
   it('keep the customer CRUD request slices aligned with the supported overlay serializer', () => {
-    const createDocumentPath = resolve(repoRoot, 'config/parity-requests/customerCreate-parity-plan.graphql');
-    const createVariablesPath = resolve(repoRoot, 'config/parity-requests/customerCreate-parity-plan.variables.json');
-    const updateDocumentPath = resolve(repoRoot, 'config/parity-requests/customerUpdate-parity-plan.graphql');
-    const updateVariablesPath = resolve(repoRoot, 'config/parity-requests/customerUpdate-parity-plan.variables.json');
-    const deleteDocumentPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.graphql');
-    const deleteVariablesPath = resolve(repoRoot, 'config/parity-requests/customerDelete-parity-plan.variables.json');
+    const createDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customerCreate-parity-plan.graphql');
+    const createVariablesPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customerCreate-parity-plan.variables.json',
+    );
+    const updateDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customerUpdate-parity-plan.graphql');
+    const updateVariablesPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customerUpdate-parity-plan.variables.json',
+    );
+    const deleteDocumentPath = resolve(repoRoot, 'config/parity-requests/customers/customerDelete-parity-plan.graphql');
+    const deleteVariablesPath = resolve(
+      repoRoot,
+      'config/parity-requests/customers/customerDelete-parity-plan.variables.json',
+    );
     const downstreamDocumentPath = resolve(
       repoRoot,
-      'config/parity-requests/customer-mutation-downstream-read.graphql',
+      'config/parity-requests/customers/customer-mutation-downstream-read.graphql',
     );
 
     expect(existsSync(createDocumentPath)).toBe(true);

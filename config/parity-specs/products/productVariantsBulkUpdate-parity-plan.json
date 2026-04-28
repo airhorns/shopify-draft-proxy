@@ -1,0 +1,41 @@
+{
+  "scenarioId": "product-variants-bulk-update-live-parity",
+  "operationNames": ["productVariantsBulkUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-parity-plan.graphql",
+    "variablesPath": "config/parity-requests/products/productVariantsBulkUpdate-parity-plan.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture now covers `productVariantsBulkUpdate`. Shopify accepted `inventoryItem.sku` for merchandising updates, rejected `inventoryQuantities` on update in favor of `inventoryAdjustQuantities`, and kept immediate sku-filtered `products` / `productsCount` empty.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-payload",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read",
+        "capturePath": "$.downstreamRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkUpdate-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productVariantsBulkUpdate.product.id"
+            },
+            "query": "sku:HERMES-BULK-810153-RED"
+          }
+        },
+        "upstreamCapturePath": null,
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

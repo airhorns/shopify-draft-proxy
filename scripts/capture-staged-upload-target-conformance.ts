@@ -26,7 +26,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'media');
 const { runGraphql } = createAdminGraphqlClient({
   adminOrigin,
   apiVersion,

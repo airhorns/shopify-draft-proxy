@@ -1,0 +1,26 @@
+{
+  "scenarioId": "market-delete-unknown-id-validation",
+  "operationNames": ["marketDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-lifecycle-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-delete-unknown-id-validation.graphql",
+    "variablesCapturePath": "$.cases[2].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. Unknown marketDelete ID returns MarketUserError without mutating market state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-id-market-delete-data",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

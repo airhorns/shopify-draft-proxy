@@ -1,0 +1,31 @@
+{
+  "scenarioId": "discount-code-basic-create-inline-null-input-argument-error",
+  "operationNames": ["discountCodeBasicCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-validation-branches.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discountCodeBasicCreate-inline-null-input.graphql",
+    "variablesCapturePath": "$.validation.inlineNullInput.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured `discountCodeBasicCreate(basicCodeDiscount: null)` inline null-literal branch: Shopify returns a top-level `argumentLiteralsIncompatible` GraphQL error before mutation-scoped DiscountUserError execution.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inline-null-error-message",
+        "capturePath": "$.validation.inlineNullInput.response.errors[0].message",
+        "proxyPath": "$.errors[0].message"
+      },
+      {
+        "name": "inline-null-error-extensions",
+        "capturePath": "$.validation.inlineNullInput.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions"
+      }
+    ]
+  }
+}

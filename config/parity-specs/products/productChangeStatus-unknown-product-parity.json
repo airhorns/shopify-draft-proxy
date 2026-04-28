@@ -1,0 +1,26 @@
+{
+  "scenarioId": "productChangeStatus-unknown-product-parity",
+  "operationNames": ["productChangeStatus"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "null-empty-behavior"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-unknown-product-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productChangeStatus-parity-plan.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured productChangeStatus unknown-product userError.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-product-change-status-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

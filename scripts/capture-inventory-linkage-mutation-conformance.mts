@@ -12,7 +12,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-linkage-parity.json');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'inventory-linkage-single-location-blocker.md');

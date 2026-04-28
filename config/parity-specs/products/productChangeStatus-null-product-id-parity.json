@@ -1,0 +1,31 @@
+{
+  "scenarioId": "productChangeStatus-null-product-id-parity",
+  "operationNames": ["productChangeStatus"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productChangeStatus-null-product-id-parity.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable parity coverage for Shopify's captured inline argument error when productChangeStatus productId is null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.errors[0].locations[0].column",
+        "matcher": "any-number",
+        "reason": "The checked-in proxy request is repo-formatted while the live capture came from the indented capture script document; both point at the productChangeStatus field."
+      }
+    ],
+    "targets": [
+      {
+        "name": "null-product-id-change-status-error",
+        "capturePath": "$.validation.nullLiteralProductId.response",
+        "proxyPath": "$"
+      }
+    ]
+  }
+}

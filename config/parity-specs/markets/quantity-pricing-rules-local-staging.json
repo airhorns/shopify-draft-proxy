@@ -1,0 +1,144 @@
+{
+  "scenarioId": "quantity-pricing-rules-local-staging",
+  "operationNames": ["quantityPricingByVariantUpdate", "quantityRulesAdd", "quantityRulesDelete", "priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/quantity-pricing-rules-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/markets-lifecycle-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update.graphql",
+    "variablesCapturePath": "$.successPath[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "quantity-pricing-mutation-payload",
+        "capturePath": "$.successPath[0].response.data.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate"
+      },
+      {
+        "name": "downstream-price-list-quantity-pricing-read",
+        "capturePath": "$.successPath[1].response.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-price-list-read.graphql",
+          "variables": {
+            "priceListId": {
+              "fromCapturePath": "$.setup.priceListId"
+            }
+          }
+        }
+      },
+      {
+        "name": "quantity-rules-delete-cleanup-payload",
+        "capturePath": "$.successPath[2].response.quantityRulesDelete",
+        "proxyPath": "$.data.quantityRulesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-delete.graphql",
+          "variables": {
+            "priceListId": {
+              "fromCapturePath": "$.setup.priceListId"
+            },
+            "variantIds": [
+              {
+                "fromCapturePath": "$.setup.variantId"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "quantity-pricing-unknown-price-list-validation",
+        "capturePath": "$.validationBranches[0].response.quantityPricingByVariantUpdate",
+        "proxyPath": "$.data.quantityPricingByVariantUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-pricing-by-variant-update.graphql",
+          "variables": {
+            "priceListId": "gid://shopify/PriceList/0",
+            "input": {
+              "fromCapturePath": "$.successPath[0].request.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "quantity-rules-add-unknown-price-list-validation",
+        "capturePath": "$.validationBranches[1].response.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add.graphql",
+          "variables": {
+            "priceListId": "gid://shopify/PriceList/0",
+            "quantityRules": [
+              {
+                "variantId": {
+                  "fromCapturePath": "$.setup.variantId"
+                },
+                "minimum": 2,
+                "maximum": 10,
+                "increment": 2
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "quantity-rules-delete-unknown-price-list-validation",
+        "capturePath": "$.validationBranches[2].response.quantityRulesDelete",
+        "proxyPath": "$.data.quantityRulesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-delete.graphql",
+          "variables": {
+            "priceListId": "gid://shopify/PriceList/0",
+            "variantIds": [
+              {
+                "fromCapturePath": "$.setup.variantId"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "quantity-rules-add-unknown-variant-validation",
+        "capturePath": "$.validationBranches[3].response.quantityRulesAdd",
+        "proxyPath": "$.data.quantityRulesAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-add.graphql",
+          "variables": {
+            "priceListId": {
+              "fromCapturePath": "$.setup.priceListId"
+            },
+            "quantityRules": [
+              {
+                "variantId": "gid://shopify/ProductVariant/0",
+                "minimum": 2,
+                "maximum": 10,
+                "increment": 2
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "quantity-rules-delete-unknown-variant-validation",
+        "capturePath": "$.validationBranches[5].response.quantityRulesDelete",
+        "proxyPath": "$.data.quantityRulesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/quantity-rules-delete.graphql",
+          "variables": {
+            "priceListId": {
+              "fromCapturePath": "$.setup.priceListId"
+            },
+            "variantIds": ["gid://shopify/ProductVariant/0"]
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-321 live fixture captures Admin GraphQL 2025-01 schema/payload evidence for quantityPricingByVariantUpdate, quantityRulesAdd, quantityRulesDelete, unknown price-list and unknown-variant validation branches, and downstream PriceList.quantityRules / PriceList.prices.quantityPriceBreaks reads. HAR-355 promotes the success-path quantityPricingByVariantUpdate mutation, downstream priceList read, quantityRulesDelete cleanup payload, and quantityRulesAdd/Delete validation branches into captured-vs-proxy-request parity targets. The fixture includes explicit seedProducts and baseline data.priceList preconditions so the parity runner can replay the local staged flow without runtime Shopify writes; the Markets lifecycle runtime test remains linked for the broader multi-step lifecycle around standalone quantityRulesAdd and surrounding price-list mutations."
+}

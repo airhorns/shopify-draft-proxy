@@ -11,7 +11,7 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'customers');
 const pendingDir = path.join('pending');
 const blockerPath = path.join(pendingDir, 'customer-conformance-protected-data-blocker.md');
 const protectedCustomerDataDocsUrl = 'https://shopify.dev/docs/apps/launch/protected-customer-data';

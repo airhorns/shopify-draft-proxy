@@ -1390,19 +1390,6 @@ export function readOrderCaptureInput(variables: Record<string, unknown>): Recor
   return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : null;
 }
 
-export function readTransactionVoidId(variables: Record<string, unknown>): string | null {
-  if (typeof variables['id'] === 'string') {
-    return variables['id'];
-  }
-
-  const input = variables['input'];
-  if (typeof input === 'object' && input !== null && typeof (input as Record<string, unknown>)['id'] === 'string') {
-    return (input as Record<string, unknown>)['id'] as string;
-  }
-
-  return null;
-}
-
 export function readMandatePaymentInput(variables: Record<string, unknown>): Record<string, unknown> {
   const input = variables['input'];
   if (typeof input === 'object' && input !== null) {

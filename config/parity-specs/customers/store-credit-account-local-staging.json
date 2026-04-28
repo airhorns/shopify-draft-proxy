@@ -1,0 +1,45 @@
+{
+  "scenarioId": "store-credit-account-local-staging",
+  "operationNames": ["storeCreditAccount", "storeCreditAccountCredit", "storeCreditAccountDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/store-credit-account-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/store-credit-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+    "variablesCapturePath": "$.mutation.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "credit-mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "debit-mutation-data",
+        "capturePath": "$.debit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variablesCapturePath": "$.debit.request.variables"
+        }
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccount-readback-parity.graphql",
+          "variablesCapturePath": "$.downstreamRead.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-317 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, then captures account-id credit/debit mutations and downstream direct/nested balance reads for generic parity replay."
+}

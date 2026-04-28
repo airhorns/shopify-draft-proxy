@@ -1,0 +1,27 @@
+{
+  "scenarioId": "price-list-prices-filtered-read",
+  "operationNames": ["priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "price-list-prices", "search-filter"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-prices-filtered.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-prices-filtered-read.graphql",
+    "variablesPath": "config/parity-requests/markets/price-list-prices-filtered-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live `PriceList.prices(query: \"variant_id:...\")` capture for Admin GraphQL 2026-04. Shopify expects a numeric variant id in this search filter; the proxy accepts that captured shape and filters the hydrated price connection locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-prices-filtered-data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

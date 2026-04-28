@@ -1,0 +1,129 @@
+{
+  "scenarioId": "product-variants-read",
+  "operationNames": ["productVariant", "inventoryItem"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "nested-inventory-shape", "connection-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+    "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executed by the conformance parity runner against the local proxy harness with the captured product variants matrix supplied as the upstream hydration read, then replayed through product-scoped variant connection, top-level `productVariant`, and `inventoryItem` snapshot reads. The strict targets cover the current merchandising/inventory item detail slice, nested `inventoryItem.inventoryLevels(first:)` connection fields, and parent product/variant backreferences used by the overlay serializer.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-scoped variant inventory item",
+        "capturePath": "$.data.product.variants.edges[0].node.inventoryItem",
+        "proxyPath": "$.data.product.variants.edges[0].node.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "product-scoped variant inventory quantity",
+        "capturePath": "$.data.product.variants.edges[0].node.inventoryQuantity",
+        "proxyPath": "$.data.product.variants.edges[0].node.inventoryQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "nested variant inventory item",
+        "capturePath": "$.data.product.variants.edges[0].node.inventoryItem",
+        "proxyPath": "$.data.variant.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "top-level inventory item",
+        "capturePath": "$.data.product.variants.edges[0].node.inventoryItem",
+        "proxyPath": "$.data.stock",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item variant id",
+        "capturePath": "$.data.product.variants.edges[0].node.id",
+        "proxyPath": "$.data.stockBackreference.variant.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item variant title",
+        "capturePath": "$.data.product.variants.edges[0].node.title",
+        "proxyPath": "$.data.stockBackreference.variant.title",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item variant sku",
+        "capturePath": "$.data.product.variants.edges[0].node.sku",
+        "proxyPath": "$.data.stockBackreference.variant.sku",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item variant quantity",
+        "capturePath": "$.data.product.variants.edges[0].node.inventoryQuantity",
+        "proxyPath": "$.data.stockBackreference.variant.inventoryQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item parent product id",
+        "capturePath": "$.data.product.id",
+        "proxyPath": "$.data.stockBackreference.variant.product.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "inventory item parent product title",
+        "capturePath": "$.data.product.title",
+        "proxyPath": "$.data.stockBackreference.variant.product.title",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "product variant parent product id",
+        "capturePath": "$.data.product.id",
+        "proxyPath": "$.data.variant.product.id",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      },
+      {
+        "name": "product variant parent product title",
+        "capturePath": "$.data.product.title",
+        "proxyPath": "$.data.variant.product.title",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-variants-read.graphql",
+          "variablesPath": "config/parity-requests/products/product-variants-read.variables.json"
+        }
+      }
+    ]
+  }
+}

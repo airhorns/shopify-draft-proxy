@@ -9,7 +9,7 @@ import { listOperationRegistryEntries } from '../../src/proxy/operation-registry
 const repoRoot = resolve(import.meta.dirname, '../..');
 const rootOperationIntrospectionPath = resolve(
   repoRoot,
-  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json',
+  'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json',
 );
 
 const introspectedFieldSchema = z.strictObject({

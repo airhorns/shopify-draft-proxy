@@ -93,4 +93,4 @@ Local staged mutations:
 ### Validation anchors
 
 - Runtime flow: `tests/integration/media-draft-flow.test.ts`
-- Conformance fixtures and requests: `config/parity-specs/file*.json` and matching files under `config/parity-requests/`
+- Conformance fixtures and requests: `config/parity-specs/media/file*.json` and matching files under `config/parity-requests/media/`

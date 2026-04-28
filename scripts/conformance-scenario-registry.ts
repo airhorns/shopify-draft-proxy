@@ -22,6 +22,7 @@ export type ConformanceScenario = {
   status: string;
   assertionKinds: string[];
   captureFiles: string[];
+  runtimeTestFiles: string[];
   paritySpecPath: string;
   notes?: string;
 };
@@ -70,10 +71,21 @@ export function loadConformanceScenarioOverrides(repoRoot = defaultRepoRoot): Ma
 export function listConformanceParitySpecPaths(repoRoot = defaultRepoRoot): string[] {
   const absoluteDirectory = path.join(repoRoot, paritySpecDirectory);
 
-  return readdirSync(absoluteDirectory)
-    .filter((fileName) => fileName.endsWith('.json'))
+  function listJsonFiles(directory: string): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const entryPath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        return listJsonFiles(entryPath);
+      }
+
+      return entry.isFile() && entry.name.endsWith('.json') ? [entryPath] : [];
+    });
+  }
+
+  return listJsonFiles(absoluteDirectory)
+    .map((absolutePath) => path.relative(absoluteDirectory, absolutePath))
     .sort((left, right) => left.localeCompare(right))
-    .map((fileName) => path.join(paritySpecDirectory, fileName));
+    .map((relativePath) => path.join(paritySpecDirectory, relativePath));
 }
 
 export function loadConformanceScenarios(repoRoot = defaultRepoRoot): ConformanceScenario[] {
@@ -91,6 +103,7 @@ export function loadConformanceScenarios(repoRoot = defaultRepoRoot): Conformanc
       status: override.status ?? (typeof paritySpec.scenarioStatus === 'string' ? paritySpec.scenarioStatus : ''),
       assertionKinds: override.assertionKinds ?? stringArray(paritySpec.assertionKinds),
       captureFiles: override.captureFiles ?? stringArray(paritySpec.liveCaptureFiles),
+      runtimeTestFiles: stringArray(paritySpec.runtimeTestFiles),
       paritySpecPath,
       ...(notes ? { notes } : {}),
     };
@@ -101,13 +114,43 @@ export function loadOperationRegistry(repoRoot = defaultRepoRoot): OperationRegi
   return parseJsonFileWithSchema(path.join(repoRoot, 'config', 'operation-registry.json'), operationRegistrySchema);
 }
 
-export function groupScenariosByOperation(scenarios: ConformanceScenario[]): Map<string, ConformanceScenario[]> {
+function addScenarioForOperation(
+  result: Map<string, ConformanceScenario[]>,
+  operationName: string,
+  scenario: ConformanceScenario,
+): void {
+  const scenariosForOperation = result.get(operationName) ?? [];
+  if (!scenariosForOperation.includes(scenario)) {
+    scenariosForOperation.push(scenario);
+  }
+  result.set(operationName, scenariosForOperation);
+}
+
+function runtimeTestCoveredOperationNames(
+  scenario: ConformanceScenario,
+  registryEntries: OperationRegistryEntry[],
+): string[] {
+  const scenarioRuntimeTests = new Set(scenario.runtimeTestFiles);
+  if (scenarioRuntimeTests.size === 0) {
+    return [];
+  }
+
+  return registryEntries
+    .filter((entry) => entry.runtimeTests.some((runtimeTestFile) => scenarioRuntimeTests.has(runtimeTestFile)))
+    .map((entry) => entry.name);
+}
+
+export function groupScenariosByOperation(
+  scenarios: ConformanceScenario[],
+  registryEntries: OperationRegistryEntry[] = [],
+): Map<string, ConformanceScenario[]> {
   const result = new Map<string, ConformanceScenario[]>();
   for (const scenario of scenarios) {
     for (const operationName of scenario.operationNames) {
-      const scenariosForOperation = result.get(operationName) ?? [];
-      scenariosForOperation.push(scenario);
-      result.set(operationName, scenariosForOperation);
+      addScenarioForOperation(result, operationName, scenario);
+    }
+    for (const operationName of runtimeTestCoveredOperationNames(scenario, registryEntries)) {
+      addScenarioForOperation(result, operationName, scenario);
     }
   }
 
@@ -162,8 +205,8 @@ export function buildConformanceStatusDocument(repoRoot = defaultRepoRoot): Conf
   const capturedScenarios = scenarios.filter((scenario) => scenario.status === 'captured');
   const captureOnlyScenarios = capturedScenarios.filter((scenario) => isCaptureOnlyScenario(repoRoot, scenario));
   const strictComparisonScenarios = capturedScenarios.filter((scenario) => !captureOnlyScenarios.includes(scenario));
-  const scenariosByOperation = groupScenariosByOperation(scenarios);
   const implementedEntries = loadOperationRegistry(repoRoot).filter((entry) => entry.implemented);
+  const scenariosByOperation = groupScenariosByOperation(scenarios, implementedEntries);
   const coveredEntries = implementedEntries.filter((entry) => {
     return (scenariosByOperation.get(entry.name) ?? []).some((scenario) => scenario.status === 'captured');
   });

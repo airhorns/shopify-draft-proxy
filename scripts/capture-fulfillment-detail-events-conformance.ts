@@ -12,7 +12,7 @@ type JsonRecord = Record<string, any>;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const fixtureDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'shipping-fulfillments');
 const fixturePath = path.join(fixtureDir, 'fulfillment-detail-events-lifecycle.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({

@@ -21,9 +21,9 @@ describe('product variant compatibility live schema blocker', () => {
   it('keeps compatibility evidence in parity metadata', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
     const specPaths = [
-      'config/parity-specs/productVariantCreate-parity-plan.json',
-      'config/parity-specs/productVariantUpdate-parity-plan.json',
-      'config/parity-specs/productVariantDelete-parity-plan.json',
+      'config/parity-specs/products/productVariantCreate-parity-plan.json',
+      'config/parity-specs/products/productVariantUpdate-parity-plan.json',
+      'config/parity-specs/products/productVariantDelete-parity-plan.json',
     ];
 
     const specs = specPaths.map((specPath) => readFileSync(resolve(repoRoot, specPath), 'utf8'));

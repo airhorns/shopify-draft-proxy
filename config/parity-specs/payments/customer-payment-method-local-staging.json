@@ -1,0 +1,73 @@
+{
+  "scenarioId": "customer-payment-method-local-staging",
+  "operationNames": [
+    "customerPaymentMethodCreateFromDuplicationData",
+    "customerPaymentMethodCreditCardCreate",
+    "customerPaymentMethodCreditCardUpdate",
+    "customerPaymentMethodGetDuplicationData",
+    "customerPaymentMethodGetUpdateUrl",
+    "customerPaymentMethodPaypalBillingAgreementCreate",
+    "customerPaymentMethodPaypalBillingAgreementUpdate",
+    "customerPaymentMethodRemoteCreate",
+    "customerPaymentMethodRevoke",
+    "paymentReminderSend"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "sensitive-data-scrubbing"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-payment-method-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/customer-payment-method-local-staging.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "payment-method-lifecycle-primary",
+        "capturePath": "$.expected.primary",
+        "proxyPath": "$"
+      },
+      {
+        "name": "payment-method-create-from-duplication-data",
+        "capturePath": "$.expected.duplication",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql",
+          "variables": {
+            "customerId": "gid://shopify/Customer/8802",
+            "billingAddress": {
+              "countryCode": "US"
+            },
+            "encryptedDuplicationData": {
+              "fromPrimaryProxyPath": "$.data.duplication.encryptedDuplicationData"
+            }
+          }
+        }
+      },
+      {
+        "name": "payment-method-downstream-read",
+        "capturePath": "$.expected.readAfter",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-local-staging-read.graphql",
+          "variables": {
+            "sourceCustomerId": "gid://shopify/Customer/8801",
+            "targetCustomerId": "gid://shopify/Customer/8802"
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-365 customer payment-method lifecycle and payment reminder staging. The current live credential can introspect the roots but lacks read_customer_payment_methods/write_customer_payment_methods, so the fixture deliberately records a scrubbed local contract instead of live vaulted payment material, real duplication data, expiring update URLs, or customer-visible reminder delivery."
+}

@@ -341,100 +341,100 @@
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until one-time purchase confirmation URL creation, merchant approval status, downstream installation billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages one-time app purchases locally with synthetic confirmation URLs, pending purchase state, downstream currentAppInstallation.oneTimePurchases reads, meta log/state evidence, and raw mutation replay metadata."
   },
   {
     "name": "appSubscriptionCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionCreate", "AppSubscriptionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy recurring billing mutation gap. Do not support until subscription confirmation URL creation, replacement behavior, trial/line item modeling, downstream billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app subscriptions locally with synthetic confirmation URLs, pending subscription and line-item state, downstream installation billing reads, meta log/state evidence, and raw mutation replay metadata."
   },
   {
     "name": "appSubscriptionCancel",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionCancel", "AppSubscriptionCancel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until cancellation/proration behavior, downstream subscription status reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app subscription cancellation locally without billing side effects and exposes cancelled subscription state plus userErrors for unknown subscription IDs."
   },
   {
     "name": "appSubscriptionLineItemUpdate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionLineItemUpdate", "AppSubscriptionLineItemUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until capped amount updates, line item lookup/error behavior, downstream billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages usage line-item capped amount updates locally with synthetic confirmation URLs and unknown line-item userErrors."
   },
   {
     "name": "appSubscriptionTrialExtend",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until trial extension limits, status transitions, downstream subscription reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages trial day extensions locally and exposes downstream subscription reads without runtime Shopify writes."
   },
   {
     "name": "appUsageRecordCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appUsageRecordCreate", "AppUsageRecordCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until idempotency behavior, usage record connection reads, billing limit errors, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages usage records locally on staged usage subscription line items, including idempotency-key storage and usageRecords readback."
   },
   {
     "name": "appRevokeAccessScopes",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy access mutation gap. Do not support until scope revocation effects, app grant visibility, validation errors, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages access-scope revocation locally against the current app installation and surfaces requested unknown-scope userErrors without changing the real app grant."
   },
   {
     "name": "appUninstall",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appUninstall", "AppUninstall"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 destructive installation mutation gap. Do not support until uninstall effects, post-uninstall read behavior, app/session invalidation consequences, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app uninstall locally by marking the current installation unavailable for downstream reads while preserving raw commit replay metadata."
   },
   {
     "name": "delegateAccessTokenCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token scope/resource modeling, returned token secrecy rules, downstream authorization effects, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages delegated token creation locally with a synthetic returned token and stores only a hash/preview in meta-visible state."
   },
   {
     "name": "delegateAccessTokenDestroy",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token lookup/destruction behavior, idempotency/error semantics, downstream authorization effects, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages delegated token destruction locally by matching the raw token to a stored hash and returning status/userErrors without contacting Shopify."
   },
   {
     "name": "productVariant",
@@ -2023,7 +2023,7 @@
     "implemented": true,
     "matchNames": ["customerSavedSearches", "CustomerSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state."
+    "supportNotes": "HAR-312/HAR-402: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state. Customer saved-search creation is deprecated by Shopify and returns a local userError instead of staging a new customer saved search."
   },
   {
     "name": "orderSavedSearches",
@@ -2033,7 +2033,7 @@
     "implemented": true,
     "matchNames": ["orderSavedSearches", "OrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Order SavedSearch connections from effective local saved-search state with captured default-order saved-search shapes represented as records when hydrated or staged."
+    "supportNotes": "HAR-312/HAR-402: serves Order SavedSearch connections from effective local saved-search state while preserving the captured default order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "draftOrderSavedSearches",
@@ -2043,7 +2043,7 @@
     "implemented": true,
     "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves DraftOrder SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+    "supportNotes": "HAR-312/HAR-402: serves DraftOrder SavedSearch connections from effective local saved-search state while preserving the captured default draft-order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "fileSavedSearches",
@@ -2063,7 +2063,7 @@
     "implemented": true,
     "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "automaticDiscountSavedSearches",
@@ -2073,7 +2073,7 @@
     "implemented": true,
     "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "discountRedeemCodeSavedSearches",
@@ -2093,7 +2093,7 @@
     "implemented": true,
     "matchNames": ["savedSearchCreate", "SavedSearchCreate"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
+    "supportNotes": "HAR-312/HAR-402: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, returns Shopify's CUSTOMER deprecation userError, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
   },
   {
     "name": "savedSearchUpdate",
@@ -3877,9 +3877,9 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
-    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+    "runtimeTests": []
   },
   {
     "name": "orderRiskAssessmentCreate",
@@ -4005,7 +4005,7 @@
     "implemented": true,
     "matchNames": ["orderCreateMandatePayment", "OrderCreateMandatePayment"],
     "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
-    "supportNotes": "Stages mandate-payment jobs locally with session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways."
+    "supportNotes": "Stages mandate-payment jobs locally with current mandateId request-shape coverage, session idempotency keys, synthetic paymentReferenceId values, and downstream order transaction/financial-status updates without contacting payment gateways or validating real mandate ownership."
   },
   {
     "name": "paymentCustomizationActivation",
@@ -4175,7 +4175,7 @@
     "implemented": true,
     "matchNames": ["transactionVoid", "TransactionVoid"],
     "runtimeTests": ["tests/integration/order-payment-transaction-flow.test.ts"],
-    "supportNotes": "Stages voids for uncaptured local authorization transactions and updates downstream capturable/financial fields without proxying the supported mutation upstream."
+    "supportNotes": "Stages voids for uncaptured local authorization transactions using the current parentTransactionId request shape, retains legacy id compatibility for older fixtures, and updates downstream capturable/financial fields without proxying the supported mutation upstream."
   },
   {
     "name": "orderCustomerSet",
@@ -4209,9 +4209,9 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": true,
+    "implemented": false,
     "matchNames": ["taxSummaryCreate", "TaxSummaryCreate"],
-    "runtimeTests": ["tests/integration/order-lifecycle-payment-customer-flow.test.ts"]
+    "runtimeTests": []
   },
   {
     "name": "orderCancel",

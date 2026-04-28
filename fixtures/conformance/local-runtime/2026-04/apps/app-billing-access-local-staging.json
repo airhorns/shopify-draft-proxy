@@ -1,0 +1,333 @@
+{
+  "capturedAt": "2026-04-28T02:10:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-billing-access-local-staging",
+  "notes": [
+    "Runtime fixture enforced by tests/integration/app-billing-access-flow.test.ts.",
+    "Billing confirmation URLs and delegated access tokens are synthetic local values. Raw delegated token values are intentionally absent from meta-visible state.",
+    "Live success-path captures for billing approval, app uninstall, access-scope revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects."
+  ],
+  "operationNames": [
+    "appPurchaseOneTimeCreate",
+    "appSubscriptionCreate",
+    "appSubscriptionCancel",
+    "appSubscriptionLineItemUpdate",
+    "appSubscriptionTrialExtend",
+    "appUsageRecordCreate",
+    "appRevokeAccessScopes",
+    "appUninstall",
+    "delegateAccessTokenCreate",
+    "delegateAccessTokenDestroy"
+  ],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "name": "Local plan",
+                "status": "PENDING",
+                "test": true,
+                "trialDays": 7,
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "100",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "oneTimeCreate": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "Import package",
+                "status": "PENDING",
+                "test": true,
+                "price": {
+                  "amount": "10",
+                  "currencyCode": "USD"
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "lineItemUpdate": {
+          "data": {
+            "appSubscriptionLineItemUpdate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "150",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "usageCreate": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "metered import",
+                "price": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "subscriptionLineItem": {
+                  "id": "gid://shopify/AppSubscriptionLineItem/expected"
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "trialExtend": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "trialDays": 10
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "cancel": {
+          "data": {
+            "appSubscriptionCancel": {
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "CANCELLED",
+                "trialDays": 10
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "billingRead": {
+          "data": {
+            "currentAppInstallation": {
+              "id": "gid://shopify/AppInstallation/expected",
+              "activeSubscriptions": [],
+              "allSubscriptions": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/AppSubscription/expected",
+                    "status": "CANCELLED",
+                    "trialDays": 10,
+                    "lineItems": [
+                      {
+                        "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                        "usageRecords": {
+                          "nodes": [
+                            {
+                              "description": "metered import",
+                              "price": {
+                                "amount": "12.5",
+                                "currencyCode": "USD"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "oneTimePurchases": {
+                "nodes": [
+                  {
+                    "name": "Import package",
+                    "status": "PENDING",
+                    "price": {
+                      "amount": "10",
+                      "currencyCode": "USD"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "revoke": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [
+                {
+                  "handle": "write_products",
+                  "description": null
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "Access scope 'write_orders' is not granted.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "accessRead": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_products"
+                }
+              ]
+            }
+          }
+        },
+        "delegateCreate": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": {
+                "accessToken": "shpat_delegate_proxy_redacted",
+                "accessScopes": ["read_products"],
+                "createdAt": "2026-04-28T02:10:00.000Z",
+                "expiresIn": 3600
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "delegateDestroy": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": true,
+              "userErrors": []
+            }
+          }
+        },
+        "delegateDestroyRepeat": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "userErrors": [
+                {
+                  "field": ["accessToken"],
+                  "message": "Access token not found.",
+                  "code": "ACCESS_TOKEN_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "uninstall": {
+          "data": {
+            "appUninstall": {
+              "app": {
+                "id": "gid://shopify/App/expected",
+                "handle": "shopify-draft-proxy"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "afterUninstallRead": {
+          "data": {
+            "currentAppInstallation": null
+          }
+        }
+      }
+    },
+    "unknownCancel": {
+      "variables": {
+        "id": "gid://shopify/AppSubscription/0"
+      },
+      "expected": {
+        "data": {
+          "appSubscriptionCancel": {
+            "appSubscription": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Subscription not found"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "billingLifecycle": {
+      "mutationPayloads": [
+        "appSubscriptionCreate returns a PENDING staged subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
+        "appPurchaseOneTimeCreate returns a PENDING staged one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
+        "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
+        "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
+        "appSubscriptionTrialExtend updates staged trialDays.",
+        "appSubscriptionCancel returns the staged subscription with status CANCELLED."
+      ],
+      "downstreamReads": [
+        "currentAppInstallation.allSubscriptions reads the staged subscription and usage record.",
+        "currentAppInstallation.oneTimePurchases reads the staged one-time purchase.",
+        "currentAppInstallation.activeSubscriptions stays empty for pending/cancelled local billing."
+      ]
+    },
+    "accessAndInstall": {
+      "mutationPayloads": [
+        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appUninstall returns the staged app object."
+      ],
+      "downstreamReads": [
+        "currentAppInstallation.accessScopes excludes locally revoked scopes.",
+        "currentAppInstallation returns null after staged appUninstall."
+      ]
+    },
+    "delegatedTokens": {
+      "mutationPayloads": [
+        "delegateAccessTokenCreate returns the synthetic raw token once with accessScopes and expiresIn.",
+        "delegateAccessTokenDestroy returns status true for the staged token and status false with ACCESS_TOKEN_NOT_FOUND when repeated."
+      ],
+      "secretHandling": [
+        "Meta-visible delegatedAccessTokens store accessTokenSha256 and accessTokenPreview only.",
+        "The raw synthetic token returned by delegateAccessTokenCreate is not serialized in __meta/state."
+      ]
+    }
+  }
+}

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = resolve(import.meta.dirname, '../..');
 const fixturePath = resolve(
   repoRoot,
-  'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/app-billing-access-read.json',
+  'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/apps/app-billing-access-read.json',
 );
 
 type JsonObject = Record<string, unknown>;

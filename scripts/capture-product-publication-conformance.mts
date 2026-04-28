@@ -36,7 +36,7 @@ import {
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const conformanceAppHandle = process.env['SHOPIFY_CONFORMANCE_APP_HANDLE'] || null;
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
-const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
+const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const manualStoreAuthTokenPath = path.resolve('.manual-store-auth-token.json');
 
 function describeCredentialObservation(token) {

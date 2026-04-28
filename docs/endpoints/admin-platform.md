@@ -5,7 +5,7 @@ This endpoint group covers Admin GraphQL platform/utility roots that do not belo
 - queries: `publicApiVersions`, `node`, `nodes`, `job`, `taxonomy`, `domain`, `backupRegion`, `staffMember`, `staffMembers`
 - mutations: `backupRegionUpdate`, `flowGenerateSignature`, `flowTriggerReceive`
 
-HAR-315/HAR-418 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.
+HAR-315/HAR-418 conformance evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`.
 
 ## Current support and limitations
 
@@ -39,7 +39,7 @@ The local snapshot handler is intentionally conservative and only models shapes 
 
 ## Historical and developer notes
 
-- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json`.
+- Conformance evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json`.
 - HAR-400 expanded executable runtime coverage for local Product and primary Domain resolution through the generic `Node` interface.
 - HAR-418 expanded generic Node dispatch to existing supported local detail handlers/direct serializers, added executable parity for captured Product, Collection, Customer, and Location `nodes(ids:)` reads, and added an introspection-backed unsupported Node implementor snapshot. Follow-up HAR-424 tracks reducing the remaining unsupported Node list.
 - Executable parity specs: `admin-platform-supported-node-reads.json`, `admin-platform-utility-reads.json`, `admin-platform-backup-region-update.json`, `admin-platform-flow-generate-signature.json`, and `admin-platform-flow-trigger-receive.json`.

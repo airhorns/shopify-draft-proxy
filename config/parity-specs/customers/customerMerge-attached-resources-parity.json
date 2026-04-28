@@ -1,0 +1,104 @@
+{
+  "scenarioId": "customer-merge-attached-resources-live-parity",
+  "operationNames": [
+    "customerMerge",
+    "customerMergePreview",
+    "customerMergeJobStatus",
+    "customer",
+    "customerByIdentifier",
+    "customers",
+    "customersCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-attached-resources-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerMerge-attached-resources-parity.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers customerMerge with non-empty normalized attached resources: customer-owned addresses, customer-owned metafields, source order transfer, customerByIdentifier lookup behavior, customers/customersCount tag search visibility, and job-status shape through the downstream merge read. The live fixture also records preview and IN_PROGRESS -> COMPLETED polling samples. Draft-order setup is captured, but customer-merge draft-order transfer remains deferred until a downstream draft-order read is captured.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerMerge.job.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Customer merge jobs are allocated independently by Shopify and the local staging identity registry."
+      },
+      {
+        "path": "$.result.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream proxy read observes the deterministic local merge timestamp instead of Shopify's live write timestamp."
+      },
+      {
+        "path": "$.result.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.metafields.nodes[2].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify allocates a new metafield ID when copying a source-only customer metafield during merge; the local proxy allocates its own synthetic metafield ID."
+      },
+      {
+        "path": "$.result.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors and the copied source-only metafield receives a local ID."
+      },
+      {
+        "path": "$.result.orders.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.result.orders.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy uses deterministic synthetic cursors."
+      },
+      {
+        "path": "$.mergeStatus.jobId",
+        "matcher": "shopify-gid:Job",
+        "reason": "The downstream proxy job-status read uses the locally generated merge job ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-downstream-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.proxyVariables"
+        }
+      },
+      {
+        "name": "attached-resource-read-data",
+        "capturePath": "$.attachedAfterMerge.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-attached-resources-downstream-read.graphql",
+          "variablesCapturePath": "$.attachedAfterMerge.variables"
+        }
+      }
+    ]
+  }
+}
