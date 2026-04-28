@@ -1,0 +1,86 @@
+query OnlineStoreContentSearchFilters(
+  $articleTagQuery: String!
+  $articleAuthorQuery: String!
+  $blogTitleQuery: String!
+  $pagePublishedQuery: String!
+) {
+  articlesByTag: articles(first: 5, query: $articleTagQuery) {
+    nodes {
+      id
+      title
+      handle
+      tags
+      isPublished
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  articlesByAuthor: articles(first: 5, query: $articleAuthorQuery) {
+    nodes {
+      id
+      title
+      handle
+      tags
+      isPublished
+      author {
+        name
+      }
+      blog {
+        id
+        title
+        handle
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  blogsByTitle: blogs(first: 5, query: $blogTitleQuery) {
+    nodes {
+      id
+      title
+      handle
+      commentPolicy
+      articlesCount {
+        count
+        precision
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  pagesByPublishedTitle: pages(first: 5, query: $pagePublishedQuery) {
+    nodes {
+      id
+      title
+      handle
+      isPublished
+      publishedAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

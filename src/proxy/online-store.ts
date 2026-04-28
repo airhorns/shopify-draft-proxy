@@ -336,7 +336,14 @@ function projectRecord(
       }
 
       if (fieldName === 'blog' && record.kind === 'article') {
-        const blogId = typeof record.data['blogId'] === 'string' ? record.data['blogId'] : null;
+        const blogId =
+          typeof record.data['blogId'] === 'string'
+            ? record.data['blogId']
+            : typeof record.parentId === 'string'
+              ? record.parentId
+              : isPlainObject(record.data['blog']) && typeof record.data['blog']['id'] === 'string'
+                ? record.data['blog']['id']
+                : null;
         const blog = blogId ? store.getEffectiveOnlineStoreContentById('blog', blogId) : null;
         return { handled: true, value: blog ? projectRecord(blog, selectedField, variables, selectedFragments) : null };
       }
