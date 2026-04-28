@@ -58,6 +58,7 @@ Successful local enablement:
 - creates or replaces a staged `MetafieldDefinition` record without sending the mutation to Shopify
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
+- when `pin: true`, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
 - makes downstream `metafieldDefinition(identifier:)` and `metafieldDefinitions(...)` reads observe the staged definition
 

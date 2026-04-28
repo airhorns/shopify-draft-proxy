@@ -107,6 +107,25 @@ Practical rule:
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
 
+### 5a. Inventory quantity mutation contracts drift by Admin API version
+
+The inventory quantity roots are especially version-sensitive. The checked-in local parity for
+`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` is anchored to
+2025-01 fixture evidence, where `inventoryAdjustQuantities` accepts a plain mutation call and
+`inventorySetQuantities` uses `compareQuantity` / `ignoreCompareQuantity` style inputs.
+
+Shopify's current 2026-04 docs show two traps that should not be papered over by generic local
+staging:
+
+- `inventoryAdjustQuantities` requires an `@idempotent` key in 2026-04.
+- `inventorySetQuantities` examples use `changeFromQuantity` rather than the older compare/ignore
+  fields.
+
+Practical rule:
+
+- keep the existing implementation documented as 2025-01-backed inventory parity until a dedicated
+  2026-04 capture updates the request contract, validation branches, and route-version behavior.
+
 ## 6. Product update semantics are mode-sensitive
 
 Current `productUpdate` behavior is intentionally split by runtime mode:

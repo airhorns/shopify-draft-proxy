@@ -2,7 +2,7 @@
   "scenarioId": "inventory-adjust-quantities-live-parity",
   "operationNames": ["inventoryAdjustQuantities"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "inventory-quantity-side-effect"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/inventory-adjust-quantities-parity.json"
   ],
@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
+  "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, exposed the incoming quantity in immediate downstream `InventoryItem.inventoryLevels` reads without changing available/on_hand totals, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -51,6 +51,68 @@
           "documentPath": "config/parity-requests/inventoryAdjustQuantities-downstream-read.graphql",
           "variablesPath": "config/parity-requests/inventoryAdjustQuantities-downstream-read.variables.json"
         }
+      },
+      {
+        "name": "non-available-mutation-data",
+        "capturePath": "$.nonAvailableMutation.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventoryAdjustQuantities-non-available.graphql",
+          "variablesCapturePath": "$.nonAvailableMutation.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryAdjustmentGroup.id",
+            "matcher": "shopify-gid:InventoryAdjustmentGroup",
+            "reason": "The live fixture stores Shopify's adjustment-group id while the proxy uses a deterministic session-local synthetic adjustment-group id."
+          },
+          {
+            "path": "$.inventoryAdjustmentGroup.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The live fixture stores Shopify's write timestamp while the proxy uses its synthetic session timestamp."
+          }
+        ]
+      },
+      {
+        "name": "non-available-downstream-read-data",
+        "capturePath": "$.nonAvailableMutation.downstreamRead.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/inventoryAdjustQuantities-non-available-downstream-read.graphql",
+          "variables": {
+            "firstProductId": {
+              "fromCapturePath": "$.setup.products[0].productId"
+            },
+            "firstVariantId": {
+              "fromCapturePath": "$.setup.products[0].variantId"
+            },
+            "firstInventoryItemId": {
+              "fromCapturePath": "$.setup.products[0].inventoryItemId"
+            }
+          }
+        },
+        "excludedPaths": [
+          "$.firstProduct.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+          "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
+          "$.firstInventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.firstProduct.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
+          },
+          {
+            "path": "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
+          },
+          {
+            "path": "$.firstInventoryItem.inventoryLevels.nodes[*].id",
+            "matcher": "shopify-gid:InventoryLevel",
+            "reason": "The fixture stores Shopify's persisted inventory-level gid while the parity harness reconstructs a deterministic local inventory-level gid from the seeded item/location graph."
+          }
+        ]
       }
     ]
   }
