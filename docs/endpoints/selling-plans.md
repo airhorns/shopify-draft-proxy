@@ -30,6 +30,8 @@ HAR-299 also supports Shopify's product-centric membership roots. `productJoinSe
 
 Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch.
 
+Shopify's Admin docs describe selling-plan groups as app-scoped purchase options that can be associated directly with products or product variants. The local model keeps those association lists explicit instead of deriving variant membership from product membership, because the captured 2026-04 lifecycle showed those read paths diverging.
+
 ## Historical and developer notes
 
 ### Conformance

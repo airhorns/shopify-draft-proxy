@@ -13,6 +13,13 @@ const config: AppConfig = {
   readMode: 'snapshot',
 };
 
+type ReferenceEntry = {
+  id: string;
+  handle: string;
+  type: string;
+  displayName: string;
+};
+
 function makeDefinition(overrides: Partial<MetaobjectDefinitionRecord> = {}): MetaobjectDefinitionRecord {
   return {
     id: overrides.id ?? 'gid://shopify/MetaobjectDefinition/244',
@@ -382,6 +389,315 @@ describe('metaobject draft flow', () => {
       displayName: 'Updated title',
     });
     expect(stateResponse.body.stagedState.deletedMetaobjectIds[upsertCreated.id]).toBe(true);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages metaobject reference fields and reverse referencedBy reads', async () => {
+    store.upsertBaseMetaobjectDefinitions([
+      makeDefinition({
+        id: 'gid://shopify/MetaobjectDefinition/245',
+        type: 'codex_metaobject_reference_target',
+        name: 'Codex Metaobject Reference Target',
+        metaobjectsCount: 0,
+      }),
+      makeDefinition({
+        id: 'gid://shopify/MetaobjectDefinition/246',
+        type: 'codex_metaobject_reference_parent',
+        name: 'Codex Metaobject Reference Parent',
+        metaobjectsCount: 0,
+        fieldDefinitions: [
+          {
+            key: 'title',
+            name: 'Title',
+            description: 'Display title.',
+            required: true,
+            type: { name: 'single_line_text_field', category: 'TEXT' },
+            validations: [],
+          },
+          {
+            key: 'single_ref',
+            name: 'Single Ref',
+            description: 'Single metaobject reference.',
+            required: false,
+            type: { name: 'metaobject_reference', category: 'REFERENCE' },
+            validations: [
+              {
+                name: 'metaobject_definition_id',
+                value: 'gid://shopify/MetaobjectDefinition/245',
+              },
+            ],
+          },
+          {
+            key: 'list_ref',
+            name: 'List Ref',
+            description: 'List metaobject reference.',
+            required: false,
+            type: { name: 'list.metaobject_reference', category: 'REFERENCE' },
+            validations: [
+              {
+                name: 'metaobject_definition_id',
+                value: 'gid://shopify/MetaobjectDefinition/245',
+              },
+            ],
+          },
+        ],
+      }),
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('metaobject reference relationships must stay local');
+    });
+    const app = createApp(config).callback();
+
+    async function createEntry(type: string, handle: string, title: string): Promise<ReferenceEntry> {
+      const response = await request(app)
+        .post('/admin/api/2026-04/graphql.json')
+        .send({
+          query: `mutation CreateReferenceEntry($metaobject: MetaobjectCreateInput!) {
+            metaobjectCreate(metaobject: $metaobject) {
+              metaobject { id handle type displayName }
+              userErrors { field message code }
+            }
+          }`,
+          variables: {
+            metaobject: {
+              type,
+              handle,
+              fields: [{ key: 'title', value: title }],
+            },
+          },
+        });
+
+      expect(response.body.data.metaobjectCreate.userErrors).toEqual([]);
+      return response.body.data.metaobjectCreate.metaobject;
+    }
+
+    const targetA = await createEntry('codex_metaobject_reference_target', 'target-a', 'Target A');
+    const targetB = await createEntry('codex_metaobject_reference_target', 'target-b', 'Target B');
+
+    const parentCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateReferenceParent($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              fields {
+                key
+                type
+                value
+                jsonValue
+                reference { __typename ... on Metaobject { id handle type displayName } }
+                references(first: 5) {
+                  nodes { __typename ... on Metaobject { id handle type displayName } }
+                  edges { cursor node { __typename ... on Metaobject { id handle type displayName } } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          metaobject: {
+            type: 'codex_metaobject_reference_parent',
+            handle: 'reference-parent',
+            fields: [
+              { key: 'title', value: 'Reference parent' },
+              { key: 'single_ref', value: targetA.id },
+              { key: 'list_ref', value: JSON.stringify([targetA.id, targetB.id]) },
+            ],
+          },
+        },
+      });
+
+    expect(parentCreateResponse.body.data.metaobjectCreate.userErrors).toEqual([]);
+    const parent = parentCreateResponse.body.data.metaobjectCreate.metaobject;
+    expect(parent.fields).toEqual([
+      expect.objectContaining({ key: 'title', reference: null, references: null }),
+      expect.objectContaining({
+        key: 'single_ref',
+        type: 'metaobject_reference',
+        value: targetA.id,
+        jsonValue: targetA.id,
+        reference: {
+          __typename: 'Metaobject',
+          id: targetA.id,
+          handle: 'target-a',
+          type: 'codex_metaobject_reference_target',
+          displayName: 'Target A',
+        },
+        references: null,
+      }),
+      expect.objectContaining({
+        key: 'list_ref',
+        type: 'list.metaobject_reference',
+        value: JSON.stringify([targetA.id, targetB.id]),
+        jsonValue: [targetA.id, targetB.id],
+        reference: null,
+        references: {
+          nodes: [
+            {
+              __typename: 'Metaobject',
+              id: targetA.id,
+              handle: 'target-a',
+              type: 'codex_metaobject_reference_target',
+              displayName: 'Target A',
+            },
+            {
+              __typename: 'Metaobject',
+              id: targetB.id,
+              handle: 'target-b',
+              type: 'codex_metaobject_reference_target',
+              displayName: 'Target B',
+            },
+          ],
+          edges: [
+            expect.objectContaining({ cursor: expect.any(String), node: expect.objectContaining({ id: targetA.id }) }),
+            expect.objectContaining({ cursor: expect.any(String), node: expect.objectContaining({ id: targetB.id }) }),
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: expect.any(String),
+            endCursor: expect.any(String),
+          },
+        },
+      }),
+    ]);
+
+    const referencedByResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReferenceReads($targetA: ID!, $targetB: ID!) {
+          targetA: metaobject(id: $targetA) {
+            referencedBy(first: 10) {
+              nodes {
+                key
+                name
+                namespace
+                referencer { __typename ... on Metaobject { id handle type displayName } }
+              }
+              edges {
+                cursor
+                node {
+                  key
+                  name
+                  namespace
+                  referencer { __typename ... on Metaobject { id handle type displayName } }
+                }
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          targetB: metaobject(id: $targetB) {
+            referencedBy(first: 10) {
+              nodes { key name namespace referencer { __typename ... on Metaobject { id handle } } }
+            }
+          }
+        }`,
+        variables: {
+          targetA: targetA.id,
+          targetB: targetB.id,
+        },
+      });
+
+    expect(referencedByResponse.body.data.targetA.referencedBy).toMatchObject({
+      nodes: [
+        {
+          key: 'single_ref',
+          name: 'Single Ref',
+          namespace: 'codex_metaobject_reference_parent',
+          referencer: { __typename: 'Metaobject', id: parent.id, handle: 'reference-parent' },
+        },
+        {
+          key: 'list_ref',
+          name: 'List Ref',
+          namespace: 'codex_metaobject_reference_parent',
+          referencer: { __typename: 'Metaobject', id: parent.id, handle: 'reference-parent' },
+        },
+      ],
+      edges: [
+        expect.objectContaining({ cursor: expect.any(String), node: expect.objectContaining({ key: 'single_ref' }) }),
+        expect.objectContaining({ cursor: expect.any(String), node: expect.objectContaining({ key: 'list_ref' }) }),
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: expect.any(String),
+        endCursor: expect.any(String),
+      },
+    });
+    expect(referencedByResponse.body.data.targetB.referencedBy.nodes).toEqual([
+      {
+        key: 'list_ref',
+        name: 'List Ref',
+        namespace: 'codex_metaobject_reference_parent',
+        referencer: { __typename: 'Metaobject', id: parent.id, handle: 'reference-parent' },
+      },
+    ]);
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateReferenceParent($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: parent.id,
+          metaobject: {
+            fields: [
+              { key: 'single_ref', value: targetB.id },
+              { key: 'list_ref', value: JSON.stringify([targetB.id]) },
+            ],
+          },
+        },
+      });
+
+    expect(updateResponse.body.data.metaobjectUpdate.userErrors).toEqual([]);
+
+    const updatedRefsResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query UpdatedReferenceReads($targetA: ID!, $targetB: ID!) {
+          targetA: metaobject(id: $targetA) { referencedBy(first: 10) { nodes { key } } }
+          targetB: metaobject(id: $targetB) { referencedBy(first: 10) { nodes { key } } }
+        }`,
+        variables: {
+          targetA: targetA.id,
+          targetB: targetB.id,
+        },
+      });
+
+    expect(updatedRefsResponse.body.data).toEqual({
+      targetA: { referencedBy: { nodes: [] } },
+      targetB: { referencedBy: { nodes: [{ key: 'single_ref' }, { key: 'list_ref' }] } },
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteReferenceParent($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code } }
+        }`,
+        variables: { id: parent.id },
+      });
+
+    expect(deleteResponse.body.data.metaobjectDelete.userErrors).toEqual([]);
+
+    const afterDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query AfterReferenceDelete($targetB: ID!) {
+          targetB: metaobject(id: $targetB) { referencedBy(first: 10) { nodes { key } } }
+        }`,
+        variables: { targetB: targetB.id },
+      });
+
+    expect(afterDeleteResponse.body.data.targetB.referencedBy.nodes).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

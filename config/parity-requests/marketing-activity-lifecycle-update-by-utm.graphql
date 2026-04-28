@@ -1,0 +1,23 @@
+mutation MarketingActivityLifecycleUpdateByUtm($utm: UTMInput!, $input: MarketingActivityUpdateExternalInput!) {
+  updateExternalByUtm: marketingActivityUpdateExternal(utm: $utm, input: $input) {
+    marketingActivity {
+      title
+      status
+      statusLabel
+      utmParameters {
+        campaign
+        source
+        medium
+      }
+      marketingEvent {
+        manageUrl
+        description
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

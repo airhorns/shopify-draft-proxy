@@ -311,6 +311,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    packageScript: 'conformance:capture-metaobject-references',
+    scriptPath: 'scripts/capture-metaobject-reference-conformance.ts',
+    purpose: 'Metaobject reference field and reverse referencedBy read behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-reference-lifecycle.json`,
+      'config/parity-specs/metaobject-reference-lifecycle.json',
+    ],
+    cleanupBehavior: 'Deletes seeded parent/target metaobjects and definitions after reference capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     packageScript: 'conformance:capture-inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
@@ -702,6 +715,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customerInputValidation-*.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    packageScript: 'conformance:capture-customer-input-addresses',
+    scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
+    purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-addresses-parity.json`,
+      'config/parity-specs/customerInputAddresses-parity.json',
+      'config/parity-requests/customer-input-addresses-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer, records address-list create/update/read behavior, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
