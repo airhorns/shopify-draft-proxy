@@ -651,6 +651,12 @@ function addProductsToCollection(
   };
 }
 
+function readCollectionProductIds(rawProductIds: unknown): string[] {
+  return Array.isArray(rawProductIds)
+    ? rawProductIds.filter((productId): productId is string => typeof productId === 'string')
+    : [];
+}
+
 function removeProductsFromCollection(collection: CollectionRecord, productIds: string[]): void {
   const normalizedProductIds = productIds.filter((productId, index) => productIds.indexOf(productId) === index);
 
@@ -6600,6 +6606,7 @@ function serializeCollectionField(
   collection: CollectionRecord | ProductCollectionRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): unknown {
   const publicationIds = getCollectionPublicationIds(collection);
 
@@ -6649,7 +6656,10 @@ function serializeCollectionField(
     case 'image':
       return serializeCollectionImage(collection.image, field.selectionSet?.selections ?? []);
     case 'productsCount':
-      return serializeCountValue(field, listEffectiveProductsForCollection(collection.id).length);
+      return serializeCountValue(
+        field,
+        options.productsCountOverride ?? listEffectiveProductsForCollection(collection.id).length,
+      );
     case 'hasProduct': {
       const args = getFieldArguments(field, variables);
       const productId = typeof args['id'] === 'string' ? args['id'] : null;
@@ -6689,6 +6699,7 @@ function serializeCollectionObject(
   collection: CollectionRecord | ProductCollectionRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
+  options: { productsCountOverride?: number } = {},
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -6699,7 +6710,10 @@ function serializeCollectionObject(
         continue;
       }
 
-      Object.assign(result, serializeCollectionObject(collection, selection.selectionSet.selections, variables));
+      Object.assign(
+        result,
+        serializeCollectionObject(collection, selection.selectionSet.selections, variables, options),
+      );
       continue;
     }
 
@@ -6731,7 +6745,7 @@ function serializeCollectionObject(
         break;
       }
       default:
-        result[key] = serializeCollectionField(collection, selection, variables);
+        result[key] = serializeCollectionField(collection, selection, variables, options);
     }
   }
 
@@ -10934,14 +10948,31 @@ export function handleProductMutation(
         };
       }
 
-      const collection = store.stageCreateCollection(makeCollectionRecord(input));
+      const collection = makeCollectionRecord(input);
+      const productIds = readCollectionProductIds(input['products']);
+      if (productIds.length > 0) {
+        const result = addProductsToCollection(collection, productIds);
+        if (result.userErrors.length > 0) {
+          return {
+            data: {
+              [responseKey]: {
+                collection: null,
+                userErrors: result.userErrors,
+              },
+            },
+          };
+        }
+      }
+
+      const stagedCollection = store.stageCreateCollection(collection);
       return {
         data: {
           [responseKey]: {
             collection: serializeCollectionObject(
-              collection,
+              stagedCollection,
               getChildField(field, 'collection')?.selectionSet?.selections ?? [],
               variables,
+              { productsCountOverride: 0 },
             ),
             userErrors: [],
           },
@@ -11100,7 +11131,9 @@ export function handleProductMutation(
       const productIds = Array.isArray(args['productIds'])
         ? args['productIds'].filter((productId): productId is string => typeof productId === 'string')
         : [];
-      const result = addProductsToCollection(existing, productIds, { placement: 'prepend-reverse' });
+      const result = addProductsToCollection(existing, productIds, {
+        placement: existing.sortOrder === 'MANUAL' ? 'append' : 'prepend-reverse',
+      });
       const job = result.collection ? { id: makeSyntheticGid('Job'), done: false } : null;
       return {
         data: {

@@ -1,0 +1,52 @@
+query CollectionCreateInitialProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+  collection(id: $collectionId) {
+    id
+    title
+    handle
+    products(first: 10, sortKey: MANUAL) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+    hasFirstProduct: hasProduct(id: $firstProductId)
+    hasSecondProduct: hasProduct(id: $secondProductId)
+    productsCount {
+      count
+      precision
+    }
+  }
+  first: product(id: $firstProductId) {
+    id
+    collections(first: 10, sortKey: TITLE) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+  second: product(id: $secondProductId) {
+    id
+    collections(first: 10, sortKey: TITLE) {
+      nodes {
+        id
+        title
+        handle
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}
