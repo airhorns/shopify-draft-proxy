@@ -45,12 +45,12 @@ Current root behavior:
 
 ### Local mutation import support
 
-`bulkOperationRunMutation` is local-only for inner mutation roots that already have a local bulk-import executor. A successful local import requires all of the following:
+`bulkOperationRunMutation` is local-only for inner mutation roots that the operation registry classifies as locally staged. A successful local import requires all of the following:
 
 - The JSONL variables file was uploaded to a proxy staged upload target returned by local `stagedUploadsCreate`.
 - The caller passes the target `parameters { name: "key" }` value as `stagedUploadPath`.
 - The `mutation` argument parses as a single-root mutation.
-- The inner root is an implemented Admin API mutation root that the bulk-import executor can dispatch locally, such as the covered product and customer roots.
+- The inner root is an implemented Admin API mutation root with `stage-locally` execution in the operation registry and a matching local mutation handler.
 
 When those requirements are met, the proxy parses each non-empty JSONL line as one variables object, calls the same local domain mutation handler used by normal GraphQL mutations, stages downstream state, and creates a completed local `BulkOperation` with `type: MUTATION`. The local result JSONL is stored in the in-memory job record and exposed through the synthetic `BulkOperation.url` under `/__meta/bulk-operations/<encoded-id>/result.jsonl`.
 

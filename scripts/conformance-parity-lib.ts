@@ -1284,7 +1284,10 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
-    const bulkOperationMutation = handleBulkOperationMutation(document, variables, { readMode: 'snapshot' });
+    const bulkOperationMutation = handleBulkOperationMutation(document, variables, {
+      readMode: 'snapshot',
+      shopifyAdminOrigin: 'https://example.myshopify.com',
+    });
     if (!bulkOperationMutation) {
       throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
     }

@@ -15,7 +15,24 @@ import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 import { isProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type { BulkOperationRecord } from '../state/types.js';
-import { getOperationCapability } from './capabilities.js';
+import { handleDeliveryProfileMutation } from './delivery-profiles.js';
+import { handleDiscountMutation } from './discounts.js';
+import { handleFunctionMutation } from './functions.js';
+import { handleGiftCardMutation } from './gift-cards.js';
+import { handleInventoryShipmentMutation } from './inventory-shipments.js';
+import { handleLocalizationMutation } from './localization.js';
+import { handleMarketMutation } from './markets.js';
+import { handleMarketingMutation } from './marketing.js';
+import { handleMediaMutation } from './media.js';
+import { handleMetafieldDefinitionMutation } from './metafield-definitions.js';
+import { handleMetaobjectDefinitionMutation } from './metaobject-definitions.js';
+import { handleOnlineStoreMutation } from './online-store.js';
+import { handleOrderMutation } from './orders/mutations.js';
+import { handlePaymentMutation } from './payments.js';
+import { handleSavedSearchMutation } from './saved-searches.js';
+import { handleSegmentMutation } from './segments.js';
+import { handleStorePropertiesMutation } from './store-properties.js';
+import { getOperationCapability, type OperationCapability } from './capabilities.js';
 import { handleCustomerMutation } from './customers.js';
 import {
   getFieldResponseKey,
@@ -33,6 +50,7 @@ import {
   serializeProductBulkSelection,
   serializeProductVariantBulkSelection,
 } from './products.js';
+import { handleWebhookSubscriptionMutation } from './webhooks.js';
 
 type BulkOperationUserError = {
   field: string[] | null;
@@ -53,6 +71,7 @@ type BulkOperationMutationResult = {
 
 type BulkOperationMutationOptions = {
   readMode: ReadMode;
+  shopifyAdminOrigin: string;
 };
 
 export type BulkOperationImportLogEntry = {
@@ -839,7 +858,7 @@ function hasMutationUserErrors(responseBody: unknown, rootField: string): boolea
 
 function isSupportedBulkImportInnerMutation(
   mutation: string,
-): { operationName: string | null; rootField: string; domain: string } | null {
+): { operationName: string | null; rootField: string; capability: OperationCapability } | null {
   let parsed: ReturnType<typeof parseOperation>;
   try {
     parsed = parseOperation(mutation);
@@ -851,31 +870,207 @@ function isSupportedBulkImportInnerMutation(
   }
 
   const capability = getOperationCapability(parsed);
-  if (
-    capability.execution !== 'stage-locally' ||
-    (capability.domain !== 'products' && capability.domain !== 'customers')
-  ) {
+  if (capability.execution !== 'stage-locally' || capability.domain === 'bulk-operations') {
     return null;
   }
 
   return {
     operationName: capability.operationName,
     rootField: parsed.rootFields[0]!,
-    domain: capability.domain,
+    capability,
   };
 }
 
+const DELIVERY_PROFILE_MUTATION_ROOTS = new Set([
+  'deliveryProfileCreate',
+  'deliveryProfileUpdate',
+  'deliveryProfileRemove',
+]);
+
+const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
+  'inventoryShipmentCreate',
+  'inventoryShipmentCreateInTransit',
+  'inventoryShipmentAddItems',
+  'inventoryShipmentRemoveItems',
+  'inventoryShipmentUpdateItemQuantities',
+  'inventoryShipmentSetTracking',
+  'inventoryShipmentMarkInTransit',
+  'inventoryShipmentReceive',
+  'inventoryShipmentDelete',
+]);
+
+const ORDER_BACKED_SHIPPING_FULFILLMENT_MUTATION_ROOTS = new Set([
+  'fulfillmentEventCreate',
+  'fulfillmentOrderSubmitFulfillmentRequest',
+  'fulfillmentOrderAcceptFulfillmentRequest',
+  'fulfillmentOrderRejectFulfillmentRequest',
+  'fulfillmentOrderSubmitCancellationRequest',
+  'fulfillmentOrderAcceptCancellationRequest',
+  'fulfillmentOrderRejectCancellationRequest',
+  'fulfillmentOrderHold',
+  'fulfillmentOrderReleaseHold',
+  'fulfillmentOrderMove',
+  'fulfillmentOrderOpen',
+  'fulfillmentOrderCancel',
+  'fulfillmentOrderReportProgress',
+  'fulfillmentOrderReschedule',
+  'fulfillmentOrderClose',
+  'fulfillmentOrdersReroute',
+]);
+
+const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
+
 function handleSupportedBulkImportInnerMutation(
-  innerMutation: { domain: string },
+  innerMutation: { rootField: string; capability: OperationCapability },
   mutation: string,
   variables: Record<string, unknown>,
-  readMode: ReadMode,
-): GraphqlResponseBody {
-  if (innerMutation.domain === 'customers') {
-    return handleCustomerMutation(mutation, variables) as GraphqlResponseBody;
+  options: BulkOperationMutationOptions,
+): { responseBody: GraphqlResponseBody; stagedResourceIds: string[] } | null {
+  const { rootField, capability } = innerMutation;
+  const stagedResourceIds: string[] = [];
+  let responseBody: GraphqlResponseBody | null = null;
+
+  switch (capability.domain) {
+    case 'customers':
+    case 'privacy':
+      responseBody = handleCustomerMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'discounts': {
+      const result = handleDiscountMutation(mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
+    case 'functions':
+      responseBody = handleFunctionMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'gift-cards':
+      responseBody = handleGiftCardMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'localization':
+      responseBody = handleLocalizationMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'markets':
+      responseBody = handleMarketMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'marketing': {
+      const result = handleMarketingMutation(mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
+    case 'media':
+      responseBody = handleMediaMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'metafields':
+      responseBody = handleMetafieldDefinitionMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'metaobjects':
+      responseBody = handleMetaobjectDefinitionMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'online-store': {
+      const result = handleOnlineStoreMutation(mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
+    case 'orders':
+      responseBody = handleOrderMutation(
+        mutation,
+        variables,
+        options.readMode,
+        options.shopifyAdminOrigin,
+      ) as GraphqlResponseBody | null;
+      break;
+    case 'payments':
+      responseBody = (
+        ORDER_PAYMENT_MUTATION_ROOTS.has(rootField) || PAYMENT_TERMS_MUTATION_ROOTS.has(rootField)
+          ? handleOrderMutation(mutation, variables, options.readMode, options.shopifyAdminOrigin)
+          : handlePaymentMutation(mutation, variables)
+      ) as GraphqlResponseBody | null;
+      break;
+    case 'products':
+      responseBody = handleProductMutation(mutation, variables, options.readMode) as GraphqlResponseBody;
+      break;
+    case 'saved-searches': {
+      const result = handleSavedSearchMutation(mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
+    case 'segments':
+      responseBody = handleSegmentMutation(mutation, variables) as GraphqlResponseBody;
+      break;
+    case 'shipping-fulfillments': {
+      if (DELIVERY_PROFILE_MUTATION_ROOTS.has(rootField)) {
+        const result = handleDeliveryProfileMutation(mutation, variables);
+        if (!result) {
+          return null;
+        }
+        responseBody = result.response as GraphqlResponseBody;
+        stagedResourceIds.push(...result.stagedResourceIds);
+      } else if (INVENTORY_SHIPMENT_MUTATION_ROOTS.has(rootField)) {
+        const result = handleInventoryShipmentMutation(mutation, variables);
+        if (!result) {
+          return null;
+        }
+        responseBody = result.response as GraphqlResponseBody;
+        stagedResourceIds.push(...result.stagedResourceIds);
+      } else if (ORDER_BACKED_SHIPPING_FULFILLMENT_MUTATION_ROOTS.has(rootField)) {
+        responseBody = handleOrderMutation(
+          mutation,
+          variables,
+          options.readMode,
+          options.shopifyAdminOrigin,
+        ) as GraphqlResponseBody | null;
+      } else {
+        responseBody = handleStorePropertiesMutation(mutation, variables) as GraphqlResponseBody;
+      }
+      break;
+    }
+    case 'store-properties':
+      responseBody =
+        capability.operationName?.startsWith('publishable') === true
+          ? (handleProductMutation(mutation, variables, options.readMode) as GraphqlResponseBody)
+          : (handleStorePropertiesMutation(mutation, variables) as GraphqlResponseBody);
+      break;
+    case 'webhooks': {
+      const result = handleWebhookSubscriptionMutation(mutation, variables);
+      if (!result) {
+        return null;
+      }
+      responseBody = result.response as GraphqlResponseBody;
+      stagedResourceIds.push(...result.stagedResourceIds);
+      break;
+    }
+    default:
+      return null;
   }
 
-  return handleProductMutation(mutation, variables, readMode) as GraphqlResponseBody;
+  if (!responseBody) {
+    return null;
+  }
+
+  return {
+    responseBody,
+    stagedResourceIds:
+      stagedResourceIds.length > 0
+        ? stagedResourceIds
+        : collectResponseGids(responseBody).filter((id) => isProxySyntheticGid(id)),
+  };
 }
 
 function makeJsonl(rows: Array<Record<string, unknown>>): string {
@@ -983,15 +1178,27 @@ function handleBulkOperationRunMutation(
       continue;
     }
 
-    const responseBody = handleSupportedBulkImportInnerMutation(
+    const executionResult = handleSupportedBulkImportInnerMutation(
       innerMutation,
       mutation,
       parsedLine.variables,
-      options.readMode,
+      options,
     );
-    const stagedResourceIds = collectResponseGids(responseBody).filter((id) => {
-      return isProxySyntheticGid(id) || store.getEffectiveProductById(id) !== null;
-    });
+    if (!executionResult) {
+      hasFatalLineError = true;
+      rows.push({
+        line: parsedLine.lineNumber,
+        errors: [
+          {
+            message:
+              'bulkOperationRunMutation could not locally execute the registered inner mutation handler for this line.',
+          },
+        ],
+      });
+      continue;
+    }
+
+    const { responseBody, stagedResourceIds } = executionResult;
     const hadUserErrors = hasMutationUserErrors(responseBody, innerMutation.rootField);
 
     if (!hadUserErrors) {
@@ -1005,7 +1212,7 @@ function handleBulkOperationRunMutation(
     innerMutationLogs.push({
       operationName: innerMutation.operationName,
       rootField: innerMutation.rootField,
-      domain: innerMutation.domain,
+      domain: innerMutation.capability.domain,
       query: mutation,
       variables: parsedLine.variables,
       requestBody: {

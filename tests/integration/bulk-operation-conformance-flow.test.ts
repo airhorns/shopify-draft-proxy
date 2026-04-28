@@ -1476,6 +1476,150 @@ describe('BulkOperation conformance fixture and local model', () => {
     ]);
   });
 
+  it('stages supported non-product/customer bulk mutation imports from uploaded JSONL', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('bulkOperationRunMutation location imports should stay local'));
+    const app = createApp(config).callback();
+    const stagedUploadPath = 'shopify-draft-proxy/gid://shopify/StagedUploadTarget0/location-add.jsonl';
+    const variables = {
+      input: {
+        name: 'Bulk Warehouse',
+        address: { countryCode: 'US', zip: '10006' },
+        fulfillsOnlineOrders: false,
+      },
+    };
+    store.stageUploadContent([stagedUploadPath], `${JSON.stringify(variables)}\n`);
+
+    const innerMutation = `mutation LocationAdd($input: LocationAddInput!) {
+      locationAdd(input: $input) {
+        location {
+          id
+          name
+          fulfillsOnlineOrders
+          address {
+            countryCode
+            zip
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`;
+    const bulkResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkImport($mutation: String!, $stagedUploadPath: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) {
+            bulkOperation {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          mutation: innerMutation,
+          stagedUploadPath,
+        },
+      });
+
+    expect(bulkResponse.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(bulkResponse.body.data.bulkOperationRunMutation.userErrors).toEqual([]);
+    expect(bulkResponse.body.data.bulkOperationRunMutation.bulkOperation).toMatchObject({
+      status: 'COMPLETED',
+      type: 'MUTATION',
+      objectCount: '1',
+      rootObjectCount: '1',
+      query: innerMutation,
+    });
+
+    const operationId = bulkResponse.body.data.bulkOperationRunMutation.bulkOperation.id as string;
+    const resultResponse = await request(app).get(
+      `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
+    );
+    const resultRows = resultResponse.text
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+    expect(resultResponse.status).toBe(200);
+    expect(resultRows).toHaveLength(1);
+    expect(resultRows[0]).toMatchObject({
+      line: 1,
+      response: {
+        data: {
+          locationAdd: {
+            location: {
+              name: 'Bulk Warehouse',
+              fulfillsOnlineOrders: false,
+              address: { countryCode: 'US', zip: '10006' },
+            },
+            userErrors: [],
+          },
+        },
+      },
+    });
+
+    const firstResultResponse = resultRows[0]?.['response'] as {
+      data: { locationAdd: { location: { id: string } } };
+    };
+    const createdLocationId = firstResultResponse.data.locationAdd.location.id;
+    const readAfterWriteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadBulkImportedLocation($id: ID!) {
+          location(id: $id) {
+            id
+            name
+            fulfillsOnlineOrders
+            address {
+              countryCode
+              zip
+            }
+          }
+        }`,
+        variables: {
+          id: createdLocationId,
+        },
+      });
+    const logResponse = await request(app).get('/__meta/log');
+    const bulkImportLogEntries = (logResponse.body.entries as BulkImportLogEntryBody[]).filter(
+      (
+        entry,
+      ): entry is BulkImportLogEntryBody & {
+        interpreted: { bulkOperationImport: { lineNumber: number; outerRequestBody: unknown } };
+      } => Boolean(entry.interpreted.bulkOperationImport),
+    );
+
+    expect(readAfterWriteResponse.body.data.location).toEqual({
+      id: createdLocationId,
+      name: 'Bulk Warehouse',
+      fulfillsOnlineOrders: false,
+      address: { countryCode: 'US', zip: '10006' },
+    });
+    expect(logResponse.body.entries).toHaveLength(1);
+    expect(bulkImportLogEntries).toHaveLength(1);
+    expect(bulkImportLogEntries[0]).toMatchObject({
+      operationName: 'LocationAdd',
+      variables,
+      interpreted: {
+        capability: { domain: 'store-properties' },
+        bulkOperationImport: { lineNumber: 1 },
+      },
+    });
+  });
+
   it('replays bulk import inner mutations through meta commit in JSONL line order', async () => {
     const upstreamBodies: unknown[] = [];
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
