@@ -721,6 +721,14 @@ export const giftCardTransactionRecordSchema = z.strictObject({
 });
 export type GiftCardTransactionRecord = z.infer<typeof giftCardTransactionRecordSchema>;
 
+export const giftCardRecipientAttributesRecordSchema = z.strictObject({
+  id: nullableStringSchema,
+  message: nullableStringSchema,
+  preferredName: nullableStringSchema,
+  sendNotificationAt: nullableStringSchema,
+});
+export type GiftCardRecipientAttributesRecord = z.infer<typeof giftCardRecipientAttributesRecordSchema>;
+
 export const giftCardRecordSchema = z.strictObject({
   id: z.string(),
   legacyResourceId: nullableStringSchema,
@@ -737,6 +745,7 @@ export const giftCardRecordSchema = z.strictObject({
   balance: moneyV2RecordSchema,
   customerId: nullableStringSchema,
   recipientId: nullableStringSchema,
+  recipientAttributes: giftCardRecipientAttributesRecordSchema.nullable().optional(),
   transactions: z.array(giftCardTransactionRecordSchema),
 });
 export type GiftCardRecord = z.infer<typeof giftCardRecordSchema>;
