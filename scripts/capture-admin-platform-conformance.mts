@@ -185,6 +185,142 @@ const taxonomyEmptySearchQuery = `#graphql
   }
 `;
 
+const taxonomyCatalogFirstPageQuery = `#graphql
+  query TaxonomyCatalogFirstPageRead {
+    taxonomy {
+      categories(first: 4) {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const taxonomyCatalogNextPageQuery = `#graphql
+  query TaxonomyCatalogNextPageRead($after: String!) {
+    taxonomy {
+      categories(first: 4, after: $after) {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const taxonomySearchApparelQuery = `#graphql
+  query TaxonomySearchApparelRead {
+    taxonomy {
+      categories(first: 4, search: "apparel") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const taxonomySearchApparelOverflowSeedQuery = `#graphql
+  query TaxonomySearchApparelOverflowSeedRead {
+    taxonomy {
+      categories(first: 5, search: "apparel") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 const supportedNodeSeedQuery = `#graphql
   query SupportedNodeSeedRead {
     products(first: 1) {
@@ -413,6 +549,12 @@ const supportedNodeIds = [
   supportedNodeSeedData.customers?.nodes?.[0]?.id,
   supportedNodeSeedData.locations?.nodes?.[0]?.id,
 ].filter((id) => typeof id === 'string');
+const taxonomyCatalogFirstPage = {
+  query: taxonomyCatalogFirstPageQuery,
+  result: await runGraphqlCapture(taxonomyCatalogFirstPageQuery),
+};
+const taxonomyCatalogAfterCursor =
+  taxonomyCatalogFirstPage.result.payload.data?.taxonomy?.categories?.pageInfo?.endCursor;
 
 const captures = {
   publicApiVersions: {
@@ -446,6 +588,30 @@ const captures = {
   taxonomyEmptySearch: {
     query: taxonomyEmptySearchQuery,
     result: await runGraphqlCapture(taxonomyEmptySearchQuery),
+  },
+  taxonomyCatalogFirstPage,
+  taxonomyCatalogNextPage: {
+    query: taxonomyCatalogNextPageQuery,
+    variables: {
+      after: taxonomyCatalogAfterCursor,
+    },
+    result:
+      typeof taxonomyCatalogAfterCursor === 'string'
+        ? await runGraphqlCapture(taxonomyCatalogNextPageQuery, { after: taxonomyCatalogAfterCursor })
+        : {
+            status: 0,
+            payload: {
+              errors: [{ message: 'taxonomy catalog first page did not return an endCursor' }],
+            },
+          },
+  },
+  taxonomySearchApparel: {
+    query: taxonomySearchApparelQuery,
+    result: await runGraphqlCapture(taxonomySearchApparelQuery),
+  },
+  taxonomySearchApparelOverflowSeed: {
+    query: taxonomySearchApparelOverflowSeedQuery,
+    result: await runGraphqlCapture(taxonomySearchApparelOverflowSeedQuery),
   },
   supportedNodeSeeds: supportedNodeSeed,
   supportedNodes: {

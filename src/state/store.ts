@@ -92,6 +92,7 @@ import type {
   ShopLocaleRecord,
   StateSnapshot,
   TaxAppConfigurationRecord,
+  TaxonomyCategoryRecord,
   TranslationRecord,
   ValidationRecord,
   WebhookSubscriptionRecord,
@@ -241,6 +242,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   abandonments: {},
   abandonmentOrder: [],
   backupRegion: null,
+  taxonomyCategories: {},
+  taxonomyCategoryOrder: [],
   adminPlatformFlowSignatures: {},
   adminPlatformFlowSignatureOrder: [],
   adminPlatformFlowTriggers: {},
@@ -759,6 +762,30 @@ export class InMemoryStore {
   stageBackupRegion(region: BackupRegionRecord): BackupRegionRecord {
     this.stagedState.backupRegion = structuredClone(region);
     return structuredClone(region);
+  }
+
+  getEffectiveTaxonomyCategories(): TaxonomyCategoryRecord[] {
+    const merged = {
+      ...this.baseState.taxonomyCategories,
+      ...this.stagedState.taxonomyCategories,
+    };
+    const orderedIds = [
+      ...this.baseState.taxonomyCategoryOrder,
+      ...this.stagedState.taxonomyCategoryOrder.filter((id) => !this.baseState.taxonomyCategoryOrder.includes(id)),
+    ];
+    return orderedIds.flatMap((id) => {
+      const category = merged[id];
+      return category ? [structuredClone(category)] : [];
+    });
+  }
+
+  upsertBaseTaxonomyCategories(categories: TaxonomyCategoryRecord[]): void {
+    for (const category of categories) {
+      this.baseState.taxonomyCategories[category.id] = structuredClone(category);
+      if (!this.baseState.taxonomyCategoryOrder.includes(category.id)) {
+        this.baseState.taxonomyCategoryOrder.push(category.id);
+      }
+    }
   }
 
   stageAdminPlatformFlowSignature(signature: AdminPlatformFlowSignatureRecord): AdminPlatformFlowSignatureRecord {

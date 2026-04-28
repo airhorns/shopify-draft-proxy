@@ -2,9 +2,10 @@ import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { applySearchQueryTerms, matchesSearchQueryText, type SearchQueryTerm } from '../search-query-parser.js';
 import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { BackupRegionRecord, ShopDomainRecord } from '../state/types.js';
+import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } from '../state/types.js';
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
@@ -12,7 +13,13 @@ import { handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
 import { handleFunctionQuery } from './functions.js';
 import { handleGiftCardQuery } from './gift-cards.js';
-import { getDocumentFragments, isPlainObject, serializeConnection, type FragmentMap } from './graphql-helpers.js';
+import {
+  getDocumentFragments,
+  isPlainObject,
+  paginateConnectionItems,
+  serializeConnection,
+  type FragmentMap,
+} from './graphql-helpers.js';
 import { handleMarketingQuery } from './marketing.js';
 import { handleMarketsQuery } from './markets.js';
 import { serializeFileNodeById } from './media.js';
@@ -282,23 +289,127 @@ function serializeDomainRoot(field: FieldNode, variables: Record<string, unknown
   return serializeDomain(primaryDomain, field.selectionSet?.selections ?? []);
 }
 
-function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
+function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
+  return category.cursor ?? category.id;
+}
+
+function taxonomyCategoryMatchesSearchTerm(category: TaxonomyCategoryRecord, term: SearchQueryTerm): boolean {
+  switch (term.field) {
+    case null:
+      return (
+        matchesSearchQueryText(category.name, term) ||
+        matchesSearchQueryText(category.fullName, term) ||
+        matchesSearchQueryText(category.id, term)
+      );
+    case 'id':
+      return matchesSearchQueryText(category.id, term);
+    case 'name':
+      return matchesSearchQueryText(category.name, term);
+    case 'full_name':
+    case 'fullName':
+      return matchesSearchQueryText(category.fullName, term);
+    default:
+      return false;
+  }
+}
+
+function serializeTaxonomyCategory(
+  category: TaxonomyCategoryRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (typeConditionApplies(selection.typeCondition?.name.value, 'TaxonomyCategory')) {
+        Object.assign(result, serializeTaxonomyCategory(category, selection.selectionSet.selections));
+      }
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'TaxonomyCategory';
+        break;
+      case 'id':
+        result[key] = category.id;
+        break;
+      case 'name':
+        result[key] = category.name;
+        break;
+      case 'fullName':
+        result[key] = category.fullName;
+        break;
+      case 'isRoot':
+        result[key] = category.isRoot;
+        break;
+      case 'isLeaf':
+        result[key] = category.isLeaf;
+        break;
+      case 'level':
+        result[key] = category.level;
+        break;
+      case 'parentId':
+        result[key] = category.parentId;
+        break;
+      case 'ancestorIds':
+        result[key] = [...category.ancestorIds];
+        break;
+      case 'childrenIds':
+        result[key] = [...category.childrenIds];
+        break;
+      case 'isArchived':
+        result[key] = category.isArchived;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTaxonomyCategories(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const rawSearch = args['search'];
+  const categories =
+    typeof rawSearch === 'string' && rawSearch.trim().length > 0
+      ? applySearchQueryTerms(
+          store.getEffectiveTaxonomyCategories(),
+          rawSearch,
+          { ignoredKeywords: ['AND'], dropEmptyValues: true },
+          taxonomyCategoryMatchesSearchTerm,
+        )
+      : store.getEffectiveTaxonomyCategories();
+  const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
+  const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
+
   return serializeConnection(field, {
-    items: [],
-    hasNextPage: false,
-    hasPreviousPage: false,
-    getCursorValue: () => '',
-    serializeNode: () => null,
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage,
+    getCursorValue: taxonomyCategoryCursor,
+    pageInfoOptions: { prefixCursors: false },
+    serializeNode: (category, selection) =>
+      serializeTaxonomyCategory(category, selection.selectionSet?.selections ?? []),
   });
 }
 
-function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string, unknown> {
+function serializeTaxonomy(
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
       if (!selection.typeCondition?.name.value || selection.typeCondition.name.value === 'Taxonomy') {
-        Object.assign(result, serializeTaxonomy(selection.selectionSet.selections));
+        Object.assign(result, serializeTaxonomy(selection.selectionSet.selections, variables));
       }
       continue;
     }
@@ -313,7 +424,7 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
         result[key] = 'Taxonomy';
         break;
       case 'categories':
-        result[key] = serializeEmptyConnection(selection);
+        result[key] = serializeTaxonomyCategories(selection, variables);
         break;
       default:
         result[key] = null;
@@ -890,7 +1001,7 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'taxonomy':
-        data[key] = serializeTaxonomy(field.selectionSet?.selections ?? []);
+        data[key] = serializeTaxonomy(field.selectionSet?.selections ?? [], variables);
         break;
       case 'staffMember':
       case 'staffMembers':

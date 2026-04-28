@@ -152,6 +152,7 @@ import type {
   ShopLocaleRecord,
   DiscountRecord,
   StoreCreditAccountRecord,
+  TaxonomyCategoryRecord,
   MoneyV2Record,
 } from '../src/state/types.js';
 
@@ -7226,8 +7227,87 @@ function seedAdminPlatformNodePreconditions(capture: unknown): void {
   }
 }
 
+function readTaxonomyCategoryRecord(
+  node: Record<string, unknown>,
+  cursor: string | null,
+): TaxonomyCategoryRecord | null {
+  const id = readStringField(node, 'id');
+  const name = readStringField(node, 'name');
+  const fullName = readStringField(node, 'fullName');
+  const isRoot = readBooleanField(node, 'isRoot');
+  const isLeaf = readBooleanField(node, 'isLeaf');
+  const level = readNumberField(node, 'level');
+  const isArchived = readBooleanField(node, 'isArchived');
+  if (!id || !name || !fullName || isRoot === null || isLeaf === null || level === null || isArchived === null) {
+    return null;
+  }
+
+  return {
+    id,
+    cursor,
+    name,
+    fullName,
+    isRoot,
+    isLeaf,
+    level,
+    parentId: readNullableStringField(node, 'parentId'),
+    ancestorIds: readArrayField(node, 'ancestorIds').filter(
+      (ancestorId): ancestorId is string => typeof ancestorId === 'string',
+    ),
+    childrenIds: readArrayField(node, 'childrenIds').filter(
+      (childId): childId is string => typeof childId === 'string',
+    ),
+    isArchived,
+  };
+}
+
+function readTaxonomyConnectionCategories(connection: Record<string, unknown> | null): TaxonomyCategoryRecord[] {
+  if (!connection) {
+    return [];
+  }
+
+  const cursorByNodeId = new Map<string, string>();
+  for (const edge of readArrayField(connection, 'edges').filter(isPlainObject)) {
+    const cursor = readStringField(edge, 'cursor');
+    const node = readRecordField(edge, 'node');
+    const id = readStringField(node, 'id');
+    if (cursor && id) {
+      cursorByNodeId.set(id, cursor);
+    }
+  }
+
+  return readArrayField(connection, 'nodes')
+    .filter(isPlainObject)
+    .map((node) => readTaxonomyCategoryRecord(node, cursorByNodeId.get(readStringField(node, 'id') ?? '') ?? null))
+    .filter((category): category is TaxonomyCategoryRecord => category !== null);
+}
+
+function readTaxonomyCaptureCategories(
+  captures: Record<string, unknown> | null,
+  captureName: string,
+): TaxonomyCategoryRecord[] {
+  const payload = readRecordField(readRecordField(readRecordField(captures, captureName), 'result'), 'payload');
+  const data = readRecordField(payload, 'data');
+  const taxonomy = readRecordField(data, 'taxonomy');
+  return readTaxonomyConnectionCategories(readRecordField(taxonomy, 'categories'));
+}
+
+function seedAdminPlatformTaxonomyPreconditions(capture: unknown): void {
+  const captures = readRecordField(capture as Record<string, unknown>, 'captures');
+  const categories = [
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogFirstPage'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogNextPage'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparel'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparelOverflowSeed'),
+  ];
+  if (categories.length > 0) {
+    store.upsertBaseTaxonomyCategories(categories);
+  }
+}
+
 function seedPreconditionsFromCapture(capture: unknown, variables: Record<string, unknown>): void {
   seedAdminPlatformNodePreconditions(capture);
+  seedAdminPlatformTaxonomyPreconditions(capture);
 
   if (seedBulkVariantValidationAtomicityPreconditions(capture)) {
     return;

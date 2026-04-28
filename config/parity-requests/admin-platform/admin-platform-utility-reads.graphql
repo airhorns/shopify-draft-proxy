@@ -1,4 +1,4 @@
-query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!) {
+query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!, $taxonomyAfter: String!) {
   publicApiVersions {
     handle
     displayName
@@ -34,7 +34,88 @@ query AdminPlatformUtilityReads($ids: [ID!]!, $domainId: ID!, $jobId: ID!) {
     }
   }
   taxonomy {
-    categories(first: 2, search: "zzzzzz-no-match-har-315") {
+    emptySearch: categories(first: 2, search: "zzzzzz-no-match-har-315") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    catalogFirstPage: categories(first: 4) {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    catalogNextPage: categories(first: 4, after: $taxonomyAfter) {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    apparelSearch: categories(first: 4, search: "apparel") {
       nodes {
         id
         name
