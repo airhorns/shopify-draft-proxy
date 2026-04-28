@@ -16,7 +16,7 @@ Local-staging mutations:
 
 - `bulkOperationCancel`
 - `bulkOperationRunQuery` for supported `products` and `productVariants` query exports
-- `bulkOperationRunMutation` for supported product inner mutation roots only
+- `bulkOperationRunMutation` for supported product-domain inner mutation roots only
 
 Unsupported execution posture:
 
@@ -48,9 +48,9 @@ Current root behavior:
 - The JSONL variables file was uploaded to a proxy staged upload target returned by local `stagedUploadsCreate`.
 - The caller passes the target `parameters { name: "key" }` value as `stagedUploadPath`.
 - The `mutation` argument parses as a single-root mutation.
-- The inner root is already implemented by the product local-staging pipeline, such as `productCreate` and other implemented product roots.
+- The inner root is already implemented by the product-domain local-staging pipeline, such as `productCreate`, `productVariantCreate`, and other implemented product, variant, option, media, and product-publication roots.
 
-When those requirements are met, the proxy parses each non-empty JSONL line as one variables object, calls the same local product mutation handler used by normal GraphQL mutations, stages downstream product state, and creates a completed local `BulkOperation` with `type: MUTATION`. The local result JSONL is stored in the in-memory job record and exposed through the synthetic `BulkOperation.url` under `/__meta/bulk-operations/<encoded-id>/result.jsonl`.
+When those requirements are met, the proxy parses each non-empty JSONL line as one variables object, calls the same local product-domain mutation handler used by normal GraphQL mutations, stages downstream product or product-adjacent state, and creates a completed local `BulkOperation` with `type: MUTATION`. The local result JSONL is stored in the in-memory job record and exposed through the synthetic `BulkOperation.url` under `/__meta/bulk-operations/<encoded-id>/result.jsonl`.
 
 Mutation log semantics are intentionally commit-oriented:
 
@@ -59,9 +59,9 @@ Mutation log semantics are intentionally commit-oriented:
 - Each entry also carries `interpreted.bulkOperationImport` metadata with the local BulkOperation ID, line number, staged upload path, original outer bulk request body, and inner mutation text.
 - The outer `bulkOperationRunMutation` request itself is preserved as metadata rather than as an additional staged commit entry, because replaying the outer request would require recreating Shopify-hosted staged upload storage during commit.
 
-Unsupported or unsafe imports fail locally. If the staged upload content is missing, the inner mutation is not a supported product local root, or the inner document is malformed/multi-root, the proxy stages a failed local `BulkOperation`, returns explicit `userErrors`, records a failed observability log entry, and does not call upstream Shopify at runtime. Unsupported inner roots are not permanent passthrough support.
+Unsupported or unsafe imports fail locally. If the staged upload content is missing, the inner mutation is not a supported product-domain local root, or the inner document is malformed/multi-root, the proxy stages a failed local `BulkOperation`, returns explicit `userErrors`, records a failed observability log entry, and does not call upstream Shopify at runtime. Unsupported inner roots are not permanent passthrough support.
 
-Per-line result behavior is locally modeled but still needs deeper live Shopify evidence for every branch. Product mutation validation userErrors are represented in the corresponding result JSONL row and do not increment `objectCount`; invalid JSONL lines create result rows with `errors` and mark the local job `FAILED`. Dedicated live conformance for Shopify's exact import result-file schema, partial failure status semantics, and counter/file-size edge cases remains needed before broadening this beyond already supported product mutation roots.
+Per-line result behavior is locally modeled but still needs deeper live Shopify evidence for every branch. Product-domain mutation validation userErrors are represented in the corresponding result JSONL row and do not increment `objectCount`; invalid JSONL lines create result rows with `errors` and mark the local job `FAILED`. Dedicated live conformance for Shopify's exact import result-file schema, partial failure status semantics, and counter/file-size edge cases remains needed before broadening this beyond already supported product-domain mutation roots.
 
 ## Parity promotion status
 
