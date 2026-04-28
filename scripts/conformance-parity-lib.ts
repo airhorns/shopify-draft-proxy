@@ -94,6 +94,7 @@ import {
   handleWebhookSubscriptionQuery,
   hydrateWebhookSubscriptionsFromUpstreamResponse,
 } from '../src/proxy/webhooks.js';
+import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
 import {
   makeSyntheticGid,
   makeSyntheticTimestamp,
@@ -936,7 +937,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
-  apiVersion = '2025-01',
+  apiVersion = DEFAULT_ADMIN_API_VERSION,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -1038,7 +1039,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1062,7 +1063,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1094,7 +1095,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1113,7 +1114,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1132,7 +1133,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1151,7 +1152,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1176,7 +1177,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         stagedResourceIds: result.stagedResourceIds ?? [],
@@ -1197,7 +1198,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1216,7 +1217,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1235,7 +1236,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1254,7 +1255,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1282,7 +1283,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       stagedResourceIds: savedSearchMutation.stagedResourceIds,
@@ -1308,7 +1309,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2025-01/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1334,7 +1335,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1362,7 +1363,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1388,7 +1389,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1415,7 +1416,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: capability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1436,7 +1437,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1457,7 +1458,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1476,7 +1477,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1498,7 +1499,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1519,7 +1520,7 @@ async function executeGraphQLAgainstLocalProxy(
         id: makeSyntheticGid('MutationLogEntry'),
         receivedAt: makeSyntheticTimestamp(),
         operationName: shippingCapability.operationName,
-        path: '/admin/api/2026-04/graphql.json',
+        path: `/admin/api/${apiVersion}/graphql.json`,
         query: document,
         variables,
         status: 'staged',
@@ -1545,7 +1546,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: shippingCapability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1568,7 +1569,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1598,7 +1599,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2026-04/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1977,6 +1978,15 @@ function readRecordField(
 function readStringField(value: Record<string, unknown> | null | undefined, key: string): string | null {
   const fieldValue = value?.[key];
   return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
+}
+
+function readCaptureApiVersion(capture: unknown): string | null {
+  return isPlainObject(capture) ? readStringField(capture, 'apiVersion') : null;
+}
+
+function readApiVersionFromCapturePath(capturePath: string): string | null {
+  const match = /\/(\d{4}-\d{2})\//u.exec(capturePath);
+  return match?.[1] ?? null;
 }
 
 function readNumberField(value: Record<string, unknown> | null | undefined, key: string): number | null {
@@ -8077,6 +8087,7 @@ async function executeParityScenarioInRuntime({
   }
 
   const capture = readJsonFile(repoRoot, capturePath);
+  const captureApiVersion = readCaptureApiVersion(capture) ?? readApiVersionFromCapturePath(capturePath);
   const primaryDocument = readTextFile(repoRoot, paritySpec.proxyRequest.documentPath);
   const proxyResponses: Record<string, unknown> = {};
   const primaryVariables = readRequestVariables(repoRoot, paritySpec.proxyRequest, capture, proxyResponses, {});
@@ -8087,7 +8098,7 @@ async function executeParityScenarioInRuntime({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
-    paritySpec.proxyRequest.apiVersion,
+    paritySpec.proxyRequest.apiVersion ?? captureApiVersion ?? DEFAULT_ADMIN_API_VERSION,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -8120,7 +8131,10 @@ async function executeParityScenarioInRuntime({
         variables,
         upstreamPayload,
         (operation) => executedOperations.push(operation),
-        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
+        target.proxyRequest.apiVersion ??
+          paritySpec.proxyRequest?.apiVersion ??
+          captureApiVersion ??
+          DEFAULT_ADMIN_API_VERSION,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;

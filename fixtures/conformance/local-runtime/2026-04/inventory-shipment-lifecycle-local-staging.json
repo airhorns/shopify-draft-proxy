@@ -1,7 +1,7 @@
 {
   "capturedAt": "2026-04-27T16:55:00.000Z",
   "source": "local-runtime-vitest-plus-live-schema-introspection",
-  "apiVersion": "2025-01",
+  "apiVersion": "2026-04",
   "scenarioId": "inventory-shipment-lifecycle-local-staging",
   "issue": "HAR-306",
   "runtimeTest": "tests/integration/inventory-shipment-flow.test.ts",

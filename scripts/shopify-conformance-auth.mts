@@ -8,6 +8,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
+import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
 import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
 export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');
@@ -21,7 +22,6 @@ export const SHOPIFY_CONFORMANCE_AUTH_REQUEST_PATH = path.join(
   'conformance-admin-auth-request.json',
 );
 
-const DEFAULT_API_VERSION = '2025-01';
 const DEFAULT_REDIRECT_URI = 'http://127.0.0.1:13387/auth/callback';
 const PROBE_QUERY = `#graphql
   query ConformanceProbe {
@@ -196,7 +196,7 @@ async function parseResponsePayload(response: Response): Promise<unknown> {
 
 async function probeAccessToken({
   adminOrigin,
-  apiVersion = DEFAULT_API_VERSION,
+  apiVersion = DEFAULT_ADMIN_API_VERSION,
   accessToken,
   fetchImpl = fetch,
 }: {
@@ -360,7 +360,7 @@ export async function refreshConformanceAccessToken({
 
 export async function getValidConformanceAccessToken({
   adminOrigin,
-  apiVersion = DEFAULT_API_VERSION,
+  apiVersion = DEFAULT_ADMIN_API_VERSION,
   credentialPath = SHOPIFY_CONFORMANCE_AUTH_PATH,
   appEnvPath = resolveDefaultAppEnvPath(),
   fetchImpl = fetch,
