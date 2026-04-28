@@ -22,6 +22,7 @@ import type {
   CustomerMergeRequestRecord,
   CustomerMetafieldRecord,
   CustomerPaymentMethodRecord,
+  CustomerPaymentMethodUpdateUrlRecord,
   StoreCreditAccountRecord,
   StoreCreditAccountTransactionRecord,
   CustomerRecord,
@@ -52,6 +53,7 @@ import type {
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
+  PaymentReminderSendRecord,
   PaymentTermsTemplateRecord,
   ProductCatalogConnectionRecord,
   ProductCollectionRecord,
@@ -118,9 +120,11 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   customers: {},
   customerAddresses: {},
   customerPaymentMethods: {},
+  customerPaymentMethodUpdateUrls: {},
   customerAccountPages: {},
   customerAccountPageOrder: [],
   customerDataErasureRequests: {},
+  paymentReminderSends: {},
   storeCreditAccounts: {},
   storeCreditAccountTransactions: {},
   segments: {},
@@ -3084,6 +3088,24 @@ export class InMemoryStore {
     delete this.stagedState.deletedCustomerAddressIds[address.id];
     this.stagedState.customerAddresses[address.id] = structuredClone(address);
     return structuredClone(address);
+  }
+
+  stageUpsertCustomerPaymentMethod(paymentMethod: CustomerPaymentMethodRecord): CustomerPaymentMethodRecord {
+    delete this.stagedState.deletedCustomerPaymentMethodIds[paymentMethod.id];
+    this.stagedState.customerPaymentMethods[paymentMethod.id] = structuredClone(paymentMethod);
+    return structuredClone(paymentMethod);
+  }
+
+  stageCustomerPaymentMethodUpdateUrl(
+    updateUrl: CustomerPaymentMethodUpdateUrlRecord,
+  ): CustomerPaymentMethodUpdateUrlRecord {
+    this.stagedState.customerPaymentMethodUpdateUrls[updateUrl.id] = structuredClone(updateUrl);
+    return structuredClone(updateUrl);
+  }
+
+  stagePaymentReminderSend(reminderSend: PaymentReminderSendRecord): PaymentReminderSendRecord {
+    this.stagedState.paymentReminderSends[reminderSend.id] = structuredClone(reminderSend);
+    return structuredClone(reminderSend);
   }
 
   stageStoreCreditAccount(account: StoreCreditAccountRecord): StoreCreditAccountRecord {

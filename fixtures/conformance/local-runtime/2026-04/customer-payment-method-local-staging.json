@@ -1,0 +1,216 @@
+{
+  "capturedAt": "2026-04-28T02:15:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "livePaymentCredentialSideEffects": false,
+  "notes": "Customer payment-method lifecycle and payment reminder behavior is represented by deterministic local-runtime evidence because the current conformance grant lacks read_customer_payment_methods/write_customer_payment_methods, and live success paths can expose vaulted payment material, expiring customer update URLs, or customer-visible reminder email.",
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/8801",
+      "email": "payment-one@example.com",
+      "displayName": "Payment One",
+      "state": "ENABLED"
+    },
+    {
+      "id": "gid://shopify/Customer/8802",
+      "email": "payment-two@example.com",
+      "displayName": "Payment Two",
+      "state": "ENABLED"
+    }
+  ],
+  "seedCustomerPaymentMethods": [
+    {
+      "id": "gid://shopify/CustomerPaymentMethod/base-card",
+      "customerId": "gid://shopify/Customer/8801",
+      "revokedAt": null,
+      "revokedReason": null,
+      "instrument": {
+        "typeName": "CustomerCreditCard",
+        "data": {
+          "__typename": "CustomerCreditCard",
+          "brand": "VISA",
+          "lastDigits": "4242",
+          "maskedNumber": "**** **** **** 4242"
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
+      "customerId": "gid://shopify/Customer/8801",
+      "revokedAt": null,
+      "revokedReason": null,
+      "instrument": {
+        "typeName": "CustomerPaypalBillingAgreement",
+        "data": {
+          "__typename": "CustomerPaypalBillingAgreement",
+          "paypalAccountEmail": "billing@example.com",
+          "inactive": false
+        }
+      }
+    }
+  ],
+  "variables": {
+    "customerId": "gid://shopify/Customer/8801",
+    "targetCustomerId": "gid://shopify/Customer/8802",
+    "billingAddress": {
+      "firstName": "Sensitive",
+      "lastName": "Billing",
+      "address1": "1 Secret St",
+      "countryCode": "US"
+    },
+    "sessionId": "csn_sensitive_session",
+    "remoteReference": {
+      "stripePaymentMethod": {
+        "customerId": "cus_sensitive",
+        "paymentMethodId": "pm_sensitive"
+      }
+    },
+    "paymentScheduleId": "gid://shopify/PaymentSchedule/123"
+  },
+  "expected": {
+    "primary": {
+      "data": {
+        "cardCreate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/2",
+            "instrument": {
+              "__typename": "CustomerCreditCard",
+              "lastDigits": null,
+              "maskedNumber": null
+            },
+            "customer": {
+              "id": "gid://shopify/Customer/8801"
+            }
+          },
+          "processing": false,
+          "userErrors": []
+        },
+        "cardUpdate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/base-card",
+            "instrument": {
+              "__typename": "CustomerCreditCard",
+              "lastDigits": null,
+              "maskedNumber": null
+            }
+          },
+          "processing": false,
+          "userErrors": []
+        },
+        "remoteCreate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/3",
+            "instrument": null
+          },
+          "userErrors": []
+        },
+        "paypalCreate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/4",
+            "instrument": {
+              "__typename": "CustomerPaypalBillingAgreement",
+              "paypalAccountEmail": null,
+              "inactive": true
+            }
+          },
+          "userErrors": []
+        },
+        "paypalUpdate": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
+            "instrument": {
+              "__typename": "CustomerPaypalBillingAgreement",
+              "paypalAccountEmail": null,
+              "inactive": false
+            }
+          },
+          "userErrors": []
+        },
+        "duplication": {
+          "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:eyJjdXN0b21lclBheW1lbnRNZXRob2RJZCI6ImdpZDovL3Nob3BpZnkvQ3VzdG9tZXJQYXltZW50TWV0aG9kL2Jhc2UtY2FyZCIsInRhcmdldEN1c3RvbWVySWQiOiJnaWQ6Ly9zaG9waWZ5L0N1c3RvbWVyLzg4MDIiLCJ0YXJnZXRTaG9wSWQiOiJnaWQ6Ly9zaG9waWZ5L1Nob3AvdGFyZ2V0In0",
+          "userErrors": []
+        },
+        "updateUrl": {
+          "updatePaymentMethodUrl": "https://shopify-draft-proxy.local/customer-payment-methods/base-card/update?token=local-only",
+          "userErrors": []
+        },
+        "revoke": {
+          "revokedCustomerPaymentMethodId": "gid://shopify/CustomerPaymentMethod/base-card",
+          "userErrors": []
+        },
+        "reminder": {
+          "success": true,
+          "userErrors": []
+        }
+      }
+    },
+    "duplication": {
+      "data": {
+        "customerPaymentMethodCreateFromDuplicationData": {
+          "customerPaymentMethod": {
+            "id": "gid://shopify/CustomerPaymentMethod/8",
+            "customer": {
+              "id": "gid://shopify/Customer/8802"
+            },
+            "instrument": {
+              "__typename": "CustomerCreditCard",
+              "lastDigits": null,
+              "maskedNumber": null
+            }
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "readAfter": {
+      "data": {
+        "hiddenRevoked": null,
+        "shownRevoked": {
+          "id": "gid://shopify/CustomerPaymentMethod/base-card",
+          "revokedAt": "2024-01-01T00:00:02.000Z",
+          "revokedReason": "CUSTOMER_REVOKED"
+        },
+        "source": {
+          "paymentMethods": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/2",
+                "revokedAt": null
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/3",
+                "revokedAt": null
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/4",
+                "revokedAt": null
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-card",
+                "revokedAt": "2024-01-01T00:00:02.000Z"
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
+                "revokedAt": null
+              }
+            ]
+          }
+        },
+        "target": {
+          "paymentMethods": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/8",
+                "instrument": {
+                  "__typename": "CustomerCreditCard",
+                  "lastDigits": null,
+                  "maskedNumber": null
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
