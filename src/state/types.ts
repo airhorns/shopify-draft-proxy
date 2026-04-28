@@ -31,6 +31,7 @@ export const productRecordSchema = z.strictObject({
   title: z.string(),
   handle: z.string(),
   status: z.enum(['ACTIVE', 'ARCHIVED', 'DRAFT']),
+  combinedListingRole: z.enum(['PARENT', 'CHILD']).nullable().optional(),
   publicationIds: z.array(z.string()),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -356,12 +357,94 @@ export type ProductOperationUserErrorRecord = z.infer<typeof productOperationUse
 
 export const productOperationRecordSchema = z.strictObject({
   id: z.string(),
-  typeName: z.enum(['ProductSetOperation']),
+  typeName: z.enum(['ProductSetOperation', 'ProductBundleOperation']),
   productId: nullableStringSchema,
   status: z.string(),
   userErrors: z.array(productOperationUserErrorRecordSchema).default([]),
 });
 export type ProductOperationRecord = z.infer<typeof productOperationRecordSchema>;
+
+export const productFeedRecordSchema = z.strictObject({
+  id: z.string(),
+  country: nullableStringSchema,
+  language: nullableStringSchema,
+  status: z.enum(['ACTIVE', 'INACTIVE']),
+});
+export type ProductFeedRecord = z.infer<typeof productFeedRecordSchema>;
+
+export const productResourceFeedbackRecordSchema = z.strictObject({
+  productId: z.string(),
+  state: z.enum(['ACCEPTED', 'REQUIRES_ACTION']),
+  feedbackGeneratedAt: z.string(),
+  productUpdatedAt: z.string(),
+  messages: z.array(z.string()),
+});
+export type ProductResourceFeedbackRecord = z.infer<typeof productResourceFeedbackRecordSchema>;
+
+export const shopResourceFeedbackRecordSchema = z.strictObject({
+  id: z.string(),
+  state: z.enum(['ACCEPTED', 'REQUIRES_ACTION']),
+  feedbackGeneratedAt: z.string(),
+  messages: z.array(z.string()),
+});
+export type ShopResourceFeedbackRecord = z.infer<typeof shopResourceFeedbackRecordSchema>;
+
+export const productBundleComponentOptionSelectionRecordSchema = z.strictObject({
+  componentOptionId: z.string(),
+  name: z.string(),
+  values: z.array(z.string()),
+});
+export type ProductBundleComponentOptionSelectionRecord = z.infer<
+  typeof productBundleComponentOptionSelectionRecordSchema
+>;
+
+export const productBundleComponentQuantityOptionValueRecordSchema = z.strictObject({
+  name: z.string(),
+  quantity: z.number().int(),
+});
+export type ProductBundleComponentQuantityOptionValueRecord = z.infer<
+  typeof productBundleComponentQuantityOptionValueRecordSchema
+>;
+
+export const productBundleComponentQuantityOptionRecordSchema = z.strictObject({
+  name: z.string(),
+  values: z.array(productBundleComponentQuantityOptionValueRecordSchema),
+});
+export type ProductBundleComponentQuantityOptionRecord = z.infer<
+  typeof productBundleComponentQuantityOptionRecordSchema
+>;
+
+export const productBundleComponentRecordSchema = z.strictObject({
+  id: z.string(),
+  bundleProductId: z.string(),
+  componentProductId: z.string(),
+  quantity: nullableNumberSchema,
+  optionSelections: z.array(productBundleComponentOptionSelectionRecordSchema),
+  quantityOption: productBundleComponentQuantityOptionRecordSchema.nullable(),
+});
+export type ProductBundleComponentRecord = z.infer<typeof productBundleComponentRecordSchema>;
+
+export const productVariantComponentRecordSchema = z.strictObject({
+  id: z.string(),
+  parentProductVariantId: z.string(),
+  componentProductVariantId: z.string(),
+  quantity: z.number().int(),
+});
+export type ProductVariantComponentRecord = z.infer<typeof productVariantComponentRecordSchema>;
+
+export const combinedListingSelectedOptionRecordSchema = z.strictObject({
+  name: z.string(),
+  value: z.string(),
+  linkedMetafieldValue: nullableStringSchema.optional(),
+});
+export type CombinedListingSelectedOptionRecord = z.infer<typeof combinedListingSelectedOptionRecordSchema>;
+
+export const combinedListingChildRecordSchema = z.strictObject({
+  parentProductId: z.string(),
+  childProductId: z.string(),
+  selectedParentOptionValues: z.array(combinedListingSelectedOptionRecordSchema),
+});
+export type CombinedListingChildRecord = z.infer<typeof combinedListingChildRecordSchema>;
 
 export const collectionRecordSchema = z.strictObject({
   id: z.string(),
@@ -2169,6 +2252,12 @@ export const stateSnapshotSchema = z.strictObject({
   productVariants: z.record(z.string(), productVariantRecordSchema),
   productOptions: z.record(z.string(), productOptionRecordSchema),
   productOperations: z.record(z.string(), productOperationRecordSchema).default({}),
+  productFeeds: z.record(z.string(), productFeedRecordSchema).default({}),
+  productResourceFeedback: z.record(z.string(), productResourceFeedbackRecordSchema).default({}),
+  shopResourceFeedback: z.record(z.string(), shopResourceFeedbackRecordSchema).default({}),
+  productBundleComponents: z.record(z.string(), productBundleComponentRecordSchema).default({}),
+  productVariantComponents: z.record(z.string(), productVariantComponentRecordSchema).default({}),
+  combinedListingChildren: z.record(z.string(), combinedListingChildRecordSchema).default({}),
   inventoryTransfers: z.record(z.string(), inventoryTransferRecordSchema).default({}),
   inventoryTransferOrder: z.array(z.string()).default([]),
   locations: z.record(z.string(), locationRecordSchema).default({}),
@@ -2275,6 +2364,7 @@ export const stateSnapshotSchema = z.strictObject({
   metaobjects: z.record(z.string(), metaobjectRecordSchema).default({}),
   customerMetafields: z.record(z.string(), customerMetafieldRecordSchema).default({}),
   deletedProductIds: z.record(z.string(), z.literal(true)),
+  deletedProductFeedIds: z.record(z.string(), z.literal(true)).default({}),
   deletedInventoryTransferIds: z.record(z.string(), z.literal(true)).default({}),
   deletedFileIds: z.record(z.string(), z.literal(true)).default({}),
   deletedCollectionIds: z.record(z.string(), z.literal(true)),

@@ -175,6 +175,37 @@
           }
         }
       }
+    },
+    {
+      "name": "productVariantRelationshipBulkUpdate-unknown-variants",
+      "operationNames": ["productVariantRelationshipBulkUpdate"],
+      "variables": {
+        "input": [
+          {
+            "parentProductVariantId": "gid://shopify/ProductVariant/999999999",
+            "productVariantRelationshipsToCreate": [
+              {
+                "id": "gid://shopify/ProductVariant/999999998",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantRelationshipBulkUpdate": {
+            "parentProductVariants": null,
+            "userErrors": [
+              {
+                "field": ["input"],
+                "message": "The product variants with ID(s) [\"gid://shopify/ProductVariant/999999999\",\"gid://shopify/ProductVariant/999999998\"] could not be found.",
+                "code": "PRODUCT_VARIANTS_NOT_FOUND"
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }
