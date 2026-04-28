@@ -9,7 +9,6 @@ import type { AppConfig } from '../../src/config.js';
 import { hydrateMarketsFromUpstreamResponse } from '../../src/proxy/markets.js';
 import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
 import { store } from '../../src/state/store.js';
-import type { ProductRecord, ProductVariantRecord } from '../../src/state/types.js';
 
 const repoRoot = process.cwd();
 const fixtureRoot = 'fixtures/conformance/very-big-test-store.myshopify.com/2026-04';
@@ -226,49 +225,6 @@ function seedCatalogMarkets(): { canadaMarketId: string; usMarketId: string } {
   ]);
 
   return { canadaMarketId, usMarketId };
-}
-
-function seedBaseProductWithVariant(productId: string, variantId: string, title: string): void {
-  const product: ProductRecord = {
-    id: productId,
-    legacyResourceId: productId.split('/').at(-1) ?? productId,
-    title,
-    handle: title.toLowerCase().replaceAll(' ', '-'),
-    status: 'ACTIVE',
-    publicationIds: [],
-    createdAt: '2026-04-01T00:00:00.000Z',
-    updatedAt: '2026-04-01T00:00:00.000Z',
-    vendor: 'Hermes',
-    productType: 'Hat',
-    tags: [],
-    totalInventory: 1,
-    tracksInventory: true,
-    descriptionHtml: null,
-    onlineStorePreviewUrl: null,
-    templateSuffix: null,
-    seo: {
-      title: null,
-      description: null,
-    },
-    category: null,
-  };
-  const variant: ProductVariantRecord = {
-    id: variantId,
-    productId,
-    title: 'Default Title',
-    sku: null,
-    barcode: null,
-    price: '20.00',
-    compareAtPrice: null,
-    taxable: true,
-    inventoryPolicy: 'DENY',
-    inventoryQuantity: 1,
-    selectedOptions: [],
-    inventoryItem: null,
-  };
-
-  store.upsertBaseProducts([product]);
-  store.replaceBaseVariantsForProduct(productId, [variant]);
 }
 
 const WEB_PRESENCE_FIELDS = `#graphql
@@ -2133,12 +2089,10 @@ describe('Markets lifecycle staging', () => {
 
     const product = productResponse.body.data.productCreate.product as {
       id: string;
+      title: string;
       variants: { nodes: Array<{ id: string }> };
     };
     const variantId = product.variants.nodes[0]!.id;
-    const otherProductId = 'gid://shopify/Product/90002001';
-    const otherVariantId = 'gid://shopify/ProductVariant/90002001';
-    seedBaseProductWithVariant(otherProductId, otherVariantId, 'Contextual Pricing Beanie');
 
     const createResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -2312,16 +2266,27 @@ describe('Markets lifecycle staging', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `${PRICE_LIST_FIELDS}
-          mutation ProductFixedPriceUpdate($priceListId: ID!, $productId: ID!, $prices: [PriceListPriceInput!]!) {
+          mutation ProductFixedPriceUpdate(
+            $priceListId: ID!
+            $pricesToAdd: [PriceListProductPriceInput!]!
+            $pricesToDeleteByProductIds: [ID!]!
+          ) {
             priceListFixedPricesByProductUpdate(
               priceListId: $priceListId
-              productId: $productId
-              prices: $prices
+              pricesToAdd: $pricesToAdd
+              pricesToDeleteByProductIds: $pricesToDeleteByProductIds
             ) {
               priceList {
                 ...LifecyclePriceListFields
               }
-              fixedPriceVariantIds
+              pricesToAddProducts {
+                id
+                title
+              }
+              pricesToDeleteProducts {
+                id
+                title
+              }
               userErrors {
                 field
                 message
@@ -2332,23 +2297,27 @@ describe('Markets lifecycle staging', () => {
         `,
         variables: {
           priceListId,
-          productId: product.id,
-          prices: [
+          pricesToAdd: [
             {
-              variantId,
+              productId: product.id,
               price: {
                 amount: '40.0',
                 currencyCode: 'EUR',
               },
             },
           ],
+          pricesToDeleteByProductIds: [],
         },
       });
 
     expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.userErrors).toEqual([]);
-    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.fixedPriceVariantIds).toEqual([
-      variantId,
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.pricesToAddProducts).toEqual([
+      {
+        id: product.id,
+        title: product.title,
+      },
     ]);
+    expect(byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.pricesToDeleteProducts).toEqual([]);
     expect(
       byProductUpdateResponse.body.data.priceListFixedPricesByProductUpdate.priceList.prices.edges[0].node.price,
     ).toEqual({
@@ -2356,24 +2325,29 @@ describe('Markets lifecycle staging', () => {
       currencyCode: 'EUR',
     });
 
-    const mismatchedVariantResponse = await request(app)
+    const missingProductResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `#graphql
-          mutation ProductFixedPriceVariantMismatch(
+          mutation ProductFixedPriceMissingProduct(
             $priceListId: ID!
-            $productId: ID!
-            $prices: [PriceListPriceInput!]!
+            $pricesToAdd: [PriceListProductPriceInput!]!
+            $pricesToDeleteByProductIds: [ID!]!
           ) {
             priceListFixedPricesByProductUpdate(
               priceListId: $priceListId
-              productId: $productId
-              prices: $prices
+              pricesToAdd: $pricesToAdd
+              pricesToDeleteByProductIds: $pricesToDeleteByProductIds
             ) {
               priceList {
                 id
               }
-              fixedPriceVariantIds
+              pricesToAddProducts {
+                id
+              }
+              pricesToDeleteProducts {
+                id
+              }
               userErrors {
                 field
                 message
@@ -2384,36 +2358,37 @@ describe('Markets lifecycle staging', () => {
         `,
         variables: {
           priceListId,
-          productId: product.id,
-          prices: [
+          pricesToAdd: [
             {
-              variantId: otherVariantId,
+              productId: 'gid://shopify/Product/0',
               price: {
                 amount: '41.0',
                 currencyCode: 'EUR',
               },
             },
           ],
+          pricesToDeleteByProductIds: [],
         },
       });
 
-    expect(mismatchedVariantResponse.body.data.priceListFixedPricesByProductUpdate).toEqual({
+    expect(missingProductResponse.body.data.priceListFixedPricesByProductUpdate).toEqual({
       priceList: null,
-      fixedPriceVariantIds: [],
+      pricesToAddProducts: null,
+      pricesToDeleteProducts: null,
       userErrors: [
         {
-          field: ['prices', 'variantId'],
-          message: 'Variant does not belong to product',
-          code: 'VARIANT_NOT_FOUND',
+          field: ['pricesToAdd', '0', 'productId'],
+          message: 'Product gid://shopify/Product/0 in `pricesToAdd` does not exist.',
+          code: 'PRODUCT_DOES_NOT_EXIST',
         },
       ],
     });
 
-    const readAfterMismatchResponse = await request(app)
+    const readAfterMissingProductResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `${PRICE_LIST_FIELDS}
-          query ReadAfterVariantMismatch($id: ID!) {
+          query ReadAfterMissingProduct($id: ID!) {
             priceList(id: $id) {
               ...LifecyclePriceListFields
             }
@@ -2424,8 +2399,8 @@ describe('Markets lifecycle staging', () => {
         },
       });
 
-    expect(readAfterMismatchResponse.body.data.priceList.prices.edges).toHaveLength(1);
-    expect(readAfterMismatchResponse.body.data.priceList.prices.edges[0].node).toMatchObject({
+    expect(readAfterMissingProductResponse.body.data.priceList.prices.edges).toHaveLength(1);
+    expect(readAfterMissingProductResponse.body.data.priceList.prices.edges[0].node).toMatchObject({
       price: {
         amount: '40.0',
         currencyCode: 'EUR',
