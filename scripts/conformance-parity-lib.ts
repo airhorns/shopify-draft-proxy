@@ -145,6 +145,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopifyFunctionRecord,
+  SegmentRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -2650,6 +2651,16 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     defaultAddress: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+function makeSeedSegment(segmentId: string, source: Record<string, unknown> | null = null): SegmentRecord {
+  return {
+    id: segmentId,
+    name: readStringField(source, 'name'),
+    query: readStringField(source, 'query'),
+    creationDate: readStringField(source, 'creationDate'),
+    lastEditDate: readStringField(source, 'lastEditDate'),
   };
 }
 
@@ -7130,6 +7141,28 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
     return;
   }
 
+  const seedCustomers = readArrayField(capture as Record<string, unknown>, 'seedCustomers')
+    .filter(isPlainObject)
+    .map((customer): CustomerRecord | null => {
+      const customerId = readStringField(customer, 'id');
+      return customerId ? makeSeedCustomer(customerId, customer) : null;
+    })
+    .filter((customer): customer is CustomerRecord => customer !== null);
+  if (seedCustomers.length > 0) {
+    store.upsertBaseCustomers(seedCustomers);
+  }
+
+  const seedSegments = readArrayField(capture as Record<string, unknown>, 'seedSegments')
+    .filter(isPlainObject)
+    .map((segment): SegmentRecord | null => {
+      const segmentId = readStringField(segment, 'id');
+      return segmentId ? makeSeedSegment(segmentId, segment) : null;
+    })
+    .filter((segment): segment is SegmentRecord => segment !== null);
+  if (seedSegments.length > 0) {
+    store.upsertBaseSegments(seedSegments);
+  }
+
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);
   for (const seedProduct of seedProducts) {
     const productId = readStringField(seedProduct, 'id');
@@ -7722,22 +7755,31 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
       mutationName === 'productVariantsBulkUpdate' ||
       mutationName === 'productVariantsBulkDelete'
     ) {
+      const preMutationProduct =
+        mutationName === 'productVariantsBulkCreate' ? readPreMutationProduct(capture, productId) : null;
       const downstreamProduct = readRecordField(
         readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
         'product',
       );
       const variantsSource =
-        readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload;
+        preMutationProduct ??
+        (readStringField(downstreamProduct, 'id') === productId ? downstreamProduct : productPayload);
       const variants =
         mutationName === 'productVariantsBulkCreate'
-          ? readCapturedProductVariants(productId, variantsSource).filter(
-              (variant) => !readCapturedCreatedVariantIds(payload).has(variant.id),
+          ? readCapturedProductVariants(productId, variantsSource).filter((variant) =>
+              preMutationProduct ? true : !readCapturedCreatedVariantIds(payload).has(variant.id),
             )
           : mutationName === 'productVariantsBulkUpdate'
             ? readBulkUpdateSeedVariants(productId, variantsSource)
             : readCapturedProductVariants(productId, variantsSource);
       if (variants.length > 0) {
         store.replaceBaseVariantsForProduct(productId, variants);
+      }
+      if (preMutationProduct) {
+        const options = readCapturedProductOptions(productId, preMutationProduct);
+        if (options.length > 0) {
+          store.replaceBaseOptionsForProduct(productId, options);
+        }
       }
     }
     if (readArrayField(variables, 'options').length > 0 || readRecordField(variables, 'option')) {

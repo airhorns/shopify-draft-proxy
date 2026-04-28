@@ -2,6 +2,7 @@ import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments } from '../../graphql/root-field.js';
 import {
+  applySearchQuery,
   applySearchQueryTerms,
   matchesSearchQueryString,
   parseSearchQueryTermList,
@@ -3615,6 +3616,125 @@ function serializeAbandonedCheckoutNode(
   });
 }
 
+function readAbandonedCheckoutString(checkout: AbandonedCheckoutRecord, fieldName: string): string | null {
+  const value = checkout.data[fieldName];
+  return typeof value === 'string' ? value : null;
+}
+
+function readNestedString(source: unknown, fieldName: string): string | null {
+  if (typeof source !== 'object' || source === null) {
+    return null;
+  }
+
+  const value = (source as Record<string, unknown>)[fieldName];
+  return typeof value === 'string' ? value : null;
+}
+
+function readAbandonedCheckoutNumericId(checkout: AbandonedCheckoutRecord): number | null {
+  const parsed = Number.parseInt(checkout.id.split('/').at(-1) ?? '', 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizedAbandonedCheckoutEnum(value: string | null): string | null {
+  return value?.replace(/-/gu, '_').toLowerCase() ?? null;
+}
+
+function abandonedCheckoutEmailState(checkout: AbandonedCheckoutRecord): string | null {
+  const checkoutEmailState = readAbandonedCheckoutString(checkout, 'emailState');
+  if (checkoutEmailState) {
+    return checkoutEmailState;
+  }
+
+  const abandonment = store.getAbandonmentByAbandonedCheckoutId(checkout.id);
+  const abandonmentEmailState = abandonment ? readNestedString(abandonment.data, 'emailState') : null;
+  return abandonmentEmailState;
+}
+
+function matchesAbandonedCheckoutStatus(checkout: AbandonedCheckoutRecord, rawValue: string): boolean {
+  const expected = normalizedAbandonedCheckoutEnum(normalizeSearchValue(rawValue));
+  const completedAt = readAbandonedCheckoutString(checkout, 'completedAt');
+  const closedAt = readAbandonedCheckoutString(checkout, 'closedAt');
+  const actual = completedAt || closedAt ? 'closed' : 'open';
+  return expected === actual;
+}
+
+function matchesAbandonedCheckoutRecoveryState(checkout: AbandonedCheckoutRecord, rawValue: string): boolean {
+  const expected = normalizedAbandonedCheckoutEnum(normalizeSearchValue(rawValue));
+  const actual = readAbandonedCheckoutString(checkout, 'completedAt') ? 'recovered' : 'not_recovered';
+  return expected === actual;
+}
+
+function abandonedCheckoutLineItems(checkout: AbandonedCheckoutRecord): Record<string, unknown>[] {
+  return readRawConnectionItems(checkout.data['lineItems']);
+}
+
+function matchesAbandonedCheckoutDefaultTerm(checkout: AbandonedCheckoutRecord, rawValue: string): boolean {
+  const customer = checkout.data['customer'];
+  return (
+    matchesStringValueIncludingContains(readAbandonedCheckoutString(checkout, 'name'), rawValue) ||
+    matchesStringValueIncludingContains(readAbandonedCheckoutString(checkout, 'email'), rawValue) ||
+    matchesStringValueIncludingContains(readNestedString(customer, 'email'), rawValue) ||
+    matchesStringValueIncludingContains(readNestedString(customer, 'firstName'), rawValue) ||
+    matchesStringValueIncludingContains(readNestedString(customer, 'lastName'), rawValue) ||
+    abandonedCheckoutLineItems(checkout).some((lineItem) =>
+      matchesStringValueIncludingContains(readNestedString(lineItem, 'title'), rawValue),
+    )
+  );
+}
+
+function matchesAbandonedCheckoutSearchTerm(checkout: AbandonedCheckoutRecord, term: SearchQueryTerm): boolean {
+  if (term.field === null || term.field === '') {
+    return matchesAbandonedCheckoutDefaultTerm(checkout, term.value);
+  }
+
+  const field = term.field.toLowerCase();
+  const value = searchQueryTermValue(term);
+
+  switch (field) {
+    case 'id':
+      return (
+        checkout.id === normalizeSearchValue(value) ||
+        matchesNumericTerm(readAbandonedCheckoutNumericId(checkout), value)
+      );
+    case 'created_at':
+      return matchesTimestampTerm(readAbandonedCheckoutString(checkout, 'createdAt') ?? '', value);
+    case 'updated_at':
+      return matchesTimestampTerm(readAbandonedCheckoutString(checkout, 'updatedAt') ?? '', value);
+    case 'status':
+      return matchesAbandonedCheckoutStatus(checkout, value);
+    case 'recovery_state':
+      return matchesAbandonedCheckoutRecoveryState(checkout, value);
+    case 'email_state':
+      return matchesSearchQueryString(normalizedAbandonedCheckoutEnum(abandonedCheckoutEmailState(checkout)), value);
+    case 'title':
+      return abandonedCheckoutLineItems(checkout).some((lineItem) =>
+        matchesStringValueIncludingContains(readNestedString(lineItem, 'title'), value),
+      );
+    default:
+      return false;
+  }
+}
+
+function applyAbandonedCheckoutsQuery(
+  checkouts: AbandonedCheckoutRecord[],
+  rawQuery: unknown,
+): AbandonedCheckoutRecord[] {
+  return applySearchQuery(checkouts, rawQuery, { recognizeNotKeyword: true }, matchesAbandonedCheckoutSearchTerm);
+}
+
+function prepareAbandonedCheckoutsForRead(
+  field: FieldNode,
+  checkouts: AbandonedCheckoutRecord[],
+  variables: Record<string, unknown>,
+): AbandonedCheckoutRecord[] {
+  const args = getFieldArguments(field, variables);
+  if (typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim()) {
+    return [];
+  }
+
+  return applyAbandonedCheckoutsQuery(checkouts, args['query']);
+}
+
 export function serializeAbandonedCheckoutsConnection(
   field: FieldNode,
   checkouts: AbandonedCheckoutRecord[],
@@ -3622,7 +3742,7 @@ export function serializeAbandonedCheckoutsConnection(
   fragments: ReturnType<typeof getDocumentFragments>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const filteredCheckouts = typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim() ? [] : checkouts;
+  const filteredCheckouts = prepareAbandonedCheckoutsForRead(field, checkouts, variables);
   const orderedCheckouts = args['reverse'] === false ? [...filteredCheckouts].reverse() : filteredCheckouts;
   const { items, hasNextPage, hasPreviousPage } = paginateConnectionItems(
     orderedCheckouts,
@@ -3651,7 +3771,7 @@ export function serializeAbandonedCheckoutsCount(
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
-  const filteredCheckouts = typeof args['savedSearchId'] === 'string' && args['savedSearchId'].trim() ? [] : checkouts;
+  const filteredCheckouts = prepareAbandonedCheckoutsForRead(field, checkouts, variables);
   const rawLimit = args['limit'];
   const limit = typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 0 ? rawLimit : null;
   const count = limit === null ? filteredCheckouts.length : Math.min(filteredCheckouts.length, limit);

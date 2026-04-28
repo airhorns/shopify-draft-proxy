@@ -3097,17 +3097,17 @@ describe('product draft flow', () => {
             ],
           },
           {
-            title: 'Blue / Large',
-            selectedOptions: [
-              { name: 'Color', value: 'Blue' },
-              { name: 'Size', value: 'Large' },
-            ],
-          },
-          {
             title: 'Green / Small',
             selectedOptions: [
               { name: 'Color', value: 'Green' },
               { name: 'Size', value: 'Small' },
+            ],
+          },
+          {
+            title: 'Blue / Large',
+            selectedOptions: [
+              { name: 'Color', value: 'Blue' },
+              { name: 'Size', value: 'Large' },
             ],
           },
           {
@@ -3443,6 +3443,93 @@ describe('product draft flow', () => {
       count: 0,
       precision: 'EXACT',
     });
+  });
+
+  it('stages productVariantsBulkCreate standalone variant strategies from captured Shopify behavior', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('productVariantsBulkCreate strategy handling should not hit upstream fetch');
+    });
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const createProduct = async (title: string): Promise<string> => {
+      const response = await request(app)
+        .post('/admin/api/2025-01/graphql.json')
+        .send({
+          query:
+            'mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }',
+          variables: { product: { title } },
+        });
+      return response.body.data.productCreate.product.id as string;
+    };
+    const bulkCreateQuery =
+      'mutation CreateVariants($productId: ID!, $variants: [ProductVariantsBulkInput!]!, $strategy: ProductVariantsBulkCreateStrategy) { productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) { product { id options { name values optionValues { name hasVariants } } variants(first: 10) { nodes { title selectedOptions { name value } } } } productVariants { title selectedOptions { name value } } userErrors { field message } } }';
+
+    const defaultProductId = await createProduct('Default Standalone Strategy Hat');
+    const defaultStrategyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: bulkCreateQuery,
+        variables: {
+          productId: defaultProductId,
+          strategy: 'DEFAULT',
+          variants: [{ optionValues: [{ optionName: 'Title', name: 'Default Blue' }] }],
+        },
+      });
+
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.userErrors).toEqual([]);
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.product.variants.nodes).toEqual([
+      {
+        title: 'Default Blue',
+        selectedOptions: [{ name: 'Title', value: 'Default Blue' }],
+      },
+    ]);
+    expect(defaultStrategyResponse.body.data.productVariantsBulkCreate.product.options).toEqual([
+      {
+        name: 'Title',
+        values: ['Default Blue'],
+        optionValues: [{ name: 'Default Blue', hasVariants: true }],
+      },
+    ]);
+
+    const customProductId = await createProduct('Custom Standalone Strategy Hat');
+    const setupResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOption($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) { productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) { product { id } userErrors { field message } } }',
+        variables: {
+          productId: customProductId,
+          variantStrategy: 'LEAVE_AS_IS',
+          options: [{ name: 'Color', values: [{ name: 'Red' }] }],
+        },
+      });
+    expect(setupResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+
+    const removeStrategyResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: bulkCreateQuery,
+        variables: {
+          productId: customProductId,
+          strategy: 'REMOVE_STANDALONE_VARIANT',
+          variants: [{ optionValues: [{ optionName: 'Color', name: 'Remove Blue' }] }],
+        },
+      });
+
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.userErrors).toEqual([]);
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.product.variants.nodes).toEqual([
+      {
+        title: 'Remove Blue',
+        selectedOptions: [{ name: 'Color', value: 'Remove Blue' }],
+      },
+    ]);
+    expect(removeStrategyResponse.body.data.productVariantsBulkCreate.product.options).toEqual([
+      {
+        name: 'Color',
+        values: ['Remove Blue'],
+        optionValues: [{ name: 'Remove Blue', hasVariants: true }],
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages productVariantsBulkReorder locally with downstream variant connection order and raw log preservation', async () => {
