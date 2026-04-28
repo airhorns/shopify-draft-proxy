@@ -2,16 +2,16 @@
   "preMutationRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10172064891186",
+        "id": "gid://shopify/Product/10172064923954",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12718242988338",
+            "id": "gid://shopify/ProductOption/12718243119410",
             "name": "Title",
             "position": 1,
             "values": ["Default Title"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/7979346919730",
+                "id": "gid://shopify/ProductOptionValue/7979347181874",
                 "name": "Default Title",
                 "hasVariants": true
               }
@@ -21,7 +21,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51105202667826",
+              "id": "gid://shopify/ProductVariant/51105202700594",
               "title": "Default Title",
               "selectedOptions": [
                 {
@@ -48,26 +48,18 @@
   },
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10172064891186",
+      "productId": "gid://shopify/Product/10172064923954",
+      "variantStrategy": "CREATE",
       "options": [
         {
           "name": "Color",
           "position": 1,
           "values": [
             {
-              "name": "Red"
+              "name": "Blue"
             },
             {
               "name": "Green"
-            }
-          ]
-        },
-        {
-          "name": "Size",
-          "position": 2,
-          "values": [
-            {
-              "name": "Small"
             }
           ]
         }
@@ -77,35 +69,22 @@
       "data": {
         "productOptionsCreate": {
           "product": {
-            "id": "gid://shopify/Product/10172064891186",
+            "id": "gid://shopify/Product/10172064923954",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12718243021106",
+                "id": "gid://shopify/ProductOption/12718243152178",
                 "name": "Color",
                 "position": 1,
-                "values": ["Red"],
+                "values": ["Blue", "Green"],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/7979346952498",
-                    "name": "Red",
+                    "id": "gid://shopify/ProductOptionValue/7979347214642",
+                    "name": "Blue",
                     "hasVariants": true
                   },
                   {
-                    "id": "gid://shopify/ProductOptionValue/7979346985266",
+                    "id": "gid://shopify/ProductOptionValue/7979347247410",
                     "name": "Green",
-                    "hasVariants": false
-                  }
-                ]
-              },
-              {
-                "id": "gid://shopify/ProductOption/12718243053874",
-                "name": "Size",
-                "position": 2,
-                "values": ["Small"],
-                "optionValues": [
-                  {
-                    "id": "gid://shopify/ProductOptionValue/7979347018034",
-                    "name": "Small",
                     "hasVariants": true
                   }
                 ]
@@ -114,16 +93,22 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51105202667826",
-                  "title": "Red / Small",
+                  "id": "gid://shopify/ProductVariant/51105202700594",
+                  "title": "Blue",
                   "selectedOptions": [
                     {
                       "name": "Color",
-                      "value": "Red"
-                    },
+                      "value": "Blue"
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51105202733362",
+                  "title": "Green",
+                  "selectedOptions": [
                     {
-                      "name": "Size",
-                      "value": "Small"
+                      "name": "Color",
+                      "value": "Green"
                     }
                   ]
                 }
@@ -149,35 +134,22 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10172064891186",
+        "id": "gid://shopify/Product/10172064923954",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12718243021106",
+            "id": "gid://shopify/ProductOption/12718243152178",
             "name": "Color",
             "position": 1,
-            "values": ["Red"],
+            "values": ["Blue", "Green"],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/7979346952498",
-                "name": "Red",
+                "id": "gid://shopify/ProductOptionValue/7979347214642",
+                "name": "Blue",
                 "hasVariants": true
               },
               {
-                "id": "gid://shopify/ProductOptionValue/7979346985266",
+                "id": "gid://shopify/ProductOptionValue/7979347247410",
                 "name": "Green",
-                "hasVariants": false
-              }
-            ]
-          },
-          {
-            "id": "gid://shopify/ProductOption/12718243053874",
-            "name": "Size",
-            "position": 2,
-            "values": ["Small"],
-            "optionValues": [
-              {
-                "id": "gid://shopify/ProductOptionValue/7979347018034",
-                "name": "Small",
                 "hasVariants": true
               }
             ]
@@ -186,16 +158,22 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51105202667826",
-              "title": "Red / Small",
+              "id": "gid://shopify/ProductVariant/51105202700594",
+              "title": "Blue",
               "selectedOptions": [
                 {
                   "name": "Color",
-                  "value": "Red"
-                },
+                  "value": "Blue"
+                }
+              ]
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51105202733362",
+              "title": "Green",
+              "selectedOptions": [
                 {
-                  "name": "Size",
-                  "value": "Small"
+                  "name": "Color",
+                  "value": "Green"
                 }
               ]
             }
@@ -211,32 +189,6 @@
           "maximumAvailable": 2000,
           "currentlyAvailable": 1993,
           "restoreRate": 100
-        }
-      }
-    }
-  },
-  "validation": {
-    "createUnknownProduct": {
-      "data": {
-        "productOptionsCreate": {
-          "product": null,
-          "userErrors": [
-            {
-              "field": ["productId"],
-              "message": "Product does not exist"
-            }
-          ]
-        }
-      },
-      "extensions": {
-        "cost": {
-          "requestedQueryCost": 22,
-          "actualQueryCost": 10,
-          "throttleStatus": {
-            "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
-            "restoreRate": 100
-          }
         }
       }
     }
