@@ -59,6 +59,7 @@ import {
   buildRefundFromInput,
   buildUpdatedDraftOrder,
   captureOrderPayment,
+  createManualPayment,
   createMandatePayment,
   DRAFT_ORDER_SAVED_SEARCHES,
   duplicateDraftOrder,
@@ -4659,13 +4660,29 @@ export function handleOrderMutation(
 
     if (field.name.value === 'orderCreateManualPayment' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
       handled = true;
-      data[key] = null;
-      errors.push(
-        buildAccessDeniedError(
-          'orderCreateManualPayment',
-          '`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.',
-        ),
-      );
+      const input = getFieldArguments(field, variables);
+      const orderId = typeof input['id'] === 'string' ? input['id'] : null;
+      const order = orderId ? runtime.store.getOrderById(orderId) : null;
+
+      if (!order) {
+        data[key] = null;
+        errors.push(
+          buildAccessDeniedError(
+            'orderCreateManualPayment',
+            '`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.',
+          ),
+        );
+        continue;
+      }
+
+      const result = createManualPayment(runtime, order, input);
+      if ('userErrors' in result) {
+        data[key] = serializeOrderManagementPayload(runtime, field, order, result.userErrors);
+        continue;
+      }
+
+      const updatedOrder = runtime.store.updateOrder(result.order);
+      data[key] = serializeOrderManagementPayload(runtime, field, updatedOrder, []);
       continue;
     }
 
