@@ -1224,6 +1224,14 @@ HAR-245's 2026-04 schema-change capture added several easy traps:
 - immediate `metaobjects(type:)` catalog reads omitted rows that were missing the newly required field. After updating the pre-existing row with that field, it returned to the catalog.
 - rows created after publishable capability was disabled were still visible through `metaobject(id:)` and `metaobjectByHandle`, but the immediate captured catalog read did not include that newly created post-disable row.
 
+HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
+
+- `metaobjectCreate` against an unknown definition type returns `UNDEFINED_OBJECT_TYPE` with message `No metaobject definition exists for type "<type>"`.
+- `metaobjectCreate` with a duplicate requested handle succeeds by auto-suffixing the handle, while `metaobjectUpdate` to another row's handle returns `TAKEN`.
+- `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
+- unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
+- 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:

@@ -455,6 +455,59 @@ describe('metaobject definition draft flow', () => {
       ],
     });
 
+    const missingUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateMissingDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/MetaobjectDefinition/0',
+          definition: { name: 'Missing' },
+        },
+      });
+
+    expect(missingUpdateResponse.body.data.metaobjectDefinitionUpdate).toEqual({
+      metaobjectDefinition: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Record not found',
+          code: 'RECORD_NOT_FOUND',
+          elementKey: null,
+          elementIndex: null,
+        },
+      ],
+    });
+
+    const missingVariableResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteMissingVariable($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }`,
+        variables: {},
+      });
+
+    expect(missingVariableResponse.body).toEqual({
+      errors: [
+        {
+          message: 'Variable $id of type ID! was provided invalid value',
+          extensions: {
+            code: 'INVALID_VARIABLE',
+            value: null,
+            problems: [{ path: [], explanation: 'Expected value to not be null' }],
+          },
+        },
+      ],
+    });
+
     const readResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
       query: `query { metaobjectDefinition(id: "gid://shopify/MetaobjectDefinition/901") { id type metaobjectsCount } }`,
     });
