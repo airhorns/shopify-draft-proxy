@@ -174,7 +174,7 @@
     "implemented": true,
     "matchNames": ["node", "Node"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers or direct serializers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
+    "supportNotes": "Snapshot-mode support resolves locally modeled resource GIDs through a conservative GID-type dispatch table that delegates to existing supported detail handlers or direct serializers. Unknown ids, missing local records, malformed GIDs, and unsupported resource families return null; HAR-413 covers normalized discount DiscountNode wrapper dispatch, HAR-418 parity covers representative Product, Collection, Customer, and Location node payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "nodes",
@@ -184,7 +184,7 @@
     "implemented": true,
     "matchNames": ["nodes", "Nodes"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
+    "supportNotes": "Snapshot-mode support applies the same conservative GID-type dispatch per input id while preserving input order. Missing ids, unsupported resource families, and malformed GIDs return null entries; HAR-413 covers normalized discount DiscountNode wrapper dispatch, HAR-418 parity covers representative Product, Collection, Customer, and Location nodes(ids:) payloads, and an introspection-backed test snapshots unsupported Shopify Node implementors for follow-up HAR-424."
   },
   {
     "name": "job",
@@ -204,7 +204,7 @@
     "implemented": true,
     "matchNames": ["taxonomy", "Taxonomy"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode no-data category connection support only: HAR-315 captured an unmatched taxonomy search returning empty nodes/edges and false/null pageInfo. The global non-empty taxonomy catalog is not modeled."
+    "supportNotes": "Snapshot-mode taxonomy category reads are modeled from captured 2026-04 catalog/search slices: unmatched search empty connections, non-empty root catalog pages, raw Shopify cursors/pageInfo for captured windows, simple term search over captured id/name/fullName fields, and selected hierarchy fields. The proxy does not claim exhaustive Shopify taxonomy catalog coverage beyond records present in snapshot/local state."
   },
   {
     "name": "domain",
@@ -3877,9 +3877,13 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderCreateManualPayment", "OrderCreateManualPayment"],
-    "runtimeTests": []
+    "runtimeTests": [
+      "tests/integration/order-payment-transaction-flow.test.ts",
+      "tests/unit/conformance-parity-scenarios.test.ts"
+    ],
+    "supportNotes": "Stages manual payments locally for orders already present in the proxy state and preserves the captured 2026-04 access-denied branch for unhydrated/non-local orders. Live success capture remains blocked on the current conformance store because shop.plan.shopifyPlus is false."
   },
   {
     "name": "orderRiskAssessmentCreate",

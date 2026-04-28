@@ -3,7 +3,8 @@ import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import type { BackupRegionRecord, ShopDomainRecord } from '../state/types.js';
+import { applySearchQueryTerms, matchesSearchQueryText, type SearchQueryTerm } from '../search-query-parser.js';
+import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } from '../state/types.js';
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
@@ -11,7 +12,13 @@ import { handleDeliveryProfileQuery } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
 import { handleFunctionQuery } from './functions.js';
 import { handleGiftCardQuery } from './gift-cards.js';
-import { getDocumentFragments, isPlainObject, serializeConnection, type FragmentMap } from './graphql-helpers.js';
+import {
+  getDocumentFragments,
+  isPlainObject,
+  paginateConnectionItems,
+  serializeConnection,
+  type FragmentMap,
+} from './graphql-helpers.js';
 import { handleMarketingQuery } from './marketing.js';
 import { handleMarketsQuery, serializeMarketWebPresenceNodeById } from './markets.js';
 import { serializeFileNodeById } from './media.js';
@@ -333,23 +340,132 @@ function serializeMetafieldNodeById(
   return metafield ? serializeMetafieldSelectionSet(metafield, selectedFields) : null;
 }
 
-function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
+function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
+  return category.cursor ?? category.id;
+}
+
+function taxonomyCategoryMatchesSearchTerm(category: TaxonomyCategoryRecord, term: SearchQueryTerm): boolean {
+  switch (term.field) {
+    case null:
+      return (
+        matchesSearchQueryText(category.name, term) ||
+        matchesSearchQueryText(category.fullName, term) ||
+        matchesSearchQueryText(category.id, term)
+      );
+    case 'id':
+      return matchesSearchQueryText(category.id, term);
+    case 'name':
+      return matchesSearchQueryText(category.name, term);
+    case 'full_name':
+    case 'fullName':
+      return matchesSearchQueryText(category.fullName, term);
+    default:
+      return false;
+  }
+}
+
+function serializeTaxonomyCategory(
+  category: TaxonomyCategoryRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (typeConditionApplies(selection.typeCondition?.name.value, 'TaxonomyCategory')) {
+        Object.assign(result, serializeTaxonomyCategory(category, selection.selectionSet.selections));
+      }
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'TaxonomyCategory';
+        break;
+      case 'id':
+        result[key] = category.id;
+        break;
+      case 'name':
+        result[key] = category.name;
+        break;
+      case 'fullName':
+        result[key] = category.fullName;
+        break;
+      case 'isRoot':
+        result[key] = category.isRoot;
+        break;
+      case 'isLeaf':
+        result[key] = category.isLeaf;
+        break;
+      case 'level':
+        result[key] = category.level;
+        break;
+      case 'parentId':
+        result[key] = category.parentId;
+        break;
+      case 'ancestorIds':
+        result[key] = [...category.ancestorIds];
+        break;
+      case 'childrenIds':
+        result[key] = [...category.childrenIds];
+        break;
+      case 'isArchived':
+        result[key] = category.isArchived;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeTaxonomyCategories(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const rawSearch = args['search'];
+  const categories =
+    typeof rawSearch === 'string' && rawSearch.trim().length > 0
+      ? applySearchQueryTerms(
+          runtime.store.getEffectiveTaxonomyCategories(),
+          rawSearch,
+          { ignoredKeywords: ['AND'], dropEmptyValues: true },
+          taxonomyCategoryMatchesSearchTerm,
+        )
+      : runtime.store.getEffectiveTaxonomyCategories();
+  const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
+  const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
+
   return serializeConnection(field, {
-    items: [],
-    hasNextPage: false,
-    hasPreviousPage: false,
-    getCursorValue: () => '',
-    serializeNode: () => null,
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage,
+    getCursorValue: taxonomyCategoryCursor,
+    pageInfoOptions: { prefixCursors: false },
+    serializeNode: (category, selection) =>
+      serializeTaxonomyCategory(category, selection.selectionSet?.selections ?? []),
   });
 }
 
-function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string, unknown> {
+function serializeTaxonomy(
+  runtime: ProxyRuntimeContext,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
       if (!selection.typeCondition?.name.value || selection.typeCondition.name.value === 'Taxonomy') {
-        Object.assign(result, serializeTaxonomy(selection.selectionSet.selections));
+        Object.assign(result, serializeTaxonomy(runtime, selection.selectionSet.selections, variables));
       }
       continue;
     }
@@ -364,7 +480,7 @@ function serializeTaxonomy(selections: readonly SelectionNode[]): Record<string,
         result[key] = 'Taxonomy';
         break;
       case 'categories':
-        result[key] = serializeEmptyConnection(selection);
+        result[key] = serializeTaxonomyCategories(runtime, selection, variables);
         break;
       default:
         result[key] = null;
@@ -541,6 +657,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'DiscountAutomaticNode',
     handler: handleDiscountQuery,
   },
+  DiscountNode: { rootField: 'discountNode', typename: 'DiscountNode', handler: handleDiscountQuery },
 
   MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
   MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
@@ -610,6 +727,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
 };
+const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 
 function syntheticNodeField(selectedFields: readonly FieldNode[]): FieldNode {
   return {
@@ -686,6 +804,31 @@ function collectApplicableNodeFields(
   });
 }
 
+function hasExplicitNodeTypeSelection(
+  selections: readonly SelectionNode[],
+  typeName: string,
+  fragments: FragmentMap,
+): boolean {
+  return selections.some((selection) => {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return (
+        selection.typeCondition?.name.value === typeName ||
+        hasExplicitNodeTypeSelection(selection.selectionSet.selections, typeName, fragments)
+      );
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      return (
+        fragment?.typeCondition.name.value === typeName ||
+        (fragment ? hasExplicitNodeTypeSelection(fragment.selectionSet.selections, typeName, fragments) : false)
+      );
+    }
+
+    return false;
+  });
+}
+
 function applySelectedTypename(
   payload: Record<string, unknown>,
   fields: readonly FieldNode[],
@@ -697,6 +840,35 @@ function applySelectedTypename(
     }
   }
   return payload;
+}
+
+function serializeLocalNodeWithResolver(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+  resolver: AdminPlatformNodeResolver,
+): Record<string, unknown> | null {
+  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
+  if (selectedFields.length === 0) {
+    return {};
+  }
+
+  if ('serialize' in resolver) {
+    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
+  }
+
+  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
+  const response = resolver.handler(runtime, syntheticDocument, {
+    ...variables,
+    [PROXY_NODE_ID_VARIABLE]: id,
+  });
+  const payload =
+    isPlainObject(response) && isPlainObject(response['data'])
+      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+      : null;
+  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
 }
 
 function serializeLocalNodeById(
@@ -717,25 +889,16 @@ function serializeLocalNodeById(
     return null;
   }
 
-  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
-  if (selectedFields.length === 0) {
-    return {};
-  }
-
-  if ('serialize' in resolver) {
-    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
-  }
-
-  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
-  const response = resolver.handler(runtime, syntheticDocument, {
-    ...variables,
-    [PROXY_NODE_ID_VARIABLE]: id,
-  });
-  const payload =
-    isPlainObject(response) && isPlainObject(response['data'])
-      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+  if (
+    (gidType === 'DiscountCodeNode' || gidType === 'DiscountAutomaticNode') &&
+    hasExplicitNodeTypeSelection(selections, 'DiscountNode', fragments)
+  ) {
+    return DISCOUNT_NODE_RESOLVER
+      ? serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
       : null;
-  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
+  }
+
+  return serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, resolver);
 }
 
 function serializeNode(
@@ -988,7 +1151,7 @@ export function handleAdminPlatformQuery(
         );
         break;
       case 'taxonomy':
-        data[key] = serializeTaxonomy(field.selectionSet?.selections ?? []);
+        data[key] = serializeTaxonomy(runtime, field.selectionSet?.selections ?? [], variables);
         break;
       case 'staffMember':
       case 'staffMembers':

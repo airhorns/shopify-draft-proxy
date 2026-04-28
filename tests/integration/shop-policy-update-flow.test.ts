@@ -254,6 +254,8 @@ function writeSnapshot(shop: ShopRecord | null): string {
       abandonments: {},
       abandonmentOrder: [],
       backupRegion: null,
+      taxonomyCategories: {},
+      taxonomyCategoryOrder: [],
       adminPlatformFlowSignatures: {},
       adminPlatformFlowSignatureOrder: [],
       adminPlatformFlowTriggers: {},
