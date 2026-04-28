@@ -5724,20 +5724,20 @@
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityCreate", "MarketingActivityCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for payload, validation, status transitions, and downstream read visibility."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages native/deprecated app-extension marketing activity creation from 2026-04 schema and validation evidence. The current Admin API create payload exposes userErrors only; downstream reads and meta state expose the staged non-external activity, while live success capture remains blocked until the conformance app has a deprecated marketing activity extension installed."
   },
   {
     "name": "marketingActivityUpdate",
     "type": "mutation",
     "domain": "marketing",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["marketingActivityUpdate", "MarketingActivityUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires write_marketing_events captures for update payloads, userErrors, and downstream activity/event reads."
+    "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages updates for known locally staged native marketing activities without runtime Shopify writes. The 2026-04 live schema exposes only id on update input outside deprecated extension context, so local status/title update branches are documented compatibility behavior rather than captured current-schema success payloads."
   },
   {
     "name": "marketingActivityCreateExternal",
