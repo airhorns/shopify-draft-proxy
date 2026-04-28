@@ -22,6 +22,13 @@ HAR-312 adds the first local saved-search model. This is scoped to Shopify Admin
 - Staged saved searches are routed by `resourceType`: `PRODUCT`, `COLLECTION`, `ORDER`, `DRAFT_ORDER`, `FILE`, and `DISCOUNT_REDEEM_CODE` appear only under their matching saved-search root. `PRICE_RULE` is the current discount saved-search resource type observed by the Admin schema, so the local model exposes those staged searches through both `codeDiscountSavedSearches` and `automaticDiscountSavedSearches` until deeper discount subtype evidence proves a stricter split.
 - Saved-search query strings are parsed into simple `searchTerms` plus `filters { key value }` records by splitting field terms of the form `key:value` from free text. The local stored `query` is normalized as escaped search terms followed by filters, which matches captured connection-read ordering and escaping for the product/resource-root saved-search slices.
 - Mutation payloads preserve the submitted `query` ordering, while downstream connection reads expose the normalized stored query. The captured `savedSearchUpdate` validation branch also keeps valid query changes visible in the payload when an overlong name is rejected.
+- Query parsing is intentionally a captured term-list subset, not a full Shopify Admin search parser. Quoted/grouped
+  boolean saved-search grammar and resource-specific execution semantics remain fidelity gaps until a live fixture proves
+  the exact stored `query`, `searchTerms`, and `filters` shape.
+- Shopify 2026-04 resource-root evidence showed `query:` arguments are rejected on most saved-search connection roots,
+  so executable parity for resource roots uses valid first-only reads. Runtime tests still cover local query filtering as
+  a compatibility surface for hydrated or staged records, but version-specific GraphQL argument validation is not
+  modeled in this endpoint.
 
 ### URL redirect blockers
 
@@ -49,3 +56,6 @@ The current conformance credential was valid for `harry-test-heelo.myshopify.com
 - The HAR-402 `2026-04` resource-root capture confirmed `PRODUCT`, `COLLECTION`, `ORDER`, `DRAFT_ORDER`, `FILE`, and `DISCOUNT_REDEEM_CODE` create/read/delete behavior, the customer-create deprecation userError, default order/draft-order saved-search records, and the fact that most saved-search connection roots reject `query:` arguments in that API version.
 - `config/parity-specs/saved-searches/saved-search-resource-roots.json` replays that HAR-402 capture through the generic parity runner with strict JSON targets for create payloads, downstream resource-root reads, cleanup deletes, and post-delete reads. Expected differences are limited to deterministic local IDs/legacy IDs.
 - `tests/integration/saved-search-flow.test.ts` additionally verifies resource-specific read-after-write routing for every locally supported saved-search create `resourceType`, including the explicit current `PRICE_RULE` behavior shared by code and automatic discount saved-search roots.
+- HAR-458 review did not add passive saved-search parity placeholders: the high-risk resource-root/lifecycle/validation
+  paths already have executable recorded parity, while the remaining gaps above need new live evidence before local
+  behavior should expand.
