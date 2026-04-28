@@ -3768,7 +3768,7 @@
     "implemented": true,
     "matchNames": ["abandonedCheckouts", "AbandonedCheckouts"],
     "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data."
+    "supportNotes": "Snapshot/local reads serialize empty no-data connections and seeded normalized abandoned checkout records, including query filters for documented id, created_at, updated_at, status, recovery_state, email_state, and default text/title terms. Live capture on 2026-04-27 against harry-test-heelo.myshopify.com returned an empty connection/count; representative non-empty behavior is modeled from schema/introspection-backed seeded records until a disposable store can produce real abandoned checkout data."
   },
   {
     "name": "abandonedCheckoutsCount",
@@ -3778,7 +3778,7 @@
     "implemented": true,
     "matchNames": ["abandonedCheckoutsCount", "AbandonedCheckoutsCount"],
     "runtimeTests": ["tests/integration/abandoned-checkout-query-shapes.test.ts"],
-    "supportNotes": "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including limit-based AT_LEAST precision for local seeded records."
+    "supportNotes": "Snapshot/local count reads return the Shopify-like Count payload with EXACT precision, including query filtering and limit-based AT_LEAST precision for local seeded records."
   },
   {
     "name": "abandonment",
