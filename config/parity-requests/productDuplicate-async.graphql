@@ -1,0 +1,33 @@
+mutation ProductDuplicateAsync($productId: ID!, $newTitle: String!) {
+  productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: false) {
+    newProduct {
+      id
+      title
+      handle
+      status
+    }
+    productDuplicateOperation {
+      id
+      status
+      product {
+        id
+        title
+        handle
+      }
+      newProduct {
+        id
+        title
+        handle
+        status
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

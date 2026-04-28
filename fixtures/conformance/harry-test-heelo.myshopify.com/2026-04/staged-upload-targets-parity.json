@@ -1,0 +1,298 @@
+{
+  "notes": "HAR-405 captures live stagedUploadsCreate target metadata for representative IMAGE, FILE, VIDEO, and MODEL_3D inputs. No upload bytes are sent; this fixture records signed target metadata only.",
+  "schema": {
+    "data": {
+      "stagedUploadInput": {
+        "inputFields": [
+          {
+            "name": "resource",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "ENUM",
+                "name": "StagedUploadTargetGenerateUploadResource",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "filename",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "mimeType",
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            }
+          },
+          {
+            "name": "httpMethod",
+            "type": {
+              "kind": "ENUM",
+              "name": "StagedUploadHttpMethodType",
+              "ofType": null
+            }
+          },
+          {
+            "name": "fileSize",
+            "type": {
+              "kind": "SCALAR",
+              "name": "UnsignedInt64",
+              "ofType": null
+            }
+          }
+        ]
+      },
+      "stagedUploadResource": {
+        "enumValues": [
+          {
+            "name": "COLLECTION_IMAGE"
+          },
+          {
+            "name": "FILE"
+          },
+          {
+            "name": "IMAGE"
+          },
+          {
+            "name": "MODEL_3D"
+          },
+          {
+            "name": "SHOP_IMAGE"
+          },
+          {
+            "name": "VIDEO"
+          },
+          {
+            "name": "BULK_MUTATION_VARIABLES"
+          },
+          {
+            "name": "RETURN_LABEL"
+          },
+          {
+            "name": "URL_REDIRECT_IMPORT"
+          },
+          {
+            "name": "DISPUTE_FILE_UPLOAD"
+          }
+        ]
+      },
+      "stagedUploadHttpMethod": {
+        "enumValues": [
+          {
+            "name": "POST"
+          },
+          {
+            "name": "PUT"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 9,
+        "actualQueryCost": 7,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1993,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "stagedUploadsCreate": {
+    "variables": {
+      "input": [
+        {
+          "filename": "har-405-image.png",
+          "mimeType": "image/png",
+          "resource": "IMAGE",
+          "httpMethod": "POST"
+        },
+        {
+          "filename": "har-405-file.txt",
+          "mimeType": "text/plain",
+          "resource": "FILE",
+          "httpMethod": "POST"
+        },
+        {
+          "filename": "har-405-video.mp4",
+          "mimeType": "video/mp4",
+          "resource": "VIDEO",
+          "httpMethod": "POST",
+          "fileSize": "4096"
+        },
+        {
+          "filename": "har-405-model.glb",
+          "mimeType": "model/gltf-binary",
+          "resource": "MODEL_3D",
+          "httpMethod": "POST",
+          "fileSize": "4096"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "stagedUploadsCreate": {
+          "stagedTargets": [
+            {
+              "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+              "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/products/9f217748-4bfa-4355-a589-a18466c42b6f/har-405-image.png",
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "image/png"
+                },
+                {
+                  "name": "success_action_status",
+                  "value": "201"
+                },
+                {
+                  "name": "acl",
+                  "value": "private"
+                },
+                {
+                  "name": "key",
+                  "value": "tmp/92891250994/products/9f217748-4bfa-4355-a589-a18466c42b6f/har-405-image.png"
+                },
+                {
+                  "name": "x-goog-date",
+                  "value": "20260428T031916Z"
+                },
+                {
+                  "name": "x-goog-credential",
+                  "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260428/auto/storage/goog4_request"
+                },
+                {
+                  "name": "x-goog-algorithm",
+                  "value": "GOOG4-RSA-SHA256"
+                },
+                {
+                  "name": "x-goog-signature",
+                  "value": "7df44737bbc7453ddd2b8a6b20672773c6b8823cfbe30298afc9d02ba7aca994c8c2f6b421e62d6c2ab158d276e0e31b7310a597b2efeb547d3c4023aa7ceae45d32e5b24125e923a5f8aab90d1b89ec8af48008b52607706c9c01b2d6724e110a45bd7c274d29347e623b9f78619155d2a1c6fcc4c79bfb1763c94137ec0caff79712e8dd28b38f746a97bb14db2870208fd8676949943d5033fcd99df5f19673dadafe77ba22bcb3b5a9ab76da02260bf97d88cd9f750d8a484e0f1077fab1094de81444c3300cf897025192d9e0f157d201ff3afdc70b73ce3db6d1b7d396dd4955bb359834691869a12a4f8929709bbd621364fb64470440c279ade731d9"
+                },
+                {
+                  "name": "policy",
+                  "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJpbWFnZVwvcG5nIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3Byb2R1Y3RzXC85ZjIxNzc0OC00YmZhLTQzNTUtYTU4OS1hMTg0NjZjNDJiNmZcL2hhci00MDUtaW1hZ2UucG5nIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNDI4VDAzMTkxNloifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNDI4XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDQtMjlUMDM6MTk6MTZaIn0="
+                }
+              ]
+            },
+            {
+              "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+              "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/12f363b0-51ed-4b68-83f2-ce03d2fce061/har-405-file.txt",
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "text/plain"
+                },
+                {
+                  "name": "success_action_status",
+                  "value": "201"
+                },
+                {
+                  "name": "acl",
+                  "value": "private"
+                },
+                {
+                  "name": "key",
+                  "value": "tmp/92891250994/files/12f363b0-51ed-4b68-83f2-ce03d2fce061/har-405-file.txt"
+                },
+                {
+                  "name": "x-goog-date",
+                  "value": "20260428T031916Z"
+                },
+                {
+                  "name": "x-goog-credential",
+                  "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260428/auto/storage/goog4_request"
+                },
+                {
+                  "name": "x-goog-algorithm",
+                  "value": "GOOG4-RSA-SHA256"
+                },
+                {
+                  "name": "x-goog-signature",
+                  "value": "6c48d571f940565d633efe92a665c6e365e57c061d84b671b0380af7056f901ad38b1af29c6068f68847de40c9b905be61b8468d14f213d1c04df2279fde21114d2737c9d06609ba89a8e021c5e2633fe95a9b0c8193bb4acaf347c904403a8b03a46f80578a75d80e6916d129e36922b100a0d1af6874d995e083ecaf33d7b0663e321fe772a2aad8de53a37d7757de115ab926a568bbbb683c2579275e43295bc96df70db2fcb493fbd0cc5cb91b4a1e0ca754e43e43a2d5bab7df41a22fe9a967bd748d726ec3263ff475916fda334a5d7b6f263fb69f004dc3cbf72fd3c818a33f11243a0edde9b408d09f3fc9a0c11a506c548357fd4a2d3d23dbaa6210"
+                },
+                {
+                  "name": "policy",
+                  "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9wbGFpbiJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwyMDk3MTUyMF0seyJidWNrZXQiOiJzaG9waWZ5LXN0YWdlZC11cGxvYWRzIn0seyJrZXkiOiJ0bXBcLzkyODkxMjUwOTk0XC9maWxlc1wvMTJmMzYzYjAtNTFlZC00YjY4LTgzZjItY2UwM2QyZmNlMDYxXC9oYXItNDA1LWZpbGUudHh0In0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNDI4VDAzMTkxNloifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNDI4XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDQtMjlUMDM6MTk6MTZaIn0="
+                }
+              ]
+            },
+            {
+              "url": "https://shopify-video-production-core-originals.storage.googleapis.com",
+              "resourceUrl": "https://shopify-video-production-core-originals.storage.googleapis.com?external_video_id=82828945",
+              "parameters": [
+                {
+                  "name": "GoogleAccessId",
+                  "value": "video-production@video-production-225115.iam.gserviceaccount.com"
+                },
+                {
+                  "name": "key",
+                  "value": "c/o/v/69da662292c94578bf778286b88bfb12.mp4"
+                },
+                {
+                  "name": "policy",
+                  "value": "eyJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJzaG9waWZ5LXZpZGVvLXByb2R1Y3Rpb24tY29yZS1vcmlnaW5hbHMiXSxbImVxIiwiJGtleSIsImMvby92LzY5ZGE2NjIyOTJjOTQ1NzhiZjc3ODI4NmI4OGJmYjEyLm1wNCJdLFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDQwOTYsNDA5Nl1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNC0yOFQwNDoxOToxNloifQ=="
+                },
+                {
+                  "name": "signature",
+                  "value": "qIYEEavlyX23l6MLuxVEunlUKyF2V8X4dejNMDGoMfgNT1goilFs08imRTA3LM2j6xlRzn5Axf0/O4CjCImxJ9l7/lvtF3xQ0UxDEBQ8ghvKHJgzgybBudGJlqR0SyFdqm/13qxgo1h6nNrY73bhi4w9bsSI09FshQwcV/AdUWmrUsx6sfUYzv5+e379S/AM3mSoK3gIiu8mwX0phutbf2Jw9XQOFka+G/jgyMbN/JyS2ZM2QkIjLu2HkG0NptT4/vJKTd1Si0C5Afn188LOrsFd1wHscR1dZwBl/Ntr4JNyZsp+Gr45aq4OvDOFBRBFPRWDV70t+ZtcirPWBGRtMg=="
+                }
+              ]
+            },
+            {
+              "url": "https://storage.googleapis.com/threed-models-production/models/159c28e87df3b6d8/har-405-model.glb?external_model3d_id=bW9kZWwzZC0xOTI5Mzk4",
+              "resourceUrl": "https://storage.googleapis.com/threed-models-production/models/159c28e87df3b6d8/har-405-model.glb?external_model3d_id=bW9kZWwzZC0xOTI5Mzk4",
+              "parameters": [
+                {
+                  "name": "GoogleAccessId",
+                  "value": "threed-model-service-prod@threed-model-service.iam.gserviceaccount.com"
+                },
+                {
+                  "name": "key",
+                  "value": "models/159c28e87df3b6d8/har-405-model.glb"
+                },
+                {
+                  "name": "policy",
+                  "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNC0yOFQwMzozNDoxNloiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy8xNTljMjhlODdkZjNiNmQ4L2hhci00MDUtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsNDA5Niw0MDk2XV19"
+                },
+                {
+                  "name": "signature",
+                  "value": "mvIDOZnCm0u/lWVoxTYpBImPSGj68TjB8iyNobLsCLP63UZrSY+3i+BnfHFbgGuxTk+yWjl4pHJh76tIHYcEL9bZ1XwIPMkxVfJbm2MiedeY9+BsaPuodM0wOZnCg7mwbhgB43Sa08cADRHz+2P5jBvS0fJcjSaeOZ0RcxMQz5sD2sxinJt8THBcj6lvSaJKaGkVnW7WUtlHhDHwE2p/eM7To3ECWwnfBA5N1YMf51yCUBvwI6czbfjXn0YixNQuTEXzj+3v77AH0peilHUxcdtf+X2NIGFz6AJPPQEWh7COTG57VaFDJ7nzYGRNX9N7xCLofpnpF+gPFW6bhgqdAA=="
+                }
+              ]
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

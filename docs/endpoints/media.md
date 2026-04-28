@@ -33,6 +33,19 @@ Local staged mutations:
   objects or accepting uploaded bytes. Returned URLs use
   `shopify-draft-proxy.local` placeholders and are not a supported upload
   endpoint.
+- HAR-405 captured live Shopify Admin GraphQL 2026-04 staged upload targets for
+  representative IMAGE, FILE, VIDEO, and MODEL_3D inputs. The proxy now matches
+  the captured target count, selected `userErrors` shape, parameter order, and
+  parameter names for those resources. IMAGE and FILE use Shopify's captured
+  form field names: `Content-Type`, `success_action_status`, `acl`, `key`,
+  `x-goog-date`, `x-goog-credential`, `x-goog-algorithm`, `x-goog-signature`,
+  and `policy`. VIDEO and MODEL_3D use the captured signed upload field names:
+  `GoogleAccessId`, `key`, `policy`, and `signature`.
+- The staged upload fields that intentionally remain placeholders are `url`,
+  `resourceUrl`, resource path keys, storage account/signature fields, and
+  policy values. Static non-secret form values match the capture where Shopify
+  returns them: MIME `Content-Type`, `success_action_status: 201`,
+  `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
 - Shopify's media guide documents staged uploads as a two-step upload flow:
   obtain signed target metadata, upload bytes directly to Shopify storage, then
   pass the returned `resourceUrl` to `fileCreate` or product media inputs. The
@@ -66,8 +79,8 @@ Local staged mutations:
 - HAR-313 adds local executable coverage for `files`, `fileSavedSearches`,
   `stagedUploadsCreate`, and the former explicit
   `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target
-  payload capture is still needed before the inert metadata is tightened to
-  exact Shopify upload parameter parity.
+  payload capture was added in HAR-405 for IMAGE, FILE, VIDEO, and MODEL_3D
+  target metadata while preserving the no-upload/no-storage runtime boundary.
 - HAR-375 adds local executable coverage for `fileAcknowledgeUpdateFailed`
   acknowledgement payloads and downstream `files` reads. The Shopify 2026-04
   live capture records that the mutation takes `fileIds`, returns a `files`

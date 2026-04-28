@@ -79,6 +79,10 @@ export const parityProxyRequestSpecSchema = z.strictObject({
   variablesPath: z.string().nullable().optional(),
   variablesCapturePath: z.string().nullable().optional(),
   variables: graphqlVariablesSchema.optional(),
+  apiVersion: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/u)
+    .optional(),
   waitBeforeMs: z.number().int().nonnegative().optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;

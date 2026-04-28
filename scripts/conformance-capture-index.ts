@@ -128,6 +128,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    packageScript: 'conformance:capture-staged-upload-targets',
+    scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
+    purpose: 'Representative stagedUploadsCreate target metadata for IMAGE, FILE, VIDEO, and MODEL_3D.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [`${CAPTURE_ROOT}staged-upload-targets-parity.json`],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     packageScript: 'conformance:capture-file-acknowledge-update-failed',
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
     purpose: 'fileAcknowledgeUpdateFailed success and validation behavior.',
@@ -224,6 +234,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}product-graph-mutation-*.json`],
     cleanupBehavior: 'Uses disposable product graphs with best-effort product cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    packageScript: 'conformance:capture-product-duplicate-async',
+    scriptPath: 'scripts/capture-product-duplicate-async-conformance.ts',
+    purpose: 'Asynchronous productDuplicate operation success and missing-product completion behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-duplicate-async-success.json`,
+      `${CAPTURE_ROOT}product-duplicate-async-missing.json`,
+      'config/parity-specs/productDuplicate-async-*.json',
+    ],
+    cleanupBehavior: 'Creates disposable source/duplicate products and deletes both after operation completion.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -350,6 +374,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Uses disposable products/inventory levels where possible; review store topology before success captures.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'inventory',
+    packageScript: 'conformance:capture-inventory-quantity-contracts-2026',
+    scriptPath: 'scripts/capture-inventory-quantity-contracts-2026.ts',
+    purpose: 'Admin GraphQL 2026-04 inventory quantity mutation request contracts.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
+      'config/parity-specs/inventory-quantity-contracts-2026-04.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'markets',

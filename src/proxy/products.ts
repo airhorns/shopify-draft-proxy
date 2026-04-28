@@ -12,11 +12,13 @@ import {
   type SearchQueryTerm,
 } from '../search-query-parser.js';
 import {
+  buildMissingIdempotencyKeyError,
   getNodeLocation,
   getVariableDefinitionLocation,
   paginateConnectionItems,
   projectGraphqlObject,
   projectGraphqlValue,
+  readIdempotencyKey,
   readPlainObjectArray,
   serializeConnection,
   type GraphqlErrorLocation,
@@ -2229,6 +2231,7 @@ interface InventoryAdjustmentChangeInputRecord {
   locationId: string | null;
   ledgerDocumentUri: string | null;
   delta: number | null;
+  changeFromQuantity: number | null;
 }
 
 interface InventoryAdjustmentChangeRecord {
@@ -2277,6 +2280,7 @@ interface InventorySetQuantityInputRecord {
   locationId: string | null;
   quantity: number | null;
   compareQuantity: number | null;
+  changeFromQuantity: number | null;
 }
 
 interface InventoryMoveQuantityTerminalInputRecord {
@@ -2366,6 +2370,21 @@ const INVENTORY_STAGED_QUANTITY_NAMES: Set<string> = new Set(
   ),
 );
 
+function adminApiVersionAtLeast(apiVersion: string | null | undefined, minimum: string): boolean {
+  const versionMatch = apiVersion?.match(/^(\d{4})-(\d{2})$/u);
+  const minimumMatch = minimum.match(/^(\d{4})-(\d{2})$/u);
+  if (!versionMatch || !minimumMatch) {
+    return false;
+  }
+
+  const versionYear = Number.parseInt(versionMatch[1]!, 10);
+  const versionMonth = Number.parseInt(versionMatch[2]!, 10);
+  const minimumYear = Number.parseInt(minimumMatch[1]!, 10);
+  const minimumMonth = Number.parseInt(minimumMatch[2]!, 10);
+
+  return versionYear > minimumYear || (versionYear === minimumYear && versionMonth >= minimumMonth);
+}
+
 function buildInventoryAdjustInvalidVariableError(
   fieldPath: string,
   value: Record<string, unknown>,
@@ -2391,6 +2410,68 @@ function buildInventoryAdjustInvalidVariableError(
         },
       },
     ],
+  };
+}
+
+function buildInventoryFieldNotDefinedVariableError(
+  field: FieldNode,
+  inputType: string,
+  fieldPath: string,
+  value: Record<string, unknown>,
+  problemPath: Array<string | number>,
+): {
+  errors: Array<{
+    message: string;
+    locations?: GraphqlErrorLocation[];
+    extensions: {
+      code: 'INVALID_VARIABLE';
+      value: Record<string, unknown>;
+      problems: InventoryAdjustInputProblemRecord[];
+    };
+  }>;
+} {
+  return {
+    errors: [
+      {
+        message: `Variable $input of type ${inputType}! was provided invalid value for ${fieldPath} (Field is not defined on ${inputType})`,
+        ...(field.loc ? { locations: [{ line: field.loc.startToken.line, column: field.loc.startToken.column }] } : {}),
+        extensions: {
+          code: 'INVALID_VARIABLE',
+          value: structuredClone(value),
+          problems: [{ path: problemPath, explanation: `Field is not defined on ${inputType}` }],
+        },
+      },
+    ],
+  };
+}
+
+function buildInventoryMissingFieldArgumentError(
+  field: FieldNode,
+  responseKey: string,
+  inputType: 'InventoryChangeInput' | 'InventoryQuantityInput',
+): {
+  errors: Array<{
+    message: string;
+    locations?: GraphqlErrorLocation[];
+    extensions: { code: 'INVALID_FIELD_ARGUMENTS' };
+    path: string[];
+  }>;
+  data: Record<string, null>;
+} {
+  return {
+    errors: [
+      {
+        message: `${inputType} must include the following argument: changeFromQuantity.`,
+        ...(field.loc ? { locations: [{ line: field.loc.startToken.line, column: field.loc.startToken.column }] } : {}),
+        extensions: {
+          code: 'INVALID_FIELD_ARGUMENTS',
+        },
+        path: [responseKey],
+      },
+    ],
+    data: {
+      [responseKey]: null,
+    },
   };
 }
 
@@ -2607,6 +2688,71 @@ function validateInventoryAdjustRequiredFields(input: Record<string, unknown>): 
   return null;
 }
 
+function validateInventoryAdjust202604Input(
+  input: Record<string, unknown>,
+  field: FieldNode,
+  responseKey: string,
+): ReturnType<typeof buildInventoryMissingFieldArgumentError> | null {
+  const rawChanges = input['changes'];
+  if (!Array.isArray(rawChanges)) {
+    return null;
+  }
+
+  for (const rawChange of rawChanges) {
+    if (isObject(rawChange) && !hasOwnField(rawChange, 'changeFromQuantity')) {
+      return buildInventoryMissingFieldArgumentError(field, responseKey, 'InventoryChangeInput');
+    }
+  }
+
+  return null;
+}
+
+function validateInventorySet202604Input(
+  input: Record<string, unknown>,
+  field: FieldNode,
+  responseKey: string,
+):
+  | ReturnType<typeof buildInventoryFieldNotDefinedVariableError>
+  | ReturnType<typeof buildInventoryMissingFieldArgumentError>
+  | null {
+  if (hasOwnField(input, 'ignoreCompareQuantity')) {
+    return buildInventoryFieldNotDefinedVariableError(
+      field,
+      'InventorySetQuantitiesInput',
+      'ignoreCompareQuantity',
+      input,
+      ['ignoreCompareQuantity'],
+    );
+  }
+
+  const rawQuantities = input['quantities'];
+  if (!Array.isArray(rawQuantities)) {
+    return null;
+  }
+
+  for (const [quantityIndex, rawQuantity] of rawQuantities.entries()) {
+    if (!isObject(rawQuantity)) {
+      continue;
+    }
+
+    if (hasOwnField(rawQuantity, 'compareQuantity')) {
+      return buildInventoryFieldNotDefinedVariableError(
+        field,
+        'InventorySetQuantitiesInput',
+        `quantities.${quantityIndex}.compareQuantity`,
+        input,
+        ['quantities', quantityIndex, 'compareQuantity'],
+      );
+    }
+
+    if (!hasOwnField(rawQuantity, 'changeFromQuantity')) {
+      return buildInventoryMissingFieldArgumentError(field, responseKey, 'InventoryQuantityInput');
+    }
+  }
+
+  return null;
+}
+
 function readInventoryAdjustmentChangeInputs(raw: unknown): InventoryAdjustmentChangeInputRecord[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -2619,6 +2765,7 @@ function readInventoryAdjustmentChangeInputs(raw: unknown): InventoryAdjustmentC
       locationId: typeof value['locationId'] === 'string' ? value['locationId'] : null,
       ledgerDocumentUri: typeof value['ledgerDocumentUri'] === 'string' ? value['ledgerDocumentUri'] : null,
       delta: typeof value['delta'] === 'number' ? value['delta'] : null,
+      changeFromQuantity: typeof value['changeFromQuantity'] === 'number' ? value['changeFromQuantity'] : null,
     };
   });
 }
@@ -2635,6 +2782,7 @@ function readInventorySetQuantityInputs(raw: unknown): InventorySetQuantityInput
       locationId: typeof value['locationId'] === 'string' ? value['locationId'] : null,
       quantity: typeof value['quantity'] === 'number' ? value['quantity'] : null,
       compareQuantity: typeof value['compareQuantity'] === 'number' ? value['compareQuantity'] : null,
+      changeFromQuantity: typeof value['changeFromQuantity'] === 'number' ? value['changeFromQuantity'] : null,
     };
   });
 }
@@ -2944,6 +3092,7 @@ function validateInventoryQuantityName(name: string | null, field: string[]): In
 
 function applyInventoryAdjustQuantities(
   input: Record<string, unknown>,
+  options: { requireChangeFromQuantity?: boolean } = {},
 ):
   | { group: InventoryAdjustmentGroupRecord; userErrors: Array<{ field: string[]; message: string }> }
   | { group: null; userErrors: Array<{ field: string[]; message: string }> } {
@@ -3112,6 +3261,19 @@ function applyInventoryAdjustQuantities(
             quantities: [],
           });
     const nextQuantities = targetLevel.quantities.map((quantity) => structuredClone(quantity));
+    const previousQuantity = readInventoryQuantityAmount(nextQuantities, name);
+    if (options.requireChangeFromQuantity && change.changeFromQuantity !== previousQuantity) {
+      return {
+        group: null,
+        userErrors: [
+          {
+            field: ['input', 'changes', String(changeIndex), 'changeFromQuantity'],
+            message: 'The specified compare quantity does not match the current quantity.',
+          },
+        ],
+      };
+    }
+
     const quantityIndex = nextQuantities.findIndex((quantity) => quantity.name === name);
     if (quantityIndex >= 0) {
       nextQuantities[quantityIndex] = {
@@ -3217,7 +3379,10 @@ function applyInventoryAdjustQuantities(
   };
 }
 
-function applyInventorySetQuantities(input: Record<string, unknown>): {
+function applyInventorySetQuantities(
+  input: Record<string, unknown>,
+  options: { useChangeFromQuantity?: boolean } = {},
+): {
   group: InventoryAdjustmentGroupRecord | null;
   userErrors: InventoryMutationUserError[];
 } {
@@ -3247,8 +3412,12 @@ function applyInventorySetQuantities(input: Record<string, unknown>): {
     };
   }
 
-  const ignoreCompareQuantity = input['ignoreCompareQuantity'] === true;
-  if (!ignoreCompareQuantity && quantities.some((quantity) => typeof quantity.compareQuantity !== 'number')) {
+  const ignoreCompareQuantity = !options.useChangeFromQuantity && input['ignoreCompareQuantity'] === true;
+  if (
+    !options.useChangeFromQuantity &&
+    !ignoreCompareQuantity &&
+    quantities.some((quantity) => typeof quantity.compareQuantity !== 'number')
+  ) {
     return {
       group: null,
       userErrors: [
@@ -3329,12 +3498,20 @@ function applyInventorySetQuantities(input: Record<string, unknown>): {
     }
 
     const previousQuantity = readInventoryQuantityAmount(mutableLevel.level.quantities, quantityName);
-    if (!ignoreCompareQuantity && quantityInput.compareQuantity !== previousQuantity) {
+    const expectedPreviousQuantity = options.useChangeFromQuantity
+      ? quantityInput.changeFromQuantity
+      : quantityInput.compareQuantity;
+    if (!ignoreCompareQuantity && expectedPreviousQuantity !== previousQuantity) {
       return {
         group: null,
         userErrors: [
           {
-            field: ['input', 'quantities', String(quantityIndex), 'compareQuantity'],
+            field: [
+              'input',
+              'quantities',
+              String(quantityIndex),
+              options.useChangeFromQuantity ? 'changeFromQuantity' : 'compareQuantity',
+            ],
             message: 'The specified compare quantity does not match the current quantity.',
           },
         ],
@@ -8199,7 +8376,7 @@ function serializeSelectionSet(
   for (const selection of selections) {
     if (selection.kind === Kind.INLINE_FRAGMENT) {
       const typeName = selection.typeCondition?.name.value;
-      if (typeName && typeName !== 'Product') {
+      if (typeName && typeName !== 'Product' && typeName !== 'Node') {
         continue;
       }
 
@@ -9105,6 +9282,12 @@ function serializeProductOperationField(
         field,
         variables,
       );
+    case 'newProduct':
+      return serializeProduct(
+        operation.newProductId ? store.getEffectiveProductById(operation.newProductId) : null,
+        field,
+        variables,
+      );
     case 'userErrors':
       return serializeProductOperationUserErrors(operation.userErrors, field);
     default:
@@ -9145,6 +9328,51 @@ function serializeProductOperation(
 
     const key = selection.alias?.value ?? selection.name.value;
     result[key] = serializeProductOperationField(operation, selection, variables);
+  }
+
+  return result;
+}
+
+function serializeProductDuplicateOperation(
+  field: FieldNode | null,
+  operation: ProductOperationRecord | null,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  if (!field || !operation) {
+    return null;
+  }
+
+  return serializeProductOperation(operation, field, variables);
+}
+
+function serializeProductDuplicateMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    newProduct: ProductRecord | null;
+    productDuplicateOperation: ProductOperationRecord | null;
+    userErrors: ProductOperationRecord['userErrors'];
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  const newProductField = getChildField(field, 'newProduct');
+  if (newProductField) {
+    result[getResponseKey(newProductField)] = serializeProduct(payload.newProduct, newProductField, variables);
+  }
+
+  const operationField = getChildField(field, 'productDuplicateOperation');
+  if (operationField) {
+    result[getResponseKey(operationField)] = serializeProductDuplicateOperation(
+      operationField,
+      payload.productDuplicateOperation,
+      variables,
+    );
+  }
+
+  const userErrorsField = getChildField(field, 'userErrors');
+  if (userErrorsField) {
+    result[getResponseKey(userErrorsField)] = payload.userErrors;
   }
 
   return result;
@@ -10212,10 +10440,12 @@ export function handleProductMutation(
   document: string,
   variables: Record<string, unknown>,
   readMode: ReadMode,
+  apiVersion: string | null = '2025-01',
 ): Record<string, unknown> {
   const field = getRootField(document);
   const args = getRootFieldArguments(document, variables);
   const responseKey = field.alias?.value ?? field.name.value;
+  const usesInventoryQuantity202604Contract = adminApiVersionAtLeast(apiVersion, '2026-04');
 
   switch (field.name.value) {
     case 'productFeedCreate': {
@@ -11132,22 +11362,51 @@ export function handleProductMutation(
       if (!productId) {
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
               newProduct: null,
+              productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product id is required' }],
-            },
+            }),
           },
         };
       }
 
+      const synchronous = args['synchronous'] !== false;
       const sourceProduct = store.getEffectiveProductById(productId);
       if (!sourceProduct) {
+        if (!synchronous) {
+          const operation = store.stageProductOperation({
+            id: makeSyntheticGid('ProductDuplicateOperation'),
+            typeName: 'ProductDuplicateOperation',
+            productId: null,
+            newProductId: null,
+            status: 'COMPLETE',
+            userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+          });
+          const initialOperation: ProductOperationRecord = {
+            ...operation,
+            status: 'CREATED',
+            userErrors: [],
+          };
+
+          return {
+            data: {
+              [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: null,
+                productDuplicateOperation: initialOperation,
+                userErrors: [],
+              }),
+            },
+          };
+        }
+
         return {
           data: {
-            [responseKey]: {
+            [responseKey]: serializeProductDuplicateMutationPayload(field, variables, {
               newProduct: null,
+              productDuplicateOperation: null,
               userErrors: [{ field: ['productId'], message: 'Product not found' }],
-            },
+            }),
           },
         };
       }
@@ -11193,13 +11452,36 @@ export function handleProductMutation(
       );
       const product =
         syncProductInventorySummary(duplicatedProduct.id) ?? store.getEffectiveProductById(duplicatedProduct.id);
+      const productDuplicateOperation = synchronous
+        ? null
+        : store.stageProductOperation({
+            id: makeSyntheticGid('ProductDuplicateOperation'),
+            typeName: 'ProductDuplicateOperation',
+            productId,
+            newProductId: duplicatedProduct.id,
+            status: 'COMPLETE',
+            userErrors: [],
+          });
 
       return {
         data: {
-          [responseKey]: {
-            newProduct: serializeProduct(product, getChildField(field, 'newProduct'), variables),
-            userErrors: [],
-          },
+          [responseKey]: synchronous
+            ? serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: product,
+                productDuplicateOperation: null,
+                userErrors: [],
+              })
+            : serializeProductDuplicateMutationPayload(field, variables, {
+                newProduct: null,
+                productDuplicateOperation: productDuplicateOperation
+                  ? {
+                      ...productDuplicateOperation,
+                      newProductId: null,
+                      status: 'CREATED',
+                    }
+                  : null,
+                userErrors: [],
+              }),
         },
       };
     }
@@ -13048,12 +13330,25 @@ export function handleProductMutation(
     }
     case 'inventoryAdjustQuantities': {
       const input = readProductInput(args['input']);
+      if (usesInventoryQuantity202604Contract) {
+        const invalid202604Input = validateInventoryAdjust202604Input(input, field, responseKey);
+        if (invalid202604Input) {
+          return invalid202604Input;
+        }
+
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [responseKey]: null } };
+        }
+      }
+
       const invalidVariableError = validateInventoryAdjustRequiredFields(input);
       if (invalidVariableError) {
         return invalidVariableError;
       }
 
-      const result = applyInventoryAdjustQuantities(input);
+      const result = applyInventoryAdjustQuantities(input, {
+        requireChangeFromQuantity: usesInventoryQuantity202604Contract,
+      });
       const inventoryAdjustmentGroupField = getChildField(field, 'inventoryAdjustmentGroup');
       const staffMemberField = inventoryAdjustmentGroupField
         ? getChildField(inventoryAdjustmentGroupField, 'staffMember')
@@ -13075,7 +13370,21 @@ export function handleProductMutation(
       return response;
     }
     case 'inventorySetQuantities': {
-      const result = applyInventorySetQuantities(readProductInput(args['input']));
+      const input = readProductInput(args['input']);
+      if (usesInventoryQuantity202604Contract) {
+        const invalid202604Input = validateInventorySet202604Input(input, field, responseKey);
+        if (invalid202604Input) {
+          return invalid202604Input;
+        }
+
+        if (!readIdempotencyKey(field, variables)) {
+          return { errors: [buildMissingIdempotencyKeyError(field)], data: { [responseKey]: null } };
+        }
+      }
+
+      const result = applyInventorySetQuantities(input, {
+        useChangeFromQuantity: usesInventoryQuantity202604Contract,
+      });
       return {
         data: {
           [responseKey]: {

@@ -11,6 +11,11 @@ Content roots from HAR-303:
 - Reads: `article`, `articleAuthors`, `articles`, `articleTags`, `blog`, `blogs`, `blogsCount`, `page`, `pages`, `pagesCount`, `comment`, `comments`
 - Mutations: `articleCreate`, `articleUpdate`, `articleDelete`, `blogCreate`, `blogUpdate`, `blogDelete`, `pageCreate`, `pageUpdate`, `pageDelete`, `commentApprove`, `commentSpam`, `commentNotSpam`, `commentDelete`
 
+Presentation and integration roots from HAR-372:
+
+- Reads: `theme`, `themes`, `scriptTag`, `scriptTags`, `webPixel`, `serverPixel`, `mobilePlatformApplication`, `mobilePlatformApplications`
+- Mutations: `themeCreate`, `themeUpdate`, `themeDelete`, `themePublish`, `themeFilesCopy`, `themeFilesUpsert`, `themeFilesDelete`, `scriptTagCreate`, `scriptTagUpdate`, `scriptTagDelete`, `webPixelCreate`, `webPixelUpdate`, `webPixelDelete`, `serverPixelCreate`, `serverPixelDelete`, `eventBridgeServerPixelUpdate`, `pubSubServerPixelUpdate`, `storefrontAccessTokenCreate`, `storefrontAccessTokenDelete`, `mobilePlatformApplicationCreate`, `mobilePlatformApplicationUpdate`, `mobilePlatformApplicationDelete`
+
 The content model is normalized in memory as generic online-store content records for articles, blogs, pages, and comments. Snapshot mode serves these roots without upstream access. Live-hybrid mode hydrates captured upstream content reads, then serves the local graph when staged content exists.
 
 Supported lifecycle mutations are staged locally and logged with the original raw GraphQL request for commit replay. They must not write to Shopify at normal runtime.
@@ -53,69 +58,35 @@ Unknown content IDs return local `userErrors` for supported mutations instead of
 
 Comment creation is not part of the Admin GraphQL root set captured for this ticket, so comment moderation support is intentionally limited to comments supplied by snapshot or hydrated upstream reads.
 
+### Presentation and integration behavior
+
+HAR-372 adds a normalized local integration graph for themes, script tags, web pixels, server pixels, storefront access tokens, and mobile platform applications. These roots are local-only at runtime:
+
+- theme mutations stage theme metadata, publish role changes, deletion tombstones, and theme-file copy/upsert/delete effects in memory
+- `themePublish` flips the staged target theme to `MAIN` and demotes any effective local main theme to `UNPUBLISHED`, without changing storefront presentation
+- theme-file bodies are stored in local theme records and exposed through `OnlineStoreTheme.files`; no asset upload or CDN write is performed
+- script tag mutations stage `src`, `displayScope`, and `cache` values, but never load or execute storefront JavaScript
+- web pixel and server pixel mutations stage inert configuration only; no browser tracking, EventBridge send, Pub/Sub send, webhook registration, or customer-event subscription is activated
+- storefront access token create/delete stages the credential lifecycle locally; generated token values are redacted from GraphQL responses and meta state as `shpat_redacted`
+- mobile platform application mutations stage Android/Apple verification settings locally and expose union-shaped downstream reads
+
+Snapshot/local empty reads return Shopify-like `null` for missing singular roots and empty connections for catalog roots. Local connection support for `themes`, `scriptTags`, and `mobilePlatformApplications` uses shared cursor/window helpers. `themes` supports local `roles` and `names` filters; `scriptTags` supports local `src` and simple text query filtering.
+
+The local model preserves original raw mutations in the meta log for eventual commit replay. Sensitive generated storefront token values are not exposed through `GET /__meta/state`; the original request body is still retained so commit replay can send the merchant-authored mutation in original order.
+
 ### Captured quirks
 
 The 2025-01 live capture showed `comment(id:)` with an unknown synthetic ID returning a Shopify internal error, while unknown-id `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` returned normal `userErrors` with `field: ["id"]` and message `Comment does not exist`. The proxy does not emulate the internal-error branch for local snapshot reads; local missing comments return `null` to preserve stable no-data behavior.
 
-HAR-304 is registry/documentation inventory only for the presentation/integration roots below. Those entries remain declared gaps and must not be treated as supported runtime capabilities until a local model can reproduce downstream reads without sending supported mutations to Shopify.
-
-### Safe read gaps tracked by the registry
-
-Planned overlay reads:
+### Remaining navigation gaps tracked by the registry
 
 - `menu`
 - `menus`
-- `theme`
-- `themes`
-- `scriptTag`
-- `scriptTags`
-- `webPixel`
-- `serverPixel`
-- `mobilePlatformApplication`
-- `mobilePlatformApplications`
-
-The checked-in Admin GraphQL root introspection fixture confirms these roots exist in the captured schema, but this repository does not yet have captured parity fixtures for their response shapes. Support remains blocked on safe live captures or equivalent fixture-backed evidence for:
-
-- singular unknown-id/null behavior
-- empty catalog behavior for connection roots
-- pagination, selected filters, and sort keys where Shopify supports them
-- theme role/status semantics and theme-file read behavior
-- menu item tree shape and nested resource references
-- app/scope constraints for script tags, pixels, and mobile platform applications
-
-`storefrontAccessToken` has no read root in the checked-in root introspection fixture. Token work in this group is therefore tracked only through create/delete mutation blockers until a later schema capture proves a read surface.
-
-### Side-effect mutation gaps tracked by the registry
-
-Planned local-staging mutations:
-
 - `menuCreate`
 - `menuUpdate`
 - `menuDelete`
-- `themeCreate`
-- `themeUpdate`
-- `themeDelete`
-- `themePublish`
-- `themeFilesCopy`
-- `themeFilesUpsert`
-- `themeFilesDelete`
-- `scriptTagCreate`
-- `scriptTagUpdate`
-- `scriptTagDelete`
-- `webPixelCreate`
-- `webPixelUpdate`
-- `webPixelDelete`
-- `serverPixelCreate`
-- `serverPixelDelete`
-- `eventBridgeServerPixelUpdate`
-- `pubSubServerPixelUpdate`
-- `storefrontAccessTokenCreate`
-- `storefrontAccessTokenDelete`
-- `mobilePlatformApplicationCreate`
-- `mobilePlatformApplicationUpdate`
-- `mobilePlatformApplicationDelete`
 
-These roots can affect the live storefront, tracking integrations, theme assets, or access credentials. They must remain unsupported until local staging covers the mutation lifecycle, validation/userErrors, downstream read-after-write effects, and original raw mutation commit replay order.
+Navigation/menu support remains blocked on menu item tree shape, nested resource references, navigation-specific validation, and downstream read-after-write evidence. Do not promote those roots until a local navigation model exists.
 
 ## Historical and developer notes
 
@@ -123,9 +94,9 @@ These roots can affect the live storefront, tracking integrations, theme assets,
 
 - Current content evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-lifecycle.json` captures content catalog/detail/empty reads, blog/page/article lifecycle success paths with downstream reads, and unknown-id comment moderation/delete userErrors. HAR-352 promotes this fixture through `config/parity-specs/online-store-content-lifecycle.json` and `config/parity-requests/online-store-content-*.graphql`; `corepack pnpm conformance:parity` seeds the captured baseline read, replays local create/update/read/delete/comment guardrail requests, and strictly compares stable payload/count/null-empty/userErrors fields against the recording.
 - HAR-393 executable review added local integration coverage for Shopify-style boolean/fielded content search and comment approval `publishedAt` materialization. It also adds `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store-content-search-filters.json` plus `config/parity-specs/online-store-content-search-filters.json`, which prove article tag/author, blog title, and page published-status/title filters against live Shopify and replay them through `corepack pnpm conformance:parity`. External examples reviewed during the ticket show apps commonly requesting page `onlineStoreUrl`, article image/SEO/metafield fields, and navigation-menu insertion after page creation; those surfaces remain outside the current content lifecycle model unless separately captured and implemented.
-- Current presentation/integration evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-304 query and mutation root names exist in the captured Admin GraphQL schema.
-- Current HAR-304 blocker: no checked-in parity scenario or live capture records presentation/integration read shapes, validation branches, or safe lifecycle behavior for those roots.
-- Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible and must not be marked implemented from validation-only or branch-only evidence.
+- HAR-372 live evidence: `corepack pnpm conformance:probe` and `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe` succeeded against `harry-test-heelo.myshopify.com` during implementation. Live 2026-04 safe-read probes confirmed `themes` and `shop.storefrontAccessTokens` response shape, and confirmed current credential blockers for `scriptTags`, `webPixel`, `serverPixel`, and `mobilePlatformApplications` (`ACCESS_DENIED` / missing read scopes). Runtime support for blocked-scope families is based on schema introspection plus local executable tests, with the scope blocker recorded here rather than a checked-in passive parity spec.
+- Current presentation/integration schema evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json` proves the HAR-372 root names exist in the captured Admin GraphQL schema. Live 2026-04 introspection confirmed payload, input, union, and theme-file result fields used by the local model.
+- Safety boundary: publish, theme-file, pixel, script tag, token, and mobile-platform mutations are externally visible in Shopify. Supported proxy handling stages them locally only; real Shopify effects happen only during explicit commit replay or deliberate conformance setup/cleanup.
 - Parity-spec boundary: do not add planned-only parity specs for these gaps. Add `config/parity-specs` entries only when backed by captured interactions and executable comparison or runtime-test-backed fixture evidence.
 
 ### Validation anchors
@@ -134,3 +105,4 @@ These roots can affect the live storefront, tracking integrations, theme assets,
 - Root coverage snapshot: `corepack pnpm vitest run tests/unit/graphql-operation-coverage.test.ts`
 - Online-store routing guard: `corepack pnpm vitest run tests/unit/online-store-registry.test.ts`
 - Online-store content flow: `corepack pnpm exec vitest run tests/integration/online-store-content-flow.test.ts`
+- Online-store presentation/integration flow: `corepack pnpm exec vitest run tests/integration/online-store-integrations-flow.test.ts`

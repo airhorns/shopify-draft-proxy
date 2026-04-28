@@ -928,6 +928,7 @@ async function executeGraphQLAgainstLocalProxy(
   variables: Record<string, unknown>,
   upstreamPayload?: unknown,
   onExecutedOperation?: (operation: ExecutedOperation) => void,
+  apiVersion = '2025-01',
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   const parsed = parseOperation(document);
   onExecutedOperation?.({
@@ -988,7 +989,7 @@ async function executeGraphQLAgainstLocalProxy(
           id: makeSyntheticGid('MutationLogEntry'),
           receivedAt: makeSyntheticTimestamp(),
           operationName: capability.operationName,
-          path: '/admin/api/2025-01/graphql.json',
+          path: `/admin/api/${apiVersion}/graphql.json`,
           query: document,
           variables,
           status: 'staged',
@@ -1008,7 +1009,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1018,7 +1019,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -1034,7 +1035,7 @@ async function executeGraphQLAgainstLocalProxy(
       id: makeSyntheticGid('MutationLogEntry'),
       receivedAt: makeSyntheticTimestamp(),
       operationName: capability.operationName,
-      path: '/admin/api/2025-01/graphql.json',
+      path: `/admin/api/${apiVersion}/graphql.json`,
       query: document,
       variables,
       status: 'staged',
@@ -1044,7 +1045,7 @@ async function executeGraphQLAgainstLocalProxy(
 
     return {
       status: 200,
-      body: handleProductMutation(document, variables, 'snapshot'),
+      body: handleProductMutation(document, variables, 'snapshot', apiVersion),
     };
   }
 
@@ -7679,16 +7680,32 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const isProductDeleteValidationProbe =
     mutationName === 'productDelete' && productDeletePayloadId !== null && productDeletePayloadId !== productId;
   const productUserErrors = readArrayField(payload, 'userErrors').filter(isPlainObject);
+  const duplicateOperationPayload = readRecordField(payload, 'productDuplicateOperation');
+  const duplicateOperationReadPayload = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'operationRead'), 'response'),
+    'data',
+  );
+  const duplicateOperationUserErrors = readArrayField(
+    readRecordField(duplicateOperationReadPayload, 'productOperation'),
+    'userErrors',
+  ).filter(isPlainObject);
   const isMissingProductValidationProbe =
-    (mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
-    productPayload === null &&
-    productUserErrors.some((userError) => {
-      const fieldPath = readArrayField(userError, 'field');
-      return (
-        (fieldPath.includes('id') || fieldPath.includes('productId')) &&
-        readStringField(userError, 'message') === 'Product does not exist'
-      );
-    });
+    ((mutationName === 'productUpdate' || mutationName === 'productChangeStatus') &&
+      productPayload === null &&
+      productUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return (
+          (fieldPath.includes('id') || fieldPath.includes('productId')) &&
+          readStringField(userError, 'message') === 'Product does not exist'
+        );
+      })) ||
+    (mutationName === 'productDuplicate' &&
+      readRecordField(duplicateOperationPayload, 'product') === null &&
+      readRecordField(duplicateOperationPayload, 'newProduct') === null &&
+      duplicateOperationUserErrors.some((userError) => {
+        const fieldPath = readArrayField(userError, 'field');
+        return fieldPath.includes('productId') && readStringField(userError, 'message') === 'Product does not exist';
+      }));
 
   const shouldSeedProduct =
     productId !== null &&
@@ -8020,6 +8037,7 @@ export async function executeParityScenario({
     primaryVariables,
     readPrimaryUpstreamPayload(capture, paritySpec.comparison, primaryDocument),
     (operation) => executedOperations.push(operation),
+    paritySpec.proxyRequest.apiVersion,
   );
   proxyResponses['primary'] = primaryProxyResponse.body;
 
@@ -8047,8 +8065,12 @@ export async function executeParityScenario({
           : typeof target.upstreamCapturePath === 'string'
             ? readJsonPath(capture, target.upstreamCapturePath)
             : undefined;
-      const proxyResponse = await executeGraphQLAgainstLocalProxy(document, variables, upstreamPayload, (operation) =>
-        executedOperations.push(operation),
+      const proxyResponse = await executeGraphQLAgainstLocalProxy(
+        document,
+        variables,
+        upstreamPayload,
+        (operation) => executedOperations.push(operation),
+        target.proxyRequest.apiVersion ?? paritySpec.proxyRequest?.apiVersion,
       );
       proxyResponseBody = proxyResponse.body;
       previousProxyResponseBody = proxyResponse.body;
