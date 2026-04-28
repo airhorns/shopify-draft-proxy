@@ -14,6 +14,16 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 - `paymentCustomizationUpdate`
 - `paymentCustomizationDelete`
 - `paymentCustomizationActivation`
+- `customerPaymentMethodCreditCardCreate`
+- `customerPaymentMethodCreditCardUpdate`
+- `customerPaymentMethodRemoteCreate`
+- `customerPaymentMethodPaypalBillingAgreementCreate`
+- `customerPaymentMethodPaypalBillingAgreementUpdate`
+- `customerPaymentMethodGetDuplicationData`
+- `customerPaymentMethodCreateFromDuplicationData`
+- `customerPaymentMethodGetUpdateUrl`
+- `customerPaymentMethodRevoke`
+- `paymentReminderSend`
 - `paymentTermsTemplates(paymentTermsType:)`
 - `paymentTermsCreate`
 - `paymentTermsUpdate`
@@ -78,6 +88,24 @@ The `finance-risk-no-data-read` parity scenario enforces the implemented empty/n
 
 Do not add planned-only parity specs for payment roots. Keep unsupported payment-area reads and writes as registry/workpad gaps until captured evidence can back local behavior.
 
+### Customer payment method lifecycle and reminders
+
+HAR-365 implements a scrubbed local staging slice for customer payment-method lifecycle roots and `paymentReminderSend`. These roots are sensitive because live success paths can involve PCI card sessions, PayPal billing-agreement IDs, remote gateway identifiers, encrypted duplication data, expiring customer-facing update URLs, destructive revocation, and customer-visible reminder email.
+
+Runtime support is local-only:
+
+- Credit-card create/update stages a normalized `CustomerPaymentMethod` with a `CustomerCreditCard` instrument shell and selected card fields set to `null`. The proxy does not store cardserver session IDs, billing addresses, card digits, expiry values, names, or masked numbers.
+- PayPal create/update stages a `CustomerPaypalBillingAgreement` shell with `paypalAccountEmail: null` and the safe `inactive` flag where applicable. The proxy does not store PayPal billing-agreement IDs or billing addresses.
+- Remote create stages an initially incomplete payment method with `instrument: null`, matching Shopify's documented asynchronous processing posture without retaining gateway customer IDs, payment method IDs, or tokens.
+- `customerPaymentMethodGetDuplicationData` returns a non-secret `shopify-draft-proxy:` duplication token for an existing local payment method and target customer. Only `customerPaymentMethodCreateFromDuplicationData` in this proxy accepts that token; invalid or foreign material returns local userErrors.
+- `customerPaymentMethodGetUpdateUrl` returns a non-deliverable `https://shopify-draft-proxy.local/...` URL and records the staged URL in meta state. The proxy never requests or stores Shopify's real expiring payment update URL at runtime.
+- `customerPaymentMethodRevoke` sets local `revokedAt` and `revokedReason: CUSTOMER_REVOKED`; revoked methods stay hidden from `customerPaymentMethod` and `Customer.paymentMethods` unless `showRevoked: true` is selected.
+- `paymentReminderSend` records a local reminder intent for `PaymentSchedule` GIDs and returns `success: true`; it does not send customer email at runtime.
+
+Supported calls append the original raw GraphQL request to the meta log for eventual explicit commit replay. Local validation covers unknown customers, unknown/revoked payment methods, invalid synthetic duplication data, invalid remote-reference cardinality, and invalid payment schedule IDs. Validation behavior is intentionally narrow where live Shopify success/error captures are blocked by missing payment-method scopes or unsafe customer-visible side effects.
+
+The current conformance credential probe on 2026-04-28 against `harry-test-heelo.myshopify.com` succeeded for general Admin access and confirmed these roots exist on API `2025-01`, but `currentAppInstallation.accessScopes` lacks both `read_customer_payment_methods` and `write_customer_payment_methods`. It has `write_orders`, but live `paymentReminderSend` success remains unsafe without a no-recipient or disposable-customer email plan. The executable parity evidence is therefore a local-runtime fixture, `customer-payment-method-local-staging`, which compares stable mutation payloads plus downstream payment-method reads without live payment credentials, vaulted data, real update URLs, or delivered reminders.
+
 ### Payment terms templates
 
 `paymentTermsTemplates(paymentTermsType:)` is modeled as a read-only local catalog in snapshot and live-hybrid modes. The normalized default catalog is based on the 2025-01 `harry-test-heelo.myshopify.com` capture from 2026-04-27 and preserves Shopify's order and scalar values for:
@@ -102,9 +130,11 @@ Validation is local and does not append staged-write log entries for rejected br
 ### Validation
 
 - `tests/integration/payment-customization-query-shapes.test.ts`
+- `tests/integration/customer-payment-method-flow.test.ts`
 - `tests/integration/payment-terms-query-shapes.test.ts`
 - `tests/integration/payment-terms-lifecycle-flow.test.ts`
 - `config/parity-specs/finance-risk-no-data-read.json`
+- `config/parity-specs/customer-payment-method-local-staging.json`
 - `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

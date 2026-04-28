@@ -3,9 +3,11 @@ import type { FieldNode } from 'graphql';
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
 import { normalizeSearchQueryValue, parseSearchQueryTerms, type SearchQueryTerm } from '../search-query-parser.js';
-import { makeSyntheticGid } from '../state/synthetic-identity.js';
+import { makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
 import type {
+  CustomerPaymentMethodInstrumentRecord,
+  CustomerPaymentMethodRecord,
   PaymentCustomizationMetafieldRecord,
   PaymentCustomizationRecord,
   PaymentTermsTemplateRecord,
@@ -23,6 +25,7 @@ import {
   serializeMetafieldsConnection,
   upsertOwnerMetafields,
 } from './metafields.js';
+import { serializeCustomerPaymentMethodSelection } from './customers.js';
 
 interface PaymentCustomizationUserError {
   field: string[] | null;
@@ -763,6 +766,488 @@ function activatePaymentCustomizations(field: FieldNode, variables: Record<strin
   });
 }
 
+interface CustomerPaymentMethodUserError {
+  field: string[] | null;
+  message: string;
+  code?: string | null;
+}
+
+const DUPLICATION_DATA_PREFIX = 'shopify-draft-proxy:customer-payment-method-duplication:';
+
+function isShopifyGid(value: string | null | undefined, resourceType: string): boolean {
+  return typeof value === 'string' && value.startsWith(`gid://shopify/${resourceType}/`);
+}
+
+function paymentMethodDoesNotExistError(fieldName = 'customerPaymentMethodId'): CustomerPaymentMethodUserError {
+  return {
+    field: [fieldName],
+    message: 'Customer payment method does not exist',
+    code: 'PAYMENT_METHOD_DOES_NOT_EXIST',
+  };
+}
+
+function customerDoesNotExistError(fieldName = 'customerId'): CustomerPaymentMethodUserError {
+  return {
+    field: [fieldName],
+    message: 'Customer does not exist',
+    code: 'CUSTOMER_DOES_NOT_EXIST',
+  };
+}
+
+function invalidDuplicationDataError(): CustomerPaymentMethodUserError {
+  return {
+    field: ['encryptedDuplicationData'],
+    message: 'Encrypted duplication data is invalid',
+    code: 'INVALID_ENCRYPTED_DUPLICATION_DATA',
+  };
+}
+
+function paymentReminderSendError(): CustomerPaymentMethodUserError {
+  return {
+    field: ['paymentScheduleId'],
+    message: 'Payment reminder could not be sent',
+    code: 'PAYMENT_REMINDER_SEND_UNSUCCESSFUL',
+  };
+}
+
+function exactlyOneRemoteReferenceError(): CustomerPaymentMethodUserError {
+  return {
+    field: ['remoteReference'],
+    message: 'Exactly one remote reference is required',
+    code: 'EXACTLY_ONE_REMOTE_REFERENCE_REQUIRED',
+  };
+}
+
+function serializeCustomerPaymentMethodUserErrors(
+  errors: CustomerPaymentMethodUserError[],
+  field: FieldNode,
+): Array<Record<string, unknown>> {
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of getSelectedChildFields(field)) {
+      const key = getFieldResponseKey(selection);
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
+          break;
+        default:
+          result[key] = null;
+          break;
+      }
+    }
+    return result;
+  });
+}
+
+function serializeCustomerPaymentMethodMutationPayload(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  payload: {
+    customerPaymentMethod?: CustomerPaymentMethodRecord | null;
+    encryptedDuplicationData?: string | null;
+    processing?: boolean | null;
+    revokedCustomerPaymentMethodId?: string | null;
+    success?: boolean | null;
+    updatePaymentMethodUrl?: string | null;
+    userErrors: CustomerPaymentMethodUserError[];
+  },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'customerPaymentMethod':
+        result[key] = payload.customerPaymentMethod
+          ? serializeCustomerPaymentMethodSelection(payload.customerPaymentMethod, selection, variables)
+          : null;
+        break;
+      case 'encryptedDuplicationData':
+        result[key] = payload.encryptedDuplicationData ?? null;
+        break;
+      case 'processing':
+        result[key] = payload.processing ?? false;
+        break;
+      case 'revokedCustomerPaymentMethodId':
+        result[key] = payload.revokedCustomerPaymentMethodId ?? null;
+        break;
+      case 'success':
+        result[key] = payload.success ?? null;
+        break;
+      case 'updatePaymentMethodUrl':
+        result[key] = payload.updatePaymentMethodUrl ?? null;
+        break;
+      case 'userErrors':
+        result[key] = serializeCustomerPaymentMethodUserErrors(payload.userErrors, selection);
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function scrubbedCreditCardInstrument(): CustomerPaymentMethodInstrumentRecord {
+  return {
+    typeName: 'CustomerCreditCard',
+    data: {
+      __typename: 'CustomerCreditCard',
+      brand: null,
+      lastDigits: null,
+      expiryMonth: null,
+      expiryYear: null,
+      name: null,
+      maskedNumber: null,
+    },
+  };
+}
+
+function scrubbedPaypalInstrument(inactive: boolean): CustomerPaymentMethodInstrumentRecord {
+  return {
+    typeName: 'CustomerPaypalBillingAgreement',
+    data: {
+      __typename: 'CustomerPaypalBillingAgreement',
+      paypalAccountEmail: null,
+      inactive,
+    },
+  };
+}
+
+function createCustomerPaymentMethod(
+  customerId: string,
+  instrument: CustomerPaymentMethodInstrumentRecord | null,
+): CustomerPaymentMethodRecord {
+  return store.stageUpsertCustomerPaymentMethod({
+    id: makeSyntheticGid('CustomerPaymentMethod'),
+    customerId,
+    instrument,
+    revokedAt: null,
+    revokedReason: null,
+    subscriptionContracts: [],
+  });
+}
+
+function updateCustomerPaymentMethod(
+  current: CustomerPaymentMethodRecord,
+  instrument: CustomerPaymentMethodInstrumentRecord | null,
+): CustomerPaymentMethodRecord {
+  return store.stageUpsertCustomerPaymentMethod({
+    ...current,
+    instrument,
+  });
+}
+
+function activeCustomerPaymentMethodById(
+  paymentMethodId: string | null,
+  fieldName = 'customerPaymentMethodId',
+): { paymentMethod: CustomerPaymentMethodRecord | null; error: CustomerPaymentMethodUserError | null } {
+  if (typeof paymentMethodId !== 'string' || !isShopifyGid(paymentMethodId, 'CustomerPaymentMethod')) {
+    return { paymentMethod: null, error: paymentMethodDoesNotExistError(fieldName) };
+  }
+
+  const paymentMethod = store.getEffectiveCustomerPaymentMethodById(paymentMethodId);
+  return paymentMethod
+    ? { paymentMethod, error: null }
+    : { paymentMethod: null, error: paymentMethodDoesNotExistError(fieldName) };
+}
+
+function countRemoteReferenceKinds(remoteReference: unknown): number {
+  if (!isPlainObject(remoteReference)) {
+    return 0;
+  }
+
+  return Object.values(remoteReference).filter((value) => isPlainObject(value)).length;
+}
+
+function encodeDuplicationData(payload: Record<string, string>): string {
+  return `${DUPLICATION_DATA_PREFIX}${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}`;
+}
+
+function decodeDuplicationData(raw: unknown): Record<string, string> | null {
+  if (typeof raw !== 'string' || !raw.startsWith(DUPLICATION_DATA_PREFIX)) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(
+      Buffer.from(raw.slice(DUPLICATION_DATA_PREFIX.length), 'base64url').toString('utf8'),
+    ) as unknown;
+    if (!isPlainObject(decoded)) {
+      return null;
+    }
+
+    const result: Record<string, string> = {};
+    for (const [key, value] of Object.entries(decoded)) {
+      if (typeof value !== 'string') {
+        return null;
+      }
+      result[key] = value;
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+function buildPaymentMethodUpdateUrl(paymentMethodId: string): string {
+  const tail = gidTail(paymentMethodId) ?? 'unknown';
+  return `https://shopify-draft-proxy.local/customer-payment-methods/${encodeURIComponent(
+    tail,
+  )}/update?token=local-only`;
+}
+
+function createCreditCardPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+  const customer =
+    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+  if (!customerId || !customer) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      processing: false,
+      userErrors: [customerDoesNotExistError()],
+    });
+  }
+
+  const paymentMethod = createCustomerPaymentMethod(customerId, scrubbedCreditCardInstrument());
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: paymentMethod,
+    processing: false,
+    userErrors: [],
+  });
+}
+
+function updateCreditCardPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(id, 'id');
+  if (!paymentMethod || error) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      processing: false,
+      userErrors: [error ?? paymentMethodDoesNotExistError('id')],
+    });
+  }
+
+  const updated = updateCustomerPaymentMethod(paymentMethod, scrubbedCreditCardInstrument());
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: updated,
+    processing: false,
+    userErrors: [],
+  });
+}
+
+function createRemotePaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+  const customer =
+    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+  if (!customerId || !customer) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [customerDoesNotExistError()],
+    });
+  }
+
+  if (countRemoteReferenceKinds(args['remoteReference']) !== 1) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [exactlyOneRemoteReferenceError()],
+    });
+  }
+
+  const paymentMethod = createCustomerPaymentMethod(customerId, null);
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: paymentMethod,
+    userErrors: [],
+  });
+}
+
+function createPaypalPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+  const customer =
+    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+  if (!customerId || !customer) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [customerDoesNotExistError()],
+    });
+  }
+
+  const paymentMethod = createCustomerPaymentMethod(customerId, scrubbedPaypalInstrument(args['inactive'] === true));
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: paymentMethod,
+    userErrors: [],
+  });
+}
+
+function updatePaypalPaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const id = typeof args['id'] === 'string' ? args['id'] : null;
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(id, 'id');
+  if (!paymentMethod || error) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [error ?? paymentMethodDoesNotExistError('id')],
+    });
+  }
+
+  const inactive =
+    paymentMethod.instrument?.typeName === 'CustomerPaypalBillingAgreement'
+      ? paymentMethod.instrument.data['inactive'] === true
+      : false;
+  const updated = updateCustomerPaymentMethod(paymentMethod, scrubbedPaypalInstrument(inactive));
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: updated,
+    userErrors: [],
+  });
+}
+
+function getPaymentMethodDuplicationData(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  if (!paymentMethod || error) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      encryptedDuplicationData: null,
+      userErrors: [error ?? paymentMethodDoesNotExistError()],
+    });
+  }
+
+  const targetCustomerId = typeof args['targetCustomerId'] === 'string' ? args['targetCustomerId'] : null;
+  const targetCustomer =
+    targetCustomerId && isShopifyGid(targetCustomerId, 'Customer')
+      ? store.getEffectiveCustomerById(targetCustomerId)
+      : null;
+  if (!targetCustomerId || !targetCustomer) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      encryptedDuplicationData: null,
+      userErrors: [customerDoesNotExistError('targetCustomerId')],
+    });
+  }
+
+  const targetShopId = typeof args['targetShopId'] === 'string' ? args['targetShopId'] : '';
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    encryptedDuplicationData: encodeDuplicationData({
+      customerPaymentMethodId: paymentMethod.id,
+      targetCustomerId,
+      targetShopId,
+    }),
+    userErrors: [],
+  });
+}
+
+function createPaymentMethodFromDuplicationData(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const customerId = typeof args['customerId'] === 'string' ? args['customerId'] : null;
+  const customer =
+    customerId && isShopifyGid(customerId, 'Customer') ? store.getEffectiveCustomerById(customerId) : null;
+  if (!customerId || !customer) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [customerDoesNotExistError()],
+    });
+  }
+
+  const decoded = decodeDuplicationData(args['encryptedDuplicationData']);
+  const sourcePaymentMethodId = decoded?.['customerPaymentMethodId'] ?? null;
+  const sourcePaymentMethod =
+    sourcePaymentMethodId && isShopifyGid(sourcePaymentMethodId, 'CustomerPaymentMethod')
+      ? store.getEffectiveCustomerPaymentMethodById(sourcePaymentMethodId, { showRevoked: true })
+      : null;
+  if (!decoded || !sourcePaymentMethod || decoded['targetCustomerId'] !== customerId) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      customerPaymentMethod: null,
+      userErrors: [invalidDuplicationDataError()],
+    });
+  }
+
+  const paymentMethod = createCustomerPaymentMethod(customerId, sourcePaymentMethod.instrument);
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    customerPaymentMethod: paymentMethod,
+    userErrors: [],
+  });
+}
+
+function getPaymentMethodUpdateUrl(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  if (!paymentMethod || error) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      updatePaymentMethodUrl: null,
+      userErrors: [error ?? paymentMethodDoesNotExistError()],
+    });
+  }
+
+  const updateUrl = store.stageCustomerPaymentMethodUpdateUrl({
+    id: makeSyntheticGid('CustomerPaymentMethodUpdateUrl'),
+    customerPaymentMethodId: paymentMethod.id,
+    updatePaymentMethodUrl: buildPaymentMethodUpdateUrl(paymentMethod.id),
+    createdAt: makeSyntheticTimestamp(),
+  });
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    updatePaymentMethodUrl: updateUrl.updatePaymentMethodUrl,
+    userErrors: [],
+  });
+}
+
+function revokePaymentMethod(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const paymentMethodId = typeof args['customerPaymentMethodId'] === 'string' ? args['customerPaymentMethodId'] : null;
+  const { paymentMethod, error } = activeCustomerPaymentMethodById(paymentMethodId);
+  if (!paymentMethod || error) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      revokedCustomerPaymentMethodId: null,
+      userErrors: [error ?? paymentMethodDoesNotExistError()],
+    });
+  }
+
+  store.stageUpsertCustomerPaymentMethod({
+    ...paymentMethod,
+    revokedAt: makeSyntheticTimestamp(),
+    revokedReason: 'CUSTOMER_REVOKED',
+  });
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    revokedCustomerPaymentMethodId: paymentMethod.id,
+    userErrors: [],
+  });
+}
+
+function sendPaymentReminder(field: FieldNode, variables: Record<string, unknown>): Record<string, unknown> {
+  const args = getFieldArguments(field, variables);
+  const paymentScheduleId = typeof args['paymentScheduleId'] === 'string' ? args['paymentScheduleId'] : null;
+  if (typeof paymentScheduleId !== 'string' || !isShopifyGid(paymentScheduleId, 'PaymentSchedule')) {
+    return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+      success: false,
+      userErrors: [paymentReminderSendError()],
+    });
+  }
+
+  store.stagePaymentReminderSend({
+    id: makeSyntheticGid('PaymentReminderSend'),
+    paymentScheduleId,
+    sentAt: makeSyntheticTimestamp(),
+  });
+  return serializeCustomerPaymentMethodMutationPayload(field, variables, {
+    success: true,
+    userErrors: [],
+  });
+}
+
 export function handlePaymentQuery(document: string, variables: Record<string, unknown>): Record<string, unknown> {
   const data: Record<string, unknown> = {};
 
@@ -827,6 +1312,36 @@ export function handlePaymentMutation(document: string, variables: Record<string
         break;
       case 'paymentCustomizationActivation':
         data[key] = activatePaymentCustomizations(field, variables);
+        break;
+      case 'customerPaymentMethodCreditCardCreate':
+        data[key] = createCreditCardPaymentMethod(field, variables);
+        break;
+      case 'customerPaymentMethodCreditCardUpdate':
+        data[key] = updateCreditCardPaymentMethod(field, variables);
+        break;
+      case 'customerPaymentMethodRemoteCreate':
+        data[key] = createRemotePaymentMethod(field, variables);
+        break;
+      case 'customerPaymentMethodPaypalBillingAgreementCreate':
+        data[key] = createPaypalPaymentMethod(field, variables);
+        break;
+      case 'customerPaymentMethodPaypalBillingAgreementUpdate':
+        data[key] = updatePaypalPaymentMethod(field, variables);
+        break;
+      case 'customerPaymentMethodGetDuplicationData':
+        data[key] = getPaymentMethodDuplicationData(field, variables);
+        break;
+      case 'customerPaymentMethodCreateFromDuplicationData':
+        data[key] = createPaymentMethodFromDuplicationData(field, variables);
+        break;
+      case 'customerPaymentMethodGetUpdateUrl':
+        data[key] = getPaymentMethodUpdateUrl(field, variables);
+        break;
+      case 'customerPaymentMethodRevoke':
+        data[key] = revokePaymentMethod(field, variables);
+        break;
+      case 'paymentReminderSend':
+        data[key] = sendPaymentReminder(field, variables);
         break;
       default:
         data[key] = null;

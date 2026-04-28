@@ -1,0 +1,54 @@
+mutation DiscountAppBulkCreate($codeInput: DiscountCodeAppInput!, $automaticInput: DiscountAutomaticAppInput!) {
+  discountCodeAppCreate(codeAppDiscount: $codeInput) {
+    codeAppDiscount {
+      __typename
+      discountId
+      title
+      status
+      usageLimit
+      combinesWith {
+        orderDiscounts
+        productDiscounts
+        shippingDiscounts
+      }
+      codes(first: 5) {
+        nodes {
+          code
+        }
+      }
+      appDiscountType {
+        appKey
+        functionId
+        title
+        description
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+    automaticAppDiscount {
+      __typename
+      discountId
+      title
+      status
+      recurringCycleLimit
+      appDiscountType {
+        appKey
+        functionId
+        title
+        description
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

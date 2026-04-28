@@ -1,0 +1,32 @@
+query CustomerPaymentMethodLocalStagingRead($sourceCustomerId: ID!, $targetCustomerId: ID!) {
+  hiddenRevoked: customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card") {
+    id
+  }
+  shownRevoked: customerPaymentMethod(id: "gid://shopify/CustomerPaymentMethod/base-card", showRevoked: true) {
+    id
+    revokedAt
+    revokedReason
+  }
+  source: customer(id: $sourceCustomerId) {
+    paymentMethods(first: 10, showRevoked: true) {
+      nodes {
+        id
+        revokedAt
+      }
+    }
+  }
+  target: customer(id: $targetCustomerId) {
+    paymentMethods(first: 10) {
+      nodes {
+        id
+        instrument {
+          __typename
+          ... on CustomerCreditCard {
+            lastDigits
+            maskedNumber
+          }
+        }
+      }
+    }
+  }
+}

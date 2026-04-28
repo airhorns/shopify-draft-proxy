@@ -1,0 +1,93 @@
+{
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Local failure acknowledgement source",
+          "contentType": "IMAGE",
+          "filename": "ack-source.jpg",
+          "originalSource": "https://cdn.example.com/ack-source.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local failure acknowledgement source",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "updateToReady": {
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local failure acknowledgement ready state",
+              "fileStatus": "READY"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "acknowledge": {
+    "response": {
+      "data": {
+        "fileAcknowledgeUpdateFailed": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local failure acknowledgement ready state",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.example.com/ack-ready.jpg"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterAcknowledge": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local failure acknowledgement ready state",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "READY",
+              "filename": "ack-source.jpg",
+              "image": {
+                "url": "https://cdn.example.com/ack-ready.jpg",
+                "width": null,
+                "height": null
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/MediaImage/2",
+            "endCursor": "cursor:gid://shopify/MediaImage/2"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1738,7 +1738,7 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     store.stageUploadContent(
       ['shopify-draft-proxy/gid://shopify/StagedUploadTarget0/unsupported.jsonl'],
-      `${JSON.stringify({ input: { company: { name: 'Bulk Company' } } })}\n`,
+      `${JSON.stringify({ id: 'gid://shopify/CompanyContact/404404' })}\n`,
     );
 
     const response = await request(app)
@@ -1761,11 +1761,8 @@ describe('BulkOperation conformance fixture and local model', () => {
           }
         }`,
         variables: {
-          mutation: `mutation CompanyCreate($input: CompanyCreateInput!) {
-            companyCreate(input: $input) {
-              company {
-                id
-              }
+          mutation: `mutation CompanyContactSendWelcomeEmail($id: ID!) {
+            companyContactSendWelcomeEmail(companyContactId: $id) {
               userErrors {
                 field
                 message
