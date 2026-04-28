@@ -282,6 +282,101 @@ describe('saved search flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('routes staged saved searches through their resource-specific roots', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('saved search resource roots must stay local'));
+    const app = createApp(config).callback();
+    const created: Record<string, { id: string; name: string }> = {};
+
+    for (const resourceType of [
+      'PRODUCT',
+      'COLLECTION',
+      'CUSTOMER',
+      'ORDER',
+      'DRAFT_ORDER',
+      'FILE',
+      'PRICE_RULE',
+      'DISCOUNT_REDEEM_CODE',
+    ]) {
+      const name = `HAR-402 ${resourceType}`;
+      const response = await request(app)
+        .post('/admin/api/2026-04/graphql.json')
+        .send({
+          query: `mutation CreateSavedSearch($input: SavedSearchCreateInput!) {
+            savedSearchCreate(input: $input) {
+              savedSearch { id name resourceType }
+              userErrors { field message }
+            }
+          }`,
+          variables: {
+            input: {
+              resourceType,
+              name,
+              query: `title:${resourceType} har-402`,
+            },
+          },
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.savedSearchCreate.userErrors).toEqual([]);
+      created[resourceType] = {
+        id: response.body.data.savedSearchCreate.savedSearch.id,
+        name,
+      };
+    }
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ResourceSpecificSavedSearches {
+          products: productSavedSearches(first: 2, query: "HAR-402 PRODUCT") { nodes { id name resourceType } }
+          collections: collectionSavedSearches(first: 2, query: "HAR-402 COLLECTION") { nodes { id name resourceType } }
+          customers: customerSavedSearches(first: 2, query: "HAR-402 CUSTOMER") { nodes { id name resourceType } }
+          orders: orderSavedSearches(first: 2, query: "HAR-402 ORDER") { nodes { id name resourceType } }
+          draftOrders: draftOrderSavedSearches(first: 2, query: "HAR-402 DRAFT_ORDER") { nodes { id name resourceType } }
+          files: fileSavedSearches(first: 2, query: "HAR-402 FILE") { nodes { id name resourceType } }
+          codeDiscounts: codeDiscountSavedSearches(first: 2, query: "HAR-402 PRICE_RULE") { nodes { id name resourceType } }
+          automaticDiscounts: automaticDiscountSavedSearches(first: 2, query: "HAR-402 PRICE_RULE") { nodes { id name resourceType } }
+          redeemCodes: discountRedeemCodeSavedSearches(first: 2, query: "HAR-402 DISCOUNT_REDEEM_CODE") { nodes { id name resourceType } }
+          misplacedProduct: collectionSavedSearches(first: 2, query: "HAR-402 PRODUCT") { nodes { id name resourceType } }
+        }`,
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toMatchObject({
+      products: { nodes: [{ id: created['PRODUCT']?.id, name: created['PRODUCT']?.name, resourceType: 'PRODUCT' }] },
+      collections: {
+        nodes: [{ id: created['COLLECTION']?.id, name: created['COLLECTION']?.name, resourceType: 'COLLECTION' }],
+      },
+      customers: {
+        nodes: [{ id: created['CUSTOMER']?.id, name: created['CUSTOMER']?.name, resourceType: 'CUSTOMER' }],
+      },
+      orders: { nodes: [{ id: created['ORDER']?.id, name: created['ORDER']?.name, resourceType: 'ORDER' }] },
+      draftOrders: {
+        nodes: [{ id: created['DRAFT_ORDER']?.id, name: created['DRAFT_ORDER']?.name, resourceType: 'DRAFT_ORDER' }],
+      },
+      files: { nodes: [{ id: created['FILE']?.id, name: created['FILE']?.name, resourceType: 'FILE' }] },
+      codeDiscounts: {
+        nodes: [{ id: created['PRICE_RULE']?.id, name: created['PRICE_RULE']?.name, resourceType: 'PRICE_RULE' }],
+      },
+      automaticDiscounts: {
+        nodes: [{ id: created['PRICE_RULE']?.id, name: created['PRICE_RULE']?.name, resourceType: 'PRICE_RULE' }],
+      },
+      redeemCodes: {
+        nodes: [
+          {
+            id: created['DISCOUNT_REDEEM_CODE']?.id,
+            name: created['DISCOUNT_REDEEM_CODE']?.name,
+            resourceType: 'DISCOUNT_REDEEM_CODE',
+          },
+        ],
+      },
+      misplacedProduct: { nodes: [] },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('does not claim URL redirect saved-search resource support without navigation conformance', async () => {
     const app = createApp(config).callback();
 

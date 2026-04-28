@@ -2011,7 +2011,7 @@
     "implemented": true,
     "matchNames": ["draftOrderSavedSearches", "DraftOrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves DraftOrder SavedSearch connections from effective local saved-search state with Shopify-like empty connection behavior when absent."
+    "supportNotes": "HAR-312/HAR-402: serves DraftOrder SavedSearch connections from effective local saved-search state while preserving the captured default draft-order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "fileSavedSearches",
@@ -2031,7 +2031,7 @@
     "implemented": true,
     "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
   },
   {
     "name": "automaticDiscountSavedSearches",
@@ -2041,7 +2041,7 @@
     "implemented": true,
     "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
   },
   {
     "name": "discountRedeemCodeSavedSearches",
