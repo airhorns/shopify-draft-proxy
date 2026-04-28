@@ -1139,7 +1139,7 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     store.stageUploadContent(
       ['shopify-draft-proxy/gid://shopify/StagedUploadTarget0/unsupported.jsonl'],
-      `${JSON.stringify({ input: { email: 'bulk@example.com' } })}\n`,
+      `${JSON.stringify({ input: { company: { name: 'Bulk B2B Co' } } })}\n`,
     );
 
     const response = await request(app)
@@ -1162,9 +1162,9 @@ describe('BulkOperation conformance fixture and local model', () => {
           }
         }`,
         variables: {
-          mutation: `mutation CustomerCreate($input: CustomerInput!) {
-            customerCreate(input: $input) {
-              customer {
+          mutation: `mutation CompanyCreate($input: CompanyCreateInput!) {
+            companyCreate(input: $input) {
+              company {
                 id
               }
               userErrors {
