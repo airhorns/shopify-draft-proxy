@@ -17,6 +17,13 @@ import {
   handleAdminPlatformMutation,
   handleAdminPlatformQuery,
 } from './admin-platform.js';
+import {
+  APP_MUTATION_ROOTS,
+  APP_QUERY_ROOTS,
+  handleAppMutation,
+  handleAppQuery,
+  hydrateAppsFromUpstreamResponse,
+} from './apps.js';
 import { handleB2BMutation, handleB2BQuery } from './b2b.js';
 import {
   handleBulkOperationMutation,
@@ -819,6 +826,60 @@ function shouldTryLocalOrderMutation(request: ProxyDispatchRequest): boolean {
 }
 
 const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
+  {
+    name: 'apps',
+    canHandle: (request) =>
+      request.capability.domain === 'apps' ||
+      (request.primaryRootField !== null &&
+        (APP_QUERY_ROOTS.has(request.primaryRootField) || APP_MUTATION_ROOTS.has(request.primaryRootField))),
+    async handleQuery(request) {
+      if (request.capability.execution !== 'overlay-read' && !APP_QUERY_ROOTS.has(request.primaryRootField ?? '')) {
+        return false;
+      }
+
+      if (request.config.readMode === 'snapshot' || request.runtimeStore.hasAppDomainState()) {
+        setGraphQLResponse(request, 200, handleAppQuery(request.body.query, request.variables));
+        return true;
+      }
+
+      if (request.config.readMode === 'live-hybrid') {
+        const upstreamResponse = await proxyUpstreamGraphQL(request);
+        hydrateAppsFromUpstreamResponse(upstreamResponse.body);
+        setGraphQLResponse(
+          request,
+          upstreamResponse.status,
+          request.runtimeStore.hasAppDomainState()
+            ? handleAppQuery(request.body.query, request.variables)
+            : upstreamResponse.body,
+        );
+        return true;
+      }
+
+      return false;
+    },
+    handleMutation(request) {
+      if (
+        request.primaryRootField === null ||
+        !APP_MUTATION_ROOTS.has(request.primaryRootField) ||
+        (request.capability.execution !== 'stage-locally' && request.capability.domain !== 'unknown')
+      ) {
+        return false;
+      }
+
+      const responseBody = handleAppMutation(request.body.query, request.variables, request.config.shopifyAdminOrigin);
+      if (!responseBody) {
+        return false;
+      }
+
+      request.recordStagedMutation({
+        responseBody,
+        notes:
+          'Staged locally in the in-memory app billing/access draft store; no billing, uninstall, scope, or delegated-token side effect was sent to Shopify at runtime.',
+      });
+      setGraphQLResponse(request, 200, responseBody);
+      return true;
+    },
+  },
   {
     name: 'discounts',
     canHandle: (request) =>

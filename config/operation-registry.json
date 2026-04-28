@@ -341,100 +341,100 @@
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appPurchaseOneTimeCreate", "AppPurchaseOneTimeCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until one-time purchase confirmation URL creation, merchant approval status, downstream installation billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages one-time app purchases locally with synthetic confirmation URLs, pending purchase state, downstream currentAppInstallation.oneTimePurchases reads, meta log/state evidence, and raw mutation replay metadata."
   },
   {
     "name": "appSubscriptionCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionCreate", "AppSubscriptionCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy recurring billing mutation gap. Do not support until subscription confirmation URL creation, replacement behavior, trial/line item modeling, downstream billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app subscriptions locally with synthetic confirmation URLs, pending subscription and line-item state, downstream installation billing reads, meta log/state evidence, and raw mutation replay metadata."
   },
   {
     "name": "appSubscriptionCancel",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionCancel", "AppSubscriptionCancel"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until cancellation/proration behavior, downstream subscription status reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app subscription cancellation locally without billing side effects and exposes cancelled subscription state plus userErrors for unknown subscription IDs."
   },
   {
     "name": "appSubscriptionLineItemUpdate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionLineItemUpdate", "AppSubscriptionLineItemUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until capped amount updates, line item lookup/error behavior, downstream billing reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages usage line-item capped amount updates locally with synthetic confirmation URLs and unknown line-item userErrors."
   },
   {
     "name": "appSubscriptionTrialExtend",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appSubscriptionTrialExtend", "AppSubscriptionTrialExtend"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy billing mutation gap. Do not support until trial extension limits, status transitions, downstream subscription reads, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages trial day extensions locally and exposes downstream subscription reads without runtime Shopify writes."
   },
   {
     "name": "appUsageRecordCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appUsageRecordCreate", "AppUsageRecordCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy usage billing mutation gap. Do not support until idempotency behavior, usage record connection reads, billing limit errors, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages usage records locally on staged usage subscription line items, including idempotency-key storage and usageRecords readback."
   },
   {
     "name": "appRevokeAccessScopes",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 side-effect-heavy access mutation gap. Do not support until scope revocation effects, app grant visibility, validation errors, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages access-scope revocation locally against the current app installation and surfaces requested unknown-scope userErrors without changing the real app grant."
   },
   {
     "name": "appUninstall",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["appUninstall", "AppUninstall"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 destructive installation mutation gap. Do not support until uninstall effects, post-uninstall read behavior, app/session invalidation consequences, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages app uninstall locally by marking the current installation unavailable for downstream reads while preserving raw commit replay metadata."
   },
   {
     "name": "delegateAccessTokenCreate",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["delegateAccessTokenCreate", "DelegateAccessTokenCreate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token scope/resource modeling, returned token secrecy rules, downstream authorization effects, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages delegated token creation locally with a synthetic returned token and stores only a hash/preview in meta-visible state."
   },
   {
     "name": "delegateAccessTokenDestroy",
     "type": "mutation",
     "domain": "apps",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["delegateAccessTokenDestroy", "DelegateAccessTokenDestroy"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-301 delegated-access mutation gap. Do not support until token lookup/destruction behavior, idempotency/error semantics, downstream authorization effects, and raw commit replay semantics are modeled locally."
+    "runtimeTests": ["tests/integration/app-billing-access-flow.test.ts"],
+    "supportNotes": "HAR-364 stages delegated token destruction locally by matching the raw token to a stored hash and returning status/userErrors without contacting Shopify."
   },
   {
     "name": "productVariant",

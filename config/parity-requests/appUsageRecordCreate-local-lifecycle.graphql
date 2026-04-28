@@ -1,0 +1,24 @@
+mutation AppUsageRecordCreateLocalLifecycle($id: ID!) {
+  appUsageRecordCreate(
+    subscriptionLineItemId: $id
+    price: { amount: 12.5, currencyCode: USD }
+    description: "metered import"
+    idempotencyKey: "usage-key-1"
+  ) {
+    appUsageRecord {
+      id
+      description
+      price {
+        amount
+        currencyCode
+      }
+      subscriptionLineItem {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
