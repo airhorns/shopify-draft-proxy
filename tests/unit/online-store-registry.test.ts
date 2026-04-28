@@ -28,7 +28,10 @@ const onlineStoreQueryRoots = [
 
 const unsupportedOnlineStoreQueryRoots = ['menu', 'menus'] as const;
 const unsupportedOnlineStoreMutationRoots = ['menuCreate', 'menuUpdate', 'menuDelete'] as const;
-const unsupportedOnlineStoreRoots = [...unsupportedOnlineStoreQueryRoots, ...unsupportedOnlineStoreMutationRoots] as const;
+const unsupportedOnlineStoreRoots = [
+  ...unsupportedOnlineStoreQueryRoots,
+  ...unsupportedOnlineStoreMutationRoots,
+] as const;
 
 const supportedOnlineStoreQueryRoots = [
   'theme',

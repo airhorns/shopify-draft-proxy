@@ -863,7 +863,9 @@ function serializeIntegrationConnection(
       return (
         (!src || record.data['src'] === src) &&
         (query.length === 0 ||
-          String(record.data['src'] ?? '').toLowerCase().includes(query) ||
+          String(record.data['src'] ?? '')
+            .toLowerCase()
+            .includes(query) ||
           String(record.id).toLowerCase().includes(query))
       );
     }
@@ -891,7 +893,8 @@ function projectIntegrationPayload(
   return field.selectionSet
     ? projectGraphqlValue(payload, field.selectionSet.selections, fragments, {
         projectFieldValue: ({ field: selectedField, fieldName, fragments: selectedFragments }) => {
-          const record = records[fieldName as OnlineStoreIntegrationKind] ?? records[`${fieldName}` as OnlineStoreIntegrationKind];
+          const record =
+            records[fieldName as OnlineStoreIntegrationKind] ?? records[`${fieldName}` as OnlineStoreIntegrationKind];
           if (record) {
             return {
               handled: true,
@@ -1135,7 +1138,12 @@ function handleThemeMutation(
   const existing = id ? store.getEffectiveOnlineStoreIntegrationById('theme', id) : null;
 
   if ((root !== 'themeCreate' && !existing) || (root === 'themeCreate' && typeof args['source'] !== 'string')) {
-    errors.push(userError([root === 'themeCreate' ? 'source' : 'id'], root === 'themeCreate' ? "Source can't be blank" : 'Theme does not exist'));
+    errors.push(
+      userError(
+        [root === 'themeCreate' ? 'source' : 'id'],
+        root === 'themeCreate' ? "Source can't be blank" : 'Theme does not exist',
+      ),
+    );
   }
 
   if (errors.length > 0) {
@@ -1267,7 +1275,10 @@ function handleScriptTagMutation(
   }
 
   if (errors.length > 0) {
-    const payload = root === 'scriptTagDelete' ? { deletedScriptTagId: null, userErrors: errors } : { scriptTag: null, userErrors: errors };
+    const payload =
+      root === 'scriptTagDelete'
+        ? { deletedScriptTagId: null, userErrors: errors }
+        : { scriptTag: null, userErrors: errors };
     return { payload: projectIntegrationPayload(payload, field, fragments, variables), stagedResourceIds: [] };
   }
 
@@ -1302,21 +1313,25 @@ function handlePixelMutation(
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const isServerPixel =
-    root.startsWith('serverPixel') ||
-    root === 'eventBridgeServerPixelUpdate' ||
-    root === 'pubSubServerPixelUpdate';
+    root.startsWith('serverPixel') || root === 'eventBridgeServerPixelUpdate' || root === 'pubSubServerPixelUpdate';
   const kind: OnlineStoreIntegrationKind = isServerPixel ? 'serverPixel' : 'webPixel';
-  const existing = id ? store.getEffectiveOnlineStoreIntegrationById(kind, id) : store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null;
+  const existing = id
+    ? store.getEffectiveOnlineStoreIntegrationById(kind, id)
+    : (store.listEffectiveOnlineStoreIntegrations(kind)[0] ?? null);
   const errors: UserError[] = [];
 
   if ((root.endsWith('Update') || root.endsWith('Delete')) && !existing) {
-    errors.push(userError(id ? ['id'] : [], isServerPixel ? 'Server pixel does not exist' : 'Web pixel does not exist'));
+    errors.push(
+      userError(id ? ['id'] : [], isServerPixel ? 'Server pixel does not exist' : 'Web pixel does not exist'),
+    );
   }
 
   if (errors.length > 0) {
     const deletedKey = isServerPixel ? 'deletedServerPixelId' : 'deletedWebPixelId';
     const recordKey = isServerPixel ? 'serverPixel' : 'webPixel';
-    const payload = root.endsWith('Delete') ? { [deletedKey]: null, userErrors: errors } : { [recordKey]: null, userErrors: errors };
+    const payload = root.endsWith('Delete')
+      ? { [deletedKey]: null, userErrors: errors }
+      : { [recordKey]: null, userErrors: errors };
     return { payload: projectIntegrationPayload(payload, field, fragments, variables), stagedResourceIds: [] };
   }
 
@@ -1342,9 +1357,15 @@ function handlePixelMutation(
   store.upsertStagedOnlineStoreIntegration(record);
   const recordKey = isServerPixel ? 'serverPixel' : 'webPixel';
   return {
-    payload: projectIntegrationPayload({ [recordKey]: integrationData(record), userErrors: [] }, field, fragments, variables, {
-      [kind]: record,
-    }),
+    payload: projectIntegrationPayload(
+      { [recordKey]: integrationData(record), userErrors: [] },
+      field,
+      fragments,
+      variables,
+      {
+        [kind]: record,
+      },
+    ),
     stagedResourceIds: [record.id],
   };
 }
@@ -1361,7 +1382,10 @@ function handleStorefrontAccessTokenMutation(
   const existing = id ? store.getEffectiveOnlineStoreIntegrationById('storefrontAccessToken', id) : null;
   const errors: UserError[] = [];
 
-  if (root === 'storefrontAccessTokenCreate' && (!input || typeof input['title'] !== 'string' || input['title'].trim().length === 0)) {
+  if (
+    root === 'storefrontAccessTokenCreate' &&
+    (!input || typeof input['title'] !== 'string' || input['title'].trim().length === 0)
+  ) {
     errors.push(userError(['input', 'title'], "Title can't be blank"));
   } else if (root === 'storefrontAccessTokenDelete' && (!id || !existing)) {
     errors.push(userError(['input', 'id'], 'Storefront access token does not exist'));
@@ -1578,12 +1602,7 @@ export function handleOnlineStoreQuery(document: string, variables: Record<strin
     if (root === 'themes' || root === 'scriptTags' || root === 'mobilePlatformApplications') {
       const kind = INTEGRATION_ROOT_KIND[root];
       data[key] = kind
-        ? serializeIntegrationConnection(
-            field,
-            store.listEffectiveOnlineStoreIntegrations(kind),
-            variables,
-            fragments,
-          )
+        ? serializeIntegrationConnection(field, store.listEffectiveOnlineStoreIntegrations(kind), variables, fragments)
         : emptyConnection(field);
       continue;
     }
@@ -1696,7 +1715,10 @@ export function hydrateOnlineStoreFromUpstreamResponse(document: string, upstrea
           data: structuredClone(payload) as OnlineStoreContentRecord['data'],
         });
       }
-    } else if ((root === 'theme' || root === 'scriptTag' || root === 'webPixel' || root === 'serverPixel') && isPlainObject(payload)) {
+    } else if (
+      (root === 'theme' || root === 'scriptTag' || root === 'webPixel' || root === 'serverPixel') &&
+      isPlainObject(payload)
+    ) {
       const id = payload['id'];
       const kind = INTEGRATION_ROOT_KIND[root];
       if (kind && typeof id === 'string') {

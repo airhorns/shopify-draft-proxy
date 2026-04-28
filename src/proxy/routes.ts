@@ -1983,10 +1983,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request,
           upstreamResponse.status,
           store.hasStagedOnlineStoreContent() ||
-          store.hasStagedOnlineStoreIntegrations() ||
-          (request.primaryRootField !== null &&
-            isOnlineStoreContentQueryRoot(request.primaryRootField) &&
-            (store.hasOnlineStoreContent() || store.hasOnlineStoreIntegrations()))
+            store.hasStagedOnlineStoreIntegrations() ||
+            (request.primaryRootField !== null &&
+              isOnlineStoreContentQueryRoot(request.primaryRootField) &&
+              (store.hasOnlineStoreContent() || store.hasOnlineStoreIntegrations()))
             ? handleOnlineStoreQuery(request.body.query, request.variables)
             : upstreamResponse.body,
         );

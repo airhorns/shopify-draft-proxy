@@ -41,9 +41,7 @@
     "side-effect-boundary",
     "credential-redaction"
   ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/online-store-integrations-local-staging.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store-integrations-local-staging.json"],
   "runtimeTestFiles": ["tests/integration/online-store-integrations-flow.test.ts"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store-integrations-local-staging.graphql",
