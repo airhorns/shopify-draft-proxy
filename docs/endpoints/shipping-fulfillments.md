@@ -189,12 +189,8 @@ These roots are known Admin GraphQL shipping/fulfillment surface area, but they 
 
 Fulfillment-order mutations:
 
-- `fulfillmentOrderAcceptCancellationRequest`
-- `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrderRejectCancellationRequest`
-- `fulfillmentOrderRejectFulfillmentRequest`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 
