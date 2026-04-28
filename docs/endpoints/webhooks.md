@@ -25,15 +25,15 @@ The three query roots are registered under the `webhooks` domain as implemented 
 
 - Webhook subscription reads are backed by normalized `webhookSubscriptions` state plus `webhookSubscriptionOrder`.
 - Snapshot mode returns `null` for unknown `webhookSubscription(id:)`, an empty `webhookSubscriptions` connection, and `{ count: 0, precision: "EXACT" }` for `webhookSubscriptionsCount` when no records are present.
-- Local records preserve captured fields: `id`, `topic`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, `createdAt`, `updatedAt`, and endpoint-specific fields for `WebhookHttpEndpoint`, `WebhookEventBridgeEndpoint`, and `WebhookPubSubEndpoint`.
-- `webhookSubscriptions` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`.
-- `webhookSubscriptionsCount` supports count `limit` semantics with `EXACT` / `AT_LEAST` precision and simple captured query filtering such as `id:<legacy id>`.
+- Local records preserve captured fields: `id`, `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, `createdAt`, `updatedAt`, and deprecated endpoint-specific fields for `WebhookHttpEndpoint`, `WebhookEventBridgeEndpoint`, and `WebhookPubSubEndpoint`.
+- `webhookSubscriptions` uses shared connection helpers for `nodes`, `edges`, selected `pageInfo`, stable synthetic cursors, `first`/`last`, `before`/`after`, `sortKey: ID`, and `reverse`. It also applies current Shopify catalog filters for `uri`, deprecated `callbackUrl`, `format`, and `topics`.
+- `webhookSubscriptionsCount` supports count `limit` semantics with `EXACT` / `AT_LEAST` precision and simple captured query filtering such as `id:<legacy id>`, `topic:<topic>`, `format:<format>`, `uri:<uri>`, and `endpoint:<uri fragment>`.
 - Live-hybrid reads hydrate upstream webhook subscription nodes into normalized base state and overlay staged local records when present.
 
 ### Local Mutation Behavior
 
-- `webhookSubscriptionCreate(topic:, webhookSubscription:)` stages a new normalized webhook subscription with a proxy synthetic `WebhookSubscription` GID, stable synthetic timestamps, the requested `topic`, `format`, `includeFields`, `metafieldNamespaces`, `filter`, and a `WebhookHttpEndpoint.callbackUrl` derived from the captured `WebhookSubscriptionInput.uri` shape.
-- `webhookSubscriptionUpdate(id:, webhookSubscription:)` updates an existing staged or hydrated webhook subscription in place, preserving `topic` and `createdAt` while replacing the captured mutable fields and endpoint URI when present.
+- `webhookSubscriptionCreate(topic:, webhookSubscription:)` stages a new normalized webhook subscription with a proxy synthetic `WebhookSubscription` GID, stable synthetic timestamps, the requested `topic`, `uri`, `name`, `format`, `includeFields`, `metafieldNamespaces`, and `filter`. The deprecated `endpoint` field is derived from `WebhookSubscriptionInput.uri`: HTTPS-like strings become `WebhookHttpEndpoint.callbackUrl`, `pubsub://{project-id}:{topic-id}` becomes `WebhookPubSubEndpoint`, and `arn:aws:events:...` becomes `WebhookEventBridgeEndpoint`.
+- `webhookSubscriptionUpdate(id:, webhookSubscription:)` updates an existing staged or hydrated webhook subscription in place, preserving `topic` and `createdAt` while replacing the captured mutable fields, `name`, and endpoint URI when present. Current Admin GraphQL docs describe `uri` as the unified field; `endpoint` and `callbackUrl` are kept only as deprecated compatibility projections.
 - `webhookSubscriptionDelete(id:)` stages a deletion for staged, synthetic, or hydrated/local webhook subscriptions. The successful payload returns `deletedWebhookSubscriptionId` and an empty `userErrors` list; subsequent `webhookSubscription(id:)` reads return `null`, and list/count reads omit the deleted subscription.
 - Successful create/update/delete mutations append staged entries to the meta mutation log with the original request body intact for commit replay. Commit replay replaces synthetic IDs with upstream IDs from earlier successful replay attempts before replaying later raw request bodies.
 - Captured validation branches are handled locally without upstream writes: create without `uri` returns `webhookSubscription: null` and `userErrors: [{ field: ["webhookSubscription", "callbackUrl"], message: "Address can't be blank" }]`; update of an unknown ID returns `webhookSubscription: null` and `userErrors: [{ field: ["id"], message: "Webhook subscription does not exist" }]`; delete of an unknown or already deleted ID returns `deletedWebhookSubscriptionId: null` and `userErrors: [{ field: ["id"], message: "Webhook subscription does not exist" }]`.
@@ -118,7 +118,7 @@ This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscript
 - missing URI validation on create
 - unknown-id validation on update and delete
 
-The capture used `WebhookSubscriptionInput.uri` with an `https://example.com/...` HTTP endpoint, `format: JSON`, selected `includeFields`, and selected `metafieldNamespaces`. The created subscription was deleted during the same script run.
+The capture used `WebhookSubscriptionInput.uri` with an `https://example.com/...` HTTP endpoint, `format: JSON`, selected `includeFields`, and selected `metafieldNamespaces`. The created subscription was deleted during the same script run. HAR-399 reviewed the current 2026-04 docs and 2025-10 webhook changelog and added local executable coverage for unified `uri` projection and filtering across HTTPS, Google Pub/Sub (`pubsub://{project-id}:{topic-id}`), and Amazon EventBridge ARN endpoint shapes without adding any delivery/outbox side effects.
 
 HAR-356 promotes the captured evidence into two executable strict parity contracts:
 

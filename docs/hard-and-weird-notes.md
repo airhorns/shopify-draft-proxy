@@ -107,6 +107,25 @@ Practical rule:
 - when the source slug already ends in digits, de-duplication should increment that numeric tail instead of blindly appending another `-1`
 - keep title-only updates handle-stable in the first local parity slice rather than re-slugifying the new title
 
+### 5a. Inventory quantity mutation contracts drift by Admin API version
+
+The inventory quantity roots are especially version-sensitive. The checked-in local parity for
+`inventoryAdjustQuantities`, `inventorySetQuantities`, and `inventoryMoveQuantities` is anchored to
+2025-01 fixture evidence, where `inventoryAdjustQuantities` accepts a plain mutation call and
+`inventorySetQuantities` uses `compareQuantity` / `ignoreCompareQuantity` style inputs.
+
+Shopify's current 2026-04 docs show two traps that should not be papered over by generic local
+staging:
+
+- `inventoryAdjustQuantities` requires an `@idempotent` key in 2026-04.
+- `inventorySetQuantities` examples use `changeFromQuantity` rather than the older compare/ignore
+  fields.
+
+Practical rule:
+
+- keep the existing implementation documented as 2025-01-backed inventory parity until a dedicated
+  2026-04 capture updates the request contract, validation branches, and route-version behavior.
+
 ## 6. Product update semantics are mode-sensitive
 
 Current `productUpdate` behavior is intentionally split by runtime mode:
@@ -949,7 +968,8 @@ Current modeled behavior:
 - the merchant-facing `product.options` slice also needs a plain `values` array derived from `optionValues[].name`; Shopify examples routinely request both in the same payload
 - live-hybrid hydration preserves upstream option ids, names, positions, and `hasVariants`
 - local option mutations are split across three real root fields, not one family name: `productOptionsCreate`, `productOptionUpdate` (singular), and `productOptionsDelete`
-- a useful first staged-mutation slice is LEAVE_AS_IS-style option list editing: insert/reorder options, rename them, and add/update/delete option values while leaving variant fanout semantics for a later increment
+- the initial staged-mutation slice was LEAVE_AS_IS-style option list editing: insert/reorder options, rename them, and add/update/delete option values while preserving only variant-backed values in `values`
+- `productOptionsCreate(variantStrategy: CREATE)` now stages the documented option-value Cartesian variant fanout locally for default-only and existing-variant products; broader plan-limit and non-default strategy edge cases still need direct live evidence before claiming every validation branch
 - `productUpdate` preserves option state unless a future option-specific mutation changes it
 - live option-mutation capture on this host settled three easy-to-guess-wrong quirks:
   - `productOptionsCreate` against a default-only product replaces the synthetic `Title` option instead of returning both the new option and `Title`
@@ -2761,6 +2781,13 @@ Captured facts:
 Practical rule:
 
 - it is safe to stage the generic product/product-metafield translation slice locally with SHA-256 digests and read-after-write translation visibility, but do not broaden generic localization to market-specific custom content or non-product owner families until they have their own captures.
+
+HAR-392 review notes:
+
+- Shopify's public translation guide requires `translationsRegister` inputs to use a digest from `translatableContent`, and `TranslationInput.locale` is valid only for locales returned by `shopLocales`.
+- Shopify's `TranslatableResourceType.PRODUCT` docs list `meta_title` and `meta_description` as product fields; model those keys on the product resource when local SEO values exist instead of treating SEO as standalone metafields.
+- Real integration examples register product metafield translations against the metafield GID with the key `value`, so the current local product-metafield boundary should stay owner-scoped and narrow.
+- Locale validation and stale digest validation are separate guardrails: an unavailable shop locale should surface `INVALID_LOCALE_FOR_SHOP`, and a stale digest for a valid key should surface `INVALID_TRANSLATABLE_CONTENT`.
 
 ## 69. Unknown comment detail can error while comment moderation validates cleanly
 

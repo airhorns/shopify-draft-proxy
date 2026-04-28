@@ -158,6 +158,19 @@ function validateFileUpdateInput(input: Record<string, unknown>, index: number):
     });
   }
 
+  if (
+    typeof originalSource === 'string' &&
+    originalSource.length > 0 &&
+    typeof previewImageSource === 'string' &&
+    previewImageSource.length > 0
+  ) {
+    errors.push({
+      field: ['files', String(index)],
+      message: 'Specify either originalSource or previewImageSource, not both.',
+      code: 'INVALID',
+    });
+  }
+
   for (const productId of [
     ...readIdListInput(input['referencesToAdd']),
     ...readIdListInput(input['referencesToRemove']),
