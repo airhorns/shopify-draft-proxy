@@ -5,7 +5,12 @@ import { parseSearchQueryTerms, normalizeSearchQueryValue, type SearchQueryTerm 
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 import { makeProxySyntheticGid, makeSyntheticGid, makeSyntheticTimestamp } from '../state/synthetic-identity.js';
 import { store } from '../state/store.js';
-import type { GiftCardRecord, GiftCardTransactionRecord, MoneyV2Record } from '../state/types.js';
+import type {
+  GiftCardRecipientAttributesRecord,
+  GiftCardRecord,
+  GiftCardTransactionRecord,
+  MoneyV2Record,
+} from '../state/types.js';
 import { paginateConnectionItems, serializeConnection } from './graphql-helpers.js';
 
 type GiftCardUserErrorRecord = {
@@ -96,13 +101,22 @@ function readMutationNote(
   return readString(args['note']) ?? readString(nestedInput['note']);
 }
 
+function readMutationProcessedAt(
+  args: Record<string, unknown>,
+  preferredInputKey: 'creditInput' | 'debitInput',
+): string | null {
+  const input = readInput(args);
+  const nestedInput = isRecord(args[preferredInputKey]) ? args[preferredInputKey] : input;
+  return readString(args['processedAt']) ?? readString(nestedInput['processedAt']);
+}
+
 function giftCardTail(id: string): string {
   return id.split('/').at(-1)?.split('?')[0] ?? id;
 }
 
 function normalizeGiftCardCode(raw: unknown, fallbackId: string): string {
   const explicitCode = typeof raw === 'string' ? raw.replace(/\s+/gu, '').trim() : '';
-  return explicitCode.length > 0 ? explicitCode : `PROXY${giftCardTail(fallbackId).padStart(8, '0')}`;
+  return explicitCode.length > 0 ? explicitCode.toLowerCase() : `proxy${giftCardTail(fallbackId).padStart(8, '0')}`;
 }
 
 function lastCharactersFromCode(code: string): string {
@@ -110,7 +124,29 @@ function lastCharactersFromCode(code: string): string {
 }
 
 function maskedCode(lastCharacters: string): string {
-  return `**** **** **** ${lastCharacters}`;
+  return `\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 ${lastCharacters}`;
+}
+
+function readRecipientAttributes(
+  raw: unknown,
+  existing: GiftCardRecipientAttributesRecord | null = null,
+): GiftCardRecipientAttributesRecord | null {
+  if (!isRecord(raw)) {
+    return raw === null ? null : existing;
+  }
+
+  return {
+    id: readString(raw['id']) ?? readString(raw['recipientId']) ?? existing?.id ?? null,
+    message: Object.prototype.hasOwnProperty.call(raw, 'message')
+      ? readString(raw['message'])
+      : (existing?.message ?? null),
+    preferredName: Object.prototype.hasOwnProperty.call(raw, 'preferredName')
+      ? readString(raw['preferredName'])
+      : (existing?.preferredName ?? null),
+    sendNotificationAt: Object.prototype.hasOwnProperty.call(raw, 'sendNotificationAt')
+      ? readString(raw['sendNotificationAt'])
+      : (existing?.sendNotificationAt ?? null),
+  };
 }
 
 function serializeMoney(money: MoneyV2Record, selections: readonly SelectionNode[]): Record<string, unknown> {
@@ -136,6 +172,78 @@ function serializeMoney(money: MoneyV2Record, selections: readonly SelectionNode
     }
   }
   return result;
+}
+
+function serializeRecipientObject(recipientId: string, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'Customer';
+        break;
+      case 'id':
+        result[key] = recipientId;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function serializeGiftCardRecipientAttributes(
+  attributes: GiftCardRecipientAttributesRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of selections) {
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'GiftCardRecipientAttributes';
+        break;
+      case 'message':
+        result[key] = attributes.message;
+        break;
+      case 'preferredName':
+        result[key] = attributes.preferredName;
+        break;
+      case 'sendNotificationAt':
+        result[key] = attributes.sendNotificationAt;
+        break;
+      case 'recipient':
+        result[key] = attributes.id
+          ? serializeRecipientObject(attributes.id, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+  return result;
+}
+
+function effectiveRecipientAttributes(giftCard: GiftCardRecord): GiftCardRecipientAttributesRecord | null {
+  return (
+    giftCard.recipientAttributes ??
+    (giftCard.recipientId
+      ? {
+          id: giftCard.recipientId,
+          message: null,
+          preferredName: null,
+          sendNotificationAt: null,
+        }
+      : null)
+  );
 }
 
 function serializeGiftCardTransaction(
@@ -286,6 +394,13 @@ function serializeGiftCard(
       case 'customer':
         result[key] = giftCard.customerId ? { id: giftCard.customerId } : null;
         break;
+      case 'recipientAttributes': {
+        const attributes = effectiveRecipientAttributes(giftCard);
+        result[key] = attributes
+          ? serializeGiftCardRecipientAttributes(attributes, selection.selectionSet?.selections ?? [])
+          : null;
+        break;
+      }
       case 'recipient':
         result[key] = giftCard.recipientId ? { id: giftCard.recipientId } : null;
         break;
@@ -305,6 +420,15 @@ function giftCardMatchesTerm(giftCard: GiftCardRecord, term: SearchQueryTerm): b
       matches =
         normalizedValue === normalizeSearchQueryValue(giftCard.id) || normalizedValue === giftCardTail(giftCard.id);
       break;
+    case 'status':
+      if (['enabled', 'active', 'true'].includes(normalizedValue)) {
+        matches = giftCard.enabled;
+      } else if (['disabled', 'deactivated', 'inactive', 'false'].includes(normalizedValue)) {
+        matches = !giftCard.enabled;
+      } else {
+        matches = false;
+      }
+      break;
     default:
       matches = true;
       break;
@@ -319,7 +443,7 @@ function filterGiftCardsByQuery(giftCards: GiftCardRecord[], rawQuery: unknown):
   }
 
   const terms = parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) => term.field === 'id',
+    (term) => term.field === 'id' || term.field === 'status',
   );
   return terms.length === 0
     ? giftCards
@@ -529,6 +653,7 @@ function stageGiftCardCreate(args: Record<string, unknown>): GiftCardPayload {
 
   const now = makeSyntheticTimestamp();
   const lastCharacters = lastCharactersFromCode(code);
+  const recipientAttributes = readRecipientAttributes(input['recipientAttributes']);
   const giftCard: GiftCardRecord = {
     id,
     legacyResourceId: giftCardTail(id),
@@ -544,7 +669,8 @@ function stageGiftCardCreate(args: Record<string, unknown>): GiftCardPayload {
     initialValue,
     balance: { ...initialValue },
     customerId: readString(input['customerId']),
-    recipientId: readString(input['recipientId']),
+    recipientId: readString(input['recipientId']) ?? recipientAttributes?.id ?? null,
+    recipientAttributes,
     transactions: [],
   };
 
@@ -577,7 +703,12 @@ function stageGiftCardUpdate(args: Record<string, unknown>): GiftCardPayload {
       : existing.customerId,
     recipientId: Object.prototype.hasOwnProperty.call(input, 'recipientId')
       ? readString(input['recipientId'])
-      : existing.recipientId,
+      : Object.prototype.hasOwnProperty.call(input, 'recipientAttributes')
+        ? (readRecipientAttributes(input['recipientAttributes'], effectiveRecipientAttributes(existing))?.id ?? null)
+        : existing.recipientId,
+    recipientAttributes: Object.prototype.hasOwnProperty.call(input, 'recipientAttributes')
+      ? readRecipientAttributes(input['recipientAttributes'], effectiveRecipientAttributes(existing))
+      : existing.recipientAttributes,
     updatedAt: makeSyntheticTimestamp(),
   };
 
@@ -623,7 +754,8 @@ function stageGiftCardTransaction(
       amount: formatDecimalAmount(signedAmount),
       currencyCode,
     },
-    processedAt: makeSyntheticTimestamp(),
+    processedAt:
+      readMutationProcessedAt(args, kind === 'CREDIT' ? 'creditInput' : 'debitInput') ?? makeSyntheticTimestamp(),
     note: readMutationNote(args, kind === 'CREDIT' ? 'creditInput' : 'debitInput'),
   };
   const giftCard: GiftCardRecord = {

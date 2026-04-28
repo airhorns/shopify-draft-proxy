@@ -1,0 +1,37 @@
+query ProductOptionVariantStrategyEdgeDownstream($id: ID!) {
+  product(id: $id) {
+    id
+    options {
+      id
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    totalInventory
+    tracksInventory
+    variants(first: 110) {
+      nodes {
+        id
+        title
+        sku
+        barcode
+        price
+        inventoryQuantity
+        selectedOptions {
+          name
+          value
+        }
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+        }
+      }
+    }
+  }
+}
