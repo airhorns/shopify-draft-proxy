@@ -1,0 +1,209 @@
+{
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135342386",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316454194",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979702288690",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105362903346",
+              "title": "Default Title",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208203264306",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172135342386",
+      "variantStrategy": "LEAVE_AS_IS",
+      "options": [
+        {
+          "name": "Color",
+          "position": 1,
+          "values": [
+            {
+              "name": "Red"
+            },
+            {
+              "name": "Green"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172135342386",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718316486962",
+                "name": "Color",
+                "position": 1,
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979702321458",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979702354226",
+                    "name": "Green",
+                    "hasVariants": false
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105362903346",
+                  "title": "Red",
+                  "sku": null,
+                  "barcode": null,
+                  "price": "0.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208203264306",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135342386",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316486962",
+            "name": "Color",
+            "position": 1,
+            "values": ["Red"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979702321458",
+                "name": "Red",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/7979702354226",
+                "name": "Green",
+                "hasVariants": false
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105362903346",
+              "title": "Red",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208203264306",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

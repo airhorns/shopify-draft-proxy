@@ -1,0 +1,348 @@
+{
+  "setup": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172135506226",
+      "variantStrategy": "LEAVE_AS_IS",
+      "options": [
+        {
+          "name": "Color",
+          "position": 1,
+          "values": [
+            {
+              "name": "Red"
+            }
+          ]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productOptionsCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172135506226",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718316781874",
+                "name": "Color",
+                "position": 1,
+                "values": ["Red"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979703697714",
+                    "name": "Red",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": false,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105366704434",
+                  "title": "Red",
+                  "sku": null,
+                  "barcode": null,
+                  "price": "0.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208207065394",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135506226",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316781874",
+            "name": "Color",
+            "position": 1,
+            "values": ["Red"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703697714",
+                "name": "Red",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366704434",
+              "title": "Red",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207065394",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172135506226",
+      "strategy": "DEFAULT",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Color",
+              "name": "Default Blue"
+            }
+          ],
+          "price": "25.00",
+          "inventoryItem": {
+            "sku": "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+            "tracked": true,
+            "requiresShipping": true
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172135506226",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718316781874",
+                "name": "Color",
+                "position": 1,
+                "values": ["Red", "Default Blue"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979703697714",
+                    "name": "Red",
+                    "hasVariants": true
+                  },
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979703730482",
+                    "name": "Default Blue",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105366704434",
+                  "title": "Red",
+                  "sku": null,
+                  "barcode": null,
+                  "price": "0.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208207065394",
+                    "tracked": false,
+                    "requiresShipping": true
+                  }
+                },
+                {
+                  "id": "gid://shopify/ProductVariant/51105366737202",
+                  "title": "Default Blue",
+                  "sku": "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+                  "barcode": null,
+                  "price": "25.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Default Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208207098162",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366737202",
+              "title": "Default Blue",
+              "sku": "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207098162",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135506226",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316781874",
+            "name": "Color",
+            "position": 1,
+            "values": ["Red", "Default Blue"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703697714",
+                "name": "Red",
+                "hasVariants": true
+              },
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703730482",
+                "name": "Default Blue",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366704434",
+              "title": "Red",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Red"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207065394",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51105366737202",
+              "title": "Default Blue",
+              "sku": "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Default Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207098162",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

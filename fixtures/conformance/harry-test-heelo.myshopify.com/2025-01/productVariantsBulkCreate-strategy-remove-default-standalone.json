@@ -1,0 +1,222 @@
+{
+  "preMutationRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135473458",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316716338",
+            "name": "Title",
+            "position": 1,
+            "values": ["Default Title"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703599410",
+                "name": "Default Title",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": false,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366638898",
+              "title": "Default Title",
+              "sku": null,
+              "barcode": null,
+              "price": "0.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Default Title"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208206999858",
+                "tracked": false,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172135473458",
+      "strategy": "REMOVE_STANDALONE_VARIANT",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Title",
+              "name": "Remove Blue"
+            }
+          ],
+          "price": "25.00",
+          "inventoryItem": {
+            "sku": "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+            "tracked": true,
+            "requiresShipping": true
+          }
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10172135473458",
+            "options": [
+              {
+                "id": "gid://shopify/ProductOption/12718316716338",
+                "name": "Title",
+                "position": 1,
+                "values": ["Remove Blue"],
+                "optionValues": [
+                  {
+                    "id": "gid://shopify/ProductOptionValue/7979703632178",
+                    "name": "Remove Blue",
+                    "hasVariants": true
+                  }
+                ]
+              }
+            ],
+            "totalInventory": 0,
+            "tracksInventory": true,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51105366671666",
+                  "title": "Remove Blue",
+                  "sku": "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+                  "barcode": null,
+                  "price": "25.00",
+                  "inventoryQuantity": 0,
+                  "selectedOptions": [
+                    {
+                      "name": "Title",
+                      "value": "Remove Blue"
+                    }
+                  ],
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53208207032626",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ]
+            }
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366671666",
+              "title": "Remove Blue",
+              "sku": "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Remove Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207032626",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 43,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10172135473458",
+        "options": [
+          {
+            "id": "gid://shopify/ProductOption/12718316716338",
+            "name": "Title",
+            "position": 1,
+            "values": ["Remove Blue"],
+            "optionValues": [
+              {
+                "id": "gid://shopify/ProductOptionValue/7979703632178",
+                "name": "Remove Blue",
+                "hasVariants": true
+              }
+            ]
+          }
+        ],
+        "totalInventory": 0,
+        "tracksInventory": true,
+        "variants": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductVariant/51105366671666",
+              "title": "Remove Blue",
+              "sku": "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
+              "barcode": null,
+              "price": "25.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Title",
+                  "value": "Remove Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53208207032626",
+                "tracked": true,
+                "requiresShipping": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 32,
+        "actualQueryCost": 6,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1994,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "scenarioId": "order-edit-residual-local-staging",
   "recordedAt": "2026-04-28T02:28:00.000Z",
   "source": "local-runtime",
-  "apiVersion": "2025-01",
+  "apiVersion": "2026-04",
   "runtimeTestFiles": ["tests/integration/order-edit-flow.test.ts"],
   "coveredOperations": [
     "orderEditAddCustomItem",

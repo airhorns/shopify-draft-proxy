@@ -32,7 +32,7 @@ Set shell variables for your dev store and app install:
 ```sh
 export SHOPIFY_ADMIN_ORIGIN="https://your-store.myshopify.com"
 export SHOPIFY_ACCESS_TOKEN="shpat_or_shpca_from_your_app_install"
-export API_VERSION="2025-01"
+export API_VERSION="2026-04"
 export PROXY="http://localhost:3000"
 ```
 
