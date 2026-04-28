@@ -1808,6 +1808,7 @@ function buildPaymentTransaction(
   gateway: string | null,
   parentTransactionId: string | null,
   paymentReferenceId: string | null = null,
+  processedAt: string | null = null,
 ): OrderTransactionRecord {
   return {
     id: runtime.syntheticIdentity.makeSyntheticGid('OrderTransaction'),
@@ -1818,7 +1819,7 @@ function buildPaymentTransaction(
     parentTransactionId,
     paymentId: runtime.syntheticIdentity.makeSyntheticGid('Payment'),
     paymentReferenceId,
-    processedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+    processedAt: processedAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
@@ -1839,6 +1840,61 @@ export function markOrderAsPaid(runtime: ProxyRuntimeContext, order: OrderRecord
     netPaymentSet: subtractMoney(amountSet, order.totalRefundedSet, currencyCode),
     transactions: [...structuredClone(order.transactions), transaction],
   };
+}
+
+export function createManualPayment(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+  input: Record<string, unknown>,
+):
+  | { order: OrderRecord; transaction: OrderTransactionRecord }
+  | { userErrors: Array<{ field: string[] | null; message: string }> } {
+  const currencyCode = readPaymentInputCurrency(input, readOrderCurrencyCode(order));
+  const outstanding = parseDecimalAmount(
+    order.totalOutstandingSet?.shopMoney.amount ?? order.currentTotalPriceSet?.shopMoney.amount ?? '0.0',
+  );
+  const amount = parseDecimalAmount(readPaymentInputAmount(input, outstanding));
+
+  if (outstanding <= 0 || order.displayFinancialStatus === 'PAID') {
+    return {
+      userErrors: [{ field: ['id'], message: 'Order is already paid' }],
+    };
+  }
+
+  if (amount <= 0) {
+    return {
+      userErrors: [{ field: ['amount'], message: 'Amount must be greater than zero' }],
+    };
+  }
+
+  if (amount > outstanding) {
+    return {
+      userErrors: [{ field: ['amount'], message: 'Amount exceeds outstanding amount' }],
+    };
+  }
+
+  const paymentMethodName =
+    typeof input['paymentMethodName'] === 'string' && input['paymentMethodName'].trim().length > 0
+      ? input['paymentMethodName'].trim()
+      : 'manual';
+  const processedAt = typeof input['processedAt'] === 'string' ? input['processedAt'] : null;
+  const transaction = buildPaymentTransaction(
+    runtime,
+    'SALE',
+    makeOrderMoneyBag(amount, currencyCode),
+    paymentMethodName,
+    null,
+    runtime.syntheticIdentity.makeSyntheticGid('PaymentReference'),
+    processedAt,
+  );
+  const updatedOrder = applyPaymentDerivedFields({
+    ...structuredClone(order),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+    paymentGatewayNames: Array.from(new Set([...(order.paymentGatewayNames ?? []), paymentMethodName])),
+    transactions: [...structuredClone(order.transactions), transaction],
+  });
+
+  return { order: updatedOrder, transaction };
 }
 
 export function captureOrderPayment(
