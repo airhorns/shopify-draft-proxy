@@ -576,6 +576,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'DiscountAutomaticNode',
     handler: handleDiscountQuery,
   },
+  DiscountNode: { rootField: 'discountNode', typename: 'DiscountNode', handler: handleDiscountQuery },
 
   MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
   MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
@@ -640,6 +641,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
 };
+const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 
 function syntheticNodeField(selectedFields: readonly FieldNode[]): FieldNode {
   return {
@@ -716,6 +718,31 @@ function collectApplicableNodeFields(
   });
 }
 
+function hasExplicitNodeTypeSelection(
+  selections: readonly SelectionNode[],
+  typeName: string,
+  fragments: FragmentMap,
+): boolean {
+  return selections.some((selection) => {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return (
+        selection.typeCondition?.name.value === typeName ||
+        hasExplicitNodeTypeSelection(selection.selectionSet.selections, typeName, fragments)
+      );
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      return (
+        fragment?.typeCondition.name.value === typeName ||
+        (fragment ? hasExplicitNodeTypeSelection(fragment.selectionSet.selections, typeName, fragments) : false)
+      );
+    }
+
+    return false;
+  });
+}
+
 function applySelectedTypename(
   payload: Record<string, unknown>,
   fields: readonly FieldNode[],
@@ -727,6 +754,35 @@ function applySelectedTypename(
     }
   }
   return payload;
+}
+
+function serializeLocalNodeWithResolver(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+  resolver: AdminPlatformNodeResolver,
+): Record<string, unknown> | null {
+  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
+  if (selectedFields.length === 0) {
+    return {};
+  }
+
+  if ('serialize' in resolver) {
+    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
+  }
+
+  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
+  const response = resolver.handler(runtime, syntheticDocument, {
+    ...variables,
+    [PROXY_NODE_ID_VARIABLE]: id,
+  });
+  const payload =
+    isPlainObject(response) && isPlainObject(response['data'])
+      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+      : null;
+  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
 }
 
 function serializeLocalNodeById(
@@ -747,25 +803,16 @@ function serializeLocalNodeById(
     return null;
   }
 
-  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
-  if (selectedFields.length === 0) {
-    return {};
-  }
-
-  if ('serialize' in resolver) {
-    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
-  }
-
-  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
-  const response = resolver.handler(runtime, syntheticDocument, {
-    ...variables,
-    [PROXY_NODE_ID_VARIABLE]: id,
-  });
-  const payload =
-    isPlainObject(response) && isPlainObject(response['data'])
-      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+  if (
+    (gidType === 'DiscountCodeNode' || gidType === 'DiscountAutomaticNode') &&
+    hasExplicitNodeTypeSelection(selections, 'DiscountNode', fragments)
+  ) {
+    return DISCOUNT_NODE_RESOLVER
+      ? serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
       : null;
-  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
+  }
+
+  return serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, resolver);
 }
 
 function serializeNode(
