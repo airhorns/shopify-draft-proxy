@@ -8,8 +8,14 @@ import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
-import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
-import { handleB2BQuery } from './b2b.js';
+import {
+  ADMIN_PLATFORM_MUTATION_ROOTS,
+  ADMIN_PLATFORM_QUERY_ROOTS,
+  FLOW_UTILITY_MUTATION_ROOTS,
+  handleAdminPlatformMutation,
+  handleAdminPlatformQuery,
+} from './admin-platform.js';
+import { handleB2BMutation, handleB2BQuery } from './b2b.js';
 import {
   handleBulkOperationMutation,
   handleBulkOperationQuery,
@@ -147,10 +153,20 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
 ]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
+  'customerPaymentMethodCreateFromDuplicationData',
+  'customerPaymentMethodCreditCardCreate',
+  'customerPaymentMethodCreditCardUpdate',
+  'customerPaymentMethodGetDuplicationData',
+  'customerPaymentMethodGetUpdateUrl',
+  'customerPaymentMethodPaypalBillingAgreementCreate',
+  'customerPaymentMethodPaypalBillingAgreementUpdate',
+  'customerPaymentMethodRemoteCreate',
+  'customerPaymentMethodRevoke',
   'paymentCustomizationActivation',
   'paymentCustomizationCreate',
   'paymentCustomizationDelete',
   'paymentCustomizationUpdate',
+  'paymentReminderSend',
 ]);
 
 const FULFILLMENT_SERVICE_MUTATION_ROOTS = new Set([
@@ -199,7 +215,10 @@ const FULFILLMENT_ORDER_LIFECYCLE_MUTATION_ROOTS = new Set([
   'fulfillmentOrderReportProgress',
   'fulfillmentOrderReschedule',
   'fulfillmentOrderClose',
+  'fulfillmentOrderMerge',
+  'fulfillmentOrderSplit',
   'fulfillmentOrdersReroute',
+  'fulfillmentOrdersSetFulfillmentDeadline',
 ]);
 
 const PRODUCT_FEED_QUERY_ROOTS = new Set(['productFeed', 'productFeeds']);
@@ -1538,8 +1557,11 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
       const responseBody = handlePaymentMutation(request.body.query, request.variables);
       appendStagedMutationLog(request, {
         responseBody,
-        notes:
-          'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
+        notes: request.primaryRootField?.startsWith('customerPaymentMethod')
+          ? 'Staged locally in the in-memory customer payment-method draft store; payment credentials, gateway secrets, and customer-facing update URLs are scrubbed or synthetic.'
+          : request.primaryRootField === 'paymentReminderSend'
+            ? 'Staged a local payment reminder intent only; no customer email is sent at runtime.'
+            : 'Staged locally in the in-memory payment customization draft store; Shopify Functions and checkout payment behavior are not invoked.',
       });
       setGraphQLResponse(request, 200, responseBody);
       return true;
@@ -2106,6 +2128,37 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'b2b',
     canHandle: (request) => request.capability.domain === 'b2b',
+    handleMutation(request) {
+      if (request.capability.execution !== 'stage-locally') {
+        return false;
+      }
+
+      const b2bMutation = handleB2BMutation(request.body.query, request.variables);
+      if (!b2bMutation) {
+        return false;
+      }
+
+      request.proxyLogger.debug(
+        {
+          operationName: request.capability.operationName,
+          operationType: request.parsed.type,
+          rootFields: request.parsed.rootFields,
+        },
+        b2bMutation.staged
+          ? 'staging supported B2B mutation locally'
+          : 'returning captured B2B validation response locally',
+      );
+
+      if (b2bMutation.staged) {
+        appendStagedMutationLog(request, {
+          stagedResourceIds: b2bMutation.stagedResourceIds,
+          notes: b2bMutation.notes,
+        });
+      }
+
+      setGraphQLResponse(request, 200, b2bMutation.response);
+      return true;
+    },
     async handleQuery(request) {
       if (request.capability.execution !== 'overlay-read') {
         return false;
@@ -2128,11 +2181,30 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'admin-platform',
     canHandle: (request) =>
-      request.parsed.type === 'query' &&
-      request.config.readMode === 'snapshot' &&
-      request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_QUERY_ROOTS.has(rootField)),
+      (request.parsed.type === 'query' &&
+        request.config.readMode === 'snapshot' &&
+        request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_QUERY_ROOTS.has(rootField))) ||
+      (request.parsed.type === 'mutation' &&
+        request.capability.execution === 'stage-locally' &&
+        request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_MUTATION_ROOTS.has(rootField))),
     handleQuery(request) {
       setGraphQLResponse(request, 200, handleAdminPlatformQuery(request.body.query, request.variables));
+      return true;
+    },
+    handleMutation(request) {
+      const result = handleAdminPlatformMutation(request.body.query, request.variables);
+      if (!result) {
+        return false;
+      }
+
+      if (result.staged) {
+        appendStagedMutationLog(request, {
+          stagedResourceIds: result.stagedResourceIds ?? [],
+          notes: result.notes ?? 'Staged locally in the in-memory Admin platform utility store.',
+        });
+      }
+
+      setGraphQLResponse(request, 200, result.response);
       return true;
     },
   },

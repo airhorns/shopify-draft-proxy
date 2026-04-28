@@ -1570,7 +1570,243 @@ function applyFulfillmentOrderCancel(
   return { order: updatedOrder, fulfillmentOrder: cancelledFulfillmentOrder, replacementFulfillmentOrder };
 }
 
-type FulfillmentOrderUserError = { field: string[] | null; message: string };
+type FulfillmentOrderSplitResult = {
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+  remainingFulfillmentOrder: OrderFulfillmentOrderRecord;
+  replacementFulfillmentOrder: OrderFulfillmentOrderRecord | null;
+};
+
+type FulfillmentOrderMergeResult = {
+  fulfillmentOrder: OrderFulfillmentOrderRecord;
+};
+
+function readFulfillmentOrderSplitInputs(
+  variables: Record<string, unknown>,
+): Array<{ fulfillmentOrderId: string; fulfillmentOrderLineItems: Array<{ id: string; quantity: number }> }> {
+  const raw = variables['fulfillmentOrderSplits'];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((input): input is Record<string, unknown> => typeof input === 'object' && input !== null)
+    .map((input) => ({
+      fulfillmentOrderId: typeof input['fulfillmentOrderId'] === 'string' ? input['fulfillmentOrderId'] : '',
+      fulfillmentOrderLineItems: Array.isArray(input['fulfillmentOrderLineItems'])
+        ? input['fulfillmentOrderLineItems']
+            .filter(
+              (lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null,
+            )
+            .map((lineItem) => ({
+              id: typeof lineItem['id'] === 'string' ? lineItem['id'] : '',
+              quantity:
+                typeof lineItem['quantity'] === 'number' && Number.isInteger(lineItem['quantity'])
+                  ? lineItem['quantity']
+                  : 0,
+            }))
+            .filter((lineItem) => lineItem.id.length > 0 && lineItem.quantity > 0)
+        : [],
+    }))
+    .filter((input) => input.fulfillmentOrderId.length > 0);
+}
+
+function readFulfillmentOrderMergeInputs(variables: Record<string, unknown>): Array<{
+  mergeIntents: Array<{
+    fulfillmentOrderId: string;
+    fulfillmentOrderLineItems: Array<{ id: string; quantity: number }>;
+  }>;
+}> {
+  const raw = variables['fulfillmentOrderMergeInputs'];
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  return raw
+    .filter((input): input is Record<string, unknown> => typeof input === 'object' && input !== null)
+    .map((input) => ({
+      mergeIntents: Array.isArray(input['mergeIntents'])
+        ? input['mergeIntents']
+            .filter((intent): intent is Record<string, unknown> => typeof intent === 'object' && intent !== null)
+            .map((intent) => ({
+              fulfillmentOrderId: typeof intent['fulfillmentOrderId'] === 'string' ? intent['fulfillmentOrderId'] : '',
+              fulfillmentOrderLineItems: Array.isArray(intent['fulfillmentOrderLineItems'])
+                ? intent['fulfillmentOrderLineItems']
+                    .filter(
+                      (lineItem): lineItem is Record<string, unknown> =>
+                        typeof lineItem === 'object' && lineItem !== null,
+                    )
+                    .map((lineItem) => ({
+                      id: typeof lineItem['id'] === 'string' ? lineItem['id'] : '',
+                      quantity:
+                        typeof lineItem['quantity'] === 'number' && Number.isInteger(lineItem['quantity'])
+                          ? lineItem['quantity']
+                          : 0,
+                    }))
+                    .filter((lineItem) => lineItem.id.length > 0 && lineItem.quantity > 0)
+                : [],
+            }))
+            .filter((intent) => intent.fulfillmentOrderId.length > 0)
+        : [],
+    }))
+    .filter((input) => input.mergeIntents.length > 0);
+}
+
+function readFulfillmentOrdersSetDeadlineInput(variables: Record<string, unknown>): {
+  fulfillmentOrderIds: string[];
+  fulfillmentDeadline: string | null;
+} {
+  const rawFulfillmentDeadline =
+    typeof variables['fulfillmentDeadline'] === 'string' ? variables['fulfillmentDeadline'] : null;
+  return {
+    fulfillmentOrderIds: Array.isArray(variables['fulfillmentOrderIds'])
+      ? variables['fulfillmentOrderIds'].filter((id): id is string => typeof id === 'string')
+      : [],
+    fulfillmentDeadline: rawFulfillmentDeadline?.replace(/\.\d{3}Z$/u, 'Z') ?? null,
+  };
+}
+
+function buildFulfillmentOrderInvalidIdError(operationName: string, responseKey: string): Record<string, unknown> {
+  return {
+    message: 'invalid id',
+    extensions: {
+      code: 'RESOURCE_NOT_FOUND',
+    },
+    path: [responseKey || operationName],
+  };
+}
+
+function fulfillmentOrderSupportedActionsWithMerge(
+  status: string | null | undefined,
+  lineItems: OrderFulfillmentOrderLineItemRecord[] | undefined,
+  includeMerge: boolean,
+): string[] {
+  const actions = fulfillmentOrderSupportedActions(status, lineItems);
+  return includeMerge && !actions.includes('MERGE') ? [...actions, 'MERGE'] : actions;
+}
+
+function applyFulfillmentOrderSplit(
+  order: OrderRecord,
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  requestedLineItems: Array<{ id: string; quantity: number }>,
+): { order: OrderRecord; result: FulfillmentOrderSplitResult } {
+  const requestedById = new Map(requestedLineItems.map((lineItem) => [lineItem.id, lineItem.quantity]));
+  const originalLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+  const splitLineItems: OrderFulfillmentOrderLineItemRecord[] = [];
+
+  for (const lineItem of fulfillmentOrder.lineItems ?? []) {
+    const requestedQuantity = Math.min(requestedById.get(lineItem.id) ?? 0, lineItem.remainingQuantity);
+    if (requestedQuantity <= 0) {
+      originalLineItems.push(structuredClone(lineItem));
+      continue;
+    }
+
+    const originalQuantity = lineItem.totalQuantity - requestedQuantity;
+    if (originalQuantity > 0) {
+      originalLineItems.push({
+        ...lineItem,
+        totalQuantity: originalQuantity,
+        remainingQuantity: Math.min(originalQuantity, lineItem.remainingQuantity - requestedQuantity),
+        lineItemFulfillableQuantity:
+          lineItem.lineItemFulfillableQuantity ?? lineItem.lineItemQuantity ?? lineItem.remainingQuantity,
+      });
+    }
+
+    splitLineItems.push({
+      ...lineItem,
+      id: originalQuantity > 0 ? makeSyntheticGid('FulfillmentOrderLineItem') : lineItem.id,
+      totalQuantity: requestedQuantity,
+      remainingQuantity: requestedQuantity,
+      lineItemFulfillableQuantity:
+        lineItem.lineItemFulfillableQuantity ?? lineItem.lineItemQuantity ?? lineItem.remainingQuantity,
+    });
+  }
+
+  const updatedAt = makeSyntheticTimestamp();
+  const originalFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...fulfillmentOrder,
+    updatedAt,
+    supportedActions: fulfillmentOrderSupportedActionsWithMerge(fulfillmentOrder.status, originalLineItems, true),
+    lineItems: originalLineItems,
+  };
+  const remainingFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...buildReplacementFulfillmentOrder(fulfillmentOrder, splitLineItems, {
+      assignedLocation: fulfillmentOrder.assignedLocation,
+      updatedAt,
+    }),
+    supportedActions: fulfillmentOrderSupportedActionsWithMerge(fulfillmentOrder.status, splitLineItems, true).filter(
+      (action) => action !== 'SPLIT' || fulfillmentOrderSupportsSplit(splitLineItems),
+    ),
+  };
+
+  const updatedOrder = updateOrderFulfillmentOrders(order, (fulfillmentOrders) =>
+    fulfillmentOrders.flatMap((candidate) =>
+      candidate.id === fulfillmentOrder.id ? [originalFulfillmentOrder, remainingFulfillmentOrder] : [candidate],
+    ),
+  );
+
+  return {
+    order: updatedOrder,
+    result: {
+      fulfillmentOrder: originalFulfillmentOrder,
+      remainingFulfillmentOrder,
+      replacementFulfillmentOrder: null,
+    },
+  };
+}
+
+function applyFulfillmentOrderMerge(
+  order: OrderRecord,
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+): { order: OrderRecord; result: FulfillmentOrderMergeResult } {
+  const target = fulfillmentOrders[0] as OrderFulfillmentOrderRecord;
+  const mergedLineItemsByLineItemId = new Map<string, OrderFulfillmentOrderLineItemRecord>();
+
+  for (const fulfillmentOrder of fulfillmentOrders) {
+    for (const lineItem of fulfillmentOrder.lineItems ?? []) {
+      const key = lineItem.lineItemId ?? lineItem.id;
+      const existing = mergedLineItemsByLineItemId.get(key);
+      if (!existing) {
+        mergedLineItemsByLineItemId.set(key, { ...lineItem });
+        continue;
+      }
+      existing.totalQuantity += lineItem.totalQuantity;
+      existing.remainingQuantity += lineItem.remainingQuantity;
+      existing.lineItemFulfillableQuantity =
+        existing.lineItemFulfillableQuantity ?? lineItem.lineItemFulfillableQuantity ?? existing.remainingQuantity;
+    }
+  }
+
+  const mergedLineItems = [...mergedLineItemsByLineItemId.values()];
+  const mergedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+    ...target,
+    fulfillBy: fulfillmentOrders.find((candidate) => candidate.fulfillBy)?.fulfillBy ?? target.fulfillBy,
+    updatedAt: makeSyntheticTimestamp(),
+    supportedActions: fulfillmentOrderSupportedActions(target.status, mergedLineItems),
+    lineItems: mergedLineItems,
+  };
+  const mergedIds = new Set(fulfillmentOrders.map((candidate) => candidate.id));
+  const updatedOrder = updateOrderFulfillmentOrders(order, (existingFulfillmentOrders) =>
+    existingFulfillmentOrders.map((candidate) => {
+      if (candidate.id === target.id) {
+        return mergedFulfillmentOrder;
+      }
+      if (!mergedIds.has(candidate.id)) {
+        return candidate;
+      }
+      return {
+        ...candidate,
+        status: 'CLOSED',
+        updatedAt: makeSyntheticTimestamp(),
+        supportedActions: [],
+        lineItems: zeroFulfillmentOrderLineItems(candidate.lineItems),
+      };
+    }),
+  );
+
+  return { order: updatedOrder, result: { fulfillmentOrder: mergedFulfillmentOrder } };
+}
+
+type FulfillmentOrderUserError = { field: string[] | null; message: string; code?: string | null };
 
 type FulfillmentOrderMutationIdRead = { kind: 'ok'; id: string } | { kind: 'error'; error: Record<string, unknown> };
 
@@ -1681,12 +1917,133 @@ function serializeUserErrors(
             return [key, userError.field];
           case 'message':
             return [key, userError.message];
+          case 'code':
+            return [key, userError.code ?? null];
           default:
             return [key, null];
         }
       }),
     ),
   );
+}
+
+function serializeFulfillmentOrderSplitResult(
+  field: FieldNode,
+  result: FulfillmentOrderSplitResult,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrder':
+        payload[key] = serializeOrderFulfillmentOrder(selection, result.fulfillmentOrder, variables);
+        break;
+      case 'remainingFulfillmentOrder':
+        payload[key] = serializeOrderFulfillmentOrder(selection, result.remainingFulfillmentOrder, variables);
+        break;
+      case 'replacementFulfillmentOrder':
+        payload[key] = result.replacementFulfillmentOrder
+          ? serializeOrderFulfillmentOrder(selection, result.replacementFulfillmentOrder, variables)
+          : null;
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeFulfillmentOrderSplitPayload(
+  field: FieldNode,
+  results: FulfillmentOrderSplitResult[],
+  userErrors: FulfillmentOrderUserError[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrderSplits':
+        payload[key] = results.map((result) => serializeFulfillmentOrderSplitResult(selection, result, variables));
+        break;
+      case 'userErrors':
+        payload[key] = serializeUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeFulfillmentOrderMergeResult(
+  field: FieldNode,
+  result: FulfillmentOrderMergeResult,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrder':
+        payload[key] = serializeOrderFulfillmentOrder(selection, result.fulfillmentOrder, variables);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeFulfillmentOrderMergePayload(
+  field: FieldNode,
+  results: FulfillmentOrderMergeResult[],
+  userErrors: FulfillmentOrderUserError[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'fulfillmentOrderMerges':
+        payload[key] = results.map((result) => serializeFulfillmentOrderMergeResult(selection, result, variables));
+        break;
+      case 'userErrors':
+        payload[key] = serializeUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeFulfillmentOrdersSetDeadlinePayload(
+  field: FieldNode,
+  success: boolean | null,
+  userErrors: FulfillmentOrderUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'success':
+        payload[key] = success;
+        break;
+      case 'userErrors':
+        payload[key] = serializeUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
 }
 
 function serializeFulfillmentOrderPayload(
@@ -4995,6 +5352,106 @@ export function handleOrderMutation(
         },
         [],
       );
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderSplit' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const splitInputs = readFulfillmentOrderSplitInputs(variables);
+      const splitResults: FulfillmentOrderSplitResult[] = [];
+      let invalidId = false;
+
+      for (const splitInput of splitInputs) {
+        const match = findOrderWithFulfillmentOrder(splitInput.fulfillmentOrderId);
+        if (!match) {
+          invalidId = true;
+          break;
+        }
+        const result = applyFulfillmentOrderSplit(
+          match.order,
+          match.fulfillmentOrder,
+          splitInput.fulfillmentOrderLineItems,
+        );
+        splitResults.push(result.result);
+      }
+
+      if (invalidId || splitInputs.length === 0) {
+        data[key] = null;
+        errors.push(buildFulfillmentOrderInvalidIdError(field.name.value, key));
+        continue;
+      }
+
+      data[key] = serializeFulfillmentOrderSplitPayload(field, splitResults, [], variables);
+      continue;
+    }
+
+    if (field.name.value === 'fulfillmentOrderMerge' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const mergeInputs = readFulfillmentOrderMergeInputs(variables);
+      const mergeResults: FulfillmentOrderMergeResult[] = [];
+      let invalidId = false;
+
+      for (const mergeInput of mergeInputs) {
+        const matches = mergeInput.mergeIntents.map((intent) =>
+          findOrderWithFulfillmentOrder(intent.fulfillmentOrderId),
+        );
+        const firstMatch = matches[0];
+        if (!firstMatch || matches.some((match) => !match || match.order.id !== firstMatch.order.id)) {
+          invalidId = true;
+          break;
+        }
+        const result = applyFulfillmentOrderMerge(
+          firstMatch.order,
+          matches
+            .filter(
+              (
+                match,
+              ): match is {
+                order: OrderRecord;
+                fulfillmentOrder: OrderFulfillmentOrderRecord;
+              } => match !== null,
+            )
+            .map((match) => match.fulfillmentOrder),
+        );
+        mergeResults.push(result.result);
+      }
+
+      if (invalidId || mergeInputs.length === 0) {
+        data[key] = null;
+        errors.push(buildFulfillmentOrderInvalidIdError(field.name.value, key));
+        continue;
+      }
+
+      data[key] = serializeFulfillmentOrderMergePayload(field, mergeResults, [], variables);
+      continue;
+    }
+
+    if (
+      field.name.value === 'fulfillmentOrdersSetFulfillmentDeadline' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const deadlineInput = readFulfillmentOrdersSetDeadlineInput(variables);
+      const matches = deadlineInput.fulfillmentOrderIds.map((id) => findOrderWithFulfillmentOrder(id));
+      if (!deadlineInput.fulfillmentDeadline || matches.length === 0 || matches.some((match) => match === null)) {
+        data[key] = null;
+        errors.push(buildFulfillmentOrderInvalidIdError(field.name.value, key));
+        continue;
+      }
+
+      for (const match of matches) {
+        const currentMatch = match ? findOrderWithFulfillmentOrder(match.fulfillmentOrder.id) : null;
+        if (!currentMatch) {
+          continue;
+        }
+        const updatedFulfillmentOrder: OrderFulfillmentOrderRecord = {
+          ...currentMatch.fulfillmentOrder,
+          fulfillBy: deadlineInput.fulfillmentDeadline,
+          updatedAt: makeSyntheticTimestamp(),
+        };
+        replaceOrderFulfillmentOrder(currentMatch.order, currentMatch.fulfillmentOrder.id, updatedFulfillmentOrder);
+      }
+      data[key] = serializeFulfillmentOrdersSetDeadlinePayload(field, true, []);
       continue;
     }
 

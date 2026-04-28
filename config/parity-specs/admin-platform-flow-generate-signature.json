@@ -1,0 +1,31 @@
+{
+  "scenarioId": "admin-platform-flow-generate-signature",
+  "operationNames": ["flowGenerateSignature"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "access-blocker"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform-utility-roots.json"],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform-flow-generate-unknown.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-374 executable parity for the captured unknown FlowTrigger ID blocker. Local deterministic signature generation is runtime-test-backed because the current conformance app does not expose a valid Flow trigger ID for a no-side-effect live success capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-flow-trigger-data",
+        "capturePath": "$.captures.flowGenerateSignatureUnknown.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "unknown-flow-trigger-error",
+        "capturePath": "$.captures.flowGenerateSignatureUnknown.result.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

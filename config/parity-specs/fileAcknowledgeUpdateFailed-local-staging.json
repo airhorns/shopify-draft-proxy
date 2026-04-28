@@ -1,0 +1,65 @@
+{
+  "scenarioId": "fileAcknowledgeUpdateFailed-local-staging",
+  "operationNames": ["fileCreate", "fileUpdate", "fileAcknowledgeUpdateFailed", "files"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/file-acknowledge-update-failed-local-runtime.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/file-acknowledge-update-failed-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/fileCreateDelete-parity.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local parity covers the staged `fileAcknowledgeUpdateFailed(fileIds:)` lifecycle after a local Files API record reaches READY through `fileUpdate`, including downstream `files` reads. The paired live capture records Shopify Admin GraphQL 2026-04 success, unknown/deleted ID, and non-ready FAILED-file validation behavior; external upload byte-transfer failure generation remains outside the local proxy boundary.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-to-ready",
+        "capturePath": "$.updateToReady.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileUpdate-parity.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Local failure acknowledgement ready state",
+                "originalSource": "https://cdn.example.com/ack-ready.jpg"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "acknowledge-update-failed",
+        "capturePath": "$.acknowledge.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileAcknowledgeUpdateFailed-parity.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "files-read-after-acknowledge",
+        "capturePath": "$.readAfterAcknowledge.response.data.files",
+        "proxyPath": "$.data.files",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/fileAcknowledgeUpdateFailed-downstream-read.graphql"
+        }
+      }
+    ]
+  }
+}
