@@ -163,6 +163,11 @@ const emptySnapshot = {
   abandonedCheckoutOrder: [],
   abandonments: {},
   abandonmentOrder: [],
+  backupRegion: null,
+  adminPlatformFlowSignatures: {},
+  adminPlatformFlowSignatureOrder: [],
+  adminPlatformFlowTriggers: {},
+  adminPlatformFlowTriggerOrder: [],
 };
 
 describe('meta routes', () => {

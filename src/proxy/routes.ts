@@ -8,7 +8,13 @@ import type { MutationLogEntry, MutationLogInterpretedMetadata } from '../state/
 import type { AppConfig } from '../config.js';
 import { createUpstreamGraphQLClient } from '../shopify/upstream-client.js';
 import { requestUpstreamGraphQL } from '../shopify/upstream-request.js';
-import { ADMIN_PLATFORM_QUERY_ROOTS, FLOW_UTILITY_MUTATION_ROOTS, handleAdminPlatformQuery } from './admin-platform.js';
+import {
+  ADMIN_PLATFORM_MUTATION_ROOTS,
+  ADMIN_PLATFORM_QUERY_ROOTS,
+  FLOW_UTILITY_MUTATION_ROOTS,
+  handleAdminPlatformMutation,
+  handleAdminPlatformQuery,
+} from './admin-platform.js';
 import { handleB2BQuery } from './b2b.js';
 import {
   handleBulkOperationMutation,
@@ -2096,11 +2102,30 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
   {
     name: 'admin-platform',
     canHandle: (request) =>
-      request.parsed.type === 'query' &&
-      request.config.readMode === 'snapshot' &&
-      request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_QUERY_ROOTS.has(rootField)),
+      (request.parsed.type === 'query' &&
+        request.config.readMode === 'snapshot' &&
+        request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_QUERY_ROOTS.has(rootField))) ||
+      (request.parsed.type === 'mutation' &&
+        request.capability.execution === 'stage-locally' &&
+        request.parsed.rootFields.some((rootField) => ADMIN_PLATFORM_MUTATION_ROOTS.has(rootField))),
     handleQuery(request) {
       setGraphQLResponse(request, 200, handleAdminPlatformQuery(request.body.query, request.variables));
+      return true;
+    },
+    handleMutation(request) {
+      const result = handleAdminPlatformMutation(request.body.query, request.variables);
+      if (!result) {
+        return false;
+      }
+
+      if (result.staged) {
+        appendStagedMutationLog(request, {
+          stagedResourceIds: result.stagedResourceIds ?? [],
+          notes: result.notes ?? 'Staged locally in the in-memory Admin platform utility store.',
+        });
+      }
+
+      setGraphQLResponse(request, 200, result.response);
       return true;
     },
   },

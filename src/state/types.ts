@@ -2163,6 +2163,32 @@ export const abandonmentRecordSchema = z.strictObject({
 });
 export type AbandonmentRecord = z.infer<typeof abandonmentRecordSchema>;
 
+export const backupRegionRecordSchema = z.strictObject({
+  __typename: z.literal('MarketRegionCountry'),
+  id: z.string(),
+  name: z.string(),
+  code: z.string(),
+});
+export type BackupRegionRecord = z.infer<typeof backupRegionRecordSchema>;
+
+export const adminPlatformFlowSignatureRecordSchema = z.strictObject({
+  id: z.string(),
+  flowTriggerId: z.string(),
+  payloadSha256: z.string(),
+  signatureSha256: z.string(),
+  createdAt: z.string(),
+});
+export type AdminPlatformFlowSignatureRecord = z.infer<typeof adminPlatformFlowSignatureRecordSchema>;
+
+export const adminPlatformFlowTriggerRecordSchema = z.strictObject({
+  id: z.string(),
+  handle: z.string(),
+  payloadBytes: z.number().int().nonnegative(),
+  payloadSha256: z.string(),
+  receivedAt: z.string(),
+});
+export type AdminPlatformFlowTriggerRecord = z.infer<typeof adminPlatformFlowTriggerRecordSchema>;
+
 export const stateSnapshotSchema = z.strictObject({
   shop: shopRecordSchema.nullable().default(null),
   products: z.record(z.string(), productRecordSchema),
@@ -2266,6 +2292,11 @@ export const stateSnapshotSchema = z.strictObject({
   abandonedCheckoutOrder: z.array(z.string()).default([]),
   abandonments: z.record(z.string(), abandonmentRecordSchema).default({}),
   abandonmentOrder: z.array(z.string()).default([]),
+  backupRegion: backupRegionRecordSchema.nullable().default(null),
+  adminPlatformFlowSignatures: z.record(z.string(), adminPlatformFlowSignatureRecordSchema).default({}),
+  adminPlatformFlowSignatureOrder: z.array(z.string()).default([]),
+  adminPlatformFlowTriggers: z.record(z.string(), adminPlatformFlowTriggerRecordSchema).default({}),
+  adminPlatformFlowTriggerOrder: z.array(z.string()).default([]),
   productCollections: z.record(z.string(), productCollectionRecordSchema),
   productMedia: z.record(z.string(), productMediaRecordSchema),
   files: z.record(z.string(), fileRecordSchema).default({}),
