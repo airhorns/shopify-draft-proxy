@@ -1,9 +1,15 @@
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createApp } from '../support/runtime.js';
 import { createApp as createRuntimeApp } from '../../src/app.js';
 import type { AppConfig } from '../../src/config.js';
-import { createDraftProxy, DRAFT_PROXY_STATE_DUMP_SCHEMA, type DraftProxyStateDump } from '../../src/proxy-instance.js';
+import {
+  createDraftProxy,
+  DRAFT_PROXY_STATE_DUMP_SCHEMA,
+  type DraftProxy,
+  type DraftProxyOptions,
+  type DraftProxyStateDump,
+} from '../../src/proxy-instance.js';
 import type { MutationLogEntry } from '../../src/state/types.js';
 
 const config: AppConfig = {
@@ -28,6 +34,14 @@ const productQuery = {
   query: 'query ReadProduct($id: ID!) { product(id: $id) { id title } }',
   operationName: 'ReadProduct',
 };
+
+const trackedProxies: DraftProxy[] = [];
+
+function createTrackedDraftProxy(proxyConfig: AppConfig, options?: DraftProxyOptions): DraftProxy {
+  const proxy = createDraftProxy(proxyConfig, options);
+  trackedProxies.push(proxy);
+  return proxy;
+}
 
 function productCreateBodyWithTitle(title: string): typeof productCreateBody {
   return {
@@ -68,9 +82,21 @@ function comparableLogEntry(entry: MutationLogEntry): Omit<MutationLogEntry, 'id
   return comparable;
 }
 
+afterEach(() => {
+  for (const proxy of trackedProxies) {
+    const dump = JSON.parse(JSON.stringify(proxy.dumpState())) as DraftProxyStateDump;
+    const restoredProxy = createDraftProxy(proxy.config, { state: dump });
+
+    expect(restoredProxy.getLog()).toEqual(proxy.getLog());
+    expect(restoredProxy.getState()).toEqual(proxy.getState());
+  }
+
+  trackedProxies.length = 0;
+});
+
 describe('draft proxy public instance API', () => {
   it('processes meta requests without creating a Koa app', async () => {
-    const proxy = createDraftProxy(config);
+    const proxy = createTrackedDraftProxy(config);
 
     const health = await proxy.processRequest({
       method: 'GET',
@@ -96,8 +122,8 @@ describe('draft proxy public instance API', () => {
   });
 
   it('keeps staged state, logs, resets, and synthetic IDs isolated by instance', async () => {
-    const firstProxy = createDraftProxy(config);
-    const secondProxy = createDraftProxy(config);
+    const firstProxy = createTrackedDraftProxy(config);
+    const secondProxy = createTrackedDraftProxy(config);
 
     const firstCreateResponse = await firstProxy.processGraphQLRequest(
       productCreateBodyWithTitle('First Instance Hat'),
@@ -145,7 +171,7 @@ describe('draft proxy public instance API', () => {
   });
 
   it('lets the Koa app mount a provided proxy instance', async () => {
-    const proxy = createDraftProxy(config);
+    const proxy = createTrackedDraftProxy(config);
     const app = createApp(config, proxy).callback();
 
     const createResponse = await request(app).post('/admin/api/2025-01/graphql.json').send(productCreateBody);
@@ -180,8 +206,8 @@ describe('draft proxy public instance API', () => {
   });
 
   it('records equivalent mutation logs through the direct instance and HTTP app paths', async () => {
-    const directProxy = createDraftProxy(config);
-    const httpProxy = createDraftProxy(config);
+    const directProxy = createTrackedDraftProxy(config);
+    const httpProxy = createTrackedDraftProxy(config);
     const app = createRuntimeApp(config, httpProxy).callback();
 
     const directResponse = await directProxy.processGraphQLRequest(productCreateBody, {
@@ -209,7 +235,7 @@ describe('draft proxy public instance API', () => {
       ...config,
       readMode: 'snapshot',
     };
-    const proxy = createDraftProxy(snapshotConfig);
+    const proxy = createTrackedDraftProxy(snapshotConfig);
 
     const createResponse = await proxy.processGraphQLRequest(productCreateBodyWithTitle('Restored Library Hat'), {
       apiVersion: '2025-01',
@@ -229,7 +255,7 @@ describe('draft proxy public instance API', () => {
     const jsonRoundTrip = JSON.parse(JSON.stringify(dump)) as DraftProxyStateDump;
     expect(jsonRoundTrip).toEqual(dump);
 
-    const restoredProxy = createDraftProxy(snapshotConfig, { state: jsonRoundTrip });
+    const restoredProxy = createTrackedDraftProxy(snapshotConfig, { state: jsonRoundTrip });
     expect(restoredProxy.getLog()).toEqual(proxy.getLog());
     expect(restoredProxy.getState().stagedState.products[productId]?.title).toBe('Restored Library Hat');
 
@@ -269,7 +295,7 @@ describe('draft proxy public instance API', () => {
       ...config,
       readMode: 'snapshot',
     };
-    const proxy = createDraftProxy(snapshotConfig);
+    const proxy = createTrackedDraftProxy(snapshotConfig);
     const createResponse = await proxy.processGraphQLRequest(productCreateBodyWithTitle('Forward Compatible Hat'), {
       apiVersion: '2025-01',
     });
@@ -281,7 +307,7 @@ describe('draft proxy public instance API', () => {
     delete dump.extensions;
     dump.futureMetadata = { ignored: true };
 
-    const restoredProxy = createDraftProxy(snapshotConfig);
+    const restoredProxy = createTrackedDraftProxy(snapshotConfig);
     restoredProxy.restoreState(dump);
 
     expect(restoredProxy.getState().stagedState.products[productId]?.title).toBe('Forward Compatible Hat');
