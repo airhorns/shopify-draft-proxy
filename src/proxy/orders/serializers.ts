@@ -653,7 +653,7 @@ function serializeDraftOrderCustomer(
   return result;
 }
 
-function serializeDraftOrderPaymentTerms(
+export function serializeDraftOrderPaymentTerms(
   field: FieldNode,
   paymentTerms: DraftOrderPaymentTermsRecord | null,
 ): Record<string, unknown> | null {

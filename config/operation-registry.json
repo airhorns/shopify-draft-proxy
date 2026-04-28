@@ -4086,30 +4086,30 @@
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentTermsCreate", "PaymentTermsCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and must use an isolated order because it changes due dates/payment schedules."
+    "runtimeTests": ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages payment terms creation onto eligible staged/base orders and staged draft orders without runtime Shopify writes. The local model uses the captured paymentTermsTemplates catalog, Shopify-documented create argument shape, and local guardrails for unknown targets, missing/unknown templates, and invalid schedule/template combinations."
   },
   {
     "name": "paymentTermsDelete",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentTermsDelete", "PaymentTermsDelete"],
-    "runtimeTests": [],
-    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and disposable terms because delete changes payment schedules."
+    "runtimeTests": ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages payment terms deletion by paymentTermsId across the order/draft-order graph and preserves duplicate-delete/not-found userErrors without runtime Shopify writes."
   },
   {
     "name": "paymentTermsUpdate",
     "type": "mutation",
     "domain": "payments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["paymentTermsUpdate", "PaymentTermsUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "Payment terms scaffold only. Future capture requires write_payment_terms plus order or draft-order access and an isolated payment schedule because updates change due dates/payment status."
+    "runtimeTests": ["tests/integration/payment-terms-lifecycle-flow.test.ts"],
+    "supportNotes": "Locally stages payment terms updates by paymentTermsId, preserving stable payment terms IDs and schedule IDs where possible while updating downstream Order.paymentTerms and DraftOrder.paymentTerms reads."
   },
   {
     "name": "disputeEvidenceUpdate",

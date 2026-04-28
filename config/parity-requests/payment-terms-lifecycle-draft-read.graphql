@@ -1,0 +1,41 @@
+query PaymentTermsLifecycleDraftRead($id: ID!) {
+  draftOrder(id: $id) {
+    id
+    paymentTerms {
+      id
+      due
+      overdue
+      dueInDays
+      paymentTermsName
+      paymentTermsType
+      translatedName
+      paymentSchedules(first: 2) {
+        nodes {
+          id
+          issuedAt
+          dueAt
+          completedAt
+          due
+          amount {
+            amount
+            currencyCode
+          }
+          balanceDue {
+            amount
+            currencyCode
+          }
+          totalBalance {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+}

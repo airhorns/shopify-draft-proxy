@@ -4,9 +4,9 @@
     "bulkOperation",
     "bulkOperations",
     "currentBulkOperation",
+    "bulkOperationCancel",
     "bulkOperationRunQuery",
-    "bulkOperationRunMutation",
-    "bulkOperationCancel"
+    "bulkOperationRunMutation"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "empty-state-parity", "user-errors-parity", "local-state-foundation"],

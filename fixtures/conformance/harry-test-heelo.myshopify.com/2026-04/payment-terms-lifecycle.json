@@ -1,0 +1,418 @@
+{
+  "capturedAt": "2026-04-27T23:20:02.399Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seedDraftOrder": {
+    "id": "gid://shopify/DraftOrder/1249327055154",
+    "name": "#D69",
+    "paymentTerms": null,
+    "subtotalPriceSet": {
+      "shopMoney": {
+        "amount": "18.5",
+        "currencyCode": "CAD"
+      }
+    },
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "18.5",
+        "currencyCode": "CAD"
+      }
+    }
+  },
+  "setup": {
+    "draftOrderCreate": {
+      "query": "#graphql\n  mutation PaymentTermsLifecycleDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        paymentTerms {\n          id\n        }\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "har222-payment-terms-1777332001108@example.com",
+          "lineItems": [
+            {
+              "title": "HAR-222 payment terms lifecycle",
+              "quantity": 1,
+              "originalUnitPrice": "18.50"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1249327055154",
+              "name": "#D69",
+              "paymentTerms": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "paymentTermsCreate": {
+      "query": "#graphql\n  mutation PaymentTermsLifecycleCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1249327055154",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-04-27T12:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/143669952818",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/174606254386",
+                    "issuedAt": "2026-04-27T12:00:00Z",
+                    "dueAt": "2026-05-27T12:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyNTQzODYsImxhc3RfdmFsdWUiOjE3NDYwNjI1NDM4Nn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyNTQzODYsImxhc3RfdmFsdWUiOjE3NDYwNjI1NDM4Nn0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentTermsUpdate": {
+      "query": "#graphql\n  mutation PaymentTermsLifecycleUpdate($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      #graphql\n  paymentTerms {\n    id\n    due\n    overdue\n    dueInDays\n    paymentTermsName\n    paymentTermsType\n    translatedName\n    paymentSchedules(first: 2) {\n      nodes {\n        id\n        issuedAt\n        dueAt\n        completedAt\n        due\n        amount {\n          amount\n          currencyCode\n        }\n        balanceDue {\n          amount\n          currencyCode\n        }\n        totalBalance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/143669952818",
+          "paymentTermsAttributes": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2026-05-27T12:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/143669952818",
+              "due": false,
+              "overdue": false,
+              "dueInDays": null,
+              "paymentTermsName": "Fixed",
+              "paymentTermsType": "FIXED",
+              "translatedName": "Fixed",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/174606287154",
+                    "issuedAt": null,
+                    "dueAt": "2026-05-27T12:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyODcxNTQsImxhc3RfdmFsdWUiOjE3NDYwNjI4NzE1NH0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyODcxNTQsImxhc3RfdmFsdWUiOjE3NDYwNjI4NzE1NH0="
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentTermsDelete": {
+      "query": "#graphql\n  mutation PaymentTermsLifecycleDelete($input: PaymentTermsDeleteInput!) {\n    paymentTermsDelete(input: $input) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/143669952818"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": "gid://shopify/PaymentTerms/143669952818",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "afterCreate": {
+      "query": "#graphql\n  query PaymentTermsLifecycleDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n            issuedAt\n            dueAt\n            completedAt\n            due\n            amount {\n              amount\n              currencyCode\n            }\n            balanceDue {\n              amount\n              currencyCode\n            }\n            totalBalance {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249327055154"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1249327055154",
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/143669952818",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/174606254386",
+                    "issuedAt": "2026-04-27T12:00:00Z",
+                    "dueAt": "2026-05-27T12:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyNTQzODYsImxhc3RfdmFsdWUiOjE3NDYwNjI1NDM4Nn0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyNTQzODYsImxhc3RfdmFsdWUiOjE3NDYwNjI1NDM4Nn0="
+                }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterUpdate": {
+      "query": "#graphql\n  query PaymentTermsLifecycleDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n            issuedAt\n            dueAt\n            completedAt\n            due\n            amount {\n              amount\n              currencyCode\n            }\n            balanceDue {\n              amount\n              currencyCode\n            }\n            totalBalance {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249327055154"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1249327055154",
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/143669952818",
+              "due": false,
+              "overdue": false,
+              "dueInDays": null,
+              "paymentTermsName": "Fixed",
+              "paymentTermsType": "FIXED",
+              "translatedName": "Fixed",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/174606287154",
+                    "issuedAt": null,
+                    "dueAt": "2026-05-27T12:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyODcxNTQsImxhc3RfdmFsdWUiOjE3NDYwNjI4NzE1NH0=",
+                  "endCursor": "eyJsYXN0X2lkIjoxNzQ2MDYyODcxNTQsImxhc3RfdmFsdWUiOjE3NDYwNjI4NzE1NH0="
+                }
+              }
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterDelete": {
+      "query": "#graphql\n  query PaymentTermsLifecycleDraftRead($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      paymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n            issuedAt\n            dueAt\n            completedAt\n            due\n            amount {\n              amount\n              currencyCode\n            }\n            balanceDue {\n              amount\n              currencyCode\n            }\n            totalBalance {\n              amount\n              currencyCode\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249327055154"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1249327055154",
+            "paymentTerms": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 2,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "draftOrderDelete": {
+      "data": {
+        "draftOrderDelete": {
+          "deletedId": "gid://shopify/DraftOrder/1249327055154",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "Captured on a disposable draft order. Shopify computes NET dueAt from issuedAt plus template due days, creates a new PaymentSchedule id on FIXED update, and returns null paymentTerms after delete."
+}

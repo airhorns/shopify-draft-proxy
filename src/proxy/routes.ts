@@ -100,6 +100,7 @@ const APP_BILLING_ACCESS_MUTATION_ROOTS = new Set([
 ]);
 
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
 const ORDER_RETURN_MUTATION_ROOTS = new Set([
   'returnCreate',
   'returnRequest',
@@ -125,6 +126,9 @@ const NO_LOG_ERROR_MUTATION_ROOTS = new Set([
   'returnCancel',
   'returnClose',
   'returnReopen',
+  'paymentTermsCreate',
+  'paymentTermsUpdate',
+  'paymentTermsDelete',
 ]);
 
 const PAYMENT_CUSTOMIZATION_MUTATION_ROOTS = new Set([
@@ -1468,6 +1472,29 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
     name: 'payments',
     canHandle: (request) => request.capability.domain === 'payments',
     handleMutation(request) {
+      if (PAYMENT_TERMS_MUTATION_ROOTS.has(request.primaryRootField ?? '')) {
+        const responseBody = handleOrderMutation(
+          request.body.query,
+          request.variables,
+          request.config.readMode,
+          request.config.shopifyAdminOrigin,
+        );
+        if (responseBody === null) {
+          return false;
+        }
+
+        if (shouldAppendLocalMutationLog(request.primaryRootField, responseBody)) {
+          appendStagedMutationLog(request, {
+            operationName: request.primaryRootField,
+            responseBody,
+            notes:
+              'Staged payment terms locally on the order/draft-order graph; runtime Shopify payment terms writes are not sent upstream.',
+          });
+        }
+        setGraphQLResponse(request, 200, responseBody);
+        return true;
+      }
+
       if (
         request.capability.execution !== 'stage-locally' ||
         !PAYMENT_CUSTOMIZATION_MUTATION_ROOTS.has(request.primaryRootField ?? '')

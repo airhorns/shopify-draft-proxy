@@ -565,6 +565,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    packageScript: 'conformance:capture-payment-terms-lifecycle',
+    scriptPath: 'scripts/capture-payment-terms-lifecycle-conformance.ts',
+    purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
+    cleanupBehavior:
+      'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'admin-platform',
     packageScript: 'conformance:capture-admin-platform',
     scriptPath: 'scripts/capture-admin-platform-conformance.mts',
