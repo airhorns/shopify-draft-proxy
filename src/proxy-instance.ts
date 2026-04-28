@@ -51,6 +51,8 @@ export type DraftProxyStateResponse = ReturnType<InMemoryStore['getState']>;
 
 const ADMIN_GRAPHQL_ROUTE_PATTERN = /^\/admin\/api\/[^/]+\/graphql\.json$/u;
 const BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__bulk_operations\/([^/]+)\/result\.jsonl$/u;
+const META_BULK_OPERATION_RESULT_ROUTE_PATTERN = /^\/__meta\/bulk-operations\/(.+)\/result\.jsonl$/u;
+const STAGED_UPLOAD_ROUTE_PATTERN = /^\/staged-uploads\/([^/]+)\/(.+)$/u;
 
 function defaultGraphQLPath(apiVersion: string | undefined): string {
   return `/admin/api/${apiVersion ?? '2025-01'}/graphql.json`;
@@ -75,6 +77,19 @@ function withOptionalHeaders<T extends { headers?: Record<string, DraftProxyHead
     ...target,
     ...(headers ? { headers } : {}),
   } as T;
+}
+
+function requestBodyToText(body: unknown): string {
+  if (typeof body === 'string') {
+    return body;
+  }
+  if (Buffer.isBuffer(body)) {
+    return body.toString('utf8');
+  }
+  if (body && typeof body === 'object') {
+    return JSON.stringify(body);
+  }
+  return '';
 }
 
 export class DraftProxy {
@@ -137,6 +152,37 @@ export class DraftProxy {
       return { status: 200, body: this.getState() };
     }
 
+    const metaBulkOperationResultMatch = META_BULK_OPERATION_RESULT_ROUTE_PATTERN.exec(input.path);
+    if (metaBulkOperationResultMatch) {
+      if (!methodIs(input, 'GET')) {
+        return methodNotAllowed();
+      }
+
+      const encodedOperationId = metaBulkOperationResultMatch[1];
+      if (!encodedOperationId) {
+        return {
+          status: 404,
+          body: 'Bulk operation result not found',
+        };
+      }
+
+      const operationId = decodeURIComponent(encodedOperationId);
+      const operation = this.runtimeStore.getEffectiveBulkOperationById(operationId);
+
+      if (!operation?.resultJsonl) {
+        return {
+          status: 404,
+          body: 'Bulk operation result not found',
+        };
+      }
+
+      return {
+        status: 200,
+        headers: { 'content-type': 'application/jsonl; charset=utf-8' },
+        body: operation.resultJsonl,
+      };
+    }
+
     if (input.path === '/__meta/reset') {
       if (!methodIs(input, 'POST')) {
         return methodNotAllowed();
@@ -172,6 +218,42 @@ export class DraftProxy {
         status: 200,
         headers: { 'content-type': 'application/jsonl; charset=utf-8' },
         body: jsonl,
+      };
+    }
+
+    const stagedUploadMatch = STAGED_UPLOAD_ROUTE_PATTERN.exec(input.path);
+    if (stagedUploadMatch) {
+      if (!methodIs(input, 'POST') && !methodIs(input, 'PUT')) {
+        return methodNotAllowed();
+      }
+
+      const encodedTargetId = stagedUploadMatch[1];
+      const encodedFilenameFromPath = stagedUploadMatch[2];
+      if (!encodedTargetId || !encodedFilenameFromPath) {
+        return {
+          status: 404,
+          body: { errors: [{ message: 'Not found' }] },
+        };
+      }
+
+      const targetId = decodeURIComponent(encodedTargetId);
+      const filename = decodeURIComponent(encodedFilenameFromPath);
+      const key = `shopify-draft-proxy/${targetId}/${filename}`;
+      const encodedId = encodeURIComponent(targetId);
+      const encodedFilename = encodeURIComponent(filename);
+
+      this.runtimeStore.stageUploadContent(
+        [
+          key,
+          `/staged-uploads/${encodedId}/${encodedFilename}`,
+          `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
+        ],
+        requestBodyToText(input.body),
+      );
+
+      return {
+        status: 201,
+        body: { ok: true, key },
       };
     }
 

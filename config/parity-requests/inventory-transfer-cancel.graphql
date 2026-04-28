@@ -1,0 +1,11 @@
+mutation InventoryTransferCancelParity($id: ID!) {
+  inventoryTransferCancel(id: $id) {
+    inventoryTransfer {
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

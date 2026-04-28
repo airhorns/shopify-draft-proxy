@@ -147,6 +147,25 @@ function recordCommitIdMappings(entry: MutationLogEntry, responseBody: unknown, 
   }
 }
 
+async function readRequestText(ctx: Koa.Context): Promise<string> {
+  const parsedBody = ctx.request.body;
+  if (typeof parsedBody === 'string') {
+    return parsedBody;
+  }
+  if (Buffer.isBuffer(parsedBody)) {
+    return parsedBody.toString('utf8');
+  }
+  if (parsedBody && typeof parsedBody === 'object' && Object.keys(parsedBody).length > 0) {
+    return JSON.stringify(parsedBody);
+  }
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of ctx.req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -765,6 +784,47 @@ export function createMetaRouter(config: AppConfig): Router {
   router.get('/__meta/state', (ctx: Koa.Context) => {
     ctx.body = getMetaState();
   });
+
+  router.get('/__meta/bulk-operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
+    const params = ctx['params'] as Record<string, string | undefined>;
+    const operationId = params['operationId'];
+    const operation = operationId ? store.getEffectiveBulkOperationById(operationId) : null;
+
+    if (!operation?.resultJsonl) {
+      ctx.status = 404;
+      ctx.body = 'Bulk operation result not found';
+      return;
+    }
+
+    ctx.type = 'application/jsonl';
+    ctx.body = operation.resultJsonl;
+  });
+
+  async function handleStagedUpload(ctx: Koa.Context): Promise<void> {
+    const captures = (ctx as Koa.Context & { captures?: string[] }).captures ?? [];
+    const params = ctx['params'] as Record<string, string | undefined>;
+    const targetId = decodeURIComponent(params[0] ?? captures[0] ?? '');
+    const filename = decodeURIComponent(params[1] ?? captures[1] ?? '');
+    const content = await readRequestText(ctx);
+    const key = `shopify-draft-proxy/${targetId}/${filename}`;
+    const encodedId = encodeURIComponent(targetId);
+    const encodedFilename = encodeURIComponent(filename);
+
+    store.stageUploadContent(
+      [
+        key,
+        `/staged-uploads/${encodedId}/${encodedFilename}`,
+        `https://shopify-draft-proxy.local/staged-uploads/${encodedId}/${encodedFilename}`,
+      ],
+      content,
+    );
+
+    ctx.status = 201;
+    ctx.body = { ok: true, key };
+  }
+
+  router.post(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
+  router.put(/^\/staged-uploads\/([^/]+)\/(.+)$/u, handleStagedUpload);
 
   router.get('/__bulk_operations/:operationId/result.jsonl', (ctx: Koa.Context) => {
     const operationId = ctx['params']['operationId'];

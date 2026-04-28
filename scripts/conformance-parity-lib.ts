@@ -1283,7 +1283,7 @@ async function executeGraphQLAgainstLocalProxy(
   }
 
   if (capability.execution === 'stage-locally' && capability.domain === 'bulk-operations') {
-    const bulkOperationMutation = handleBulkOperationMutation(document, variables);
+    const bulkOperationMutation = handleBulkOperationMutation(document, variables, { readMode: 'snapshot' });
     if (!bulkOperationMutation) {
       throw new Error(`Bulk-operation parity request was not handled locally: ${capability.operationName}`);
     }
@@ -5109,6 +5109,15 @@ function makeCapturedVariant(productId: string, source: Record<string, unknown>)
     );
   const inventoryItem = readRecordField(source, 'inventoryItem');
   const inventoryItemId = readStringField(inventoryItem, 'id');
+  const inventoryLevelConnection = readRecordField(inventoryItem, 'inventoryLevels');
+  const inventoryLevelSources =
+    readArrayField(inventoryLevelConnection, 'nodes').length > 0
+      ? readArrayField(inventoryLevelConnection, 'nodes')
+      : readArrayField(inventoryItem, 'inventoryLevels');
+  const inventoryLevels = inventoryLevelSources
+    .filter(isPlainObject)
+    .map(readCapturedInventoryLevel)
+    .filter((level): level is InventoryLevelRecord => level !== null);
 
   return {
     id,
@@ -5131,7 +5140,7 @@ function makeCapturedVariant(productId: string, source: Record<string, unknown>)
           countryCodeOfOrigin: null,
           provinceCodeOfOrigin: null,
           harmonizedSystemCode: null,
-          inventoryLevels: [],
+          inventoryLevels,
         }
       : null,
   };

@@ -36,6 +36,7 @@ import type {
   InventoryShipmentRecord,
   GiftCardConfigurationRecord,
   GiftCardRecord,
+  InventoryTransferRecord,
   LocationRecord,
   LocaleRecord,
   MarketLocalizationRecord,
@@ -97,6 +98,8 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   productVariants: {},
   productOptions: {},
   productOperations: {},
+  inventoryTransfers: {},
+  inventoryTransferOrder: [],
   locations: {},
   locationOrder: [],
   fulfillmentServices: {},
@@ -199,6 +202,7 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   metaobjects: {},
   customerMetafields: {},
   deletedProductIds: {},
+  deletedInventoryTransferIds: {},
   deletedFileIds: {},
   deletedCollectionIds: {},
   deletedPublicationIds: {},
@@ -609,6 +613,7 @@ export class InMemoryStore {
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
   private deletedDraftOrderIds = new Set<string>();
   private orderMandatePayments: Record<string, OrderMandatePaymentRecord> = {};
+  private stagedUploadContents = new Map<string, string>();
 
   installSnapshot(snapshotFile: NormalizedStateSnapshotFile): void {
     this.initialBaseState = cloneSnapshot(snapshotFile.baseState);
@@ -642,6 +647,7 @@ export class InMemoryStore {
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
     this.deletedDraftOrderIds = new Set<string>();
     this.orderMandatePayments = {};
+    this.stagedUploadContents = new Map<string, string>();
   }
 
   reset(): void {
@@ -674,6 +680,16 @@ export class InMemoryStore {
 
   getLog(): MutationLogEntry[] {
     return structuredClone(this.mutationLog);
+  }
+
+  stageUploadContent(keys: string[], content: string): void {
+    for (const key of keys) {
+      this.stagedUploadContents.set(key, content);
+    }
+  }
+
+  getStagedUploadContent(key: string): string | null {
+    return this.stagedUploadContents.get(key) ?? null;
   }
 
   updateLogEntry(
@@ -4307,6 +4323,57 @@ export class InMemoryStore {
     return operation ? structuredClone(operation) : null;
   }
 
+  getEffectiveInventoryTransferById(transferId: string): InventoryTransferRecord | null {
+    if (this.stagedState.deletedInventoryTransferIds[transferId]) {
+      return null;
+    }
+
+    const transfer = this.stagedState.inventoryTransfers[transferId] ?? this.baseState.inventoryTransfers[transferId];
+    return transfer ? structuredClone(transfer) : null;
+  }
+
+  listEffectiveInventoryTransfers(): InventoryTransferRecord[] {
+    const seenIds = new Set<string>();
+    const orderedTransfers: InventoryTransferRecord[] = [];
+    for (const id of [...this.baseState.inventoryTransferOrder, ...this.stagedState.inventoryTransferOrder]) {
+      if (seenIds.has(id) || this.stagedState.deletedInventoryTransferIds[id]) {
+        continue;
+      }
+
+      const transfer = this.getEffectiveInventoryTransferById(id);
+      if (transfer) {
+        orderedTransfers.push(transfer);
+        seenIds.add(id);
+      }
+    }
+
+    const unorderedTransfers = [
+      ...Object.values(this.baseState.inventoryTransfers),
+      ...Object.values(this.stagedState.inventoryTransfers),
+    ]
+      .filter((transfer) => !seenIds.has(transfer.id) && !this.stagedState.deletedInventoryTransferIds[transfer.id])
+      .map((transfer) => structuredClone(transfer));
+
+    return [...orderedTransfers, ...unorderedTransfers];
+  }
+
+  upsertStagedInventoryTransfer(transfer: InventoryTransferRecord): void {
+    this.stagedState.inventoryTransfers[transfer.id] = structuredClone(transfer);
+    delete this.stagedState.deletedInventoryTransferIds[transfer.id];
+    if (
+      !this.baseState.inventoryTransferOrder.includes(transfer.id) &&
+      !this.stagedState.inventoryTransferOrder.includes(transfer.id)
+    ) {
+      this.stagedState.inventoryTransferOrder.push(transfer.id);
+    }
+  }
+
+  deleteStagedInventoryTransfer(transferId: string): void {
+    delete this.stagedState.inventoryTransfers[transferId];
+    this.stagedState.deletedInventoryTransferIds[transferId] = true;
+    this.stagedState.inventoryTransferOrder = this.stagedState.inventoryTransferOrder.filter((id) => id !== transferId);
+  }
+
   findEffectiveVariantByInventoryItemId(inventoryItemId: string): ProductVariantRecord | null {
     const productIds = new Set<string>();
     for (const variant of Object.values(this.baseState.productVariants)) {
@@ -4785,6 +4852,13 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedProductIds).length > 0 ||
       Object.keys(this.stagedState.deletedCollectionIds).length > 0 ||
       Object.keys(this.stagedState.deletedPublicationIds).length > 0
+    );
+  }
+
+  hasStagedInventoryTransfers(): boolean {
+    return (
+      Object.keys(this.stagedState.inventoryTransfers).length > 0 ||
+      Object.keys(this.stagedState.deletedInventoryTransferIds).length > 0
     );
   }
 }
