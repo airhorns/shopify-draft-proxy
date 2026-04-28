@@ -1,8 +1,7 @@
+import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { makeSyntheticGid } from '../state/synthetic-identity.js';
-import { store } from '../state/store.js';
 import type {
   DeliveryProfileCountryAndZoneRecord,
   DeliveryProfileCountryCodeRecord,
@@ -210,21 +209,24 @@ const countryNamesByCode: Record<string, string> = {
   US: 'United States',
 };
 
-function makeDeliveryCountry(input: Record<string, unknown>): DeliveryProfileCountryRecord {
+function makeDeliveryCountry(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): DeliveryProfileCountryRecord {
   const restOfWorld = readBoolean(input['restOfWorld']) === true;
   const countryCode = restOfWorld ? null : (readString(input['code']) ?? null);
   const name = restOfWorld ? 'Rest of world' : (countryNamesByCode[countryCode ?? ''] ?? countryCode ?? 'Unknown');
   const provinces = readRecordArray(input['provinces']).map((province): DeliveryProfileProvinceRecord => {
     const code = readString(province['code']) ?? '';
     return {
-      id: makeSyntheticGid('DeliveryProvince'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('DeliveryProvince'),
       name: code,
       code,
     };
   });
 
   return {
-    id: makeSyntheticGid('DeliveryCountry'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('DeliveryCountry'),
     name,
     translatedName: name,
     code: {
@@ -236,6 +238,7 @@ function makeDeliveryCountry(input: Record<string, unknown>): DeliveryProfileCou
 }
 
 function makeRateProvider(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: DeliveryProfileMethodDefinitionRecord,
 ): DeliveryProfileMethodDefinitionRecord['rateProvider'] {
@@ -244,7 +247,7 @@ function makeRateProvider(
     return structuredClone(
       existing?.rateProvider ?? {
         __typename: 'DeliveryRateDefinition',
-        id: makeSyntheticGid('DeliveryRateDefinition'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('DeliveryRateDefinition'),
         price: {
           amount: '0.0',
           currencyCode: 'USD',
@@ -256,7 +259,7 @@ function makeRateProvider(
   const price = isRecord(rateDefinition['price']) ? rateDefinition['price'] : {};
   return {
     __typename: 'DeliveryRateDefinition',
-    id: readString(rateDefinition['id']) ?? makeSyntheticGid('DeliveryRateDefinition'),
+    id: readString(rateDefinition['id']) ?? runtime.syntheticIdentity.makeSyntheticGid('DeliveryRateDefinition'),
     price: {
       amount: normalizeMoneyAmount(price['amount']),
       currencyCode: readString(price['currencyCode']) ?? 'USD',
@@ -268,15 +271,18 @@ function conditionOperatorSlug(operator: string): string {
   return operator.toLowerCase().replaceAll('_', '-').replaceAll('-', '_');
 }
 
-function makeConditionId(operator: string): string {
-  return `${makeSyntheticGid('DeliveryCondition')}?operator=${conditionOperatorSlug(operator)}`;
+function makeConditionId(runtime: ProxyRuntimeContext, operator: string): string {
+  return `${runtime.syntheticIdentity.makeSyntheticGid('DeliveryCondition')}?operator=${conditionOperatorSlug(operator)}`;
 }
 
-function makeWeightCondition(input: Record<string, unknown>): DeliveryProfileMethodConditionRecord {
+function makeWeightCondition(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): DeliveryProfileMethodConditionRecord {
   const criteria = isRecord(input['criteria']) ? input['criteria'] : {};
   const operator = readString(input['operator']) ?? 'GREATER_THAN_OR_EQUAL_TO';
   return {
-    id: makeConditionId(operator),
+    id: makeConditionId(runtime, operator),
     field: 'TOTAL_WEIGHT',
     operator,
     conditionCriteria: {
@@ -287,11 +293,14 @@ function makeWeightCondition(input: Record<string, unknown>): DeliveryProfileMet
   };
 }
 
-function makePriceCondition(input: Record<string, unknown>): DeliveryProfileMethodConditionRecord {
+function makePriceCondition(
+  runtime: ProxyRuntimeContext,
+  input: Record<string, unknown>,
+): DeliveryProfileMethodConditionRecord {
   const criteria = isRecord(input['criteria']) ? input['criteria'] : {};
   const operator = readString(input['operator']) ?? 'GREATER_THAN_OR_EQUAL_TO';
   return {
-    id: makeConditionId(operator),
+    id: makeConditionId(runtime, operator),
     field: 'TOTAL_PRICE',
     operator,
     conditionCriteria: {
@@ -347,28 +356,35 @@ function applyConditionUpdates(
 }
 
 function makeMethodDefinition(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: DeliveryProfileMethodDefinitionRecord,
 ): DeliveryProfileMethodDefinitionRecord {
-  const weightConditions = readRecordArray(input['weightConditionsToCreate']).map(makeWeightCondition);
-  const priceConditions = readRecordArray(input['priceConditionsToCreate']).map(makePriceCondition);
+  const weightConditions = readRecordArray(input['weightConditionsToCreate']).map((conditionInput) =>
+    makeWeightCondition(runtime, conditionInput),
+  );
+  const priceConditions = readRecordArray(input['priceConditionsToCreate']).map((conditionInput) =>
+    makePriceCondition(runtime, conditionInput),
+  );
   const updatedConditions = applyConditionUpdates(
     existing?.methodConditions ?? [],
     readRecordArray(input['conditionsToUpdate']),
   );
 
   return {
-    id: readString(input['id']) ?? existing?.id ?? makeSyntheticGid('DeliveryMethodDefinition'),
+    id:
+      readString(input['id']) ?? existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('DeliveryMethodDefinition'),
     name: readNullableString(input['name']) ?? existing?.name ?? 'Standard',
     active: readBoolean(input['active']) ?? existing?.active ?? true,
     description: readNullableString(input['description']) ?? existing?.description ?? null,
-    rateProvider: makeRateProvider(input, existing),
+    rateProvider: makeRateProvider(runtime, input, existing),
     methodConditions: [...updatedConditions, ...weightConditions, ...priceConditions],
     cursor: existing?.cursor,
   };
 }
 
 function makeLocationGroupZone(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: DeliveryProfileLocationGroupZoneRecord,
 ): DeliveryProfileLocationGroupZoneRecord {
@@ -377,21 +393,21 @@ function makeLocationGroupZone(
     const id = readString(methodInput['id']);
     const index = id ? updatedMethods.findIndex((method) => method.id === id) : -1;
     if (index !== -1) {
-      updatedMethods[index] = makeMethodDefinition(methodInput, updatedMethods[index]);
+      updatedMethods[index] = makeMethodDefinition(runtime, methodInput, updatedMethods[index]);
     }
   }
 
   const createdMethods = readRecordArray(input['methodDefinitionsToCreate']).map((methodInput) =>
-    makeMethodDefinition(methodInput),
+    makeMethodDefinition(runtime, methodInput),
   );
   const countries =
     input['countries'] === undefined
       ? (existing?.zone.countries.map((country) => structuredClone(country)) ?? [])
-      : readRecordArray(input['countries']).map(makeDeliveryCountry);
+      : readRecordArray(input['countries']).map((countryInput) => makeDeliveryCountry(runtime, countryInput));
 
   return {
     zone: {
-      id: readString(input['id']) ?? existing?.zone.id ?? makeSyntheticGid('DeliveryZone'),
+      id: readString(input['id']) ?? existing?.zone.id ?? runtime.syntheticIdentity.makeSyntheticGid('DeliveryZone'),
       name: readNullableString(input['name']) ?? existing?.zone.name ?? 'Shipping zone',
       countries,
     },
@@ -401,6 +417,7 @@ function makeLocationGroupZone(
 }
 
 function makeLocationGroup(
+  runtime: ProxyRuntimeContext,
   input: Record<string, unknown>,
   existing?: DeliveryProfileLocationGroupRecord,
 ): DeliveryProfileLocationGroupRecord {
@@ -417,14 +434,16 @@ function makeLocationGroup(
     const id = readString(zoneInput['id']);
     const index = id ? updatedZones.findIndex((zone) => zone.zone.id === id) : -1;
     if (index !== -1) {
-      updatedZones[index] = makeLocationGroupZone(zoneInput, updatedZones[index]);
+      updatedZones[index] = makeLocationGroupZone(runtime, zoneInput, updatedZones[index]);
     }
   }
 
-  const createdZones = readRecordArray(input['zonesToCreate']).map((zoneInput) => makeLocationGroupZone(zoneInput));
+  const createdZones = readRecordArray(input['zonesToCreate']).map((zoneInput) =>
+    makeLocationGroupZone(runtime, zoneInput),
+  );
 
   return {
-    id: readString(input['id']) ?? existing?.id ?? makeSyntheticGid('DeliveryLocationGroup'),
+    id: readString(input['id']) ?? existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('DeliveryLocationGroup'),
     locationIds: locations,
     locationCursors: existing?.locationCursors,
     countriesInAnyZone: [...updatedZones, ...createdZones].flatMap((zone) =>
@@ -497,10 +516,14 @@ function removeVariantsFromProfile(profile: DeliveryProfileRecord, variantIds: s
   });
 }
 
-function associateVariantsWithProfile(profile: DeliveryProfileRecord, variantIds: string[]): DeliveryProfileRecord {
+function associateVariantsWithProfile(
+  runtime: ProxyRuntimeContext,
+  profile: DeliveryProfileRecord,
+  variantIds: string[],
+): DeliveryProfileRecord {
   const next = structuredClone(profile);
   for (const variantId of variantIds) {
-    const variant = store.getEffectiveVariantById(variantId);
+    const variant = runtime.store.getEffectiveVariantById(variantId);
     if (!variant) {
       continue;
     }
@@ -528,25 +551,29 @@ function associateVariantsWithProfile(profile: DeliveryProfileRecord, variantIds
   return recomputeProfileDerivedFields(next);
 }
 
-function stageVariantReassignment(targetProfileId: string, variantIds: string[]): void {
+function stageVariantReassignment(runtime: ProxyRuntimeContext, targetProfileId: string, variantIds: string[]): void {
   if (variantIds.length === 0) {
     return;
   }
 
-  for (const profile of store.listEffectiveDeliveryProfiles()) {
+  for (const profile of runtime.store.listEffectiveDeliveryProfiles()) {
     if (profile.id === targetProfileId) {
       continue;
     }
 
     const updatedProfile = removeVariantsFromProfile(profile, variantIds);
     if (countProfileVariants(updatedProfile) !== countProfileVariants(profile)) {
-      store.stageUpdateDeliveryProfile(updatedProfile);
+      runtime.store.stageUpdateDeliveryProfile(updatedProfile);
     }
   }
 }
 
-function serializeProduct(productId: string, selections: readonly SelectionNode[]): Record<string, unknown> | null {
-  const product = store.getEffectiveProductById(productId);
+function serializeProduct(
+  runtime: ProxyRuntimeContext,
+  productId: string,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> | null {
+  const product = runtime.store.getEffectiveProductById(productId);
   const fallback: Pick<ProductRecord, 'id' | 'title'> = { id: productId, title: '' };
   const source = product ?? fallback;
   const result: Record<string, unknown> = {};
@@ -556,7 +583,7 @@ function serializeProduct(productId: string, selections: readonly SelectionNode[
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Product') {
         continue;
       }
-      Object.assign(result, serializeProduct(productId, selection.selectionSet.selections));
+      Object.assign(result, serializeProduct(runtime, productId, selection.selectionSet.selections));
       continue;
     }
 
@@ -591,6 +618,7 @@ function serializeProduct(productId: string, selections: readonly SelectionNode[
 }
 
 function serializeVariant(
+  runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
   selections: readonly SelectionNode[],
 ): Record<string, unknown> {
@@ -600,7 +628,7 @@ function serializeVariant(
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'ProductVariant') {
         continue;
       }
-      Object.assign(result, serializeVariant(variant, selection.selectionSet.selections));
+      Object.assign(result, serializeVariant(runtime, variant, selection.selectionSet.selections));
       continue;
     }
 
@@ -623,7 +651,7 @@ function serializeVariant(
         result[key] = variant.sku;
         break;
       case 'product':
-        result[key] = serializeProduct(variant.productId, selection.selectionSet?.selections ?? []);
+        result[key] = serializeProduct(runtime, variant.productId, selection.selectionSet?.selections ?? []);
         break;
       default:
         result[key] = null;
@@ -921,9 +949,9 @@ function serializeLocationGroupZone(
   return result;
 }
 
-function locationsForGroup(group: DeliveryProfileLocationGroupRecord): LocationRecord[] {
+function locationsForGroup(runtime: ProxyRuntimeContext, group: DeliveryProfileLocationGroupRecord): LocationRecord[] {
   return group.locationIds
-    .map((locationId) => store.getEffectiveLocationById(locationId))
+    .map((locationId) => runtime.store.getEffectiveLocationById(locationId))
     .filter((location): location is LocationRecord => location !== null);
 }
 
@@ -948,12 +976,13 @@ function serializeLocationsConnection(
 }
 
 function serializeLocationGroup(
+  runtime: ProxyRuntimeContext,
   group: DeliveryProfileLocationGroupRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  const locations = locationsForGroup(group);
+  const locations = locationsForGroup(runtime, group);
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
@@ -978,6 +1007,7 @@ function serializeLocationGroup(
 }
 
 function serializeProfileLocationGroup(
+  runtime: ProxyRuntimeContext,
   group: DeliveryProfileLocationGroupRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -992,7 +1022,7 @@ function serializeProfileLocationGroup(
         );
         break;
       case 'locationGroup':
-        result[key] = serializeLocationGroup(group, field.selectionSet?.selections ?? [], variables);
+        result[key] = serializeLocationGroup(runtime, group, field.selectionSet?.selections ?? [], variables);
         break;
       case 'locationGroupZones':
         result[key] = serializeLocationGroupZonesConnection(group.locationGroupZones, field, variables);
@@ -1005,18 +1035,19 @@ function serializeProfileLocationGroup(
   return result;
 }
 
-function variantsForProfileItem(item: DeliveryProfileItemRecord): ProductVariantRecord[] {
+function variantsForProfileItem(runtime: ProxyRuntimeContext, item: DeliveryProfileItemRecord): ProductVariantRecord[] {
   return item.variantIds
-    .map((variantId) => store.getEffectiveVariantById(variantId))
+    .map((variantId) => runtime.store.getEffectiveVariantById(variantId))
     .filter((variant): variant is ProductVariantRecord => variant !== null);
 }
 
 function serializeVariantsConnection(
+  runtime: ProxyRuntimeContext,
   item: DeliveryProfileItemRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const items = maybeReverse(variantsForProfileItem(item), field, variables);
+  const items = maybeReverse(variantsForProfileItem(runtime, item), field, variables);
   const getCursor = (variant: ProductVariantRecord) => variantCursor(item, variant);
   const window = paginateConnectionItems(items, field, variables, getCursor, {
     parseCursor: (raw) => raw,
@@ -1025,12 +1056,13 @@ function serializeVariantsConnection(
   return serializeConnection(field, {
     ...window,
     getCursorValue: getCursor,
-    serializeNode: (variant, selection) => serializeVariant(variant, selection.selectionSet?.selections ?? []),
+    serializeNode: (variant, selection) => serializeVariant(runtime, variant, selection.selectionSet?.selections ?? []),
     pageInfoOptions: { prefixCursors: false },
   });
 }
 
 function serializeProfileItem(
+  runtime: ProxyRuntimeContext,
   item: DeliveryProfileItemRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -1040,10 +1072,10 @@ function serializeProfileItem(
     const key = responseKey(field);
     switch (field.name.value) {
       case 'product':
-        result[key] = serializeProduct(item.productId, field.selectionSet?.selections ?? []);
+        result[key] = serializeProduct(runtime, item.productId, field.selectionSet?.selections ?? []);
         break;
       case 'variants':
-        result[key] = serializeVariantsConnection(item, field, variables);
+        result[key] = serializeVariantsConnection(runtime, item, field, variables);
         break;
       default:
         result[key] = null;
@@ -1054,6 +1086,7 @@ function serializeProfileItem(
 }
 
 function serializeProfileItemsConnection(
+  runtime: ProxyRuntimeContext,
   profile: DeliveryProfileRecord,
   field: FieldNode,
   variables: Record<string, unknown>,
@@ -1066,7 +1099,8 @@ function serializeProfileItemsConnection(
   return serializeConnection(field, {
     ...window,
     getCursorValue: deliveryProfileItemCursor,
-    serializeNode: (item, selection) => serializeProfileItem(item, selection.selectionSet?.selections ?? [], variables),
+    serializeNode: (item, selection) =>
+      serializeProfileItem(runtime, item, selection.selectionSet?.selections ?? [], variables),
     pageInfoOptions: { prefixCursors: false },
   });
 }
@@ -1091,13 +1125,14 @@ function serializePlainConnection(
   });
 }
 
-function unassignedLocations(profile: DeliveryProfileRecord): LocationRecord[] {
+function unassignedLocations(runtime: ProxyRuntimeContext, profile: DeliveryProfileRecord): LocationRecord[] {
   return profile.unassignedLocationIds
-    .map((locationId) => store.getEffectiveLocationById(locationId))
+    .map((locationId) => runtime.store.getEffectiveLocationById(locationId))
     .filter((location): location is LocationRecord => location !== null);
 }
 
 function serializeDeliveryProfile(
+  runtime: ProxyRuntimeContext,
   profile: DeliveryProfileRecord,
   selections: readonly SelectionNode[],
   variables: Record<string, unknown>,
@@ -1108,7 +1143,7 @@ function serializeDeliveryProfile(
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'DeliveryProfile') {
         continue;
       }
-      Object.assign(result, serializeDeliveryProfile(profile, selection.selectionSet.selections, variables));
+      Object.assign(result, serializeDeliveryProfile(runtime, profile, selection.selectionSet.selections, variables));
       continue;
     }
 
@@ -1149,7 +1184,7 @@ function serializeDeliveryProfile(
         result[key] = serializeCount(profile.productVariantsCount, selection.selectionSet?.selections ?? []);
         break;
       case 'profileItems':
-        result[key] = serializeProfileItemsConnection(profile, selection, variables);
+        result[key] = serializeProfileItemsConnection(runtime, profile, selection, variables);
         break;
       case 'profileLocationGroups': {
         const args = getFieldArguments(selection, variables);
@@ -1158,7 +1193,7 @@ function serializeDeliveryProfile(
           ? profile.profileLocationGroups.filter((group) => group.id === locationGroupId)
           : profile.profileLocationGroups;
         result[key] = groups.map((group) =>
-          serializeProfileLocationGroup(group, selection.selectionSet?.selections ?? [], variables),
+          serializeProfileLocationGroup(runtime, group, selection.selectionSet?.selections ?? [], variables),
         );
         break;
       }
@@ -1166,13 +1201,13 @@ function serializeDeliveryProfile(
         result[key] = serializePlainConnection(profile.sellingPlanGroups, selection, variables);
         break;
       case 'unassignedLocations':
-        result[key] = unassignedLocations(profile).map((location) =>
+        result[key] = unassignedLocations(runtime, profile).map((location) =>
           serializeLocation(location, selection.selectionSet?.selections ?? []),
         );
         break;
       case 'unassignedLocationsPaginated':
         result[key] = serializeLocationsConnection(
-          unassignedLocations(profile),
+          unassignedLocations(runtime, profile),
           selection,
           variables,
           profile.unassignedLocationCursors,
@@ -1187,9 +1222,13 @@ function serializeDeliveryProfile(
   return result;
 }
 
-function profilesForConnection(field: FieldNode, variables: Record<string, unknown>): DeliveryProfileRecord[] {
+function profilesForConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DeliveryProfileRecord[] {
   const merchantOwnedOnly = readBooleanArgument(field, 'merchantOwnedOnly', variables);
-  const profiles = store.listEffectiveDeliveryProfiles().filter((profile) => {
+  const profiles = runtime.store.listEffectiveDeliveryProfiles().filter((profile) => {
     if (merchantOwnedOnly === true) {
       return profile.merchantOwned;
     }
@@ -1201,10 +1240,11 @@ function profilesForConnection(field: FieldNode, variables: Record<string, unkno
 }
 
 function serializeDeliveryProfilesConnection(
+  runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  const profiles = profilesForConnection(field, variables);
+  const profiles = profilesForConnection(runtime, field, variables);
   const window = paginateConnectionItems(profiles, field, variables, deliveryProfileCursor, {
     parseCursor: (raw) => raw,
   });
@@ -1213,7 +1253,7 @@ function serializeDeliveryProfilesConnection(
     ...window,
     getCursorValue: deliveryProfileCursor,
     serializeNode: (profile, selection) =>
-      serializeDeliveryProfile(profile, selection.selectionSet?.selections ?? [], variables),
+      serializeDeliveryProfile(runtime, profile, selection.selectionSet?.selections ?? [], variables),
     pageInfoOptions: { prefixCursors: false },
   });
 }
@@ -1241,6 +1281,7 @@ function serializeUserError(
 }
 
 function serializeDeliveryProfileMutationPayload(
+  runtime: ProxyRuntimeContext,
   payload: DeliveryProfileMutationPayload,
   typeName: string,
   selections: readonly SelectionNode[],
@@ -1254,7 +1295,13 @@ function serializeDeliveryProfileMutationPayload(
       }
       Object.assign(
         result,
-        serializeDeliveryProfileMutationPayload(payload, typeName, selection.selectionSet.selections, variables),
+        serializeDeliveryProfileMutationPayload(
+          runtime,
+          payload,
+          typeName,
+          selection.selectionSet.selections,
+          variables,
+        ),
       );
       continue;
     }
@@ -1270,7 +1317,7 @@ function serializeDeliveryProfileMutationPayload(
         break;
       case 'profile':
         result[key] = payload.profile
-          ? serializeDeliveryProfile(payload.profile, selection.selectionSet?.selections ?? [], variables)
+          ? serializeDeliveryProfile(runtime, payload.profile, selection.selectionSet?.selections ?? [], variables)
           : null;
         break;
       case 'userErrors':
@@ -1360,13 +1407,13 @@ function readProfileInput(args: Record<string, unknown>): Record<string, unknown
   return isRecord(args['profile']) ? args['profile'] : null;
 }
 
-function makeEmptyProfile(input: Record<string, unknown>): DeliveryProfileRecord {
+function makeEmptyProfile(runtime: ProxyRuntimeContext, input: Record<string, unknown>): DeliveryProfileRecord {
   const groups = [
     ...readRecordArray(input['profileLocationGroups']),
     ...readRecordArray(input['locationGroupsToCreate']),
-  ].map((groupInput) => makeLocationGroup(groupInput));
+  ].map((groupInput) => makeLocationGroup(runtime, groupInput));
   const profile = recomputeProfileDerivedFields({
-    id: makeSyntheticGid('DeliveryProfile'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('DeliveryProfile'),
     name: readString(input['name']) ?? '',
     default: false,
     merchantOwned: true,
@@ -1382,17 +1429,21 @@ function makeEmptyProfile(input: Record<string, unknown>): DeliveryProfileRecord
     sellingPlanGroups: [],
   });
 
-  return associateVariantsWithProfile(profile, readStringArray(input['variantsToAssociate']));
+  return associateVariantsWithProfile(runtime, profile, readStringArray(input['variantsToAssociate']));
 }
 
-function applyProfileInput(existing: DeliveryProfileRecord, input: Record<string, unknown>): DeliveryProfileRecord {
+function applyProfileInput(
+  runtime: ProxyRuntimeContext,
+  existing: DeliveryProfileRecord,
+  input: Record<string, unknown>,
+): DeliveryProfileRecord {
   let next = structuredClone(existing);
   const name = readNullableString(input['name']);
   if (name !== null) {
     next.name = name;
   }
 
-  next = associateVariantsWithProfile(next, readStringArray(input['variantsToAssociate']));
+  next = associateVariantsWithProfile(runtime, next, readStringArray(input['variantsToAssociate']));
   next = removeVariantsFromProfile(next, readStringArray(input['variantsToDissociate']));
 
   const groupsToDelete = readStringArray(input['locationGroupsToDelete']);
@@ -1426,12 +1477,12 @@ function applyProfileInput(existing: DeliveryProfileRecord, input: Record<string
     const id = readString(groupInput['id']);
     const index = id ? next.profileLocationGroups.findIndex((group) => group.id === id) : -1;
     if (index !== -1) {
-      next.profileLocationGroups[index] = makeLocationGroup(groupInput, next.profileLocationGroups[index]);
+      next.profileLocationGroups[index] = makeLocationGroup(runtime, groupInput, next.profileLocationGroups[index]);
     }
   }
 
   next.profileLocationGroups.push(
-    ...readRecordArray(input['locationGroupsToCreate']).map((groupInput) => makeLocationGroup(groupInput)),
+    ...readRecordArray(input['locationGroupsToCreate']).map((groupInput) => makeLocationGroup(runtime, groupInput)),
   );
 
   const sellingPlanGroupsToAssociate = readStringArray(input['sellingPlanGroupsToAssociate']);
@@ -1455,7 +1506,10 @@ function applyProfileInput(existing: DeliveryProfileRecord, input: Record<string
   });
 }
 
-function stageDeliveryProfileCreate(args: Record<string, unknown>): DeliveryProfileMutationPayload {
+function stageDeliveryProfileCreate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): DeliveryProfileMutationPayload {
   const input = readProfileInput(args);
   const name = input ? readString(input['name']) : null;
   if (!input || !name) {
@@ -1465,18 +1519,21 @@ function stageDeliveryProfileCreate(args: Record<string, unknown>): DeliveryProf
     };
   }
 
-  const profile = makeEmptyProfile(input);
-  stageVariantReassignment(profile.id, readStringArray(input['variantsToAssociate']));
+  const profile = makeEmptyProfile(runtime, input);
+  stageVariantReassignment(runtime, profile.id, readStringArray(input['variantsToAssociate']));
   return {
-    profile: store.stageCreateDeliveryProfile(profile),
+    profile: runtime.store.stageCreateDeliveryProfile(profile),
     userErrors: [],
   };
 }
 
-function stageDeliveryProfileUpdate(args: Record<string, unknown>): DeliveryProfileMutationPayload {
+function stageDeliveryProfileUpdate(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): DeliveryProfileMutationPayload {
   const id = readString(args['id']);
   const input = readProfileInput(args);
-  const existing = id ? store.getEffectiveDeliveryProfileById(id) : null;
+  const existing = id ? runtime.store.getEffectiveDeliveryProfileById(id) : null;
   if (!existing || !input) {
     return {
       profile: null,
@@ -1491,16 +1548,19 @@ function stageDeliveryProfileUpdate(args: Record<string, unknown>): DeliveryProf
     };
   }
 
-  stageVariantReassignment(existing.id, readStringArray(input['variantsToAssociate']));
+  stageVariantReassignment(runtime, existing.id, readStringArray(input['variantsToAssociate']));
   return {
-    profile: store.stageUpdateDeliveryProfile(applyProfileInput(existing, input)),
+    profile: runtime.store.stageUpdateDeliveryProfile(applyProfileInput(runtime, existing, input)),
     userErrors: [],
   };
 }
 
-function stageDeliveryProfileRemove(args: Record<string, unknown>): DeliveryProfileRemovePayload {
+function stageDeliveryProfileRemove(
+  runtime: ProxyRuntimeContext,
+  args: Record<string, unknown>,
+): DeliveryProfileRemovePayload {
   const id = readString(args['id']);
-  const existing = id ? store.getEffectiveDeliveryProfileById(id) : null;
+  const existing = id ? runtime.store.getEffectiveDeliveryProfileById(id) : null;
   if (!existing) {
     return {
       job: null,
@@ -1515,10 +1575,10 @@ function stageDeliveryProfileRemove(args: Record<string, unknown>): DeliveryProf
     };
   }
 
-  store.stageDeleteDeliveryProfile(existing.id);
+  runtime.store.stageDeleteDeliveryProfile(existing.id);
   return {
     job: {
-      id: makeSyntheticGid('Job'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('Job'),
       done: false,
     },
     userErrors: [],
@@ -1526,6 +1586,7 @@ function stageDeliveryProfileRemove(args: Record<string, unknown>): DeliveryProf
 }
 
 export function handleDeliveryProfileMutation(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): DeliveryProfileMutationResult | null {
@@ -1539,8 +1600,9 @@ export function handleDeliveryProfileMutation(
     const args = getFieldArguments(field, variables);
     switch (field.name.value) {
       case 'deliveryProfileCreate': {
-        const payload = stageDeliveryProfileCreate(args);
+        const payload = stageDeliveryProfileCreate(runtime, args);
         data[key] = serializeDeliveryProfileMutationPayload(
+          runtime,
           payload,
           'DeliveryProfileCreatePayload',
           field.selectionSet?.selections ?? [],
@@ -1554,8 +1616,9 @@ export function handleDeliveryProfileMutation(
         break;
       }
       case 'deliveryProfileUpdate': {
-        const payload = stageDeliveryProfileUpdate(args);
+        const payload = stageDeliveryProfileUpdate(runtime, args);
         data[key] = serializeDeliveryProfileMutationPayload(
+          runtime,
           payload,
           'DeliveryProfileUpdatePayload',
           field.selectionSet?.selections ?? [],
@@ -1570,7 +1633,7 @@ export function handleDeliveryProfileMutation(
       }
       case 'deliveryProfileRemove': {
         const id = readString(args['id']);
-        const payload = stageDeliveryProfileRemove(args);
+        const payload = stageDeliveryProfileRemove(runtime, args);
         data[key] = serializeDeliveryProfileRemovePayload(payload, field.selectionSet?.selections ?? []);
         if (payload.job) {
           staged = true;
@@ -1596,6 +1659,7 @@ export function handleDeliveryProfileMutation(
 }
 
 export function handleDeliveryProfileQuery(
+  runtime: ProxyRuntimeContext,
   document: string,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -1607,12 +1671,14 @@ export function handleDeliveryProfileQuery(
       case 'deliveryProfile': {
         const args = getFieldArguments(field, variables);
         const id = typeof args['id'] === 'string' ? args['id'] : null;
-        const profile = id ? store.getEffectiveDeliveryProfileById(id) : null;
-        data[key] = profile ? serializeDeliveryProfile(profile, field.selectionSet?.selections ?? [], variables) : null;
+        const profile = id ? runtime.store.getEffectiveDeliveryProfileById(id) : null;
+        data[key] = profile
+          ? serializeDeliveryProfile(runtime, profile, field.selectionSet?.selections ?? [], variables)
+          : null;
         break;
       }
       case 'deliveryProfiles':
-        data[key] = serializeDeliveryProfilesConnection(field, variables);
+        data[key] = serializeDeliveryProfilesConnection(runtime, field, variables);
         break;
       default:
         data[key] = null;

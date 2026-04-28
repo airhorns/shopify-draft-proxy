@@ -1,29 +1,31 @@
-let nextSyntheticId = 1;
-let nextSyntheticTime = Date.parse('2024-01-01T00:00:00.000Z');
+export class SyntheticIdentityRegistry {
+  private nextSyntheticId = 1;
+  private nextSyntheticTime = Date.parse('2024-01-01T00:00:00.000Z');
 
-export function resetSyntheticIdentity(): void {
-  nextSyntheticId = 1;
-  nextSyntheticTime = Date.parse('2024-01-01T00:00:00.000Z');
-}
+  reset(): void {
+    this.nextSyntheticId = 1;
+    this.nextSyntheticTime = Date.parse('2024-01-01T00:00:00.000Z');
+  }
 
-export function makeSyntheticGid(resourceType: string): string {
-  const id = nextSyntheticId;
-  nextSyntheticId += 1;
-  return `gid://shopify/${resourceType}/${id}`;
-}
+  makeSyntheticGid(resourceType: string): string {
+    const id = this.nextSyntheticId;
+    this.nextSyntheticId += 1;
+    return `gid://shopify/${resourceType}/${id}`;
+  }
 
-export function makeProxySyntheticGid(resourceType: string): string {
-  const id = nextSyntheticId;
-  nextSyntheticId += 1;
-  return `gid://shopify/${resourceType}/${id}?shopify-draft-proxy=synthetic`;
+  makeProxySyntheticGid(resourceType: string): string {
+    const id = this.nextSyntheticId;
+    this.nextSyntheticId += 1;
+    return `gid://shopify/${resourceType}/${id}?shopify-draft-proxy=synthetic`;
+  }
+
+  makeSyntheticTimestamp(): string {
+    const current = new Date(this.nextSyntheticTime).toISOString();
+    this.nextSyntheticTime += 1000;
+    return current;
+  }
 }
 
 export function isProxySyntheticGid(value: string): boolean {
   return value.startsWith('gid://shopify/') && value.includes('?shopify-draft-proxy=synthetic');
-}
-
-export function makeSyntheticTimestamp(): string {
-  const current = new Date(nextSyntheticTime).toISOString();
-  nextSyntheticTime += 1000;
-  return current;
 }

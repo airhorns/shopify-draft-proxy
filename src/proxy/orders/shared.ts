@@ -1,7 +1,5 @@
+import type { ProxyRuntimeContext } from '../runtime-context.js';
 import { type FieldNode } from 'graphql';
-
-import { store } from '../../state/store.js';
-import { makeSyntheticGid, makeSyntheticTimestamp } from '../../state/synthetic-identity.js';
 import type {
   CalculatedOrderRecord,
   CustomerRecord,
@@ -304,14 +302,17 @@ function calculateDraftOrderDiscountAmount(
   return parseDecimalAmount(discount.amountSet?.shopMoney.amount);
 }
 
-function buildDraftOrderCustomerFromInput(inputRecord: Record<string, unknown>): DraftOrderCustomerRecord | null {
+function buildDraftOrderCustomerFromInput(
+  runtime: ProxyRuntimeContext,
+  inputRecord: Record<string, unknown>,
+): DraftOrderCustomerRecord | null {
   const email = readString(inputRecord['email']);
   const purchasingEntity =
     typeof inputRecord['purchasingEntity'] === 'object' && inputRecord['purchasingEntity'] !== null
       ? (inputRecord['purchasingEntity'] as Record<string, unknown>)
       : {};
   const customerId = readString(inputRecord['customerId']) ?? readString(purchasingEntity['customerId']);
-  const customer = customerId ? store.getEffectiveCustomerById(customerId) : null;
+  const customer = customerId ? runtime.store.getEffectiveCustomerById(customerId) : null;
   const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
   const shippingAddress = normalizeDraftOrderAddress(inputRecord['shippingAddress']);
   const firstName = billingAddress?.firstName ?? shippingAddress?.firstName ?? null;
@@ -339,6 +340,7 @@ function normalizePaymentScheduleAmount(
 }
 
 function normalizeDraftOrderPaymentTerms(
+  runtime: ProxyRuntimeContext,
   raw: unknown,
   amountSet?: { shopMoney: MoneyV2Record } | null,
 ): DraftOrderPaymentTermsRecord | null {
@@ -351,7 +353,7 @@ function normalizeDraftOrderPaymentTerms(
   const normalizedSchedules: PaymentScheduleRecord[] = schedules
     .filter((schedule): schedule is Record<string, unknown> => typeof schedule === 'object' && schedule !== null)
     .map((schedule) => ({
-      id: makeSyntheticGid('PaymentSchedule'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('PaymentSchedule'),
       dueAt: readString(schedule['dueAt']),
       issuedAt: readString(schedule['issuedAt']),
       completedAt: readString(schedule['completedAt']),
@@ -365,12 +367,12 @@ function normalizeDraftOrderPaymentTerms(
   const hasDueAt = typeof firstSchedule?.['dueAt'] === 'string';
   const hasIssuedAt = typeof firstSchedule?.['issuedAt'] === 'string';
   const templateId = readString(paymentTerms['paymentTermsTemplateId']);
-  const template = templateId ? store.getEffectivePaymentTermsTemplateById(templateId) : null;
+  const template = templateId ? runtime.store.getEffectivePaymentTermsTemplateById(templateId) : null;
   const name = template?.name ?? (hasDueAt ? 'Fixed' : hasIssuedAt ? 'Net terms' : 'Custom payment terms');
   const paymentTermsType = template?.paymentTermsType ?? (hasDueAt ? 'FIXED' : hasIssuedAt ? 'NET' : 'UNKNOWN');
 
   return {
-    id: makeSyntheticGid('PaymentTerms'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('PaymentTerms'),
     due: false,
     overdue: false,
     dueInDays: template?.dueInDays ?? null,
@@ -382,16 +384,21 @@ function normalizeDraftOrderPaymentTerms(
 }
 
 export function normalizeOrderMetafields(
+  runtime: ProxyRuntimeContext,
   orderId: string,
   raw: unknown,
   existing: OrderMetafieldRecord[] = [],
 ): OrderMetafieldRecord[] {
   return Array.isArray(raw)
-    ? upsertOwnerMetafields('orderId', orderId, readMetafieldInputObjects(raw), existing).metafields
+    ? upsertOwnerMetafields(runtime, 'orderId', orderId, readMetafieldInputObjects(raw), existing).metafields
     : existing.map((metafield) => structuredClone(metafield));
 }
 
-function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): DraftOrderLineItemRecord[] {
+function normalizeDraftOrderLineItems(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+  currencyCode: string,
+): DraftOrderLineItemRecord[] {
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -400,8 +407,8 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
       const variantId = readString(lineItem['variantId']);
-      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
-      const product = variant ? store.getEffectiveProductById(variant.productId) : null;
+      const variant = variantId ? runtime.store.getEffectiveVariantById(variantId) : null;
+      const product = variant ? runtime.store.getEffectiveProductById(variant.productId) : null;
       const isVariantLine = Boolean(variant);
       const quantity = typeof lineItem['quantity'] === 'number' ? lineItem['quantity'] : 0;
       const rawUnitPrice = isVariantLine ? variant?.price : lineItem['originalUnitPrice'];
@@ -412,7 +419,7 @@ function normalizeDraftOrderLineItems(raw: unknown, currencyCode: string): Draft
       const discountedTotal = Math.max(0, grossTotal - discountTotal);
       const price = formatDecimalAmount(unitPrice);
       return {
-        id: makeSyntheticGid('DraftOrderLineItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('DraftOrderLineItem'),
         title: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
         name: isVariantLine ? (product?.title ?? variant?.title ?? null) : readString(lineItem['title']),
         quantity,
@@ -472,7 +479,11 @@ function normalizeDraftOrderShippingLine(raw: unknown, currencyCode: string): Dr
   };
 }
 
-function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineItemRecord[] {
+function normalizeOrderLineItems(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+  currencyCode: string,
+): OrderLineItemRecord[] {
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -481,8 +492,8 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
     .filter((lineItem): lineItem is Record<string, unknown> => typeof lineItem === 'object' && lineItem !== null)
     .map((lineItem) => {
       const variantId = typeof lineItem['variantId'] === 'string' ? lineItem['variantId'] : null;
-      const variant = variantId ? store.getEffectiveVariantById(variantId) : null;
-      const product = variant ? store.getEffectiveProductById(variant.productId) : null;
+      const variant = variantId ? runtime.store.getEffectiveVariantById(variantId) : null;
+      const product = variant ? runtime.store.getEffectiveProductById(variant.productId) : null;
       const rawPriceSet =
         typeof lineItem['originalUnitPriceSet'] === 'object' && lineItem['originalUnitPriceSet'] !== null
           ? lineItem['originalUnitPriceSet']
@@ -490,7 +501,7 @@ function normalizeOrderLineItems(raw: unknown, currencyCode: string): OrderLineI
       const fallbackPrice = variant?.price ?? 0;
 
       return {
-        id: makeSyntheticGid('LineItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('LineItem'),
         title:
           typeof lineItem['title'] === 'string'
             ? lineItem['title']
@@ -535,7 +546,11 @@ function normalizeOrderShippingLines(raw: unknown, currencyCode: string): OrderS
     });
 }
 
-function normalizeOrderTransactions(raw: unknown, currencyCode: string): OrderTransactionRecord[] {
+function normalizeOrderTransactions(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+  currencyCode: string,
+): OrderTransactionRecord[] {
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -560,7 +575,10 @@ function normalizeOrderTransactions(raw: unknown, currencyCode: string): OrderTr
       const amount = formatDecimalAmount(parseDecimalAmount(shopMoney['amount'] ?? directAmount));
 
       return {
-        id: typeof transaction['id'] === 'string' ? transaction['id'] : makeSyntheticGid('OrderTransaction'),
+        id:
+          typeof transaction['id'] === 'string'
+            ? transaction['id']
+            : runtime.syntheticIdentity.makeSyntheticGid('OrderTransaction'),
         kind: typeof transaction['kind'] === 'string' ? transaction['kind'] : null,
         status: typeof transaction['status'] === 'string' ? transaction['status'] : 'SUCCESS',
         gateway: typeof transaction['gateway'] === 'string' ? transaction['gateway'] : null,
@@ -677,7 +695,10 @@ export function readDiscountCodeAttributes(
   return typeof attributes === 'object' && attributes !== null ? (attributes as Record<string, unknown>) : null;
 }
 
-function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): OrderCustomerRecord | null {
+function buildOrderCustomerFromInput(
+  runtime: ProxyRuntimeContext,
+  inputRecord: Record<string, unknown>,
+): OrderCustomerRecord | null {
   const email = typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null;
   const billingAddress = normalizeDraftOrderAddress(inputRecord['billingAddress']);
   const firstName = billingAddress?.firstName ?? null;
@@ -692,13 +713,16 @@ function buildOrderCustomerFromInput(inputRecord: Record<string, unknown>): Orde
   }
 
   return {
-    id: makeSyntheticGid('Customer'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('Customer'),
     email,
     displayName: displayName.length > 0 ? displayName : email,
   };
 }
 
-function buildOrderCustomerFromDraftOrder(draftOrder: DraftOrderRecord): OrderCustomerRecord | null {
+function buildOrderCustomerFromDraftOrder(
+  runtime: ProxyRuntimeContext,
+  draftOrder: DraftOrderRecord,
+): OrderCustomerRecord | null {
   const email = draftOrder.email;
   const firstName = draftOrder.billingAddress?.firstName ?? null;
   const lastName = draftOrder.billingAddress?.lastName ?? null;
@@ -712,18 +736,18 @@ function buildOrderCustomerFromDraftOrder(draftOrder: DraftOrderRecord): OrderCu
   }
 
   return {
-    id: makeSyntheticGid('Customer'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('Customer'),
     email,
     displayName: displayName.length > 0 ? displayName : email,
   };
 }
 
-export function buildOrderFromInput(input: unknown): OrderRecord {
+export function buildOrderFromInput(runtime: ProxyRuntimeContext, input: unknown): OrderRecord {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
   const currencyCode = readOrderCurrencyFromInput(inputRecord);
-  const orderId = makeSyntheticGid('Order');
-  const createdAt = makeSyntheticTimestamp();
-  const lineItems = normalizeOrderLineItems(inputRecord['lineItems'], currencyCode);
+  const orderId = runtime.syntheticIdentity.makeSyntheticGid('Order');
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const lineItems = normalizeOrderLineItems(runtime, inputRecord['lineItems'], currencyCode);
   const shippingLines = normalizeOrderShippingLines(inputRecord['shippingLines'], currencyCode);
   const subtotal = formatDecimalAmount(
     lineItems.reduce(
@@ -773,12 +797,12 @@ export function buildOrderFromInput(input: unknown): OrderRecord {
     const kind = typeof transactionRecord['kind'] === 'string' ? transactionRecord['kind'].toUpperCase() : null;
     return transactionRecord['status'] === 'SUCCESS' && kind === 'AUTHORIZATION';
   });
-  const customer = buildOrderCustomerFromInput(inputRecord);
-  const normalizedTransactions = normalizeOrderTransactions(transactions, currencyCode);
+  const customer = buildOrderCustomerFromInput(runtime, inputRecord);
+  const normalizedTransactions = normalizeOrderTransactions(runtime, transactions, currencyCode);
 
   return {
     id: orderId,
-    name: `#${store.getOrders().length + 1}`,
+    name: `#${runtime.store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
     email: typeof inputRecord['email'] === 'string' ? inputRecord['email'] : null,
@@ -814,7 +838,7 @@ export function buildOrderFromInput(input: unknown): OrderRecord {
           .sort((left, right) => left.localeCompare(right))
       : [],
     customAttributes: normalizeDraftOrderAttributes(inputRecord['customAttributes']),
-    metafields: normalizeOrderMetafields(orderId, inputRecord['metafields']),
+    metafields: normalizeOrderMetafields(runtime, orderId, inputRecord['metafields']),
     billingAddress: normalizeDraftOrderAddress(inputRecord['billingAddress']),
     shippingAddress: normalizeDraftOrderAddress(inputRecord['shippingAddress']),
     subtotalPriceSet: {
@@ -879,12 +903,16 @@ export function buildOrderFromInput(input: unknown): OrderRecord {
   };
 }
 
-export function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: string): DraftOrderRecord {
+export function buildDraftOrderFromInput(
+  runtime: ProxyRuntimeContext,
+  input: unknown,
+  shopifyAdminOrigin: string,
+): DraftOrderRecord {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
   const currencyCode = 'CAD';
-  const draftOrderId = makeSyntheticGid('DraftOrder');
-  const createdAt = makeSyntheticTimestamp();
-  const lineItems = normalizeDraftOrderLineItems(inputRecord['lineItems'], currencyCode);
+  const draftOrderId = runtime.syntheticIdentity.makeSyntheticGid('DraftOrder');
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const lineItems = normalizeDraftOrderLineItems(runtime, inputRecord['lineItems'], currencyCode);
   const shippingLine = normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode);
   const appliedDiscount = normalizeDraftOrderAppliedDiscount(inputRecord['appliedDiscount'], currencyCode);
   const lineDiscountTotal = lineItems.reduce(
@@ -903,7 +931,7 @@ export function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: str
   const totalDiscount = formatDecimalAmount(lineDiscountTotal + orderDiscountTotal);
   const totalShipping = formatDecimalAmount(shippingTotal);
   const total = formatDecimalAmount(parseDecimalAmount(subtotal) + shippingTotal);
-  const name = `#D${store.getDraftOrders().length + 1}`;
+  const name = `#D${runtime.store.getDraftOrders().length + 1}`;
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
 
   return {
@@ -919,11 +947,11 @@ export function buildDraftOrderFromInput(input: unknown, shopifyAdminOrigin: str
           .filter((tag): tag is string => typeof tag === 'string')
           .sort((left, right) => left.localeCompare(right))
       : [],
-    customer: buildDraftOrderCustomerFromInput(inputRecord),
+    customer: buildDraftOrderCustomerFromInput(runtime, inputRecord),
     taxExempt: readBoolean(inputRecord['taxExempt'], false),
     taxesIncluded: readBoolean(inputRecord['taxesIncluded'], false),
     reserveInventoryUntil: readString(inputRecord['reserveInventoryUntil']),
-    paymentTerms: normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], {
+    paymentTerms: normalizeDraftOrderPaymentTerms(runtime, inputRecord['paymentTerms'], {
       shopMoney: normalizeMoney(total, currencyCode),
     }),
     appliedDiscount,
@@ -997,15 +1025,16 @@ function recalculateDraftOrderTotals(draftOrder: DraftOrderRecord): DraftOrderRe
 }
 
 export function buildUpdatedDraftOrder(
+  runtime: ProxyRuntimeContext,
   draftOrder: DraftOrderRecord,
   input: unknown,
   shopifyAdminOrigin: string,
 ): DraftOrderRecord {
   const inputRecord = typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
   const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
-  const updatedAt = makeSyntheticTimestamp();
+  const updatedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const lineItems = Object.hasOwn(inputRecord, 'lineItems')
-    ? normalizeDraftOrderLineItems(inputRecord['lineItems'], currencyCode)
+    ? normalizeDraftOrderLineItems(runtime, inputRecord['lineItems'], currencyCode)
     : structuredClone(draftOrder.lineItems);
 
   return recalculateDraftOrderTotals({
@@ -1032,22 +1061,26 @@ export function buildUpdatedDraftOrder(
       ? normalizeDraftOrderShippingLine(inputRecord['shippingLine'], currencyCode)
       : structuredClone(draftOrder.shippingLine),
     paymentTerms: Object.hasOwn(inputRecord, 'paymentTerms')
-      ? normalizeDraftOrderPaymentTerms(inputRecord['paymentTerms'], draftOrder.totalPriceSet)
+      ? normalizeDraftOrderPaymentTerms(runtime, inputRecord['paymentTerms'], draftOrder.totalPriceSet)
       : structuredClone(draftOrder.paymentTerms),
     updatedAt,
     lineItems,
   });
 }
 
-export function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
-  const draftOrderId = makeSyntheticGid('DraftOrder');
-  const createdAt = makeSyntheticTimestamp();
+export function duplicateDraftOrder(
+  runtime: ProxyRuntimeContext,
+  draftOrder: DraftOrderRecord,
+  shopifyAdminOrigin: string,
+): DraftOrderRecord {
+  const draftOrderId = runtime.syntheticIdentity.makeSyntheticGid('DraftOrder');
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
 
   return recalculateDraftOrderTotals({
     ...structuredClone(draftOrder),
     id: draftOrderId,
-    name: `#D${store.getDraftOrders().length + 1}`,
+    name: `#D${runtime.store.getDraftOrders().length + 1}`,
     orderId: null,
     completedAt: null,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
@@ -1061,7 +1094,7 @@ export function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOr
     updatedAt: createdAt,
     lineItems: draftOrder.lineItems.map((lineItem) => ({
       ...structuredClone(lineItem),
-      id: makeSyntheticGid('DraftOrderLineItem'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('DraftOrderLineItem'),
       appliedDiscount: null,
       discountedTotalSet: structuredClone(lineItem.originalTotalSet),
       totalDiscountSet: {
@@ -1071,16 +1104,20 @@ export function duplicateDraftOrder(draftOrder: DraftOrderRecord, shopifyAdminOr
   });
 }
 
-export function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin: string): DraftOrderRecord {
-  const draftOrderId = makeSyntheticGid('DraftOrder');
-  const createdAt = makeSyntheticTimestamp();
+export function buildDraftOrderFromOrder(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+  shopifyAdminOrigin: string,
+): DraftOrderRecord {
+  const draftOrderId = runtime.syntheticIdentity.makeSyntheticGid('DraftOrder');
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const invoiceId = draftOrderId.split('/').at(-1) ?? 'draft-order';
   const currencyCode =
     order.totalPriceSet?.shopMoney.currencyCode ?? order.subtotalPriceSet?.shopMoney.currencyCode ?? 'CAD';
 
   return {
     id: draftOrderId,
-    name: `#D${store.getDraftOrders().length + 1}`,
+    name: `#D${runtime.store.getDraftOrders().length + 1}`,
     invoiceUrl: `${shopifyAdminOrigin.replace(/\/$/, '')}/draft_orders/${invoiceId}/invoice`,
     status: 'OPEN',
     ready: true,
@@ -1136,7 +1173,7 @@ export function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin:
       ),
     },
     lineItems: order.lineItems.map((lineItem) => ({
-      id: makeSyntheticGid('DraftOrderLineItem'),
+      id: runtime.syntheticIdentity.makeSyntheticGid('DraftOrderLineItem'),
       title: lineItem.title,
       name: lineItem.title,
       quantity: lineItem.quantity,
@@ -1177,10 +1214,13 @@ export function buildDraftOrderFromOrder(order: OrderRecord, shopifyAdminOrigin:
   };
 }
 
-function cloneOrderLineItemsForCalculatedOrder(order: OrderRecord): OrderLineItemRecord[] {
+function cloneOrderLineItemsForCalculatedOrder(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+): OrderLineItemRecord[] {
   return order.lineItems.map((lineItem) => ({
     ...structuredClone(lineItem),
-    id: makeSyntheticGid('CalculatedLineItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedLineItem'),
     originalLineItemId: lineItem.id,
     isAdded: false,
   }));
@@ -1243,17 +1283,17 @@ export function recalculateOrderTotals(order: OrderRecord): OrderRecord {
   };
 }
 
-export function buildCalculatedOrderFromOrder(order: OrderRecord): CalculatedOrderRecord {
+export function buildCalculatedOrderFromOrder(runtime: ProxyRuntimeContext, order: OrderRecord): CalculatedOrderRecord {
   return recalculateOrderTotals({
     ...structuredClone(order),
-    id: makeSyntheticGid('CalculatedOrder'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedOrder'),
     originalOrderId: order.id,
-    lineItems: cloneOrderLineItemsForCalculatedOrder(order),
+    lineItems: cloneOrderLineItemsForCalculatedOrder(runtime, order),
   } as CalculatedOrderRecord) as CalculatedOrderRecord;
 }
 
-export function buildCompletedDraftOrder(draftOrder: DraftOrderRecord): DraftOrderRecord {
-  const completedAt = makeSyntheticTimestamp();
+export function buildCompletedDraftOrder(runtime: ProxyRuntimeContext, draftOrder: DraftOrderRecord): DraftOrderRecord {
+  const completedAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   return {
     ...structuredClone(draftOrder),
     status: 'COMPLETED',
@@ -1263,9 +1303,12 @@ export function buildCompletedDraftOrder(draftOrder: DraftOrderRecord): DraftOrd
   };
 }
 
-function buildOrderLineItemsFromDraftOrder(draftOrder: DraftOrderRecord): OrderLineItemRecord[] {
+function buildOrderLineItemsFromDraftOrder(
+  runtime: ProxyRuntimeContext,
+  draftOrder: DraftOrderRecord,
+): OrderLineItemRecord[] {
   return draftOrder.lineItems.map((lineItem) => ({
-    id: makeSyntheticGid('LineItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('LineItem'),
     title: lineItem.title,
     quantity: lineItem.quantity,
     sku: lineItem.sku === '' ? null : lineItem.sku,
@@ -1289,17 +1332,18 @@ function buildOrderShippingLinesFromDraftOrder(draftOrder: DraftOrderRecord): Or
 }
 
 export function buildOrderFromCompletedDraftOrder(
+  runtime: ProxyRuntimeContext,
   draftOrder: DraftOrderRecord,
   completion: {
     sourceName: string | null;
     paymentPending: boolean;
   },
 ): OrderRecord {
-  const createdAt = draftOrder.completedAt ?? makeSyntheticTimestamp();
+  const createdAt = draftOrder.completedAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
   const currencyCode = draftOrder.totalPriceSet?.shopMoney.currencyCode ?? 'CAD';
   return {
-    id: makeSyntheticGid('Order'),
-    name: `#${store.getOrders().length + 1}`,
+    id: runtime.syntheticIdentity.makeSyntheticGid('Order'),
+    name: `#${runtime.store.getOrders().length + 1}`,
     createdAt,
     updatedAt: createdAt,
     email: draftOrder.email,
@@ -1337,9 +1381,9 @@ export function buildOrderFromCompletedDraftOrder(
     discountApplications: [],
     taxLines: [],
     taxesIncluded: false,
-    customer: buildOrderCustomerFromDraftOrder(draftOrder),
+    customer: buildOrderCustomerFromDraftOrder(runtime, draftOrder),
     shippingLines: buildOrderShippingLinesFromDraftOrder(draftOrder),
-    lineItems: buildOrderLineItemsFromDraftOrder(draftOrder),
+    lineItems: buildOrderLineItemsFromDraftOrder(runtime, draftOrder),
     paymentTerms: structuredClone(draftOrder.paymentTerms),
     transactions: [],
     refunds: [],
@@ -1355,16 +1399,20 @@ function normalizeDraftOrderCompleteOrderSourceName(sourceName: string | null): 
   return '347082227713';
 }
 
-export function buildCalculatedLineItemFromVariant(variantId: string, quantity: number): OrderLineItemRecord | null {
-  const variant = store.getEffectiveVariantById(variantId);
+export function buildCalculatedLineItemFromVariant(
+  runtime: ProxyRuntimeContext,
+  variantId: string,
+  quantity: number,
+): OrderLineItemRecord | null {
+  const variant = runtime.store.getEffectiveVariantById(variantId);
   if (!variant) {
     return null;
   }
 
-  const product = store.getEffectiveProductById(variant.productId);
+  const product = runtime.store.getEffectiveProductById(variant.productId);
   const currencyCode = 'CAD';
   return {
-    id: makeSyntheticGid('CalculatedLineItem'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedLineItem'),
     originalLineItemId: null,
     isAdded: true,
     title: product?.title ?? variant.title,
@@ -1477,7 +1525,12 @@ function readRefundShippingAmount(input: Record<string, unknown>): unknown {
   return null;
 }
 
-function buildRefundLineItems(raw: unknown, order: OrderRecord, currencyCode: string): OrderRefundLineItemRecord[] {
+function buildRefundLineItems(
+  runtime: ProxyRuntimeContext,
+  raw: unknown,
+  order: OrderRecord,
+  currencyCode: string,
+): OrderRefundLineItemRecord[] {
   if (!Array.isArray(raw)) {
     return [];
   }
@@ -1493,7 +1546,7 @@ function buildRefundLineItems(raw: unknown, order: OrderRecord, currencyCode: st
       );
 
       return {
-        id: makeSyntheticGid('RefundLineItem'),
+        id: runtime.syntheticIdentity.makeSyntheticGid('RefundLineItem'),
         lineItemId,
         title: orderLineItem?.title ?? null,
         quantity,
@@ -1535,8 +1588,11 @@ export function readOrderCurrencyCode(order: OrderRecord): string {
   );
 }
 
-export function findOrderTransactionById(transactionId: string): OrderTransactionRecord | null {
-  for (const order of store.getOrders()) {
+export function findOrderTransactionById(
+  runtime: ProxyRuntimeContext,
+  transactionId: string,
+): OrderTransactionRecord | null {
+  for (const order of runtime.store.getOrders()) {
     const transaction = order.transactions.find((candidate) => candidate.id === transactionId) ?? null;
     if (transaction) {
       return transaction;
@@ -1547,9 +1603,10 @@ export function findOrderTransactionById(transactionId: string): OrderTransactio
 }
 
 export function findOrderWithTransaction(
+  runtime: ProxyRuntimeContext,
   transactionId: string,
 ): { order: OrderRecord; transaction: OrderTransactionRecord } | null {
-  for (const order of store.getOrders()) {
+  for (const order of runtime.store.getOrders()) {
     const transaction = order.transactions.find((candidate) => candidate.id === transactionId) ?? null;
     if (transaction) {
       return { order, transaction };
@@ -1647,11 +1704,15 @@ function applyPaymentDerivedFields(order: OrderRecord): OrderRecord {
   };
 }
 
-export function buildRefundFromInput(order: OrderRecord, input: Record<string, unknown>): OrderRefundRecord {
+export function buildRefundFromInput(
+  runtime: ProxyRuntimeContext,
+  order: OrderRecord,
+  input: Record<string, unknown>,
+): OrderRefundRecord {
   const currencyCode = readOrderCurrencyCode(order);
-  const refundId = makeSyntheticGid('Refund');
-  const createdAt = makeSyntheticTimestamp();
-  const refundLineItems = buildRefundLineItems(input['refundLineItems'], order, currencyCode);
+  const refundId = runtime.syntheticIdentity.makeSyntheticGid('Refund');
+  const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const refundLineItems = buildRefundLineItems(runtime, input['refundLineItems'], order, currencyCode);
   const shippingAmount = readRefundShippingAmount(input);
   const shippingRefundAmount = shippingAmount === null ? 0 : parseDecimalAmount(shippingAmount);
   const lineItemSubtotal = refundLineItems.reduce(
@@ -1673,7 +1734,7 @@ export function buildRefundFromInput(order: OrderRecord, input: Record<string, u
           },
         },
       ];
-  const transactions = normalizeOrderTransactions(rawTransactions, currencyCode);
+  const transactions = normalizeOrderTransactions(runtime, rawTransactions, currencyCode);
   const transactionTotal = sumMoney(transactions);
   const totalRefunded = transactionTotal > 0 ? transactionTotal : lineItemSubtotal + shippingRefundAmount;
 
@@ -1726,20 +1787,22 @@ export function applyRefundToOrder(order: OrderRecord, refund: OrderRefundRecord
 }
 
 function buildOrderTransaction(
+  runtime: ProxyRuntimeContext,
   amountSet: OrderTransactionRecord['amountSet'],
   gateway: string,
 ): OrderTransactionRecord {
   return {
-    id: makeSyntheticGid('OrderTransaction'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('OrderTransaction'),
     kind: 'SALE',
     status: 'SUCCESS',
     gateway,
     amountSet: structuredClone(amountSet),
-    processedAt: makeSyntheticTimestamp(),
+    processedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
 function buildPaymentTransaction(
+  runtime: ProxyRuntimeContext,
   kind: string,
   amountSet: OrderTransactionRecord['amountSet'],
   gateway: string | null,
@@ -1747,26 +1810,26 @@ function buildPaymentTransaction(
   paymentReferenceId: string | null = null,
 ): OrderTransactionRecord {
   return {
-    id: makeSyntheticGid('OrderTransaction'),
+    id: runtime.syntheticIdentity.makeSyntheticGid('OrderTransaction'),
     kind,
     status: 'SUCCESS',
     gateway,
     amountSet: structuredClone(amountSet),
     parentTransactionId,
-    paymentId: makeSyntheticGid('Payment'),
+    paymentId: runtime.syntheticIdentity.makeSyntheticGid('Payment'),
     paymentReferenceId,
-    processedAt: makeSyntheticTimestamp(),
+    processedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   };
 }
 
-export function markOrderAsPaid(order: OrderRecord, gateway = 'manual'): OrderRecord {
+export function markOrderAsPaid(runtime: ProxyRuntimeContext, order: OrderRecord, gateway = 'manual'): OrderRecord {
   const currencyCode = readOrderCurrencyCode(order);
   const amountSet = structuredClone(order.totalOutstandingSet ?? order.currentTotalPriceSet ?? order.totalPriceSet);
-  const transaction = buildOrderTransaction(amountSet, gateway);
+  const transaction = buildOrderTransaction(runtime, amountSet, gateway);
 
   return {
     ...structuredClone(order),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     displayFinancialStatus: 'PAID',
     paymentGatewayNames: Array.from(new Set([...(order.paymentGatewayNames ?? []), gateway])),
     totalOutstandingSet: {
@@ -1779,6 +1842,7 @@ export function markOrderAsPaid(order: OrderRecord, gateway = 'manual'): OrderRe
 }
 
 export function captureOrderPayment(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   authorization: OrderTransactionRecord,
   input: Record<string, unknown>,
@@ -1808,17 +1872,19 @@ export function captureOrderPayment(
   }
 
   const transaction = buildPaymentTransaction(
+    runtime,
     'CAPTURE',
     makeOrderMoneyBag(amount, currencyCode),
     authorization.gateway,
     authorization.id,
-    makeSyntheticGid('PaymentReference'),
+    runtime.syntheticIdentity.makeSyntheticGid('PaymentReference'),
   );
   const finalCapture = input['finalCapture'] === true;
   const remainingAfterCapture = Math.max(0, remainingCapturable - amount);
   const finalVoidTransaction =
     finalCapture && remainingAfterCapture > 0
       ? buildPaymentTransaction(
+          runtime,
           'VOID',
           makeOrderMoneyBag(remainingAfterCapture, currencyCode),
           authorization.gateway,
@@ -1827,7 +1893,7 @@ export function captureOrderPayment(
       : null;
   const updatedOrder = applyPaymentDerivedFields({
     ...structuredClone(order),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     paymentGatewayNames: Array.from(
       new Set([...(order.paymentGatewayNames ?? []), ...(authorization.gateway ? [authorization.gateway] : [])]),
     ),
@@ -1842,6 +1908,7 @@ export function captureOrderPayment(
 }
 
 export function voidOrderTransaction(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   authorization: OrderTransactionRecord,
 ):
@@ -1866,6 +1933,7 @@ export function voidOrderTransaction(
   }
 
   const transaction = buildPaymentTransaction(
+    runtime,
     'VOID',
     structuredClone(authorization.amountSet),
     authorization.gateway,
@@ -1873,7 +1941,7 @@ export function voidOrderTransaction(
   );
   const updatedOrder = applyPaymentDerivedFields({
     ...structuredClone(order),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     transactions: [...structuredClone(order.transactions), transaction],
   });
 
@@ -1881,6 +1949,7 @@ export function voidOrderTransaction(
 }
 
 export function createMandatePayment(
+  runtime: ProxyRuntimeContext,
   order: OrderRecord,
   input: Record<string, unknown>,
 ):
@@ -1893,7 +1962,7 @@ export function createMandatePayment(
     };
   }
 
-  const existing = store.getOrderMandatePayment(order.id, idempotencyKey);
+  const existing = runtime.store.getOrderMandatePayment(order.id, idempotencyKey);
   if (existing) {
     return { order, mandatePayment: existing };
   }
@@ -1911,8 +1980,9 @@ export function createMandatePayment(
     };
   }
 
-  const paymentReferenceId = makeSyntheticGid('PaymentReference');
+  const paymentReferenceId = runtime.syntheticIdentity.makeSyntheticGid('PaymentReference');
   const transaction = buildPaymentTransaction(
+    runtime,
     'MANDATE_PAYMENT',
     makeOrderMoneyBag(amount, currencyCode),
     'mandate',
@@ -1921,17 +1991,17 @@ export function createMandatePayment(
   );
   const updatedOrder = applyPaymentDerivedFields({
     ...structuredClone(order),
-    updatedAt: makeSyntheticTimestamp(),
+    updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     paymentGatewayNames: Array.from(new Set([...(order.paymentGatewayNames ?? []), 'mandate'])),
     transactions: [...structuredClone(order.transactions), transaction],
   });
-  const mandatePayment = store.stageOrderMandatePayment({
+  const mandatePayment = runtime.store.stageOrderMandatePayment({
     idempotencyKey,
     orderId: order.id,
-    jobId: makeSyntheticGid('Job'),
+    jobId: runtime.syntheticIdentity.makeSyntheticGid('Job'),
     paymentReferenceId,
     transactionId: transaction.id,
-    createdAt: makeSyntheticTimestamp(),
+    createdAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
   });
 
   return { order: updatedOrder, mandatePayment };

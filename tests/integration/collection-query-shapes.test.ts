@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApp } from '../../src/app.js';
+import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
-import { store } from '../../src/state/store.js';
-import { resetSyntheticIdentity } from '../../src/state/synthetic-identity.js';
+import { store } from '../support/runtime.js';
+import { resetSyntheticIdentity } from '../support/runtime.js';
 import type { CollectionRecord, ProductRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
