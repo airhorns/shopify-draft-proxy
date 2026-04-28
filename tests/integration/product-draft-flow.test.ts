@@ -5888,6 +5888,147 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages asynchronous productDuplicate operations with downstream operation reads and raw log ordering', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('async duplicate should stay local'));
+    store.upsertBaseProducts([makeBaseProduct('gid://shopify/Product/102', 'Async Source Hat', 'async-source-hat')]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const duplicateQuery =
+      'mutation DuplicateProduct($productId: ID!, $newTitle: String!) { productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: false) { newProduct { id title } productDuplicateOperation { __typename id status product { id title handle } newProduct { id title handle status } userErrors { field message } } userErrors { field message } } }';
+
+    const duplicateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: duplicateQuery,
+        variables: {
+          productId: 'gid://shopify/Product/102',
+          newTitle: 'Async Copy Hat',
+        },
+      });
+
+    expect(duplicateResponse.status).toBe(200);
+    expect(duplicateResponse.body.data.productDuplicate).toEqual({
+      newProduct: null,
+      productDuplicateOperation: {
+        __typename: 'ProductDuplicateOperation',
+        id: expect.stringMatching(/^gid:\/\/shopify\/ProductDuplicateOperation\//),
+        status: 'CREATED',
+        product: {
+          id: 'gid://shopify/Product/102',
+          title: 'Async Source Hat',
+          handle: 'async-source-hat',
+        },
+        newProduct: null,
+        userErrors: [],
+      },
+      userErrors: [],
+    });
+
+    const operationId = duplicateResponse.body.data.productDuplicate.productDuplicateOperation.id as string;
+    const operationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOperation($id: ID!) { productOperation(id: $id) { __typename status product { id title handle } ... on ProductDuplicateOperation { id newProduct { id title handle status } userErrors { field message } } } }',
+        variables: { id: operationId },
+      });
+
+    expect(operationResponse.status).toBe(200);
+    expect(operationResponse.body.data.productOperation).toEqual({
+      __typename: 'ProductDuplicateOperation',
+      id: operationId,
+      status: 'COMPLETE',
+      product: {
+        id: 'gid://shopify/Product/102',
+        title: 'Async Source Hat',
+        handle: 'async-source-hat',
+      },
+      newProduct: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Product\//),
+        title: 'Async Copy Hat',
+        handle: 'async-copy-hat',
+        status: 'DRAFT',
+      },
+      userErrors: [],
+    });
+
+    const duplicatedProductId = operationResponse.body.data.productOperation.newProduct.id as string;
+    const productResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: 'query Product($id: ID!) { product(id: $id) { id title handle status } }',
+        variables: { id: duplicatedProductId },
+      });
+
+    expect(productResponse.status).toBe(200);
+    expect(productResponse.body.data.product).toEqual({
+      id: duplicatedProductId,
+      title: 'Async Copy Hat',
+      handle: 'async-copy-hat',
+      status: 'DRAFT',
+    });
+
+    const missingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: duplicateQuery,
+        variables: {
+          productId: 'gid://shopify/Product/404',
+          newTitle: 'Missing Async Copy',
+        },
+      });
+
+    expect(missingResponse.status).toBe(200);
+    expect(missingResponse.body.data.productDuplicate).toMatchObject({
+      newProduct: null,
+      productDuplicateOperation: {
+        __typename: 'ProductDuplicateOperation',
+        status: 'CREATED',
+        product: null,
+        newProduct: null,
+        userErrors: [],
+      },
+      userErrors: [],
+    });
+
+    const missingOperationId = missingResponse.body.data.productDuplicate.productDuplicateOperation.id as string;
+    const missingOperationResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'query ProductOperation($id: ID!) { productOperation(id: $id) { __typename status product { id } ... on ProductDuplicateOperation { id newProduct { id } userErrors { field message } } } }',
+        variables: { id: missingOperationId },
+      });
+
+    expect(missingOperationResponse.status).toBe(200);
+    expect(missingOperationResponse.body.data.productOperation).toEqual({
+      __typename: 'ProductDuplicateOperation',
+      id: missingOperationId,
+      status: 'COMPLETE',
+      product: null,
+      newProduct: null,
+      userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.status).toBe(200);
+    expect(logResponse.body.entries.map((entry: { query: string }) => entry.query)).toEqual([
+      duplicateQuery,
+      duplicateQuery,
+    ]);
+    expect(logResponse.body.entries.map((entry: { variables: unknown }) => entry.variables)).toEqual([
+      {
+        productId: 'gid://shopify/Product/102',
+        newTitle: 'Async Copy Hat',
+      },
+      {
+        productId: 'gid://shopify/Product/404',
+        newTitle: 'Missing Async Copy',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('deduplicates staged duplicate handles when productDuplicate is called twice with the same newTitle', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('productDuplicate should not hit upstream fetch');

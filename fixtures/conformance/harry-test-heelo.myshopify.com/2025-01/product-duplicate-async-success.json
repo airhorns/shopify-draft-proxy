@@ -1,0 +1,198 @@
+{
+  "setup": {
+    "sourceCreate": {
+      "variables": {
+        "synchronous": true,
+        "input": {
+          "title": "HAR407 Async Source 1777353746125",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productSet": {
+            "product": {
+              "id": "gid://shopify/Product/10172162900274",
+              "title": "HAR407 Async Source 1777353746125",
+              "handle": "har407-async-source-1777353746125",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "sourceProductId": "gid://shopify/Product/10172162900274",
+    "sourceReadBeforeDuplicate": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10172162900274",
+          "title": "HAR407 Async Source 1777353746125",
+          "handle": "har407-async-source-1777353746125",
+          "status": "DRAFT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10172162900274",
+      "newTitle": "HAR407 Async Copy 1777353746125"
+    },
+    "response": {
+      "data": {
+        "productDuplicate": {
+          "newProduct": null,
+          "productDuplicateOperation": {
+            "id": "gid://shopify/ProductDuplicateOperation/78699168050",
+            "status": "CREATED",
+            "product": {
+              "id": "gid://shopify/Product/10172162900274",
+              "title": "HAR407 Async Source 1777353746125",
+              "handle": "har407-async-source-1777353746125"
+            },
+            "newProduct": null,
+            "userErrors": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "operationRead": {
+    "variables": {
+      "id": "gid://shopify/ProductDuplicateOperation/78699168050"
+    },
+    "response": {
+      "data": {
+        "productOperation": {
+          "__typename": "ProductDuplicateOperation",
+          "status": "COMPLETE",
+          "product": {
+            "id": "gid://shopify/Product/10172162900274",
+            "title": "HAR407 Async Source 1777353746125",
+            "handle": "har407-async-source-1777353746125"
+          },
+          "id": "gid://shopify/ProductDuplicateOperation/78699168050",
+          "newProduct": {
+            "id": "gid://shopify/Product/10172162933042",
+            "title": "HAR407 Async Copy 1777353746125",
+            "handle": "har407-async-copy-1777353746125",
+            "status": "DRAFT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Product/10172162933042"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10172162933042",
+          "title": "HAR407 Async Copy 1777353746125",
+          "handle": "har407-async-copy-1777353746125",
+          "status": "DRAFT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "duplicateDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10172162933042",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "sourceDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10172162900274",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

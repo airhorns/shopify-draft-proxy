@@ -256,10 +256,30 @@ describe('media draft flow', () => {
         variables: {
           input: [
             {
-              filename: 'safe-upload.txt',
+              filename: 'safe-upload-image.png',
+              mimeType: 'image/png',
+              resource: 'IMAGE',
+              httpMethod: 'POST',
+            },
+            {
+              filename: 'safe-upload-file.txt',
               mimeType: 'text/plain',
               resource: 'FILE',
               httpMethod: 'POST',
+            },
+            {
+              filename: 'safe-upload-video.mp4',
+              mimeType: 'video/mp4',
+              resource: 'VIDEO',
+              httpMethod: 'POST',
+              fileSize: '4096',
+            },
+            {
+              filename: 'safe-upload-model.glb',
+              mimeType: 'model/gltf-binary',
+              resource: 'MODEL_3D',
+              httpMethod: 'POST',
+              fileSize: '4096',
             },
           ],
         },
@@ -267,16 +287,67 @@ describe('media draft flow', () => {
 
     expect(uploadResponse.status).toBe(200);
     expect(uploadResponse.body.data.stagedUploadsCreate.userErrors).toEqual([]);
-    expect(uploadResponse.body.data.stagedUploadsCreate.stagedTargets).toEqual([
-      {
+    const stagedTargets = uploadResponse.body.data.stagedUploadsCreate.stagedTargets as Array<{
+      url: string;
+      resourceUrl: string;
+      parameters: Array<{ name: string; value: string }>;
+    }>;
+    expect(stagedTargets).toHaveLength(4);
+    expect(stagedTargets.map((target) => target.parameters.map((parameter) => parameter.name))).toEqual([
+      [
+        'Content-Type',
+        'success_action_status',
+        'acl',
+        'key',
+        'x-goog-date',
+        'x-goog-credential',
+        'x-goog-algorithm',
+        'x-goog-signature',
+        'policy',
+      ],
+      [
+        'Content-Type',
+        'success_action_status',
+        'acl',
+        'key',
+        'x-goog-date',
+        'x-goog-credential',
+        'x-goog-algorithm',
+        'x-goog-signature',
+        'policy',
+      ],
+      ['GoogleAccessId', 'key', 'policy', 'signature'],
+      ['GoogleAccessId', 'key', 'policy', 'signature'],
+    ]);
+    expect(stagedTargets).toEqual([
+      expect.objectContaining({
         url: expect.stringMatching(/^https:\/\/shopify-draft-proxy\.local\/staged-uploads\//),
-        resourceUrl: expect.stringContaining('/safe-upload.txt'),
+        resourceUrl: expect.stringContaining('/safe-upload-image.png'),
+        parameters: expect.arrayContaining([
+          { name: 'Content-Type', value: 'image/png' },
+          { name: 'success_action_status', value: '201' },
+          { name: 'acl', value: 'private' },
+          { name: 'x-goog-algorithm', value: 'GOOG4-RSA-SHA256' },
+        ]),
+      }),
+      expect.objectContaining({
+        url: expect.stringMatching(/^https:\/\/shopify-draft-proxy\.local\/staged-uploads\//),
+        resourceUrl: expect.stringContaining('/safe-upload-file.txt'),
         parameters: expect.arrayContaining([
           { name: 'Content-Type', value: 'text/plain' },
-          { name: 'x-shopify-draft-proxy-resource', value: 'FILE' },
-          { name: 'x-shopify-draft-proxy-http-method', value: 'POST' },
+          { name: 'success_action_status', value: '201' },
+          { name: 'acl', value: 'private' },
+          { name: 'x-goog-algorithm', value: 'GOOG4-RSA-SHA256' },
         ]),
-      },
+      }),
+      expect.objectContaining({
+        url: expect.stringMatching(/^https:\/\/shopify-draft-proxy\.local\/staged-uploads\//),
+        resourceUrl: expect.stringContaining('/safe-upload-video.mp4'),
+      }),
+      expect.objectContaining({
+        url: expect.stringMatching(/^https:\/\/shopify-draft-proxy\.local\/staged-uploads\//),
+        resourceUrl: expect.stringContaining('/safe-upload-model.glb'),
+      }),
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(store.getState().stagedState.files).toEqual({});

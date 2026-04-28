@@ -5,6 +5,7 @@ import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../support/runtime.js';
 import { store } from '../support/runtime.js';
+import type { ProductRecord, ShopRecord } from '../../src/state/types.js';
 
 const snapshotConfig: AppConfig = {
   port: 3000,
@@ -17,6 +18,122 @@ const passthroughConfig: AppConfig = {
   shopifyAdminOrigin: 'https://example.myshopify.com',
   readMode: 'passthrough',
 };
+
+function makeProduct(id: string, title: string): ProductRecord {
+  return {
+    id,
+    legacyResourceId: id.split('/').at(-1) ?? null,
+    title,
+    handle: title.toLowerCase().replace(/\s+/gu, '-'),
+    status: 'ACTIVE',
+    publicationIds: [],
+    createdAt: '2025-01-01T00:00:00.000Z',
+    updatedAt: '2025-01-01T00:00:00.000Z',
+    vendor: null,
+    productType: null,
+    tags: [],
+    totalInventory: 0,
+    tracksInventory: false,
+    descriptionHtml: null,
+    onlineStorePreviewUrl: null,
+    templateSuffix: null,
+    seo: {
+      title: null,
+      description: null,
+    },
+    category: null,
+  };
+}
+
+function makeShop(): ShopRecord {
+  return {
+    id: 'gid://shopify/Shop/400',
+    name: 'Node Test Shop',
+    myshopifyDomain: 'node-test-shop.myshopify.com',
+    url: 'https://node-test-shop.myshopify.com',
+    primaryDomain: {
+      id: 'gid://shopify/Domain/400',
+      host: 'node-test-shop.myshopify.com',
+      url: 'https://node-test-shop.myshopify.com',
+      sslEnabled: true,
+    },
+    contactEmail: 'owner@example.com',
+    email: 'owner@example.com',
+    currencyCode: 'USD',
+    enabledPresentmentCurrencies: ['USD'],
+    ianaTimezone: 'America/New_York',
+    timezoneAbbreviation: 'EDT',
+    timezoneOffset: '-0400',
+    timezoneOffsetMinutes: -240,
+    taxesIncluded: false,
+    taxShipping: false,
+    unitSystem: 'IMPERIAL_SYSTEM',
+    weightUnit: 'POUNDS',
+    shopAddress: {
+      id: 'gid://shopify/ShopAddress/400',
+      address1: '1 Main Street',
+      address2: null,
+      city: 'New York',
+      company: null,
+      coordinatesValidated: false,
+      country: 'United States',
+      countryCodeV2: 'US',
+      formatted: ['1 Main Street', 'New York NY 10001', 'United States'],
+      formattedArea: 'New York NY, United States',
+      latitude: null,
+      longitude: null,
+      phone: null,
+      province: 'New York',
+      provinceCode: 'NY',
+      zip: '10001',
+    },
+    plan: {
+      partnerDevelopment: true,
+      publicDisplayName: 'Development',
+      shopifyPlus: false,
+    },
+    resourceLimits: {
+      locationLimit: 1000,
+      maxProductOptions: 3,
+      maxProductVariants: 2048,
+      redirectLimitReached: false,
+    },
+    features: {
+      avalaraAvatax: false,
+      branding: 'SHOPIFY',
+      bundles: {
+        eligibleForBundles: true,
+        ineligibilityReason: null,
+        sellsBundles: false,
+      },
+      captcha: true,
+      cartTransform: {
+        eligibleOperations: {
+          expandOperation: true,
+          mergeOperation: true,
+          updateOperation: true,
+        },
+      },
+      dynamicRemarketing: false,
+      eligibleForSubscriptionMigration: false,
+      eligibleForSubscriptions: false,
+      giftCards: true,
+      harmonizedSystemCode: true,
+      legacySubscriptionGatewayEnabled: false,
+      liveView: true,
+      paypalExpressSubscriptionGatewayStatus: 'DISABLED',
+      reports: true,
+      sellsSubscriptions: false,
+      showMetrics: true,
+      storefront: true,
+      unifiedMarkets: true,
+    },
+    paymentSettings: {
+      supportedDigitalWallets: [],
+    },
+    shopPolicies: [],
+  };
+}
 
 describe('admin platform utility query shapes', () => {
   beforeEach(() => {
@@ -194,6 +311,83 @@ describe('admin platform utility query shapes', () => {
         extensions: expect.objectContaining({ code: 'ACCESS_DENIED' }),
       }),
     ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves locally modeled Node IDs while preserving missing and unsupported null entries', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('admin platform node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseProducts([makeProduct('gid://shopify/Product/400', 'Node Product')]);
+    store.upsertBaseShop(makeShop());
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query NodeResolution($ids: [ID!]!) {
+          node(id: "gid://shopify/Product/400") {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Product {
+              title
+              handle
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on Product {
+              title
+            }
+            ... on Domain {
+              host
+              url
+              sslEnabled
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/Product/400',
+            'gid://shopify/Domain/400',
+            'gid://shopify/Product/404',
+            'gid://shopify/Customer/400',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        node: {
+          __typename: 'Product',
+          nodeId: 'gid://shopify/Product/400',
+          title: 'Node Product',
+          handle: 'node-product',
+        },
+        nodes: [
+          {
+            __typename: 'Product',
+            nodeId: 'gid://shopify/Product/400',
+            title: 'Node Product',
+          },
+          {
+            __typename: 'Domain',
+            nodeId: 'gid://shopify/Domain/400',
+            host: 'node-test-shop.myshopify.com',
+            url: 'https://node-test-shop.myshopify.com',
+            sslEnabled: true,
+          },
+          null,
+          null,
+        ],
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

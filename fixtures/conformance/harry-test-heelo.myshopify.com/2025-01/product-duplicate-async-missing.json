@@ -1,0 +1,67 @@
+{
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/999999999999999999",
+      "newTitle": "HAR407 Async Missing 1777353746125"
+    },
+    "response": {
+      "data": {
+        "productDuplicate": {
+          "newProduct": null,
+          "productDuplicateOperation": {
+            "id": "gid://shopify/ProductDuplicateOperation/78699200818",
+            "status": "CREATED",
+            "product": null,
+            "newProduct": null,
+            "userErrors": []
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "operationRead": {
+    "variables": {
+      "id": "gid://shopify/ProductDuplicateOperation/78699200818"
+    },
+    "response": {
+      "data": {
+        "productOperation": {
+          "__typename": "ProductDuplicateOperation",
+          "status": "COMPLETE",
+          "product": null,
+          "id": "gid://shopify/ProductDuplicateOperation/78699200818",
+          "newProduct": null,
+          "userErrors": [
+            {
+              "field": ["productId"],
+              "message": "Product does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

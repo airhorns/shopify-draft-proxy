@@ -55,6 +55,8 @@ import type {
   NormalizedStateSnapshotFile,
   OnlineStoreContentKind,
   OnlineStoreContentRecord,
+  OnlineStoreIntegrationKind,
+  OnlineStoreIntegrationRecord,
   OrderMandatePaymentRecord,
   OrderRecord,
   PaymentCustomizationRecord,
@@ -164,6 +166,18 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   onlineStorePageOrder: [],
   onlineStoreComments: {},
   onlineStoreCommentOrder: [],
+  onlineStoreThemes: {},
+  onlineStoreThemeOrder: [],
+  onlineStoreScriptTags: {},
+  onlineStoreScriptTagOrder: [],
+  onlineStoreWebPixels: {},
+  onlineStoreWebPixelOrder: [],
+  onlineStoreServerPixels: {},
+  onlineStoreServerPixelOrder: [],
+  onlineStoreStorefrontAccessTokens: {},
+  onlineStoreStorefrontAccessTokenOrder: [],
+  onlineStoreMobilePlatformApplications: {},
+  onlineStoreMobilePlatformApplicationOrder: [],
   savedSearches: {},
   savedSearchOrder: [],
   bulkOperations: {},
@@ -246,6 +260,12 @@ const EMPTY_SNAPSHOT: StateSnapshot = {
   deletedOnlineStoreBlogIds: {},
   deletedOnlineStorePageIds: {},
   deletedOnlineStoreCommentIds: {},
+  deletedOnlineStoreThemeIds: {},
+  deletedOnlineStoreScriptTagIds: {},
+  deletedOnlineStoreWebPixelIds: {},
+  deletedOnlineStoreServerPixelIds: {},
+  deletedOnlineStoreStorefrontAccessTokenIds: {},
+  deletedOnlineStoreMobilePlatformApplicationIds: {},
   deletedSavedSearchIds: {},
   deletedDiscountIds: {},
   deletedPaymentCustomizationIds: {},
@@ -1472,6 +1492,168 @@ export class InMemoryStore {
       Object.keys(this.stagedState.deletedOnlineStoreBlogIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStorePageIds).length > 0 ||
       Object.keys(this.stagedState.deletedOnlineStoreCommentIds).length > 0
+    );
+  }
+
+  private onlineStoreIntegrationBucket(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreIntegrationKind,
+  ): Record<string, OnlineStoreIntegrationRecord> {
+    switch (kind) {
+      case 'theme':
+        return snapshot.onlineStoreThemes;
+      case 'scriptTag':
+        return snapshot.onlineStoreScriptTags;
+      case 'webPixel':
+        return snapshot.onlineStoreWebPixels;
+      case 'serverPixel':
+        return snapshot.onlineStoreServerPixels;
+      case 'storefrontAccessToken':
+        return snapshot.onlineStoreStorefrontAccessTokens;
+      case 'mobilePlatformApplication':
+        return snapshot.onlineStoreMobilePlatformApplications;
+    }
+  }
+
+  private onlineStoreIntegrationOrder(snapshot: StateSnapshot, kind: OnlineStoreIntegrationKind): string[] {
+    switch (kind) {
+      case 'theme':
+        return snapshot.onlineStoreThemeOrder;
+      case 'scriptTag':
+        return snapshot.onlineStoreScriptTagOrder;
+      case 'webPixel':
+        return snapshot.onlineStoreWebPixelOrder;
+      case 'serverPixel':
+        return snapshot.onlineStoreServerPixelOrder;
+      case 'storefrontAccessToken':
+        return snapshot.onlineStoreStorefrontAccessTokenOrder;
+      case 'mobilePlatformApplication':
+        return snapshot.onlineStoreMobilePlatformApplicationOrder;
+    }
+  }
+
+  private onlineStoreIntegrationDeletedIds(
+    snapshot: StateSnapshot,
+    kind: OnlineStoreIntegrationKind,
+  ): Record<string, true> {
+    switch (kind) {
+      case 'theme':
+        return snapshot.deletedOnlineStoreThemeIds;
+      case 'scriptTag':
+        return snapshot.deletedOnlineStoreScriptTagIds;
+      case 'webPixel':
+        return snapshot.deletedOnlineStoreWebPixelIds;
+      case 'serverPixel':
+        return snapshot.deletedOnlineStoreServerPixelIds;
+      case 'storefrontAccessToken':
+        return snapshot.deletedOnlineStoreStorefrontAccessTokenIds;
+      case 'mobilePlatformApplication':
+        return snapshot.deletedOnlineStoreMobilePlatformApplicationIds;
+    }
+  }
+
+  upsertBaseOnlineStoreIntegrations(records: OnlineStoreIntegrationRecord[]): void {
+    for (const record of records) {
+      const bucket = this.onlineStoreIntegrationBucket(this.baseState, record.kind);
+      const order = this.onlineStoreIntegrationOrder(this.baseState, record.kind);
+      const baseDeletedIds = this.onlineStoreIntegrationDeletedIds(this.baseState, record.kind);
+      const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, record.kind);
+
+      delete baseDeletedIds[record.id];
+      delete stagedDeletedIds[record.id];
+      bucket[record.id] = structuredClone(record);
+      if (!order.includes(record.id)) {
+        order.push(record.id);
+      }
+    }
+  }
+
+  upsertStagedOnlineStoreIntegration(record: OnlineStoreIntegrationRecord): void {
+    const bucket = this.onlineStoreIntegrationBucket(this.stagedState, record.kind);
+    const baseOrder = this.onlineStoreIntegrationOrder(this.baseState, record.kind);
+    const stagedOrder = this.onlineStoreIntegrationOrder(this.stagedState, record.kind);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, record.kind);
+
+    delete stagedDeletedIds[record.id];
+    bucket[record.id] = structuredClone(record);
+    if (!baseOrder.includes(record.id) && !stagedOrder.includes(record.id)) {
+      stagedOrder.push(record.id);
+    }
+  }
+
+  deleteStagedOnlineStoreIntegration(kind: OnlineStoreIntegrationKind, id: string): void {
+    const bucket = this.onlineStoreIntegrationBucket(this.stagedState, kind);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    delete bucket[id];
+    stagedDeletedIds[id] = true;
+  }
+
+  getEffectiveOnlineStoreIntegrationById(
+    kind: OnlineStoreIntegrationKind,
+    id: string,
+  ): OnlineStoreIntegrationRecord | null {
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    if (stagedDeletedIds[id]) {
+      return null;
+    }
+
+    const record =
+      this.onlineStoreIntegrationBucket(this.stagedState, kind)[id] ??
+      this.onlineStoreIntegrationBucket(this.baseState, kind)[id];
+    return record ? structuredClone(record) : null;
+  }
+
+  listEffectiveOnlineStoreIntegrations(kind: OnlineStoreIntegrationKind): OnlineStoreIntegrationRecord[] {
+    const orderedIds = new Set([
+      ...this.onlineStoreIntegrationOrder(this.baseState, kind),
+      ...this.onlineStoreIntegrationOrder(this.stagedState, kind),
+    ]);
+    const orderedRecords = [...orderedIds]
+      .map((id) => this.getEffectiveOnlineStoreIntegrationById(kind, id))
+      .filter((record): record is OnlineStoreIntegrationRecord => record !== null);
+    const stagedDeletedIds = this.onlineStoreIntegrationDeletedIds(this.stagedState, kind);
+    const unorderedRecords = Object.values({
+      ...this.onlineStoreIntegrationBucket(this.baseState, kind),
+      ...this.onlineStoreIntegrationBucket(this.stagedState, kind),
+    })
+      .filter((record) => !orderedIds.has(record.id))
+      .filter((record) => !stagedDeletedIds[record.id])
+      .sort(
+        (left, right) =>
+          (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '') ||
+          (right.createdAt ?? '').localeCompare(left.createdAt ?? '') ||
+          compareShopifyResourceIds(left.id, right.id),
+      );
+
+    return structuredClone([...orderedRecords, ...unorderedRecords]);
+  }
+
+  hasOnlineStoreIntegrations(): boolean {
+    return (
+      Object.keys(this.baseState.onlineStoreThemes).length > 0 ||
+      Object.keys(this.baseState.onlineStoreScriptTags).length > 0 ||
+      Object.keys(this.baseState.onlineStoreWebPixels).length > 0 ||
+      Object.keys(this.baseState.onlineStoreServerPixels).length > 0 ||
+      Object.keys(this.baseState.onlineStoreStorefrontAccessTokens).length > 0 ||
+      Object.keys(this.baseState.onlineStoreMobilePlatformApplications).length > 0 ||
+      this.hasStagedOnlineStoreIntegrations()
+    );
+  }
+
+  hasStagedOnlineStoreIntegrations(): boolean {
+    return (
+      Object.keys(this.stagedState.onlineStoreThemes).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreScriptTags).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreWebPixels).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreServerPixels).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreStorefrontAccessTokens).length > 0 ||
+      Object.keys(this.stagedState.onlineStoreMobilePlatformApplications).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreThemeIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreScriptTagIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreWebPixelIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreServerPixelIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreStorefrontAccessTokenIds).length > 0 ||
+      Object.keys(this.stagedState.deletedOnlineStoreMobilePlatformApplicationIds).length > 0
     );
   }
 

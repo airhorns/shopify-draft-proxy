@@ -573,6 +573,7 @@ interface ProxyDispatchRequest {
   parsed: ParsedOperation;
   capability: OperationCapability;
   primaryRootField: string | null;
+  apiVersion: string | null;
   config: AppConfig;
   runtimeStore: InMemoryStore;
   syntheticIdentity: SyntheticIdentityRegistry;
@@ -1007,7 +1008,12 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
 
       const logEntryId = request.syntheticIdentity.makeSyntheticGid('MutationLogEntry');
       const receivedAt = request.syntheticIdentity.makeSyntheticTimestamp();
-      const responseBody = handleProductMutation(request.body.query, request.variables, request.config.readMode);
+      const responseBody = handleProductMutation(
+        request.body.query,
+        request.variables,
+        request.config.readMode,
+        request.apiVersion,
+      );
       request.recordStagedMutation({
         id: logEntryId,
         receivedAt,
@@ -2090,9 +2096,10 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
           request,
           upstreamResponse.status,
           request.runtimeStore.hasStagedOnlineStoreContent() ||
+            request.runtimeStore.hasStagedOnlineStoreIntegrations() ||
             (request.primaryRootField !== null &&
               isOnlineStoreContentQueryRoot(request.primaryRootField) &&
-              request.runtimeStore.hasOnlineStoreContent())
+              (request.runtimeStore.hasOnlineStoreContent() || request.runtimeStore.hasOnlineStoreIntegrations()))
             ? handleOnlineStoreQuery(request.body.query, request.variables)
             : upstreamResponse.body,
         );
@@ -2345,6 +2352,8 @@ async function processProxyGraphQLRequestWithRuntime(
   const parsed = parseOperation(query);
   const capability = getOperationCapability(parsed);
   const primaryRootField = parsed.rootFields[0] ?? capability.operationName;
+  const apiVersionMatch = /^\/admin\/api\/([^/]+)\/graphql\.json$/u.exec(input.path);
+  const apiVersion = apiVersionMatch?.[1] ?? null;
   const dispatchRequest: ProxyDispatchRequest = {
     ctx,
     body: { query },
@@ -2353,6 +2362,7 @@ async function processProxyGraphQLRequestWithRuntime(
     parsed,
     capability,
     primaryRootField,
+    apiVersion,
     config,
     runtimeStore: runtime.store,
     syntheticIdentity: runtime.syntheticIdentity,

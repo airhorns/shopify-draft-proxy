@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +14,29 @@ const config: AppConfig = {
   port: 3000,
   shopifyAdminOrigin: 'https://example.myshopify.com',
   readMode: 'snapshot',
+};
+
+const repoRoot = path.resolve(import.meta.dirname, '../..');
+const inventoryQuantityContracts202604 = JSON.parse(
+  readFileSync(
+    path.join(
+      repoRoot,
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/inventory-quantity-contracts-2026-04.json',
+    ),
+    'utf8',
+  ),
+) as {
+  setup: {
+    location: { id: string; name: string | null };
+    product: { productId: string; variantId: string; inventoryItemId: string };
+  };
+  inventorySetQuantities: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  missingSetIdempotency: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  missingSetChangeFromQuantity: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  legacySetShape: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  inventoryAdjustQuantities: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  missingAdjustIdempotency: { variables: Record<string, unknown>; response: Record<string, unknown> };
+  missingAdjustChangeFromQuantity: { variables: Record<string, unknown>; response: Record<string, unknown> };
 };
 
 function makeProduct(id: string, totalInventory: number): ProductRecord {
@@ -89,6 +115,57 @@ function seedInventoryProduct(totalInventory = 3): void {
   const product = makeProduct('gid://shopify/Product/9305', totalInventory);
   store.upsertBaseProducts([product]);
   store.replaceBaseVariantsForProduct(product.id, [makeVariant(product.id)]);
+}
+
+function seedInventoryQuantityContractProduct(): void {
+  const { product, location } = inventoryQuantityContracts202604.setup;
+  store.upsertBaseProducts([makeProduct(product.productId, 0)]);
+  store.replaceBaseVariantsForProduct(product.productId, [
+    {
+      ...makeVariant(product.productId),
+      id: product.variantId,
+      productId: product.productId,
+      inventoryQuantity: 0,
+      inventoryItem: {
+        id: product.inventoryItemId,
+        tracked: true,
+        requiresShipping: true,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: [
+          {
+            id: `gid://shopify/InventoryLevel/local?inventory_item_id=${encodeURIComponent(product.inventoryItemId)}`,
+            cursor: 'contract-inventory-level',
+            location,
+            quantities: [
+              { name: 'available', quantity: 0, updatedAt: null },
+              { name: 'on_hand', quantity: 0, updatedAt: null },
+            ],
+          },
+        ],
+      },
+    },
+  ]);
+}
+
+function firstGraphqlError(response: { body: { errors?: Array<Record<string, unknown>> } }): Record<string, unknown> {
+  const error = response.body.errors?.[0];
+  if (!error) {
+    throw new Error(`Expected GraphQL error, received ${JSON.stringify(response.body)}`);
+  }
+  return error;
+}
+
+function capturedFirstError(source: { response: Record<string, unknown> }): Record<string, unknown> {
+  return (source.response['errors'] as Array<Record<string, unknown>>)[0]!;
+}
+
+function selectedInventoryChanges(payload: Record<string, unknown>, root: string): unknown {
+  const data = payload['data'] as Record<string, unknown> | undefined;
+  const rootPayload = data?.[root] as { inventoryAdjustmentGroup?: { changes?: unknown[] } } | undefined;
+  return rootPayload?.inventoryAdjustmentGroup?.changes;
 }
 
 describe('inventory quantity roots', () => {
@@ -302,6 +379,168 @@ describe('inventory quantity roots', () => {
       operationName: 'inventorySetQuantities',
       status: 'staged',
     });
+  });
+
+  it('replays the captured 2026-04 inventory quantity mutation contract locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('2026-04 inventory quantity contracts should resolve locally before upstream');
+    });
+    seedInventoryQuantityContractProduct();
+    const app = createApp(config).callback();
+
+    const setMutation = `mutation InventoryQuantityContractSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+      inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+        inventoryAdjustmentGroup {
+          reason
+          referenceDocumentUri
+          changes { name delta quantityAfterChange item { id } location { id name } }
+        }
+        userErrors { field message }
+      }
+    }`;
+    const setMissingIdempotencyMutation = `mutation InventoryQuantityContractSetMissingIdempotency($input: InventorySetQuantitiesInput!) {
+      inventorySetQuantities(input: $input) {
+        inventoryAdjustmentGroup { id }
+        userErrors { field message }
+      }
+    }`;
+    const adjustMutation = `mutation InventoryQuantityContractAdjust($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+      inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+        inventoryAdjustmentGroup {
+          reason
+          referenceDocumentUri
+          changes { name delta quantityAfterChange item { id } location { id name } }
+        }
+        userErrors { field message }
+      }
+    }`;
+    const adjustMissingIdempotencyMutation = `mutation InventoryQuantityContractAdjustMissingIdempotency($input: InventoryAdjustQuantitiesInput!) {
+      inventoryAdjustQuantities(input: $input) {
+        inventoryAdjustmentGroup { id }
+        userErrors { field message }
+      }
+    }`;
+
+    const missingSetChangeFromResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: setMutation,
+      variables: inventoryQuantityContracts202604.missingSetChangeFromQuantity.variables,
+    });
+
+    expect(firstGraphqlError(missingSetChangeFromResponse)).toMatchObject({
+      message: capturedFirstError(inventoryQuantityContracts202604.missingSetChangeFromQuantity)['message'],
+      path: ['inventorySetQuantities'],
+      extensions: { code: 'INVALID_FIELD_ARGUMENTS' },
+    });
+    expect(missingSetChangeFromResponse.body.data).toEqual({ inventorySetQuantities: null });
+
+    const missingSetIdempotencyResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: setMissingIdempotencyMutation,
+      variables: inventoryQuantityContracts202604.missingSetIdempotency.variables,
+    });
+
+    expect(firstGraphqlError(missingSetIdempotencyResponse)).toMatchObject({
+      message: capturedFirstError(inventoryQuantityContracts202604.missingSetIdempotency)['message'],
+      path: ['inventorySetQuantities'],
+      extensions: { code: 'BAD_REQUEST' },
+    });
+    expect(missingSetIdempotencyResponse.body.data).toEqual({ inventorySetQuantities: null });
+
+    const legacySetShapeResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: setMutation,
+      variables: inventoryQuantityContracts202604.legacySetShape.variables,
+    });
+
+    expect(firstGraphqlError(legacySetShapeResponse)).toMatchObject({
+      message: capturedFirstError(inventoryQuantityContracts202604.legacySetShape)['message'],
+      extensions: {
+        code: 'INVALID_VARIABLE',
+        problems: [
+          { path: ['ignoreCompareQuantity'], explanation: 'Field is not defined on InventorySetQuantitiesInput' },
+        ],
+      },
+    });
+
+    const setResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: setMutation,
+      variables: inventoryQuantityContracts202604.inventorySetQuantities.variables,
+    });
+
+    expect(setResponse.body.data.inventorySetQuantities.userErrors).toEqual([]);
+    expect(selectedInventoryChanges(setResponse.body, 'inventorySetQuantities')).toEqual(
+      selectedInventoryChanges(
+        inventoryQuantityContracts202604.inventorySetQuantities.response,
+        'inventorySetQuantities',
+      ),
+    );
+
+    const missingAdjustChangeFromResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: adjustMissingIdempotencyMutation,
+      variables: inventoryQuantityContracts202604.missingAdjustChangeFromQuantity.variables,
+    });
+
+    expect(firstGraphqlError(missingAdjustChangeFromResponse)).toMatchObject({
+      message: capturedFirstError(inventoryQuantityContracts202604.missingAdjustChangeFromQuantity)['message'],
+      path: ['inventoryAdjustQuantities'],
+      extensions: { code: 'INVALID_FIELD_ARGUMENTS' },
+    });
+    expect(missingAdjustChangeFromResponse.body.data).toEqual({ inventoryAdjustQuantities: null });
+
+    const missingAdjustIdempotencyResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: adjustMissingIdempotencyMutation,
+      variables: inventoryQuantityContracts202604.missingAdjustIdempotency.variables,
+    });
+
+    expect(firstGraphqlError(missingAdjustIdempotencyResponse)).toMatchObject({
+      message: capturedFirstError(inventoryQuantityContracts202604.missingAdjustIdempotency)['message'],
+      path: ['inventoryAdjustQuantities'],
+      extensions: { code: 'BAD_REQUEST' },
+    });
+    expect(missingAdjustIdempotencyResponse.body.data).toEqual({ inventoryAdjustQuantities: null });
+
+    const adjustResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query: adjustMutation,
+      variables: inventoryQuantityContracts202604.inventoryAdjustQuantities.variables,
+    });
+
+    expect(adjustResponse.body.data.inventoryAdjustQuantities.userErrors).toEqual([]);
+    expect(selectedInventoryChanges(adjustResponse.body, 'inventoryAdjustQuantities')).toEqual(
+      selectedInventoryChanges(
+        inventoryQuantityContracts202604.inventoryAdjustQuantities.response,
+        'inventoryAdjustQuantities',
+      ),
+    );
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query($inventoryItemId: ID!, $productId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            variant { inventoryQuantity product { totalInventory } }
+            inventoryLevels(first: 5) {
+              nodes { location { id name } quantities(names: ["available", "on_hand"]) { name quantity } }
+            }
+          }
+          product(id: $productId) { totalInventory }
+        }`,
+        variables: {
+          inventoryItemId: inventoryQuantityContracts202604.setup.product.inventoryItemId,
+          productId: inventoryQuantityContracts202604.setup.product.productId,
+        },
+      });
+
+    expect(downstreamResponse.body.data.inventoryItem.variant.inventoryQuantity).toBe(7);
+    expect(downstreamResponse.body.data.inventoryItem.variant.product.totalInventory).toBe(0);
+    expect(downstreamResponse.body.data.product.totalInventory).toBe(0);
+    expect(downstreamResponse.body.data.inventoryItem.inventoryLevels.nodes).toEqual([
+      {
+        location: inventoryQuantityContracts202604.setup.location,
+        quantities: [
+          { name: 'available', quantity: 7 },
+          { name: 'on_hand', quantity: 7 },
+        ],
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('stages inventoryMoveQuantities locally and rejects unsupported move branches visibly', async () => {
