@@ -279,7 +279,8 @@ describe('discount redeem-code bulk staging', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it('refuses broad destructive bulk inputs locally and logs unsupported id-scoped bulk paths as passthrough', async () => {
+  it('refuses broad destructive bulk inputs locally and stages id-scoped bulk paths without passthrough', async () => {
+    store.upsertBaseDiscounts([buildCodeDiscount({ status: 'EXPIRED' })]);
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -351,22 +352,26 @@ describe('discount redeem-code bulk staging', () => {
       });
 
     expect(passthroughResponse.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(passthroughResponse.body.data.discountCodeBulkActivate).toEqual({
+      job: {
+        id: 'gid://shopify/Job/1?shopify-draft-proxy=synthetic',
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries).toEqual([
       expect.objectContaining({
-        operationName: 'UnsupportedIdScopedBulk',
-        status: 'proxied',
+        operationName: 'discountCodeBulkActivate',
+        status: 'staged',
         interpreted: expect.objectContaining({
-          registeredOperation: expect.objectContaining({
-            name: 'discountCodeBulkActivate',
+          capability: expect.objectContaining({
+            operationName: 'discountCodeBulkActivate',
             domain: 'discounts',
             execution: 'stage-locally',
-            implemented: false,
           }),
         }),
-        notes:
-          'Unsupported discount mutation lifecycle branch would be proxied to Shopify. Captured validation failures are handled locally only; full local emulation is required before this root can be supported.',
+        notes: 'Staged locally in the in-memory discount draft store.',
       }),
     ]);
   });

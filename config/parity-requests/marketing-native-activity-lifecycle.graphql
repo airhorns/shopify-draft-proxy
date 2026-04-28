@@ -1,0 +1,36 @@
+mutation MarketingNativeActivityLifecycle(
+  $createInput: MarketingActivityCreateInput!
+  $updateInput: MarketingActivityUpdateInput!
+  $invalidExtensionInput: MarketingActivityCreateInput!
+) {
+  createNative: marketingActivityCreate(input: $createInput) {
+    userErrors {
+      field
+      message
+    }
+  }
+  updateNative: marketingActivityUpdate(input: $updateInput) {
+    marketingActivity {
+      id
+      title
+      status
+      statusLabel
+      isExternal
+      inMainWorkflowVersion
+      marketingEvent {
+        id
+      }
+    }
+    redirectPath
+    userErrors {
+      field
+      message
+    }
+  }
+  invalidExtension: marketingActivityCreate(input: $invalidExtensionInput) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

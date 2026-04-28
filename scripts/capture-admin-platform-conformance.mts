@@ -215,9 +215,82 @@ const staffAccessBlockerQuery = `#graphql
   }
 `;
 
+const flowTriggerInvalidHandleMutation = `#graphql
+  mutation FlowTriggerReceiveInvalid {
+    flowTriggerReceive(handle: "har-374-missing", payload: { test: "value" }) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerOversizeMutation = `#graphql
+  mutation FlowTriggerReceiveOversize($payload: JSON) {
+    flowTriggerReceive(handle: "har-374-missing", payload: $payload) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowGenerateUnknownMutation = `mutation {
+  flowGenerateSignature(id: "gid://shopify/FlowTrigger/0", payload: "{}") {
+    signature
+    userErrors {
+      field
+      message
+    }
+  }
+}`;
+
+const backupRegionUpdateIdempotentMutation = `#graphql
+  mutation BackupRegionUpdateIdempotent {
+    backupRegionUpdate(region: { countryCode: CA }) {
+      backupRegion {
+        __typename
+        id
+        name
+        ... on MarketRegionCountry {
+          code
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const backupRegionUpdateInvalidMutation = `#graphql
+  mutation BackupRegionUpdateInvalid {
+    backupRegionUpdate(region: { countryCode: ZZ }) {
+      backupRegion {
+        __typename
+        id
+        name
+        ... on MarketRegionCountry {
+          code
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const introspection = await runGraphqlCapture(rootTypeIntrospectionQuery);
 const utilityRootNames = new Set([
   'backupRegion',
+  'backupRegionUpdate',
   'domain',
   'flowGenerateSignature',
   'flowTriggerReceive',
@@ -272,6 +345,35 @@ const captures = {
   staffAccessBlocker: {
     query: staffAccessBlockerQuery,
     result: await runGraphqlCapture(staffAccessBlockerQuery),
+  },
+  flowTriggerReceiveInvalid: {
+    query: flowTriggerInvalidHandleMutation,
+    result: await runGraphqlCapture(flowTriggerInvalidHandleMutation),
+  },
+  flowTriggerReceiveOversize: {
+    query: flowTriggerOversizeMutation,
+    variables: {
+      payload: { value: 'x'.repeat(50_001) },
+    },
+    result: await runGraphqlCapture(flowTriggerOversizeMutation, {
+      payload: { value: 'x'.repeat(50_001) },
+    }),
+  },
+  flowGenerateSignatureUnknown: {
+    query: flowGenerateUnknownMutation,
+    result: await runGraphqlCapture(flowGenerateUnknownMutation),
+  },
+  backupRegionUpdateIdempotent: {
+    query: backupRegionUpdateIdempotentMutation,
+    result: await runGraphqlCapture(backupRegionUpdateIdempotentMutation),
+  },
+  backupRegionAfterIdempotentUpdate: {
+    query: backupRegionQuery,
+    result: await runGraphqlCapture(backupRegionQuery),
+  },
+  backupRegionUpdateInvalid: {
+    query: backupRegionUpdateInvalidMutation,
+    result: await runGraphqlCapture(backupRegionUpdateInvalidMutation),
   },
 };
 
