@@ -2023,7 +2023,7 @@
     "implemented": true,
     "matchNames": ["customerSavedSearches", "CustomerSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state."
+    "supportNotes": "HAR-312/HAR-402: serves Customer SavedSearch connections, including local query filtering by name/query/resource type, from effective local saved-search state. Customer saved-search creation is deprecated by Shopify and returns a local userError instead of staging a new customer saved search."
   },
   {
     "name": "orderSavedSearches",
@@ -2033,7 +2033,7 @@
     "implemented": true,
     "matchNames": ["orderSavedSearches", "OrderSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: serves Order SavedSearch connections from effective local saved-search state with captured default-order saved-search shapes represented as records when hydrated or staged."
+    "supportNotes": "HAR-312/HAR-402: serves Order SavedSearch connections from effective local saved-search state while preserving the captured default order saved searches when no merchant-created saved searches are present."
   },
   {
     "name": "draftOrderSavedSearches",
@@ -2063,7 +2063,7 @@
     "implemented": true,
     "matchNames": ["codeDiscountSavedSearches", "CodeDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves code-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "automaticDiscountSavedSearches",
@@ -2073,7 +2073,7 @@
     "implemented": true,
     "matchNames": ["automaticDiscountSavedSearches", "AutomaticDiscountSavedSearches"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence."
+    "supportNotes": "HAR-312/HAR-402: serves automatic-discount SavedSearch roots from locally staged PRICE_RULE saved searches; automatic/code subtype distinction needs deeper discount saved-search evidence. Shopify 2026-04 rejects query: on this root, so executable parity uses first-only reads."
   },
   {
     "name": "discountRedeemCodeSavedSearches",
@@ -2093,7 +2093,7 @@
     "implemented": true,
     "matchNames": ["savedSearchCreate", "SavedSearchCreate"],
     "runtimeTests": ["tests/integration/saved-search-flow.test.ts"],
-    "supportNotes": "HAR-312: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
+    "supportNotes": "HAR-312/HAR-402: stages supported saved-search resource types locally, derives searchTerms/filters from the Admin query string, returns Shopify's CUSTOMER deprecation userError, and leaves URL_REDIRECT saved searches unsupported until navigation-scope conformance succeeds."
   },
   {
     "name": "savedSearchUpdate",

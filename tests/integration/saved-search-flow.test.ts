@@ -41,7 +41,7 @@ describe('saved search flow', () => {
       });
 
     expect(response.status).toBe(200);
-    const { draftOrderSavedSearches, ...emptyConnections } = response.body.data;
+    const { draftOrderSavedSearches, orderSavedSearches, ...emptyConnections } = response.body.data;
     for (const value of Object.values(emptyConnections)) {
       expect(value).toMatchObject({
         nodes: [],
@@ -49,6 +49,16 @@ describe('saved search flow', () => {
       });
     }
     expect(response.body.data.productSavedSearches.edges).toEqual([]);
+    expect(orderSavedSearches.nodes).toEqual([
+      { id: 'gid://shopify/SavedSearch/3634391515442' },
+      { id: 'gid://shopify/SavedSearch/3634391548210' },
+    ]);
+    expect(orderSavedSearches.pageInfo).toMatchObject({
+      hasNextPage: true,
+      hasPreviousPage: false,
+      startCursor: 'cursor:gid://shopify/SavedSearch/3634391515442',
+      endCursor: 'cursor:gid://shopify/SavedSearch/3634391548210',
+    });
     expect(draftOrderSavedSearches.nodes).toEqual([
       { id: 'gid://shopify/SavedSearch/3634390597938' },
       { id: 'gid://shopify/SavedSearch/3634390630706' },
@@ -292,7 +302,6 @@ describe('saved search flow', () => {
     for (const resourceType of [
       'PRODUCT',
       'COLLECTION',
-      'CUSTOMER',
       'ORDER',
       'DRAFT_ORDER',
       'FILE',
@@ -336,8 +345,8 @@ describe('saved search flow', () => {
           orders: orderSavedSearches(first: 2, query: "HAR-402 ORDER") { nodes { id name resourceType } }
           draftOrders: draftOrderSavedSearches(first: 2, query: "HAR-402 DRAFT_ORDER") { nodes { id name resourceType } }
           files: fileSavedSearches(first: 2, query: "HAR-402 FILE") { nodes { id name resourceType } }
-          codeDiscounts: codeDiscountSavedSearches(first: 2, query: "HAR-402 PRICE_RULE") { nodes { id name resourceType } }
-          automaticDiscounts: automaticDiscountSavedSearches(first: 2, query: "HAR-402 PRICE_RULE") { nodes { id name resourceType } }
+          codeDiscounts: codeDiscountSavedSearches(first: 2) { nodes { id name resourceType } }
+          automaticDiscounts: automaticDiscountSavedSearches(first: 2) { nodes { id name resourceType } }
           redeemCodes: discountRedeemCodeSavedSearches(first: 2, query: "HAR-402 DISCOUNT_REDEEM_CODE") { nodes { id name resourceType } }
           misplacedProduct: collectionSavedSearches(first: 2, query: "HAR-402 PRODUCT") { nodes { id name resourceType } }
         }`,
@@ -349,9 +358,7 @@ describe('saved search flow', () => {
       collections: {
         nodes: [{ id: created['COLLECTION']?.id, name: created['COLLECTION']?.name, resourceType: 'COLLECTION' }],
       },
-      customers: {
-        nodes: [{ id: created['CUSTOMER']?.id, name: created['CUSTOMER']?.name, resourceType: 'CUSTOMER' }],
-      },
+      customers: { nodes: [] },
       orders: { nodes: [{ id: created['ORDER']?.id, name: created['ORDER']?.name, resourceType: 'ORDER' }] },
       draftOrders: {
         nodes: [{ id: created['DRAFT_ORDER']?.id, name: created['DRAFT_ORDER']?.name, resourceType: 'DRAFT_ORDER' }],
@@ -375,6 +382,38 @@ describe('saved search flow', () => {
       misplacedProduct: { nodes: [] },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('matches Shopify customer saved-search create deprecation', async () => {
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateCustomerSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name resourceType }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            resourceType: 'CUSTOMER',
+            name: 'HAR-402 Customer',
+            query: 'HAR-402 CUSTOMER',
+          },
+        },
+      });
+
+    expect(response.body.data.savedSearchCreate).toEqual({
+      savedSearch: null,
+      userErrors: [
+        {
+          field: null,
+          message: 'Customer saved searches have been deprecated. Use Segmentation API instead.',
+        },
+      ],
+    });
   });
 
   it('does not claim URL redirect saved-search resource support without navigation conformance', async () => {
