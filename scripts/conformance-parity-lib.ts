@@ -28,7 +28,7 @@ import {
   hydrateCustomersFromUpstreamResponse,
 } from '../src/proxy/customers.js';
 import { handleAdminPlatformQuery } from '../src/proxy/admin-platform.js';
-import { handleB2BQuery } from '../src/proxy/b2b.js';
+import { handleB2BMutation, handleB2BQuery } from '../src/proxy/b2b.js';
 import { handleBulkOperationMutation, handleBulkOperationQuery } from '../src/proxy/bulk-operations.js';
 import { handleDeliveryProfileMutation, handleDeliveryProfileQuery } from '../src/proxy/delivery-profiles.js';
 import { handleDeliverySettingsQuery } from '../src/proxy/delivery-settings.js';
@@ -1306,6 +1306,33 @@ async function executeGraphQLAgainstLocalProxy(
     return {
       status: 200,
       body: bulkOperationMutation.response,
+    };
+  }
+
+  if (capability.execution === 'stage-locally' && capability.domain === 'b2b') {
+    const b2bMutation = handleB2BMutation(document, variables);
+    if (!b2bMutation) {
+      throw new Error(`B2B-domain parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    if (b2bMutation.staged) {
+      store.appendLog({
+        id: makeSyntheticGid('MutationLogEntry'),
+        receivedAt: makeSyntheticTimestamp(),
+        operationName: capability.operationName,
+        path: '/admin/api/2026-04/graphql.json',
+        query: document,
+        variables,
+        status: 'staged',
+        interpreted: interpretMutationLogEntry(parsed, capability),
+        stagedResourceIds: b2bMutation.stagedResourceIds,
+        notes: b2bMutation.notes,
+      });
+    }
+
+    return {
+      status: 200,
+      body: b2bMutation.response,
     };
   }
 
