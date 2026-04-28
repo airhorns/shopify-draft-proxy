@@ -1,0 +1,13 @@
+mutation AppSubscriptionCancelLocalLifecycle($id: ID!) {
+  appSubscriptionCancel(id: $id, prorate: true) {
+    appSubscription {
+      id
+      status
+      trialDays
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
