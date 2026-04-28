@@ -3677,6 +3677,36 @@ export class InMemoryStore {
     return existing ? structuredClone(existing) : null;
   }
 
+  removeTranslationsForLocale(locale: string): TranslationRecord[] {
+    const removed = new Map<string, TranslationRecord>();
+    for (const translation of Object.values(this.baseState.translations)) {
+      if (translation.locale !== locale) {
+        continue;
+      }
+
+      const storageKey = translationStorageKey(translation);
+      removed.set(storageKey, structuredClone(translation));
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+
+    for (const [storageKey, translation] of Object.entries(this.stagedState.translations)) {
+      if (translation.locale !== locale) {
+        continue;
+      }
+
+      removed.set(storageKey, structuredClone(translation));
+      delete this.stagedState.translations[storageKey];
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+
+    return Array.from(removed.values()).sort(
+      (left, right) =>
+        left.resourceId.localeCompare(right.resourceId) ||
+        left.key.localeCompare(right.key) ||
+        left.updatedAt.localeCompare(right.updatedAt),
+    );
+  }
+
   listEffectiveTranslations(resourceId: string, locale: string, marketId: string | null = null): TranslationRecord[] {
     const translations = new Map<string, TranslationRecord>();
     for (const translation of Object.values(this.baseState.translations)) {

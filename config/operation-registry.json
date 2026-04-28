@@ -6549,7 +6549,7 @@
     "implemented": true,
     "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
     "runtimeTests": ["tests/integration/localization-flow.test.ts"],
-    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+    "supportNotes": "Stages non-primary locale removal locally, removes translations for that locale, and returns the disabled locale string."
   },
   {
     "name": "translationsRegister",

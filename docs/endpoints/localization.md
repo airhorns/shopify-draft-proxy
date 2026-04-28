@@ -34,7 +34,7 @@ Product metafield translatable content is limited to product-owned metafields an
 
 ### Mutation behavior
 
-`shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales.
+`shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales. Disabling a locale also removes locally staged/base translations for that locale, matching Shopify's documented destructive locale-delete behavior.
 
 `translationsRegister` stages translations for locally known product and product-metafield resources after validating resource existence, enabled shop locale, translatable key, non-blank value, digest match, and unsupported market-specific input. Locale validation uses enabled `shopLocales`, not the broader `availableLocales` catalog. Digest mismatch is checked only after the requested key resolves to translatable content, so invalid-key errors are not polluted by stale-digest errors. `translationsRemove` removes matching local/base translations and returns the removed translation payloads. Subsequent `translatableResource.translations(locale:)` reads observe these staged changes.
 
@@ -54,4 +54,10 @@ The capture includes:
 - a safe `fr` shop-locale enable/update/disable lifecycle with cleanup
 - a product title `translationsRegister` / downstream read / `translationsRemove` / downstream empty read lifecycle with cleanup
 
-The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, and product-title translation lifecycle through the local proxy. `tests/integration/localization-flow.test.ts` also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, and read-after-remove behavior.
+The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, and product-title translation lifecycle through the local proxy. `tests/integration/localization-flow.test.ts` also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and locale-disable translation cleanup.
+
+### HAR-449 gap review
+
+The current localization model intentionally preserves dedicated `availableLocales`, `shopLocales`, and `translations` state buckets. The reviewed Shopify docs and public examples reinforce those as separate locale lifecycle, translatable-resource, and owner-scoped translation concepts rather than evidence for a shared abstraction.
+
+High-risk paths now have executable evidence through the captured localization parity fixture plus integration coverage for guardrails that the generic fixture replay does not isolate. Remaining known boundaries are unsupported resource families beyond product/product-metafield `TranslatableResource` rows, market-specific generic translation inputs, and Shopify-specific digest sanitizer edge cases for complex HTML. Those stay documented as unsupported or capture-driven future work rather than claimed full localization coverage.
