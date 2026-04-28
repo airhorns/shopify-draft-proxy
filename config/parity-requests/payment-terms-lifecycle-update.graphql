@@ -1,0 +1,45 @@
+mutation PaymentTermsLifecycleUpdate($input: PaymentTermsUpdateInput!) {
+  paymentTermsUpdate(input: $input) {
+    paymentTerms {
+      id
+      due
+      overdue
+      dueInDays
+      paymentTermsName
+      paymentTermsType
+      translatedName
+      paymentSchedules(first: 2) {
+        nodes {
+          id
+          issuedAt
+          dueAt
+          completedAt
+          due
+          amount {
+            amount
+            currencyCode
+          }
+          balanceDue {
+            amount
+            currencyCode
+          }
+          totalBalance {
+            amount
+            currencyCode
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

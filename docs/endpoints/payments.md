@@ -13,6 +13,9 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 - `paymentCustomizationDelete`
 - `paymentCustomizationActivation`
 - `paymentTermsTemplates(paymentTermsType:)`
+- `paymentTermsCreate`
+- `paymentTermsUpdate`
+- `paymentTermsDelete`
 
 Payment customization writes are local-only once supported. They must not invoke Shopify Functions or mutate checkout payment behavior at runtime; commit replay keeps the original raw mutation for an explicit later commit.
 
@@ -82,12 +85,21 @@ Do not add planned-only parity specs for payment roots. Keep unsupported payment
 - `Net 7`, `Net 15`, `Net 30`, `Net 45`, `Net 60`, and `Net 90` (`NET`)
 - `Fixed` (`FIXED`, `dueInDays: null`)
 
-The optional `paymentTermsType` argument filters by exact enum value. Selected template fields currently include `id`, `name`, `description`, `dueInDays`, `paymentTermsType`, `translatedName`, and `__typename`. Payment terms lifecycle mutations (`paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete`) remain unsupported and may only pass through as unknown/unsupported operations; they are not registered as local capabilities.
+The optional `paymentTermsType` argument filters by exact enum value. Selected template fields currently include `id`, `name`, `description`, `dueInDays`, `paymentTermsType`, `translatedName`, and `__typename`.
+
+## Payment terms lifecycle
+
+`paymentTermsCreate(referenceId:, paymentTermsAttributes:)`, `paymentTermsUpdate(input:)`, and `paymentTermsDelete(input:)` are modeled as local-only order/draft-order graph updates. The payment root owns the Admin API entrypoint, but the staged state lives on `Order.paymentTerms` and `DraftOrder.paymentTerms` so immediate downstream reads observe the same normalized payment terms graph and payment schedule connection serializers used by order reads.
+
+Create supports eligible local `Order` and `DraftOrder` IDs as `referenceId`, builds a stable local `PaymentTerms` GID, and creates schedule GIDs for supplied schedules. Update locates existing local terms by `paymentTermsId`, preserves the terms ID and same-index schedule IDs, and reprojects template name/type/due-day fields from the local `paymentTermsTemplates` catalog. Delete locates terms by `paymentTermsId`, clears the owning order/draft-order field, and returns `deletedId`.
+
+Validation is local and does not append staged-write log entries for rejected branches. Captured evidence currently covers the draft-order create-time missing-template branch (`Payment terms template id can not be empty.`) and merchant permission blocker (`The user must have access to set payment terms.`). The standalone lifecycle mutations use Shopify-documented 2026-04 argument/input shapes plus local guardrails for unknown order/draft targets, missing or unknown template IDs, invalid NET/FIXED schedule requirements, missing update IDs, and duplicate deletes. Full live happy-path parity remains future work because these mutations alter real payment schedules.
 
 ## Validation
 
 - `tests/integration/payment-customization-query-shapes.test.ts`
 - `tests/integration/payment-terms-query-shapes.test.ts`
+- `tests/integration/payment-terms-lifecycle-flow.test.ts`
 - `config/parity-specs/finance-risk-no-data-read.json`
 - `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`

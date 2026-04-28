@@ -250,6 +250,7 @@ const registeredMutationOperationNames = new Set(
     .flatMap((entry) => [entry.name, ...entry.matchNames]),
 );
 const ORDER_PAYMENT_MUTATION_ROOTS = new Set(['orderCapture', 'transactionVoid', 'orderCreateMandatePayment']);
+const PAYMENT_TERMS_MUTATION_ROOTS = new Set(['paymentTermsCreate', 'paymentTermsUpdate', 'paymentTermsDelete']);
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1493,7 +1494,9 @@ async function executeGraphQLAgainstLocalProxy(
   if (
     capability.execution === 'stage-locally' &&
     capability.domain === 'payments' &&
-    parsed.rootFields.some((rootField) => ORDER_PAYMENT_MUTATION_ROOTS.has(rootField))
+    parsed.rootFields.some(
+      (rootField) => ORDER_PAYMENT_MUTATION_ROOTS.has(rootField) || PAYMENT_TERMS_MUTATION_ROOTS.has(rootField),
+    )
   ) {
     const body = handleOrderMutation(document, variables, 'snapshot');
     if (!body) {
@@ -7077,6 +7080,12 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
   const explicitSeedOrderId = readStringField(explicitSeedOrder, 'id');
   if (explicitSeedOrder && explicitSeedOrderId) {
     store.upsertBaseOrders([makeSeedOrder(explicitSeedOrderId, explicitSeedOrder)]);
+  }
+
+  const explicitSeedDraftOrder = readRecordField(capture as Record<string, unknown>, 'seedDraftOrder');
+  const explicitSeedDraftOrderId = readStringField(explicitSeedDraftOrder, 'id');
+  if (explicitSeedDraftOrder && explicitSeedDraftOrderId) {
+    store.stageCreateDraftOrder(makeSeedDraftOrder(explicitSeedDraftOrderId, explicitSeedDraftOrder));
   }
 
   const readOrderPayload =
