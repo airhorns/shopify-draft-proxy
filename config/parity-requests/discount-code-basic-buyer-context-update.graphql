@@ -1,0 +1,43 @@
+mutation DiscountCodeBasicBuyerContextUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          codes(first: 1) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          context {
+            __typename
+            ... on DiscountCustomers {
+              customers {
+                __typename
+                id
+                displayName
+              }
+            }
+            ... on DiscountCustomerSegments {
+              segments {
+                __typename
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

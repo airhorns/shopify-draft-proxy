@@ -145,6 +145,7 @@ import type {
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
   ShopifyFunctionRecord,
+  SegmentRecord,
   ShopRecord,
   ShopLocaleRecord,
   DiscountRecord,
@@ -2650,6 +2651,16 @@ function makePlaceholderCustomer(index: number): CustomerRecord {
     defaultAddress: null,
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',
+  };
+}
+
+function makeSeedSegment(segmentId: string, source: Record<string, unknown> | null = null): SegmentRecord {
+  return {
+    id: segmentId,
+    name: readStringField(source, 'name'),
+    query: readStringField(source, 'query'),
+    creationDate: readStringField(source, 'creationDate'),
+    lastEditDate: readStringField(source, 'lastEditDate'),
   };
 }
 
@@ -7128,6 +7139,28 @@ function seedPreconditionsFromCapture(capture: unknown, variables: Record<string
 
   if (seedBulkOperationPreconditions(capture)) {
     return;
+  }
+
+  const seedCustomers = readArrayField(capture as Record<string, unknown>, 'seedCustomers')
+    .filter(isPlainObject)
+    .map((customer): CustomerRecord | null => {
+      const customerId = readStringField(customer, 'id');
+      return customerId ? makeSeedCustomer(customerId, customer) : null;
+    })
+    .filter((customer): customer is CustomerRecord => customer !== null);
+  if (seedCustomers.length > 0) {
+    store.upsertBaseCustomers(seedCustomers);
+  }
+
+  const seedSegments = readArrayField(capture as Record<string, unknown>, 'seedSegments')
+    .filter(isPlainObject)
+    .map((segment): SegmentRecord | null => {
+      const segmentId = readStringField(segment, 'id');
+      return segmentId ? makeSeedSegment(segmentId, segment) : null;
+    })
+    .filter((segment): segment is SegmentRecord => segment !== null);
+  if (seedSegments.length > 0) {
+    store.upsertBaseSegments(seedSegments);
   }
 
   const seedProducts = readArrayField(capture as Record<string, unknown>, 'seedProducts').filter(isPlainObject);

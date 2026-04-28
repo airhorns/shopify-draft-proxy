@@ -1,0 +1,37 @@
+mutation DiscountAutomaticBasicBuyerContextUpdate($id: ID!, $input: DiscountAutomaticBasicInput!) {
+  discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $input) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticBasic {
+          title
+          status
+          context {
+            __typename
+            ... on DiscountCustomers {
+              customers {
+                __typename
+                id
+                displayName
+              }
+            }
+            ... on DiscountCustomerSegments {
+              segments {
+                __typename
+                id
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
