@@ -47,7 +47,7 @@ Local validation guardrails currently cover missing Function references plus unk
 
 - Root availability is captured in `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-graphql-root-operation-introspection.json`.
 - Runtime local-staging evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions-metadata-flow.json` and enforced by `tests/integration/functions-flow.test.ts`.
-- App/owner metadata evidence is integration-test backed by seeding known `ShopifyFunction` records and verifying validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
+- App/owner metadata evidence is recorded in `fixtures/conformance/local-runtime/2026-04/functions-owner-metadata-flow.json` and enforced by the `functions-owner-metadata-local-staging` parity spec plus `tests/integration/functions-flow.test.ts`; the scenario seeds known `ShopifyFunction` records and verifies validation/cart-transform lifecycle reads preserve captured `appKey` and `app` selections instead of inventing or dropping owner metadata.
 - Shopify Admin docs for the current API describe `validationCreate` / `validationUpdate` inputs as Function-handle based validation metadata with `enable`, `blockOnFailure`, `metafields`, and `title`.
 - Shopify Admin docs for `cartTransformCreate` expose direct `functionId` / `functionHandle`, `blockOnFailure`, and optional metafield inputs.
 - Shopify Admin docs for `taxAppConfigure` expose a `ready: Boolean!` mutation returning `taxAppConfiguration` and `userErrors`.
