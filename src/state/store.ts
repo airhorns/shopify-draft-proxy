@@ -612,6 +612,7 @@ export class InMemoryStore {
   private baseMarketsRootPayloads: Record<string, unknown> = {};
   private baseSegmentsRootPayloads: Record<string, unknown> = {};
   private stagedOrders: Record<string, OrderRecord> = {};
+  private deletedOrderIds = new Set<string>();
   private calculatedOrders: Record<string, CalculatedOrderRecord> = {};
   private stagedDraftOrders: Record<string, DraftOrderRecord> = {};
   private deletedDraftOrderIds = new Set<string>();
@@ -646,6 +647,7 @@ export class InMemoryStore {
     this.baseMarketsRootPayloads = {};
     this.baseSegmentsRootPayloads = {};
     this.stagedOrders = {};
+    this.deletedOrderIds = new Set<string>();
     this.calculatedOrders = {};
     this.stagedDraftOrders = structuredClone(this.initialDraftOrders);
     this.deletedDraftOrderIds = new Set<string>();
@@ -3314,13 +3316,21 @@ export class InMemoryStore {
   }
 
   stageCreateOrder(order: OrderRecord): OrderRecord {
+    this.deletedOrderIds.delete(order.id);
     this.stagedOrders[order.id] = structuredClone(order);
     return structuredClone(order);
   }
 
   getOrderById(orderId: string): OrderRecord | null {
+    if (this.deletedOrderIds.has(orderId)) {
+      return null;
+    }
     const order = this.stagedOrders[orderId] ?? this.baseOrders[orderId];
     return order ? structuredClone(order) : null;
+  }
+
+  hasDeletedOrder(orderId: string): boolean {
+    return this.deletedOrderIds.has(orderId);
   }
 
   hasStagedOrder(orderId: string): boolean {
@@ -3330,9 +3340,15 @@ export class InMemoryStore {
   getOrders(): OrderRecord[] {
     const mergedOrders = new Map<string, OrderRecord>();
     for (const order of Object.values(this.baseOrders)) {
+      if (this.deletedOrderIds.has(order.id)) {
+        continue;
+      }
       mergedOrders.set(order.id, structuredClone(order));
     }
     for (const order of Object.values(this.stagedOrders)) {
+      if (this.deletedOrderIds.has(order.id)) {
+        continue;
+      }
       mergedOrders.set(order.id, structuredClone(order));
     }
 
@@ -3361,8 +3377,14 @@ export class InMemoryStore {
   }
 
   updateOrder(order: OrderRecord): OrderRecord {
+    this.deletedOrderIds.delete(order.id);
     this.stagedOrders[order.id] = structuredClone(order);
     return structuredClone(order);
+  }
+
+  deleteOrder(orderId: string): void {
+    delete this.stagedOrders[orderId];
+    this.deletedOrderIds.add(orderId);
   }
 
   stageOrderMandatePayment(record: OrderMandatePaymentRecord): OrderMandatePaymentRecord {

@@ -203,9 +203,9 @@ Delivery customizations and promises:
 
 Shipping-line order-edit roots:
 
-- `orderEditAddShippingLine`
-- `orderEditRemoveShippingLine`
-- `orderEditUpdateShippingLine`
+- `orderEditAddShippingLine` is implemented through the orders calculated-edit model. It stages shipping lines on `CalculatedOrder.shippingLines`, recalculates totals, and materializes committed shipping lines on `orderEditCommit` without runtime Shopify writes.
+- `orderEditRemoveShippingLine` is implemented through the orders calculated-edit model. It removes locally known calculated shipping lines, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
+- `orderEditUpdateShippingLine` is implemented through the orders calculated-edit model. It updates locally known calculated shipping line title/price, recalculates totals, and preserves userErrors for unknown shipping-line IDs.
 
 ### Behavior boundaries
 

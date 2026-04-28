@@ -1502,11 +1502,13 @@ export const orderTaxLineRecordSchema = z.strictObject({
 export type OrderTaxLineRecord = z.infer<typeof orderTaxLineRecordSchema>;
 
 export const orderShippingLineRecordSchema = z.strictObject({
+  id: nullableStringSchema.optional(),
   title: nullableStringSchema,
   code: nullableStringSchema,
   source: nullableStringSchema.optional(),
   originalPriceSet: moneySetSchema.nullable(),
   taxLines: z.array(orderTaxLineRecordSchema).optional(),
+  stagedStatus: nullableStringSchema.optional(),
 });
 export type OrderShippingLineRecord = z.infer<typeof orderShippingLineRecordSchema>;
 
@@ -1530,8 +1532,21 @@ export const orderLineItemRecordSchema = z.strictObject({
   variantId: nullableStringSchema.optional(),
   variantTitle: nullableStringSchema,
   originalUnitPriceSet: moneySetSchema.nullable(),
+  discountedUnitPriceSet: moneySetSchema.nullable().optional(),
+  totalDiscountSet: moneySetSchema.nullable().optional(),
+  calculatedDiscountAllocations: z
+    .array(
+      z.strictObject({
+        id: z.string(),
+        description: nullableStringSchema.optional(),
+        allocatedAmountSet: moneySetSchema,
+      }),
+    )
+    .optional(),
   taxLines: z.array(orderTaxLineRecordSchema).optional(),
   isAdded: z.boolean().optional(),
+  requiresShipping: nullableBooleanSchema.optional(),
+  taxable: nullableBooleanSchema.optional(),
 });
 export type OrderLineItemRecord = z.infer<typeof orderLineItemRecordSchema>;
 
