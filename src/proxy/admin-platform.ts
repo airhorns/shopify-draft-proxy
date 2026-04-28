@@ -13,9 +13,10 @@ import { handleFunctionQuery } from './functions.js';
 import { handleGiftCardQuery } from './gift-cards.js';
 import { getDocumentFragments, isPlainObject, serializeConnection, type FragmentMap } from './graphql-helpers.js';
 import { handleMarketingQuery } from './marketing.js';
-import { handleMarketsQuery } from './markets.js';
+import { handleMarketsQuery, serializeMarketWebPresenceNodeById } from './markets.js';
 import { serializeFileNodeById } from './media.js';
 import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { serializeMetafieldSelectionSet, type MetafieldRecordCore } from './metafields.js';
 import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
@@ -285,6 +286,53 @@ function serializeDomainRoot(
   return serializeDomain(primaryDomain, field.selectionSet?.selections ?? []);
 }
 
+function serializeMarketRegionCountryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const effectiveRegion = runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION;
+  return effectiveRegion.id === id
+    ? serializePlainObject(effectiveRegion, selectedFields, 'MarketRegionCountry')
+    : null;
+}
+
+function collectEffectiveMetafields(runtime: ProxyRuntimeContext): MetafieldRecordCore[] {
+  const metafields = new Map<string, MetafieldRecordCore>();
+  const addMetafields = (items: readonly MetafieldRecordCore[]) => {
+    for (const metafield of items) {
+      metafields.set(metafield.id, metafield);
+    }
+  };
+
+  for (const product of runtime.store.listEffectiveProducts()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(product.id));
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(variant.id));
+    }
+  }
+  for (const collection of runtime.store.listEffectiveCollections()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(collection.id));
+  }
+  for (const customer of runtime.store.listEffectiveCustomers()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByCustomerId(customer.id));
+  }
+  for (const discount of runtime.store.listEffectiveDiscounts()) {
+    addMetafields(discount.metafields ?? []);
+  }
+
+  return [...metafields.values()];
+}
+
+function serializeMetafieldNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const metafield = collectEffectiveMetafields(runtime).find((candidate) => candidate.id === id) ?? null;
+  return metafield ? serializeMetafieldSelectionSet(metafield, selectedFields) : null;
+}
+
 function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
   return serializeConnection(field, {
     items: [],
@@ -368,6 +416,10 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'ProductOptionValue',
     serialize: (runtime, id, selectedFields) => serializeProductOptionValueNodeById(runtime, id, selectedFields),
   },
+  Metafield: {
+    typename: 'Metafield',
+    serialize: (runtime, id, selectedFields) => serializeMetafieldNodeById(runtime, id, selectedFields),
+  },
   InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
   InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
   InventoryShipment: { rootField: 'inventoryShipment', typename: 'InventoryShipment', handler: handleProductNodeQuery },
@@ -421,9 +473,30 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     handler: handleStorePropertiesQuery,
   },
 
+  MarketRegionCountry: {
+    typename: 'MarketRegionCountry',
+    typeConditions: ['MarketRegion'],
+    serialize: (runtime, id, selectedFields) => serializeMarketRegionCountryNodeById(runtime, id, selectedFields),
+  },
+
   PaymentCustomization: {
     rootField: 'paymentCustomization',
     typename: 'PaymentCustomization',
+    handler: handlePaymentQuery,
+  },
+  CashTrackingSession: {
+    rootField: 'cashTrackingSession',
+    typename: 'CashTrackingSession',
+    handler: handlePaymentQuery,
+  },
+  PointOfSaleDevice: {
+    rootField: 'pointOfSaleDevice',
+    typename: 'PointOfSaleDevice',
+    handler: handlePaymentQuery,
+  },
+  ShopifyPaymentsDispute: {
+    rootField: 'dispute',
+    typename: 'ShopifyPaymentsDispute',
     handler: handlePaymentQuery,
   },
   PaymentTermsTemplate: {
@@ -484,6 +557,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   },
 
   Market: { rootField: 'market', typename: 'Market', handler: handleMarketsQuery },
+  MarketWebPresence: {
+    typename: 'MarketWebPresence',
+    serialize: (runtime, id, selectedFields, variables, fragments) =>
+      serializeMarketWebPresenceNodeById(runtime, id, syntheticNodeField(selectedFields), variables, fragments),
+  },
   MarketCatalog: {
     rootField: 'catalog',
     typename: 'MarketCatalog',

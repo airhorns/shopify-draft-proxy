@@ -22,7 +22,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "CashManagementDefaultReasonCode",
   "CashManagementSystemReasonCode",
   "CashTrackingAdjustment",
-  "CashTrackingSession",
   "CatalogCsvOperation",
   "ChannelDefinition",
   "ChannelInformation",
@@ -77,10 +76,7 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "LineItem",
   "LineItemGroup",
   "MailingAddress",
-  "MarketRegionCountry",
-  "MarketWebPresence",
   "Menu",
-  "Metafield",
   "OrderAdjustment",
   "OrderDisputeSummary",
   "OrderEditSession",
@@ -88,7 +84,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "PaymentMandate",
   "PaymentSchedule",
   "PaymentTerms",
-  "PointOfSaleDevice",
   "PointOfSaleDevicePaymentSession",
   "PriceRule",
   "PriceRuleDiscountCode",
@@ -111,7 +106,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "ShopifyPaymentsAccount",
   "ShopifyPaymentsBalanceTransaction",
   "ShopifyPaymentsBankAccount",
-  "ShopifyPaymentsDispute",
   "ShopifyPaymentsDisputeEvidence",
   "ShopifyPaymentsDisputeFileUpload",
   "ShopifyPaymentsDisputeFulfillment",
@@ -141,10 +135,7 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
 
 exports[`admin platform Node coverage > keeps implemented singular Node roots wired into generic node dispatch 1`] = `
 [
-  "cashTrackingSession:CashTrackingSession",
   "discountNode:DiscountNode",
-  "dispute:ShopifyPaymentsDispute",
-  "pointOfSaleDevice:PointOfSaleDevice",
   "staffMember:StaffMember",
 ]
 `;

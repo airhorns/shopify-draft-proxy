@@ -1,0 +1,66 @@
+{
+  "scenarioId": "admin-platform-finance-risk-node-no-data",
+  "operationNames": ["cashTrackingSession", "pointOfSaleDevice", "dispute", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "sensitive-data-minimization"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/finance-risk-access-read.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/payment-customization-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/finance-risk-no-data-read.graphql",
+    "variables": {
+      "cashId": "gid://shopify/CashTrackingSession/0",
+      "posId": "gid://shopify/PointOfSaleDevice/0",
+      "disputeId": "gid://shopify/ShopifyPaymentsDispute/0",
+      "evidenceId": "gid://shopify/ShopifyPaymentsDisputeEvidence/0",
+      "token": "codex-missing-shop-pay-payment-request-receipt-token",
+      "first": 1
+    },
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-424 rework executable parity for generic Relay Node no-data behavior across the finance/POS Node implementors whose singular roots are already modeled as safe null reads. Non-empty finance, POS, or dispute payloads remain unsupported until authorized captures exist.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cash-tracking-session-node-null",
+        "capturePath": "$.safeReads.cashTracking.payload.data.cashTrackingSession",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-finance-risk-node-no-data.graphql",
+          "variables": {
+            "ids": ["gid://shopify/CashTrackingSession/0"]
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "point-of-sale-device-node-null",
+        "capturePath": "$.safeReads.pointOfSaleDevice.payload.data.pointOfSaleDevice",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-finance-risk-node-no-data.graphql",
+          "variables": {
+            "ids": ["gid://shopify/PointOfSaleDevice/0"]
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "shopify-payments-dispute-node-null",
+        "capturePath": "$.safeReads.disputes.payload.data.dispute",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-finance-risk-node-no-data.graphql",
+          "variables": {
+            "ids": ["gid://shopify/ShopifyPaymentsDispute/0"]
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

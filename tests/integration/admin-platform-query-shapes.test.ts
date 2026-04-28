@@ -10,6 +10,7 @@ import type {
   CustomerRecord,
   FileRecord,
   PaymentTermsTemplateRecord,
+  ProductMetafieldRecord,
   ProductRecord,
   SavedSearchRecord,
   ShopRecord,
@@ -161,6 +162,22 @@ function makeFile(id: string, contentType: FileRecord['contentType'], filename: 
     imageUrl: contentType === 'IMAGE' ? `https://cdn.example.com/${filename}` : null,
     imageWidth: contentType === 'IMAGE' ? 1200 : null,
     imageHeight: contentType === 'IMAGE' ? 800 : null,
+  };
+}
+
+function makeProductMetafield(id: string, productId: string): ProductMetafieldRecord {
+  return {
+    id,
+    productId,
+    namespace: 'custom',
+    key: 'material',
+    type: 'single_line_text_field',
+    value: 'Canvas',
+    compareDigest: 'relay-metafield-digest',
+    jsonValue: 'Canvas',
+    createdAt: '2026-04-28T00:00:00.000Z',
+    updatedAt: '2026-04-28T00:00:00.000Z',
+    ownerType: 'PRODUCT',
   };
 }
 
@@ -736,11 +753,41 @@ describe('admin platform utility query shapes', () => {
     store.upsertBaseCustomerPaymentMethods([
       makeCustomerPaymentMethod('gid://shopify/CustomerPaymentMethod/9100', 'gid://shopify/Customer/9100'),
     ]);
+    store.upsertBaseProducts([makeProduct('gid://shopify/Product/9100', 'Relay Metafield Product')]);
+    store.replaceBaseMetafieldsForProduct('gid://shopify/Product/9100', [
+      makeProductMetafield('gid://shopify/Metafield/9100', 'gid://shopify/Product/9100'),
+    ]);
     store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
     store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
     store.stageCreateFiles([
       makeFile('gid://shopify/GenericFile/9100', 'FILE', 'relay.pdf'),
       makeFile('gid://shopify/MediaImage/9101', 'IMAGE', 'relay.jpg'),
+    ]);
+    store.stageBackupRegion({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110417202',
+      name: 'Canada',
+      code: 'CA',
+    });
+    store.upsertBaseWebPresences([
+      {
+        id: 'gid://shopify/MarketWebPresence/9100',
+        __typename: 'MarketWebPresence',
+        subfolderSuffix: 'ca',
+        domain: {
+          id: 'gid://shopify/Domain/9100',
+          host: 'relay.example.com',
+          url: 'https://relay.example.com',
+          sslEnabled: true,
+        },
+        defaultLocale: {
+          locale: 'en',
+          name: 'English',
+          primary: true,
+          published: true,
+        },
+        rootUrls: [{ locale: 'en', url: 'https://relay.example.com/ca' }],
+      },
     ]);
 
     const app = createApp(snapshotConfig).callback();
@@ -765,10 +812,27 @@ describe('admin platform utility query shapes', () => {
               resourceType
               query
             }
+            ... on Metafield {
+              namespace
+              key
+              type
+              value
+              ownerType
+            }
             ... on PaymentTermsTemplate {
               name
               dueInDays
               paymentTermsType
+            }
+            ... on MarketRegionCountry {
+              name
+              code
+            }
+            ... on MarketWebPresence {
+              subfolderSuffix
+              defaultLocale {
+                locale
+              }
             }
             ... on GenericFile {
               filename
@@ -790,7 +854,10 @@ describe('admin platform utility query shapes', () => {
             'gid://shopify/Shop/400',
             'gid://shopify/CustomerPaymentMethod/9100',
             'gid://shopify/SavedSearch/9100',
+            'gid://shopify/Metafield/9100',
             'gid://shopify/PaymentTermsTemplate/14',
+            'gid://shopify/MarketRegionCountry/4062110417202',
+            'gid://shopify/MarketWebPresence/9100',
             'gid://shopify/GenericFile/9100',
             'gid://shopify/MediaImage/9101',
           ],
@@ -820,11 +887,34 @@ describe('admin platform utility query shapes', () => {
             query: 'tag:relay',
           },
           {
+            __typename: 'Metafield',
+            nodeId: 'gid://shopify/Metafield/9100',
+            namespace: 'custom',
+            key: 'material',
+            type: 'single_line_text_field',
+            value: 'Canvas',
+            ownerType: 'PRODUCT',
+          },
+          {
             __typename: 'PaymentTermsTemplate',
             nodeId: 'gid://shopify/PaymentTermsTemplate/14',
             name: 'Relay Net 14',
             dueInDays: 14,
             paymentTermsType: 'NET',
+          },
+          {
+            __typename: 'MarketRegionCountry',
+            nodeId: 'gid://shopify/MarketRegionCountry/4062110417202',
+            name: 'Canada',
+            code: 'CA',
+          },
+          {
+            __typename: 'MarketWebPresence',
+            nodeId: 'gid://shopify/MarketWebPresence/9100',
+            subfolderSuffix: 'ca',
+            defaultLocale: {
+              locale: 'en',
+            },
           },
           {
             __typename: 'GenericFile',

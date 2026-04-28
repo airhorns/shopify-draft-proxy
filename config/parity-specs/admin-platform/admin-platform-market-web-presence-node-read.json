@@ -1,0 +1,42 @@
+{
+  "scenarioId": "admin-platform-market-web-presence-node-read",
+  "operationNames": ["webPresences", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/markets/market-web-presences.json"
+  ],
+  "runtimeTestFiles": [
+    "tests/integration/admin-platform-query-shapes.test.ts",
+    "tests/integration/markets-lifecycle-flow.test.ts"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-web-presences-read.graphql",
+    "variablesPath": "config/parity-requests/markets/market-web-presences-read.variables.json",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-424 rework executable parity for generic Relay Node reads of MarketWebPresence records. The primary webPresences read seeds the captured Markets graph, then nodes(ids:) resolves the captured MarketWebPresence GID through the same local projection used by the Markets read model.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-web-presence-node",
+        "capturePath": "$.data.webPresences.edges[0].node",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-market-web-presence-node-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.data.webPresences.edges[0].node.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
