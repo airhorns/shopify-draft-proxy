@@ -86,7 +86,95 @@ const CAPTURED_BACKUP_REGION = {
   code: 'CA',
 } as const;
 
-const BACKUP_REGION_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
+// MarketRegionCountry GIDs are treated as shop-domain-scoped conformance evidence.
+// Do not reuse a country mapping for another shop unless that shop/country pair was captured.
+const BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE: Record<string, Record<string, BackupRegionRecord>> = {
+  'harry-test-heelo.myshopify.com': {
+    CA: CAPTURED_BACKUP_REGION,
+    AE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110482738',
+      name: 'United Arab Emirates',
+      code: 'AE',
+    },
+    AT: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110515506',
+      name: 'Austria',
+      code: 'AT',
+    },
+    AU: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110548274',
+      name: 'Australia',
+      code: 'AU',
+    },
+    BE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110581042',
+      name: 'Belgium',
+      code: 'BE',
+    },
+    CH: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110613810',
+      name: 'Switzerland',
+      code: 'CH',
+    },
+    CZ: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110646578',
+      name: 'Czechia',
+      code: 'CZ',
+    },
+    DE: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110679346',
+      name: 'Germany',
+      code: 'DE',
+    },
+    DK: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110712114',
+      name: 'Denmark',
+      code: 'DK',
+    },
+    ES: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110744882',
+      name: 'Spain',
+      code: 'ES',
+    },
+    FI: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110777650',
+      name: 'Finland',
+      code: 'FI',
+    },
+    MX: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062111334706',
+      name: 'Mexico',
+      code: 'MX',
+    },
+  },
+  'very-big-test-store.myshopify.com': {
+    CA: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454909493481',
+      name: 'Canada',
+      code: 'CA',
+    },
+    US: {
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454910378217',
+      name: 'United States',
+      code: 'US',
+    },
+  },
+};
+
+const BACKUP_REGION_UPDATE_BY_COUNTRY_CODE: Record<string, BackupRegionRecord> = {
   CA: CAPTURED_BACKUP_REGION,
 };
 
@@ -576,6 +664,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'DiscountAutomaticNode',
     handler: handleDiscountQuery,
   },
+  DiscountNode: { rootField: 'discountNode', typename: 'DiscountNode', handler: handleDiscountQuery },
 
   MarketingActivity: { rootField: 'marketingActivity', typename: 'MarketingActivity', handler: handleMarketingQuery },
   MarketingEvent: { rootField: 'marketingEvent', typename: 'MarketingEvent', handler: handleMarketingQuery },
@@ -640,6 +729,7 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
 };
+const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 
 function syntheticNodeField(selectedFields: readonly FieldNode[]): FieldNode {
   return {
@@ -716,6 +806,31 @@ function collectApplicableNodeFields(
   });
 }
 
+function hasExplicitNodeTypeSelection(
+  selections: readonly SelectionNode[],
+  typeName: string,
+  fragments: FragmentMap,
+): boolean {
+  return selections.some((selection) => {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      return (
+        selection.typeCondition?.name.value === typeName ||
+        hasExplicitNodeTypeSelection(selection.selectionSet.selections, typeName, fragments)
+      );
+    }
+
+    if (selection.kind === Kind.FRAGMENT_SPREAD) {
+      const fragment = fragments.get(selection.name.value);
+      return (
+        fragment?.typeCondition.name.value === typeName ||
+        (fragment ? hasExplicitNodeTypeSelection(fragment.selectionSet.selections, typeName, fragments) : false)
+      );
+    }
+
+    return false;
+  });
+}
+
 function applySelectedTypename(
   payload: Record<string, unknown>,
   fields: readonly FieldNode[],
@@ -727,6 +842,35 @@ function applySelectedTypename(
     }
   }
   return payload;
+}
+
+function serializeLocalNodeWithResolver(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
+  fragments: FragmentMap,
+  resolver: AdminPlatformNodeResolver,
+): Record<string, unknown> | null {
+  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
+  if (selectedFields.length === 0) {
+    return {};
+  }
+
+  if ('serialize' in resolver) {
+    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
+  }
+
+  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
+  const response = resolver.handler(runtime, syntheticDocument, {
+    ...variables,
+    [PROXY_NODE_ID_VARIABLE]: id,
+  });
+  const payload =
+    isPlainObject(response) && isPlainObject(response['data'])
+      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+      : null;
+  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
 }
 
 function serializeLocalNodeById(
@@ -747,25 +891,16 @@ function serializeLocalNodeById(
     return null;
   }
 
-  const selectedFields = collectApplicableNodeFields(selections, resolver, fragments);
-  if (selectedFields.length === 0) {
-    return {};
-  }
-
-  if ('serialize' in resolver) {
-    return resolver.serialize(runtime, id, selectedFields, variables, fragments);
-  }
-
-  const syntheticDocument = `query ProxyNodeLookup { ${PROXY_NODE_RESPONSE_KEY}: ${resolver.rootField}(id: $${PROXY_NODE_ID_VARIABLE}) { ${selectedFields.map((field) => print(field)).join('\n')} } }`;
-  const response = resolver.handler(runtime, syntheticDocument, {
-    ...variables,
-    [PROXY_NODE_ID_VARIABLE]: id,
-  });
-  const payload =
-    isPlainObject(response) && isPlainObject(response['data'])
-      ? (response['data'][PROXY_NODE_RESPONSE_KEY] ?? null)
+  if (
+    (gidType === 'DiscountCodeNode' || gidType === 'DiscountAutomaticNode') &&
+    hasExplicitNodeTypeSelection(selections, 'DiscountNode', fragments)
+  ) {
+    return DISCOUNT_NODE_RESOLVER
+      ? serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, DISCOUNT_NODE_RESOLVER)
       : null;
-  return isPlainObject(payload) ? applySelectedTypename(payload, selectedFields, resolver.typename) : null;
+  }
+
+  return serializeLocalNodeWithResolver(runtime, id, selections, variables, fragments, resolver);
 }
 
 function serializeNode(
@@ -971,6 +1106,30 @@ function serializeBackupRegionUpdatePayload(
   return result;
 }
 
+function normalizeCountryCode(countryCode: string | null | undefined): string | null {
+  const normalized = countryCode?.trim().toUpperCase() ?? '';
+  return /^[A-Z]{2}$/u.test(normalized) ? normalized : null;
+}
+
+function resolveBackupRegion(runtime: ProxyRuntimeContext): BackupRegionRecord | null {
+  const stagedOrBaseRegion = runtime.store.getEffectiveBackupRegion();
+  if (stagedOrBaseRegion) {
+    return stagedOrBaseRegion;
+  }
+
+  const shop = runtime.store.getEffectiveShop();
+  if (!shop) {
+    return CAPTURED_BACKUP_REGION;
+  }
+
+  const countryCode = normalizeCountryCode(shop.shopAddress.countryCodeV2);
+  if (!countryCode) {
+    return null;
+  }
+
+  return BACKUP_REGION_BY_SHOP_DOMAIN_AND_COUNTRY_CODE[shop.myshopifyDomain]?.[countryCode] ?? null;
+}
+
 export interface AdminPlatformMutationResult {
   response: Record<string, unknown>;
   stagedResourceIds?: string[];
@@ -1010,13 +1169,13 @@ export function handleAdminPlatformQuery(
       case 'domain':
         data[key] = serializeDomainRoot(runtime, field, variables);
         break;
-      case 'backupRegion':
-        data[key] = serializePlainObject(
-          runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION,
-          field.selectionSet?.selections ?? [],
-          'MarketRegionCountry',
-        );
+      case 'backupRegion': {
+        const region = resolveBackupRegion(runtime);
+        data[key] = region
+          ? serializePlainObject(region, field.selectionSet?.selections ?? [], region.__typename)
+          : null;
         break;
+      }
       case 'taxonomy':
         data[key] = serializeTaxonomy(runtime, field.selectionSet?.selections ?? [], variables);
         break;
@@ -1115,7 +1274,8 @@ export function handleAdminPlatformMutation(
           rawRegion && typeof rawRegion === 'object' && !Array.isArray(rawRegion)
             ? (rawRegion as Record<string, unknown>)['countryCode']
             : null;
-        const region = typeof countryCode === 'string' ? (BACKUP_REGION_BY_COUNTRY_CODE[countryCode] ?? null) : null;
+        const region =
+          typeof countryCode === 'string' ? (BACKUP_REGION_UPDATE_BY_COUNTRY_CODE[countryCode] ?? null) : null;
         if (!region) {
           data[key] = serializeBackupRegionUpdatePayload(field, null, [
             { field: ['region'], message: 'Region not found.', code: 'REGION_NOT_FOUND' },

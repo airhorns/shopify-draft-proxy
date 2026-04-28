@@ -8,6 +8,7 @@ import type {
   BulkOperationRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  DiscountRecord,
   FileRecord,
   PaymentTermsTemplateRecord,
   ProductRecord,
@@ -165,6 +166,39 @@ function makeFile(id: string, contentType: FileRecord['contentType'], filename: 
   };
 }
 
+function makeCodeDiscount(id: string): DiscountRecord {
+  return {
+    id,
+    typeName: 'DiscountCodeBasic',
+    method: 'code',
+    title: 'Relay Node Discount',
+    status: 'ACTIVE',
+    summary: null,
+    startsAt: '2026-04-28T00:00:00.000Z',
+    endsAt: null,
+    createdAt: '2026-04-28T00:00:00.000Z',
+    updatedAt: '2026-04-28T00:00:00.000Z',
+    asyncUsageCount: 0,
+    discountClasses: ['ORDER'],
+    combinesWith: {
+      orderDiscounts: false,
+      productDiscounts: false,
+      shippingDiscounts: false,
+    },
+    codes: ['RELAYNODE'],
+  };
+}
+
+function makeAutomaticDiscount(id: string): DiscountRecord {
+  return {
+    ...makeCodeDiscount(id),
+    typeName: 'DiscountAutomaticBasic',
+    method: 'automatic',
+    title: 'Relay Automatic Node Discount',
+    codes: [],
+  };
+}
+
 const capturedTaxonomyCategories: TaxonomyCategoryRecord[] = [
   {
     id: 'gid://shopify/TaxonomyCategory/ap',
@@ -319,8 +353,8 @@ const capturedTaxonomyCategories: TaxonomyCategoryRecord[] = [
   },
 ];
 
-function makeShop(): ShopRecord {
-  return {
+function makeShop(overrides: Partial<ShopRecord> = {}): ShopRecord {
+  const shop: ShopRecord = {
     id: 'gid://shopify/Shop/400',
     name: 'Node Test Shop',
     myshopifyDomain: 'node-test-shop.myshopify.com',
@@ -407,6 +441,36 @@ function makeShop(): ShopRecord {
     },
     shopPolicies: [],
   };
+
+  return {
+    ...shop,
+    ...overrides,
+  };
+}
+
+function makeShopForCountry(myshopifyDomain: string, countryCode: string, country: string): ShopRecord {
+  const baseShop = makeShop();
+  return makeShop({
+    name: myshopifyDomain.split('.').at(0) ?? baseShop.name,
+    myshopifyDomain,
+    url: `https://${myshopifyDomain}`,
+    primaryDomain: {
+      ...baseShop.primaryDomain,
+      host: myshopifyDomain,
+      url: `https://${myshopifyDomain}`,
+    },
+    shopAddress: {
+      ...baseShop.shopAddress,
+      country,
+      countryCodeV2: countryCode,
+      formatted: [
+        baseShop.shopAddress.address1 ?? '',
+        `${baseShop.shopAddress.city} ${baseShop.shopAddress.zip}`,
+        country,
+      ],
+      formattedArea: `${baseShop.shopAddress.city}, ${country}`,
+    },
+  });
 }
 
 describe('admin platform utility query shapes', () => {
@@ -536,6 +600,97 @@ describe('admin platform utility query shapes', () => {
         },
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses the effective conformance shop country for the captured Canada backupRegion', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should resolve locally from effective shop state');
+    });
+    store.upsertBaseShop(makeShopForCountry('harry-test-heelo.myshopify.com', 'CA', 'Canada'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toEqual({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/4062110417202',
+      name: 'Canada',
+      code: 'CA',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('uses conformance market-region evidence for an additional mapped shop country', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should resolve locally from mapped country evidence');
+    });
+    store.upsertBaseShop(makeShopForCountry('very-big-test-store.myshopify.com', 'US', 'United States'));
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toEqual({
+      __typename: 'MarketRegionCountry',
+      id: 'gid://shopify/MarketRegionCountry/454910378217',
+      name: 'United States',
+      code: 'US',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns null for an effective shop country outside the backed backupRegion map', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('backupRegion should not proxy for unknown local country mapping');
+    });
+    store.upsertBaseShop(makeShop());
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query BackupRegionRead {
+          backupRegion {
+            __typename
+            id
+            name
+            ... on MarketRegionCountry {
+              code
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.backupRegion).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -1171,6 +1326,101 @@ describe('admin platform utility query shapes', () => {
               height: 800,
             },
           },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves supported DiscountNode wrapper IDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('discount admin platform node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseDiscounts([
+      makeCodeDiscount('gid://shopify/DiscountCodeNode/9200'),
+      makeAutomaticDiscount('gid://shopify/DiscountAutomaticNode/9300'),
+    ]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DiscountNodeResolution($id: ID!, $ids: [ID!]!) {
+          discountNode: node(id: $id) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on DiscountNode {
+              discount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                  status
+                }
+              }
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on DiscountNode {
+              discount {
+                __typename
+                ... on DiscountCodeBasic {
+                  title
+                }
+                ... on DiscountAutomaticBasic {
+                  title
+                }
+              }
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/DiscountCodeNode/9200',
+          ids: [
+            'gid://shopify/DiscountCodeNode/9200',
+            'gid://shopify/DiscountAutomaticNode/9300',
+            'gid://shopify/DiscountCodeNode/404',
+            'gid://shopify/CashTrackingSession/404',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        discountNode: {
+          __typename: 'DiscountNode',
+          nodeId: 'gid://shopify/DiscountCodeNode/9200',
+          discount: {
+            __typename: 'DiscountCodeBasic',
+            title: 'Relay Node Discount',
+            status: 'ACTIVE',
+          },
+        },
+        nodes: [
+          {
+            __typename: 'DiscountNode',
+            nodeId: 'gid://shopify/DiscountCodeNode/9200',
+            discount: {
+              __typename: 'DiscountCodeBasic',
+              title: 'Relay Node Discount',
+            },
+          },
+          {
+            __typename: 'DiscountNode',
+            nodeId: 'gid://shopify/DiscountAutomaticNode/9300',
+            discount: {
+              __typename: 'DiscountAutomaticBasic',
+              title: 'Relay Automatic Node Discount',
+            },
+          },
+          null,
+          null,
         ],
       },
     });

@@ -10,8 +10,8 @@ import {
   type StagedMutationLogOptions,
 } from './proxy/routes.js';
 import { loadNormalizedStateSnapshot } from './state/snapshot-loader.js';
-import { InMemoryStore } from './state/store.js';
-import { SyntheticIdentityRegistry } from './state/synthetic-identity.js';
+import { InMemoryStore, type InMemoryStoreStateDumpV1 } from './state/store.js';
+import { SyntheticIdentityRegistry, type SyntheticIdentityStateDumpV1 } from './state/synthetic-identity.js';
 
 export type DraftProxyHeaderValue = string | string[] | undefined;
 
@@ -37,6 +37,7 @@ export interface DraftProxyGraphQLRequestOptions {
 export interface DraftProxyOptions {
   store?: InMemoryStore;
   syntheticIdentity?: SyntheticIdentityRegistry;
+  state?: DraftProxyStateDump;
 }
 
 export interface DraftProxyConfigSnapshot {
@@ -55,6 +56,17 @@ export interface DraftProxyConfigSnapshot {
 
 export type DraftProxyLogSnapshot = ReturnType<InMemoryStore['getMetaLog']>;
 export type DraftProxyStateSnapshot = ReturnType<InMemoryStore['getState']>;
+
+export const DRAFT_PROXY_STATE_DUMP_SCHEMA = 'shopify-draft-proxy/state-dump';
+
+export interface DraftProxyStateDump {
+  schema: typeof DRAFT_PROXY_STATE_DUMP_SCHEMA;
+  version: 1;
+  createdAt: string;
+  store: InMemoryStoreStateDumpV1;
+  syntheticIdentity: SyntheticIdentityStateDumpV1;
+  extensions?: Record<string, unknown>;
+}
 
 export interface DraftProxyCommitResult {
   stopIndex: null;
@@ -166,6 +178,10 @@ export class DraftProxy {
 
     if (config.snapshotPath) {
       this.runtimeStore.installSnapshot(loadNormalizedStateSnapshot(config.snapshotPath));
+    }
+
+    if (options.state) {
+      this.restoreState(options.state);
     }
   }
 
@@ -428,6 +444,31 @@ export class DraftProxy {
   /** Returns the current base and staged in-memory state snapshot. */
   getState(): DraftProxyStateSnapshot {
     return this.runtimeStore.getState();
+  }
+
+  /** Dumps all instance-owned runtime state to a versioned JSON-compatible envelope. */
+  dumpState(): DraftProxyStateDump {
+    return {
+      schema: DRAFT_PROXY_STATE_DUMP_SCHEMA,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      store: this.runtimeStore.dumpRuntimeState(),
+      syntheticIdentity: this.syntheticIdentity.dumpState(),
+      extensions: {},
+    };
+  }
+
+  /** Restores instance-owned runtime state from a dump produced by `dumpState()`. */
+  restoreState(dump: DraftProxyStateDump): void {
+    if (dump.schema !== DRAFT_PROXY_STATE_DUMP_SCHEMA) {
+      throw new Error(`Unsupported draft proxy state dump schema: ${String(dump.schema)}`);
+    }
+    if (dump.version !== 1) {
+      throw new Error(`Unsupported draft proxy state dump version: ${String(dump.version)}`);
+    }
+
+    this.runtimeStore.restoreRuntimeState(dump.store);
+    this.syntheticIdentity.restoreState(dump.syntheticIdentity);
   }
 
   /** Clears staged state, mutation log, and synthetic identity counters for this instance. */
