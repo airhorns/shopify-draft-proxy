@@ -83,6 +83,28 @@ function baseComment(articleId = 'gid://shopify/Article/200'): OnlineStoreConten
   };
 }
 
+function basePage(): OnlineStoreContentRecord {
+  return {
+    id: 'gid://shopify/Page/400',
+    kind: 'page',
+    createdAt: '2026-04-25T10:15:00Z',
+    updatedAt: '2026-04-25T10:15:00Z',
+    data: {
+      __typename: 'Page',
+      id: 'gid://shopify/Page/400',
+      title: 'Warranty information',
+      handle: 'warranty-information',
+      body: '<p>Returns accepted within 30 days.</p>',
+      bodySummary: 'Returns accepted within 30 days.',
+      isPublished: true,
+      publishedAt: '2026-04-25T10:15:00Z',
+      createdAt: '2026-04-25T10:15:00Z',
+      updatedAt: '2026-04-25T10:15:00Z',
+      templateSuffix: null,
+    },
+  };
+}
+
 describe('online-store content flow', () => {
   beforeEach(() => {
     store.reset();
@@ -320,12 +342,17 @@ describe('online-store content flow', () => {
       .post('/admin/api/2026-04/graphql.json')
       .send({
         query: `mutation ApproveComment($id: ID!) {
-          commentApprove(id: $id) { comment { id status isPublished } userErrors { field message } }
+          commentApprove(id: $id) { comment { id status isPublished publishedAt } userErrors { field message } }
         }`,
         variables: { id: 'gid://shopify/Comment/300' },
       });
     expect(approve.body.data.commentApprove).toEqual({
-      comment: { id: 'gid://shopify/Comment/300', status: 'PUBLISHED', isPublished: true },
+      comment: {
+        id: 'gid://shopify/Comment/300',
+        status: 'PUBLISHED',
+        isPublished: true,
+        publishedAt: '2024-01-01T00:00:00.000Z',
+      },
       userErrors: [],
     });
 
@@ -400,6 +427,96 @@ describe('online-store content flow', () => {
     expect(readDeleted.body.data).toEqual({
       comment: null,
       comments: { nodes: [] },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('applies Shopify-style search filters to local content connections', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('snapshot search reads must not fetch upstream'));
+    store.upsertBaseOnlineStoreContent([
+      baseBlog(),
+      {
+        ...baseBlog(),
+        id: 'gid://shopify/Blog/101',
+        data: {
+          ...baseBlog().data,
+          id: 'gid://shopify/Blog/101',
+          title: 'Stories',
+          handle: 'stories',
+        },
+      },
+      baseArticle(),
+      {
+        ...baseArticle('gid://shopify/Blog/101'),
+        id: 'gid://shopify/Article/201',
+        parentId: 'gid://shopify/Blog/101',
+        data: {
+          ...baseArticle('gid://shopify/Blog/101').data,
+          id: 'gid://shopify/Article/201',
+          title: 'Hidden Draft',
+          handle: 'hidden-draft',
+          tags: ['private'],
+          author: { name: 'Katherine Johnson' },
+          isPublished: false,
+          publishedAt: null,
+        },
+      },
+      basePage(),
+      {
+        ...basePage(),
+        id: 'gid://shopify/Page/401',
+        data: {
+          ...basePage().data,
+          id: 'gid://shopify/Page/401',
+          title: 'Draft landing',
+          handle: 'draft-landing',
+          isPublished: false,
+          publishedAt: null,
+        },
+      },
+      baseComment(),
+    ]);
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query SearchOnlineStoreContent {
+          articlesByTag: articles(first: 10, query: "tag:release OR author:Katherine") {
+            nodes { id title }
+          }
+          articlesNotRelease: articles(first: 10, query: "tag_not:release") {
+            nodes { id title }
+          }
+          blogsByHandle: blogs(first: 10, query: "handle:stories OR title:News") {
+            nodes { handle title }
+          }
+          pagesPublished: pages(first: 10, query: "published_status:published title:'Warranty information'") {
+            nodes { id handle isPublished }
+          }
+          pagesUnpublished: pages(first: 10, query: "published_status:unpublished") {
+            nodes { handle isPublished }
+          }
+          commentsPending: comments(first: 10, query: "status:PENDING") {
+            nodes { id status }
+          }
+        }`,
+      });
+
+    expect(response.body.data).toMatchObject({
+      articlesByTag: { nodes: [{ id: 'gid://shopify/Article/200', title: 'Launch notes' }] },
+      articlesNotRelease: { nodes: [] },
+      blogsByHandle: {
+        nodes: [
+          { handle: 'news', title: 'News' },
+          { handle: 'stories', title: 'Stories' },
+        ],
+      },
+      pagesPublished: { nodes: [{ id: 'gid://shopify/Page/400', handle: 'warranty-information', isPublished: true }] },
+      pagesUnpublished: { nodes: [{ handle: 'draft-landing', isPublished: false }] },
+      commentsPending: { nodes: [{ id: 'gid://shopify/Comment/300', status: 'PENDING' }] },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

@@ -30,6 +30,8 @@ const engagementSelection = `
     currencyCode
   }
   orders
+  primaryConversions
+  allConversions
   firstTimeCustomers
   returningCustomers
   marketingActivity {
@@ -104,6 +106,8 @@ describe('marketing engagement flow', () => {
             adSpend: { amount: '3.21', currencyCode: 'USD' },
             sales: { amount: '12.34', currencyCode: 'USD' },
             orders: '1.5',
+            primaryConversions: '0.75',
+            allConversions: '2.25',
             firstTimeCustomers: '1.0',
             returningCustomers: '0.5',
             isCumulative: false,
@@ -126,6 +130,8 @@ describe('marketing engagement flow', () => {
         adSpend: { amount: '3.21', currencyCode: 'USD' },
         sales: { amount: '12.34', currencyCode: 'USD' },
         orders: '1.5',
+        primaryConversions: '0.75',
+        allConversions: '2.25',
         firstTimeCustomers: '1.0',
         returningCustomers: '0.5',
         marketingActivity: {

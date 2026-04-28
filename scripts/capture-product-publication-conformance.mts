@@ -215,6 +215,118 @@ const unpublishMutation = `#graphql
   }
 `;
 
+const publishablePublishShopCountMutation = `#graphql
+  mutation PublishablePublishProductShopCount($id: ID!, $input: [PublicationInput!]!) {
+    publishablePublish(id: $id, input: $input) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          availablePublicationsCount {
+            count
+            precision
+          }
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      shop {
+        publicationCount
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishableUnpublishShopCountMutation = `#graphql
+  mutation PublishableUnpublishProductShopCount($id: ID!, $input: [PublicationInput!]!) {
+    publishableUnpublish(id: $id, input: $input) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          availablePublicationsCount {
+            count
+            precision
+          }
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      shop {
+        publicationCount
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishablePublishCurrentShopCountMutation = `#graphql
+  mutation PublishablePublishCurrentProductShopCount($id: ID!) {
+    publishablePublishToCurrentChannel(id: $id) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          availablePublicationsCount {
+            count
+            precision
+          }
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      shop {
+        publicationCount
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const publishableUnpublishCurrentShopCountMutation = `#graphql
+  mutation PublishableUnpublishCurrentProductShopCount($id: ID!) {
+    publishableUnpublishToCurrentChannel(id: $id) {
+      publishable {
+        ... on Product {
+          id
+          publishedOnCurrentPublication
+          availablePublicationsCount {
+            count
+            precision
+          }
+          resourcePublicationsCount {
+            count
+            precision
+          }
+        }
+      }
+      shop {
+        publicationCount
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const publishMutationScopeProbe = `#graphql
   mutation ProductPublicationScopeProbePublish($input: ProductPublishInput!) {
     productPublish(input: $input) {
@@ -258,6 +370,21 @@ const downstreamReadQuery = `#graphql
 `;
 
 const publicationMutationScopeProbePublicationId = 'gid://shopify/Publication/1';
+
+function readSeedPublications(publicationCatalog) {
+  const edges = publicationCatalog?.payload?.data?.publications?.edges ?? publicationCatalog?.data?.publications?.edges;
+  if (!Array.isArray(edges)) {
+    return [];
+  }
+
+  return edges
+    .map((edge) => edge?.node)
+    .filter((node) => node && typeof node.id === 'string')
+    .map((node) => ({
+      id: node.id,
+      name: typeof node.name === 'string' ? node.name : null,
+    }));
+}
 
 function buildCreateVariables(runId) {
   return {
@@ -1208,10 +1335,36 @@ try {
   const unpublishAggregateResponse = await activeClient.runGraphqlRaw(unpublishMutation, unpublishVariables);
   const postUnpublishRead = await activeClient.runGraphqlRaw(downstreamReadQuery, { id: createdProductId });
 
+  const publishableVariables = {
+    id: createdProductId,
+    input: [{ publicationId }],
+  };
+  const publishablePublishResponse = await activeClient.runGraphql(
+    publishablePublishShopCountMutation,
+    publishableVariables,
+  );
+  const publishableUnpublishResponse = await activeClient.runGraphql(
+    publishableUnpublishShopCountMutation,
+    publishableVariables,
+  );
+
+  const currentChannelVariables = {
+    id: createdProductId,
+  };
+  const publishablePublishCurrentResponse = await activeClient.runGraphql(
+    publishablePublishCurrentShopCountMutation,
+    currentChannelVariables,
+  );
+  const publishableUnpublishCurrentResponse = await activeClient.runGraphql(
+    publishableUnpublishCurrentShopCountMutation,
+    currentChannelVariables,
+  );
+
   const publishAggregateBlocker = parsePublicationTargetBlocker(publishAggregateResponse);
   const publishReadBlocker = parsePublicationTargetBlocker(postPublishRead);
   const unpublishAggregateBlocker = parsePublicationTargetBlocker(unpublishAggregateResponse);
   const unpublishReadBlocker = parsePublicationTargetBlocker(postUnpublishRead);
+  const seedPublications = readSeedPublications(probe.listProbe);
 
   const captures = {
     'publications-catalog.json': probe.listProbe,
@@ -1245,6 +1398,38 @@ try {
       downstreamRead: {
         response: postUnpublishRead,
         blocker: unpublishReadBlocker,
+      },
+    },
+    'publishable-publish-shop-count-parity.json': {
+      seedProduct,
+      seedPublications,
+      mutation: {
+        variables: publishableVariables,
+        response: publishablePublishResponse,
+      },
+    },
+    'publishable-unpublish-shop-count-parity.json': {
+      seedProduct,
+      seedPublications,
+      mutation: {
+        variables: publishableVariables,
+        response: publishableUnpublishResponse,
+      },
+    },
+    'publishable-publish-current-shop-count-parity.json': {
+      seedProduct,
+      seedPublications,
+      mutation: {
+        variables: currentChannelVariables,
+        response: publishablePublishCurrentResponse,
+      },
+    },
+    'publishable-unpublish-current-shop-count-parity.json': {
+      seedProduct,
+      seedPublications,
+      mutation: {
+        variables: currentChannelVariables,
+        response: publishableUnpublishCurrentResponse,
       },
     },
   };

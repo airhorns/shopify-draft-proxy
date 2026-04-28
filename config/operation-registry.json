@@ -5768,7 +5768,7 @@
     "implemented": true,
     "matchNames": ["marketingActivityUpdateExternal", "MarketingActivityUpdateExternal"],
     "runtimeTests": ["tests/integration/marketing-activity-lifecycle-flow.test.ts"],
-    "supportNotes": "Locally stages external activity updates by remoteId or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields."
+    "supportNotes": "Locally stages external activity updates by remoteId, UTM selector, or local staged id from captured write_marketing_events evidence. UTM mutation attempts return captured immutable-UTM userErrors; downstream marketing reads observe the updated activity/event fields."
   },
   {
     "name": "marketingActivityUpsertExternal",
@@ -5808,7 +5808,7 @@
     "implemented": true,
     "matchNames": ["marketingEngagementCreate", "MarketingEngagementCreate"],
     "runtimeTests": ["tests/integration/marketing-engagement-flow.test.ts"],
-    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
+    "supportNotes": "Locally stages activity-level marketing engagement metrics by marketing activity ID or remote ID from captured write_marketing_events evidence. Duplicate same-day writes replace the local engagement record; captured userErrors cover missing/invalid identifiers and unrecognized channel handles. Decimal conversion fields such as primaryConversions and allConversions are preserved when supplied. Immediate downstream activity adSpend remains unchanged to match captured Shopify reads."
   },
   {
     "name": "marketingEngagementsDelete",
