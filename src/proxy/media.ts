@@ -300,6 +300,13 @@ function updateFileRecord(existing: FileRecord, input: Record<string, unknown>):
   };
 }
 
+function acknowledgeFileUpdateFailure(file: FileRecord): FileRecord {
+  return {
+    ...structuredClone(file),
+    updateFailureAcknowledgedAt: makeSyntheticTimestamp(),
+  };
+}
+
 function makeProductMediaRecordFromFile(productId: string, file: FileRecord, position: number): ProductMediaRecord {
   return {
     key: `${productId}:media:${position}`,
@@ -785,6 +792,67 @@ export function handleMediaMutation(query: string, variables: Record<string, unk
         data: {
           [responseKey]: {
             deletedFileIds: deletedFileIdsField ? fileIds : undefined,
+            userErrors: [],
+          },
+        },
+      };
+    }
+    case 'fileAcknowledgeUpdateFailed': {
+      const fileIds = readFileIdsInput(args['fileIds']);
+      const filesField = getChildField(field, 'files');
+      const userErrorsField = getChildField(field, 'userErrors');
+      const userErrors: FilesUserError[] = [];
+
+      for (const fileId of fileIds) {
+        const file = getEffectiveFileLikeRecord(fileId);
+        if (!file) {
+          userErrors.push({
+            field: ['fileIds'],
+            message: `File id ${fileId} does not exist.`,
+            code: 'FILE_DOES_NOT_EXIST',
+          });
+          continue;
+        }
+
+        if (file.fileStatus !== 'READY') {
+          userErrors.push({
+            field: ['fileIds'],
+            message: `File with id ${fileId} is not in the READY state.`,
+            code: 'NON_READY_STATE',
+          });
+        }
+      }
+
+      if (userErrors.length > 0) {
+        return {
+          data: {
+            [responseKey]: {
+              files: null,
+              userErrors: userErrors.map((error) =>
+                serializeFilesUserError(error, userErrorsField?.selectionSet?.selections ?? []),
+              ),
+            },
+          },
+        };
+      }
+
+      const acknowledgedFiles = fileIds.flatMap((fileId) => {
+        const file = getEffectiveFileLikeRecord(fileId);
+        if (!file) {
+          return [];
+        }
+
+        const acknowledgedFile = acknowledgeFileUpdateFailure(file);
+        store.stageCreateFiles([acknowledgedFile]);
+        return [acknowledgedFile];
+      });
+
+      return {
+        data: {
+          [responseKey]: {
+            files: acknowledgedFiles.map((file) =>
+              serializeFileSelectionSet(file, filesField?.selectionSet?.selections ?? []),
+            ),
             userErrors: [],
           },
         },

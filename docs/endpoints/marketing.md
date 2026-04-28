@@ -11,6 +11,8 @@
 
 ### Supported mutation roots
 
+- `marketingActivityCreate`
+- `marketingActivityUpdate`
 - `marketingActivityCreateExternal`
 - `marketingActivityUpdateExternal`
 - `marketingActivityUpsertExternal`
@@ -19,12 +21,13 @@
 - `marketingEngagementCreate`
 - `marketingEngagementsDelete`
 
-Deprecated/non-external `marketingActivityCreate` and `marketingActivityUpdate` remain registered gaps, not implemented support. They are still explicit in the operation registry so unsupported runtime passthrough is observable, but the proxy does not claim local emulation for them.
+Native/deprecated `marketingActivityCreate` and `marketingActivityUpdate` are modeled separately from the external activity roots. They stage non-external `MarketingActivity` records locally and do not synthesize nested `MarketingEvent` rows unless future capture proves native events materialize for that branch.
 
 ### Snapshot behavior
 
 - Snapshot mode serves marketing activity and event reads from normalized raw marketing records hydrated from conformance captures or seeded directly in tests.
 - Staged external activity creates, updates, upserts, deletes, and bulk delete-all overlays are applied to snapshot/local reads immediately.
+- Staged native activity creates and updates overlay snapshot/local activity reads immediately. Current native create payloads expose only `userErrors`, so downstream reads and meta state are the observable local activity surface.
 - Missing singular lookups return `null`.
 - Absent catalogs return non-null empty connections with empty `nodes`/`edges`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors.
 - Local connection serialization preserves selected `nodes`, `edges`, `cursor`, and `pageInfo` fields. Captured Shopify cursors are reused when present; locally seeded records without captured cursors use stable synthetic `cursor:<gid>` cursors.
@@ -65,9 +68,20 @@ HAR-214 captures marketing engagement write evidence with `write_marketing_event
 - `marketingEngagementsDelete` has no activity-level selector; missing delete selectors return `INVALID_DELETE_ENGAGEMENTS_ARGUMENTS`, `deleteEngagementsForAllChannels: true` returns the captured result string and removes known local channel-level engagement records, and activity-level engagement records are retained
 - immediate downstream `marketingActivity.adSpend` reads remained `null` after captured activity-level engagement writes, so local staging records the engagement in meta state but does not invent activity/event aggregate attribution
 
+HAR-373 captures native/deprecated activity evidence against Admin GraphQL 2026-04:
+
+- `MarketingActivityCreateInput` exposes only `marketingActivityExtensionId` and `status`
+- `MarketingActivityCreatePayload` exposes only `userErrors`
+- `MarketingActivityUpdateInput` exposes only `id`, while `MarketingActivityUpdatePayload` still exposes `marketingActivity`, `redirectPath`, and `userErrors`
+- invalid create attempts with an unknown `MarketingActivityExtension` return `userErrors[{ field: ["input", "marketingActivityExtensionId"], message: "Could not find the marketing extension" }]`
+- live success-path create/update capture is blocked in the current conformance app because no deprecated marketing activity app extension is installed or discoverable; update probes outside extension context return a top-level `ACCESS_DENIED` error despite the app having `write_marketing_events`
+- local runtime tests cover the intended draft-proxy behavior for staged native create/update, downstream activity reads, engagement by staged native activity ID, meta state, and mutation log retention without runtime Shopify writes
+
 ### External/native boundary
 
-- The implemented write lifecycle is limited to external marketing activities and engagement metrics. Native/deprecated app-extension mutations (`marketingActivityCreate`, `marketingActivityUpdate`) remain unsupported registry gaps because they involve extension context/form behavior outside the external activity API surface.
+- External activity roots create/update both `MarketingActivity` and nested `MarketingEvent` records from remote ID / UTM attribution evidence.
+- Native activity roots create/update non-external activity records only. They preserve extension/context/form fields in local state when supplied by older clients, but the current 2026-04 schema does not expose those deprecated inputs.
+- Native success-path conformance should be refreshed if a future conformance app install includes a deprecated marketing activity extension. Until then, local support intentionally remains narrow and runtime-test-backed for draft-proxy staging semantics.
 - Public GitHub search during HAR-394 found mostly generated schema/type artifacts rather than production app implementations, so local behavior continues to lean on Shopify docs plus checked-in live captures instead of inferring extra app-specific semantics.
 
 ### Local filtering and ordering

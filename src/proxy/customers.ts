@@ -1461,7 +1461,7 @@ function serializeCustomerPaymentMethodSubscriptionContractsConnection(
   return connection;
 }
 
-function serializeCustomerPaymentMethodSelection(
+export function serializeCustomerPaymentMethodSelection(
   paymentMethod: CustomerPaymentMethodRecord,
   field: FieldNode,
   variables: Record<string, unknown> = {},

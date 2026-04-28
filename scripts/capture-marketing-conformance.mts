@@ -14,6 +14,7 @@ const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion);
 const baselineOutputPath = path.join(outputDir, 'marketing-baseline-read.json');
 const invalidIdOutputPath = path.join(outputDir, 'marketing-invalid-id-read.json');
 const schemaOutputPath = path.join(outputDir, 'marketing-schema-inventory.json');
+const nativeActivityValidationOutputPath = path.join(outputDir, 'marketing-native-activity-validation.json');
 const documentPath = path.join('config', 'parity-requests', 'marketing-baseline-read.graphql');
 const variablesPath = path.join('config', 'parity-requests', 'marketing-baseline-read.variables.json');
 
@@ -112,6 +113,62 @@ const invalidIdDocument = `#graphql
   }
 `;
 
+const nativeActivityInventoryDocument = `#graphql
+  query NativeMarketingActivityInventory {
+    currentAppInstallation {
+      accessScopes {
+        handle
+      }
+    }
+    createInput: __type(name: "MarketingActivityCreateInput") {
+      inputFields {
+        name
+      }
+    }
+    updateInput: __type(name: "MarketingActivityUpdateInput") {
+      inputFields {
+        name
+      }
+    }
+    createPayload: __type(name: "MarketingActivityCreatePayload") {
+      fields {
+        name
+      }
+    }
+    updatePayload: __type(name: "MarketingActivityUpdatePayload") {
+      fields {
+        name
+      }
+    }
+  }
+`;
+
+const nativeActivityCreateValidationDocument = `#graphql
+  mutation NativeCreateValidation($input: MarketingActivityCreateInput!) {
+    marketingActivityCreate(input: $input) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const nativeActivityUpdateProbeDocument = `#graphql
+  mutation NativeUpdateMissing($input: MarketingActivityUpdateInput!) {
+    marketingActivityUpdate(input: $input) {
+      marketingActivity {
+        id
+      }
+      redirectPath
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 function readFirstId(payload: unknown, rootField: 'marketingActivities' | 'marketingEvents'): string | null {
   if (!payload || typeof payload !== 'object' || !('data' in payload)) {
     return null;
@@ -173,6 +230,110 @@ function filterSchemaInventory(payload: unknown): unknown {
   return cloned;
 }
 
+function readStringList(value: unknown, key: string): string[] {
+  if (!value || typeof value !== 'object' || !(key in value)) {
+    return [];
+  }
+
+  const items = (value as Record<string, unknown>)[key];
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items.flatMap((item): string[] => {
+    if (item && typeof item === 'object' && 'name' in item && typeof item.name === 'string') {
+      return [item.name];
+    }
+    return [];
+  });
+}
+
+function buildNativeActivityValidationFixture({
+  inventoryPayload,
+  invalidExtensionResult,
+  updateProbeResult,
+}: {
+  inventoryPayload: unknown;
+  invalidExtensionResult: { status: number; payload: unknown };
+  updateProbeResult: { status: number; payload: unknown };
+}): unknown {
+  const data =
+    inventoryPayload && typeof inventoryPayload === 'object' && 'data' in inventoryPayload
+      ? (inventoryPayload as { data?: Record<string, unknown> }).data
+      : {};
+  const scopesRaw = data?.['currentAppInstallation'];
+  const accessScopes =
+    scopesRaw && typeof scopesRaw === 'object' && 'accessScopes' in scopesRaw
+      ? (scopesRaw as { accessScopes?: unknown }).accessScopes
+      : [];
+  const scopeHandles = Array.isArray(accessScopes)
+    ? accessScopes.flatMap((scope): string[] => {
+        return scope && typeof scope === 'object' && 'handle' in scope && typeof scope.handle === 'string'
+          ? [scope.handle]
+          : [];
+      })
+    : [];
+
+  return {
+    scenarioId: 'marketing-native-activity-lifecycle',
+    apiVersion,
+    storeDomain,
+    capturedAt: new Date().toISOString(),
+    accessScopes: scopeHandles.filter(
+      (scope) => scope === 'read_marketing_events' || scope === 'write_marketing_events',
+    ),
+    schema: {
+      marketingActivityCreateInputFields: readStringList(data?.['createInput'], 'inputFields'),
+      marketingActivityUpdateInputFields: readStringList(data?.['updateInput'], 'inputFields'),
+      marketingActivityCreatePayloadFields: readStringList(data?.['createPayload'], 'fields'),
+      marketingActivityUpdatePayloadFields: readStringList(data?.['updatePayload'], 'fields'),
+    },
+    operations: {
+      validation: {
+        invalidExtension: {
+          request: {
+            query: nativeActivityCreateValidationDocument,
+            variables: {
+              input: {
+                marketingActivityExtensionId:
+                  'gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000',
+                status: 'DRAFT',
+              },
+            },
+          },
+          response: invalidExtensionResult.payload,
+        },
+        updateOutsideExtensionContext: {
+          request: {
+            query: nativeActivityUpdateProbeDocument,
+            variables: {
+              input: {
+                id: 'gid://shopify/MarketingActivity/999999999999',
+              },
+            },
+          },
+          response: updateProbeResult.payload,
+        },
+      },
+    },
+    blockers: {
+      successPath:
+        'The conformance app/store has read/write marketing scopes, but no deprecated MarketingActivityExtension is installed or discoverable through Admin GraphQL. Shopify returns `Could not find the marketing extension` for arbitrary extension IDs, and update probes outside extension context return ACCESS_DENIED, so live success-path capture is blocked until the conformance app includes a deprecated marketing activity app extension.',
+    },
+    localRuntimeExpectations: {
+      updatedActivity: {
+        id: 'gid://shopify/MarketingActivity/1',
+        title: 'HAR-373 Native Activity Active',
+        status: 'ACTIVE',
+        statusLabel: 'Sending',
+        isExternal: false,
+        inMainWorkflowVersion: true,
+        marketingEvent: null,
+      },
+    },
+  };
+}
+
 async function assertHttpOk(label: string, result: { status: number; payload: unknown }): Promise<void> {
   if (result.status >= 200 && result.status < 300) {
     return;
@@ -216,18 +377,63 @@ await assertHttpOk('Marketing schema inventory capture', schemaResult);
 const filteredSchemaInventory = filterSchemaInventory(schemaResult.payload);
 await writeFile(schemaOutputPath, `${JSON.stringify(filteredSchemaInventory, null, 2)}\n`, 'utf8');
 
+const nativeInventoryResult = await runGraphqlRequest(nativeActivityInventoryDocument);
+await assertHttpOk('Native marketing activity inventory capture', nativeInventoryResult);
+const nativeInvalidExtensionVariables = {
+  input: {
+    marketingActivityExtensionId: 'gid://shopify/MarketingActivityExtension/00000000-0000-0000-0000-000000000000',
+    status: 'DRAFT',
+  },
+};
+const nativeInvalidExtensionResult = await runGraphqlRequest(
+  nativeActivityCreateValidationDocument,
+  nativeInvalidExtensionVariables,
+);
+await assertHttpOk('Native marketing activity invalid extension capture', nativeInvalidExtensionResult);
+const nativeUpdateProbeVariables = {
+  input: {
+    id: 'gid://shopify/MarketingActivity/999999999999',
+  },
+};
+const nativeUpdateProbeResult = await runGraphqlRequest(nativeActivityUpdateProbeDocument, nativeUpdateProbeVariables);
+await assertHttpOk('Native marketing activity update probe capture', nativeUpdateProbeResult);
+await writeFile(
+  nativeActivityValidationOutputPath,
+  `${JSON.stringify(
+    buildNativeActivityValidationFixture({
+      inventoryPayload: nativeInventoryResult.payload,
+      invalidExtensionResult: nativeInvalidExtensionResult,
+      updateProbeResult: nativeUpdateProbeResult,
+    }),
+    null,
+    2,
+  )}\n`,
+  'utf8',
+);
+
 console.log(
   JSON.stringify(
     {
       ok: true,
       outputDir,
       apiVersion,
-      files: ['marketing-baseline-read.json', 'marketing-invalid-id-read.json', 'marketing-schema-inventory.json'],
+      files: [
+        'marketing-baseline-read.json',
+        'marketing-invalid-id-read.json',
+        'marketing-schema-inventory.json',
+        'marketing-native-activity-validation.json',
+      ],
       first,
       activityId,
       eventId,
       baselineErrors: Array.isArray(baselineResult.payload.errors) ? baselineResult.payload.errors.length : 0,
       invalidIdErrors: Array.isArray(invalidIdResult.payload.errors) ? invalidIdResult.payload.errors.length : 0,
+      nativeInvalidExtensionErrors: Array.isArray(nativeInvalidExtensionResult.payload.errors)
+        ? nativeInvalidExtensionResult.payload.errors.length
+        : 0,
+      nativeUpdateProbeErrors: Array.isArray(nativeUpdateProbeResult.payload.errors)
+        ? nativeUpdateProbeResult.payload.errors.length
+        : 0,
     },
     null,
     2,
