@@ -1,0 +1,105 @@
+{
+  "scenarioId": "metaobject-reference-lifecycle",
+  "operationNames": ["metaobject"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobject-reference-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/metaobject-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobject-reference-read.graphql",
+    "variablesCapturePath": "$.referenceReads[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "reference-fields-and-referenced-by-read",
+        "capturePath": "$.referenceReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.targetA.referencedBy.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetA.referencedBy.edges[1].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetA.referencedBy.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetA.referencedBy.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetB.referencedBy.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetB.referencedBy.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.targetB.referencedBy.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.fields[2].references.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.fields[2].references.edges[1].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.fields[2].references.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.fields[2].references.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.listRef.references.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.listRef.references.edges[1].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.listRef.references.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.parent.listRef.references.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-384 captured live 2026-04 evidence for `metaobject_reference`, `list.metaobject_reference`, field-level `reference`/`references`, and reverse `Metaobject.referencedBy` relations. The parity runner hydrates local definitions and rows from the captured seeded read, then replays the reference read through the proxy with strict JSON comparison except for Shopify's opaque connection cursors. Runtime tests cover staged create, update, and delete reference downstream reads without upstream passthrough."
+}
