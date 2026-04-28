@@ -7081,11 +7081,12 @@ function serializeOptionValueSelectionSet(
 }
 
 export function serializeProductOptionNodeById(
+  runtime: ProxyRuntimeContext,
   id: string,
   selectedFields: readonly FieldNode[],
 ): Record<string, unknown> | null {
-  for (const product of store.listEffectiveProducts()) {
-    const option = store.getEffectiveOptionsByProductId(product.id).find((candidate) => candidate.id === id);
+  for (const product of runtime.store.listEffectiveProducts()) {
+    const option = runtime.store.getEffectiveOptionsByProductId(product.id).find((candidate) => candidate.id === id);
     if (option) {
       return serializeOptionSelectionSet(option, selectedFields);
     }
@@ -7095,11 +7096,12 @@ export function serializeProductOptionNodeById(
 }
 
 export function serializeProductOptionValueNodeById(
+  runtime: ProxyRuntimeContext,
   id: string,
   selectedFields: readonly FieldNode[],
 ): Record<string, unknown> | null {
-  for (const product of store.listEffectiveProducts()) {
-    for (const option of store.getEffectiveOptionsByProductId(product.id)) {
+  for (const product of runtime.store.listEffectiveProducts()) {
+    for (const option of runtime.store.getEffectiveOptionsByProductId(product.id)) {
       const optionValue = option.optionValues.find((candidate) => candidate.id === id);
       if (optionValue) {
         return serializeOptionValueSelectionSet(optionValue, selectedFields);

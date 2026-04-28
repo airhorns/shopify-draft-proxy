@@ -362,11 +362,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   ProductVariant: { rootField: 'productVariant', typename: 'ProductVariant', handler: handleProductNodeQuery },
   ProductOption: {
     typename: 'ProductOption',
-    serialize: (id, selectedFields) => serializeProductOptionNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeProductOptionNodeById(runtime, id, selectedFields),
   },
   ProductOptionValue: {
     typename: 'ProductOptionValue',
-    serialize: (id, selectedFields) => serializeProductOptionValueNodeById(id, selectedFields),
+    serialize: (runtime, id, selectedFields) => serializeProductOptionValueNodeById(runtime, id, selectedFields),
   },
   InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
   InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
