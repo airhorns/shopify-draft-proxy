@@ -583,6 +583,152 @@ describe('admin platform utility query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('resolves staged product option and option value IDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('product option node reads should resolve locally in snapshot mode');
+    });
+    const productId = 'gid://shopify/Product/42400';
+    store.upsertBaseProducts([makeProduct(productId, 'Relay Option Product')]);
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `mutation CreateProductOptions($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product {
+              id
+              options {
+                id
+                name
+                position
+                values
+                optionValues {
+                  id
+                  name
+                  hasVariants
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          productId,
+          options: [
+            {
+              name: 'Color',
+              values: [{ name: 'Red' }, { name: 'Blue' }],
+            },
+          ],
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    expect(createResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+    const [option] = createResponse.body.data.productOptionsCreate.product.options;
+    const [redValue, blueValue] = option.optionValues;
+
+    const nodeResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `query ProductOptionNodeResolution($optionId: ID!, $ids: [ID!]!) {
+          optionNode: node(id: $optionId) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on ProductOption {
+              name
+              position
+              values
+              optionValues {
+                __typename
+                id
+                name
+                hasVariants
+              }
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on ProductOption {
+              name
+              position
+              values
+            }
+            ... on ProductOptionValue {
+              name
+              hasVariants
+            }
+          }
+        }`,
+        variables: {
+          optionId: option.id,
+          ids: [redValue.id, option.id, blueValue.id, 'gid://shopify/ProductOptionValue/404'],
+        },
+      });
+
+    expect(nodeResponse.status).toBe(200);
+    expect(nodeResponse.body).toEqual({
+      data: {
+        optionNode: {
+          __typename: 'ProductOption',
+          nodeId: option.id,
+          name: 'Color',
+          position: 1,
+          values: [],
+          optionValues: [
+            {
+              __typename: 'ProductOptionValue',
+              id: redValue.id,
+              name: 'Red',
+              hasVariants: false,
+            },
+            {
+              __typename: 'ProductOptionValue',
+              id: blueValue.id,
+              name: 'Blue',
+              hasVariants: false,
+            },
+          ],
+        },
+        nodes: [
+          {
+            __typename: 'ProductOptionValue',
+            nodeId: redValue.id,
+            name: 'Red',
+            hasVariants: false,
+          },
+          {
+            __typename: 'ProductOption',
+            nodeId: option.id,
+            name: 'Color',
+            position: 1,
+            values: [],
+          },
+          {
+            __typename: 'ProductOptionValue',
+            nodeId: blueValue.id,
+            name: 'Blue',
+            hasVariants: false,
+          },
+          null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(store.getLog()).toMatchObject([{ operationName: 'productOptionsCreate', status: 'staged' }]);
+  });
+
   it('resolves supported Node IDs that do not have a one-to-one singular root', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('direct admin platform node serializers should resolve locally in snapshot mode');

@@ -21,7 +21,7 @@ import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
 import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
-import { handleProductQuery } from './products.js';
+import { handleProductQuery, serializeProductOptionNodeById, serializeProductOptionValueNodeById } from './products.js';
 import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
 import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
@@ -352,6 +352,14 @@ const handleProductNodeQuery: LocalNodeQueryHandler = (document, variables) =>
 const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Product: { rootField: 'product', typename: 'Product', handler: handleProductNodeQuery },
   ProductVariant: { rootField: 'productVariant', typename: 'ProductVariant', handler: handleProductNodeQuery },
+  ProductOption: {
+    typename: 'ProductOption',
+    serialize: (id, selectedFields) => serializeProductOptionNodeById(id, selectedFields),
+  },
+  ProductOptionValue: {
+    typename: 'ProductOptionValue',
+    serialize: (id, selectedFields) => serializeProductOptionValueNodeById(id, selectedFields),
+  },
   InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
   InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
   InventoryShipment: { rootField: 'inventoryShipment', typename: 'InventoryShipment', handler: handleProductNodeQuery },

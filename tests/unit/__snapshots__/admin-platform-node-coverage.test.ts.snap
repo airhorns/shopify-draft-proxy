@@ -93,8 +93,6 @@ exports[`admin platform Node coverage > classifies every Shopify Node implemento
   "PriceRule",
   "PriceRuleDiscountCode",
   "ProductDeleteOperation",
-  "ProductOption",
-  "ProductOptionValue",
   "ProductTaxonomyNode",
   "ProductVariantComponent",
   "PublicationResourceOperation",
