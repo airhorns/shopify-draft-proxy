@@ -95,6 +95,24 @@ const optionsCreateMutation = `#graphql
   }
 `;
 
+const optionsCreateVariantStrategyMutation = `#graphql
+  mutation ProductOptionsCreateVariantStrategyConformance(
+    $productId: ID!
+    $options: [OptionCreateInput!]!
+    $variantStrategy: ProductOptionCreateVariantStrategy
+  ) {
+    productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+      product {
+        ${productOptionLifecycleSlice}
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const optionUpdateMutation = `#graphql
   mutation ProductOptionUpdateConformance(
     $productId: ID!
@@ -171,6 +189,20 @@ function buildOptionsCreateVariables(productId) {
   };
 }
 
+function buildOptionsCreateVariantStrategyVariables(productId) {
+  return {
+    productId,
+    variantStrategy: 'CREATE',
+    options: [
+      {
+        name: 'Color',
+        position: 1,
+        values: [{ name: 'Blue' }, { name: 'Green' }],
+      },
+    ],
+  };
+}
+
 function buildOptionUpdateVariables(productId, optionId, redValueId, greenValueId) {
   return {
     productId,
@@ -211,6 +243,7 @@ await mkdir(outputDir, { recursive: true });
 const runId = `${Date.now()}`;
 const createProductVariables = buildCreateProductVariables(runId);
 let createdProductId = null;
+let variantStrategyProductId = null;
 let optionsCreateResponse = null;
 let optionUpdateResponse = null;
 let optionsDeleteResponse = null;
@@ -272,6 +305,22 @@ try {
     }),
   };
 
+  const variantStrategyCreateProductResponse = await runGraphql(
+    createProductMutation,
+    buildCreateProductVariables(`${runId}-variant-strategy-create`),
+  );
+  variantStrategyProductId = variantStrategyCreateProductResponse.data?.productCreate?.product?.id ?? null;
+  if (!variantStrategyProductId) {
+    throw new Error('Product option variantStrategy CREATE capture did not return a product id.');
+  }
+  const variantStrategyPreCreateRead = await runGraphql(downstreamReadQuery, { id: variantStrategyProductId });
+  const variantStrategyCreateVariables = buildOptionsCreateVariantStrategyVariables(variantStrategyProductId);
+  const variantStrategyCreateResponse = await runGraphql(
+    optionsCreateVariantStrategyMutation,
+    variantStrategyCreateVariables,
+  );
+  const variantStrategyPostCreateRead = await runGraphql(downstreamReadQuery, { id: variantStrategyProductId });
+
   const captures = {
     'product-options-create-parity.json': {
       preMutationRead: preCreateRead,
@@ -306,6 +355,14 @@ try {
         deleteUnknownOption: validation.deleteUnknownOption,
       },
     },
+    'product-options-create-variant-strategy-create-parity.json': {
+      preMutationRead: variantStrategyPreCreateRead,
+      mutation: {
+        variables: variantStrategyCreateVariables,
+        response: variantStrategyCreateResponse,
+      },
+      downstreamRead: variantStrategyPostCreateRead,
+    },
   };
 
   for (const [filename, payload] of Object.entries(captures)) {
@@ -320,6 +377,7 @@ try {
         outputDir,
         files: Object.keys(captures),
         productId: createdProductId,
+        variantStrategyProductId,
         createdOptionId,
       },
       null,
@@ -351,6 +409,13 @@ try {
   if (createdProductId) {
     try {
       await runGraphql(deleteProductMutation, { input: { id: createdProductId } });
+    } catch {
+      // Best-effort cleanup only. The conformance script should still surface the original failure.
+    }
+  }
+  if (variantStrategyProductId) {
+    try {
+      await runGraphql(deleteProductMutation, { input: { id: variantStrategyProductId } });
     } catch {
       // Best-effort cleanup only. The conformance script should still surface the original failure.
     }

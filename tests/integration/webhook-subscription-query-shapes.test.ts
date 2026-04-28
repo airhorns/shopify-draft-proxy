@@ -366,4 +366,129 @@ describe('webhook subscription query shapes', () => {
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
+
+  it('projects unified uri values and filters catalog reads by uri, format, and topics', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('local webhook uri filters must not fetch upstream'));
+    const httpWebhook = webhookSubscription('gid://shopify/WebhookSubscription/1001', {
+      topic: 'SHOP_UPDATE',
+      uri: 'https://example.com/webhooks/shop-update',
+      name: 'shop_update_http',
+      format: 'JSON',
+      endpoint: {
+        __typename: 'WebhookHttpEndpoint',
+        callbackUrl: 'https://example.com/webhooks/shop-update',
+      },
+    });
+    const pubSubWebhook = webhookSubscription('gid://shopify/WebhookSubscription/1002', {
+      topic: 'APP_UNINSTALLED',
+      uri: 'pubsub://hermes-project:app-uninstalled',
+      name: 'app_uninstalled_pubsub',
+      format: 'JSON',
+      includeFields: [],
+      metafieldNamespaces: [],
+      endpoint: {
+        __typename: 'WebhookPubSubEndpoint',
+        pubSubProject: 'hermes-project',
+        pubSubTopic: 'app-uninstalled',
+      },
+    });
+    const eventBridgeWebhook = webhookSubscription('gid://shopify/WebhookSubscription/1003', {
+      topic: 'ORDERS_CREATE',
+      uri: 'arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/123456789/orders',
+      name: 'orders_eventbridge',
+      format: 'JSON',
+      includeFields: ['id'],
+      metafieldNamespaces: ['orders'],
+      endpoint: {
+        __typename: 'WebhookEventBridgeEndpoint',
+        arn: 'arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/123456789/orders',
+      },
+    });
+    store.upsertBaseWebhookSubscriptions([httpWebhook, pubSubWebhook, eventBridgeWebhook]);
+    const app = createApp(config);
+
+    const response = await request(app.callback())
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query WebhookSubscriptionUriFilters($uri: String!, $topics: [WebhookSubscriptionTopic!]) {
+          byUri: webhookSubscriptions(first: 5, uri: $uri, sortKey: ID) {
+            nodes {
+              id
+              uri
+              name
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint {
+                  pubSubProject
+                  pubSubTopic
+                }
+              }
+            }
+          }
+          byFormatAndTopic: webhookSubscriptions(first: 5, format: JSON, topics: $topics, sortKey: ID) {
+            nodes {
+              id
+              topic
+              uri
+            }
+          }
+          byEndpointQuery: webhookSubscriptions(first: 5, query: "endpoint:aws.partner/shopify.com/123456789/orders", sortKey: ID) {
+            nodes {
+              id
+              uri
+            }
+          }
+          callbackUrlAlias: webhookSubscriptions(first: 5, callbackUrl: "https://example.com/webhooks/shop-update", sortKey: ID) {
+            nodes {
+              id
+              uri
+            }
+          }
+          endpointCount: webhookSubscriptionsCount(query: "endpoint:hermes-project") {
+            count
+            precision
+          }
+        }`,
+        variables: {
+          uri: pubSubWebhook.uri,
+          topics: ['SHOP_UPDATE', 'ORDERS_CREATE'],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.byUri.nodes).toEqual([
+      {
+        id: pubSubWebhook.id,
+        uri: 'pubsub://hermes-project:app-uninstalled',
+        name: 'app_uninstalled_pubsub',
+        endpoint: {
+          __typename: 'WebhookPubSubEndpoint',
+          pubSubProject: 'hermes-project',
+          pubSubTopic: 'app-uninstalled',
+        },
+      },
+    ]);
+    expect(response.body.data.byFormatAndTopic.nodes).toEqual([
+      { id: httpWebhook.id, topic: 'SHOP_UPDATE', uri: 'https://example.com/webhooks/shop-update' },
+      {
+        id: eventBridgeWebhook.id,
+        topic: 'ORDERS_CREATE',
+        uri: 'arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/123456789/orders',
+      },
+    ]);
+    expect(response.body.data.byEndpointQuery.nodes).toEqual([
+      {
+        id: eventBridgeWebhook.id,
+        uri: 'arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/123456789/orders',
+      },
+    ]);
+    expect(response.body.data.callbackUrlAlias.nodes).toEqual([
+      { id: httpWebhook.id, uri: 'https://example.com/webhooks/shop-update' },
+    ]);
+    expect(response.body.data.endpointCount).toEqual({
+      count: 1,
+      precision: 'EXACT',
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
 });

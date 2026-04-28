@@ -421,6 +421,64 @@ describe('media draft flow', () => {
     });
   });
 
+  it('rejects fileUpdate inputs that replace original and preview sources together', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('invalid fileUpdate should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id alt filename fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Original alt',
+              contentType: 'IMAGE',
+              filename: 'source-conflict.jpg',
+              originalSource: 'https://cdn.example.com/source-conflict.jpg',
+            },
+          ],
+        },
+      });
+
+    const fileId = createResponse.body.data.fileCreate.files[0].id as string;
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileUpdate($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt filename fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: fileId,
+              originalSource: 'https://cdn.example.com/source-replacement.jpg',
+              previewImageSource: 'https://cdn.example.com/preview-replacement.jpg',
+            },
+          ],
+        },
+      });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.data.fileUpdate).toEqual({
+      files: [],
+      userErrors: [
+        {
+          field: ['files', '0'],
+          message: 'Specify either originalSource or previewImageSource, not both.',
+          code: 'INVALID',
+        },
+      ],
+    });
+    expect(store.getState().stagedState.files[fileId]).toMatchObject({
+      originalSource: 'https://cdn.example.com/source-conflict.jpg',
+      imageUrl: 'https://cdn.example.com/source-conflict.jpg',
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('updates product media through fileUpdate references while preserving downstream reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('fileUpdate product references should not hit upstream fetch');

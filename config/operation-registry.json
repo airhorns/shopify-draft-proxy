@@ -6388,7 +6388,7 @@
     "implemented": true,
     "matchNames": ["translatableResource", "TranslatableResource"],
     "runtimeTests": ["tests/integration/localization-flow.test.ts"],
-    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph; missing or unsupported resources return null."
+    "supportNotes": "Supports PRODUCT and product METAFIELD resources from the normalized local graph, including product SEO keys when present; missing or unsupported resources return null."
   },
   {
     "name": "translatableResources",
@@ -6448,7 +6448,7 @@
     "implemented": true,
     "matchNames": ["translationsRegister", "TranslationsRegister"],
     "runtimeTests": ["tests/integration/localization-flow.test.ts"],
-    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, locale, and value validation; market-specific translation inputs are explicit unsupported branches."
+    "supportNotes": "Stages translations for PRODUCT and product METAFIELD resources after local key, digest, enabled-shop-locale, and value validation; market-specific translation inputs are explicit unsupported branches."
   },
   {
     "name": "translationsRemove",

@@ -836,6 +836,8 @@ export type WebhookSubscriptionEndpointRecord = z.infer<typeof webhookSubscripti
 export const webhookSubscriptionRecordSchema = z.strictObject({
   id: z.string(),
   topic: nullableStringSchema,
+  uri: nullableStringSchema.optional(),
+  name: nullableStringSchema.optional(),
   format: nullableStringSchema,
   includeFields: z.array(z.string()).default([]),
   metafieldNamespaces: z.array(z.string()).default([]),
