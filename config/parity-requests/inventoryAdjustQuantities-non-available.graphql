@@ -1,0 +1,26 @@
+mutation InventoryAdjustQuantitiesNonAvailableParity($input: InventoryAdjustQuantitiesInput!) {
+  inventoryAdjustQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      id
+      createdAt
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        quantityAfterChange
+        ledgerDocumentUri
+        item {
+          id
+        }
+        location {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
