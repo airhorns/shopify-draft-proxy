@@ -15,6 +15,7 @@ const domainSchema = z.enum([
   'draft-orders',
   'files',
   'gift-cards',
+  'functions',
   'inventory',
   'marketing',
   'markets',
@@ -725,6 +726,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['app billing access for the installed app'],
     fixtureOutputs: [`${CAPTURE_ROOT}app-billing-access-read.json`],
     cleanupBehavior: 'Read-only capture; no billing mutation cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'function-ownership',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-function-ownership-conformance.ts',
+    purpose:
+      'Live ShopifyFunction ownership metadata for released validation/cart-transform functions plus authority blockers for Function-backed mutation probes.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for mutation userError branches',
+      'read_cart_transforms',
+      'write_cart_transforms for mutation userError branches',
+      'write_taxes plus tax calculations app status for taxAppConfigure',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-live-owner-metadata-read.json`,
+      'config/parity-specs/functions/functions-live-owner-metadata-read.json',
+    ],
+    cleanupBehavior:
+      'Read-only Function catalog capture when the stored grant lacks mutation authority; no Shopify Function execution or tax callbacks are invoked.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
