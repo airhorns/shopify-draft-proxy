@@ -26,6 +26,21 @@ const onlineStoreQueryRoots = [
   'mobilePlatformApplications',
 ] as const;
 
+const unsupportedOnlineStoreQueryRoots = ['menu', 'menus'] as const;
+const unsupportedOnlineStoreMutationRoots = ['menuCreate', 'menuUpdate', 'menuDelete'] as const;
+const unsupportedOnlineStoreRoots = [...unsupportedOnlineStoreQueryRoots, ...unsupportedOnlineStoreMutationRoots] as const;
+
+const supportedOnlineStoreQueryRoots = [
+  'theme',
+  'themes',
+  'scriptTag',
+  'scriptTags',
+  'webPixel',
+  'serverPixel',
+  'mobilePlatformApplication',
+  'mobilePlatformApplications',
+] as const;
+
 const onlineStoreMutationRoots = [
   'menuCreate',
   'menuUpdate',
@@ -54,7 +69,30 @@ const onlineStoreMutationRoots = [
   'mobilePlatformApplicationDelete',
 ] as const;
 
-const onlineStoreRoots = [...onlineStoreQueryRoots, ...onlineStoreMutationRoots] as const;
+const supportedOnlineStoreMutationRoots = [
+  'themeCreate',
+  'themeUpdate',
+  'themeDelete',
+  'themePublish',
+  'themeFilesCopy',
+  'themeFilesUpsert',
+  'themeFilesDelete',
+  'scriptTagCreate',
+  'scriptTagUpdate',
+  'scriptTagDelete',
+  'webPixelCreate',
+  'webPixelUpdate',
+  'webPixelDelete',
+  'serverPixelCreate',
+  'serverPixelDelete',
+  'eventBridgeServerPixelUpdate',
+  'pubSubServerPixelUpdate',
+  'storefrontAccessTokenCreate',
+  'storefrontAccessTokenDelete',
+  'mobilePlatformApplicationCreate',
+  'mobilePlatformApplicationUpdate',
+  'mobilePlatformApplicationDelete',
+] as const;
 
 const rootOperationIntrospectionFixtureSchema = z.object({
   introspection: z.object({
@@ -103,8 +141,6 @@ describe('Online store registry scaffold', () => {
       expect(entriesByName.get(root)).toMatchObject({
         domain: 'online-store',
         execution: 'overlay-read',
-        implemented: false,
-        runtimeTests: [],
       });
     }
 
@@ -113,14 +149,23 @@ describe('Online store registry scaffold', () => {
       expect(entriesByName.get(root)).toMatchObject({
         domain: 'online-store',
         execution: 'stage-locally',
-        implemented: false,
-        runtimeTests: [],
       });
     }
   });
 
-  it('keeps scaffold-only storefront roots out of supported runtime capability routing', () => {
-    for (const root of onlineStoreQueryRoots) {
+  it('keeps unsupported navigation roots out of supported runtime capability routing', () => {
+    const registry = readRegistry();
+    const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
+
+    for (const root of unsupportedOnlineStoreRoots) {
+      expect(entriesByName.get(root)).toMatchObject({
+        domain: 'online-store',
+        implemented: false,
+        runtimeTests: [],
+      });
+    }
+
+    for (const root of unsupportedOnlineStoreQueryRoots) {
       expect(getOperationCapability({ type: 'query', name: root, rootFields: [root] })).toEqual({
         domain: 'unknown',
         execution: 'passthrough',
@@ -129,10 +174,41 @@ describe('Online store registry scaffold', () => {
       });
     }
 
-    for (const root of onlineStoreMutationRoots) {
+    for (const root of unsupportedOnlineStoreMutationRoots) {
       expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
         domain: 'unknown',
         execution: 'passthrough',
+        operationName: root,
+        type: 'mutation',
+      });
+    }
+  });
+
+  it('routes supported presentation and integration roots to local online-store handlers', () => {
+    const registry = readRegistry();
+    const entriesByName = new Map(registry.map((entry) => [entry.name, entry]));
+
+    for (const root of supportedOnlineStoreQueryRoots) {
+      expect(entriesByName.get(root)).toMatchObject({
+        implemented: true,
+        runtimeTests: ['tests/integration/online-store-integrations-flow.test.ts'],
+      });
+      expect(getOperationCapability({ type: 'query', name: root, rootFields: [root] })).toEqual({
+        domain: 'online-store',
+        execution: 'overlay-read',
+        operationName: root,
+        type: 'query',
+      });
+    }
+
+    for (const root of supportedOnlineStoreMutationRoots) {
+      expect(entriesByName.get(root)).toMatchObject({
+        implemented: true,
+        runtimeTests: ['tests/integration/online-store-integrations-flow.test.ts'],
+      });
+      expect(getOperationCapability({ type: 'mutation', name: root, rootFields: [root] })).toEqual({
+        domain: 'online-store',
+        execution: 'stage-locally',
         operationName: root,
         type: 'mutation',
       });
@@ -144,7 +220,7 @@ describe('Online store registry scaffold', () => {
     const scenarioOperations = new Set(scenarios.flatMap((scenario) => scenario.operationNames));
     const statusDocument = buildConformanceStatusDocument(repoRoot);
 
-    for (const root of onlineStoreRoots) {
+    for (const root of unsupportedOnlineStoreRoots) {
       expect(scenarioOperations.has(root), `${root} should wait for captured executable evidence`).toBe(false);
       expect(statusDocument.implementedOperations.some((entry) => entry.name === root)).toBe(false);
     }

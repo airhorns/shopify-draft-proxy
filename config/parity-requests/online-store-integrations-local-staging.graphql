@@ -1,0 +1,44 @@
+mutation OnlineStoreIntegrationsLocalStaging(
+  $source: URL!
+  $themeName: String
+  $scriptTag: ScriptTagInput!
+  $webPixel: WebPixelInput!
+  $token: StorefrontAccessTokenInput!
+  $mobile: MobilePlatformApplicationCreateInput!
+) {
+  themeCreate(source: $source, name: $themeName, role: UNPUBLISHED) {
+    theme { id name role processing processingFailed }
+    userErrors { field message }
+  }
+  scriptTagCreate(input: $scriptTag) {
+    scriptTag { id src displayScope cache }
+    userErrors { field message }
+  }
+  webPixelCreate(webPixel: $webPixel) {
+    webPixel { id settings }
+    userErrors { field message }
+  }
+  serverPixelCreate {
+    serverPixel { id status webhookEndpointAddress }
+    userErrors { field message }
+  }
+  eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/local") {
+    serverPixel { id status webhookEndpointAddress }
+    userErrors { field message }
+  }
+  pubSubServerPixelUpdate(pubSubProject: "local-project", pubSubTopic: "local-topic") {
+    serverPixel { id status webhookEndpointAddress }
+    userErrors { field message }
+  }
+  storefrontAccessTokenCreate(input: $token) {
+    storefrontAccessToken { id title accessToken }
+    userErrors { field message }
+  }
+  mobilePlatformApplicationCreate(input: $mobile) {
+    mobilePlatformApplication {
+      __typename
+      ... on AndroidApplication { id applicationId appLinksEnabled sha256CertFingerprints }
+    }
+    userErrors { field message }
+  }
+}

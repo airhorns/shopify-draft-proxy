@@ -1,0 +1,113 @@
+{
+  "primary": {
+    "variables": {
+      "source": "https://example.com/theme.zip",
+      "themeName": "Local preview theme",
+      "scriptTag": {
+        "src": "https://cdn.example.com/local.js",
+        "displayScope": "ONLINE_STORE",
+        "cache": true
+      },
+      "webPixel": {
+        "settings": {
+          "accountId": "local-account"
+        }
+      },
+      "token": {
+        "title": "Headless preview"
+      },
+      "mobile": {
+        "android": {
+          "applicationId": "com.example.local",
+          "appLinksEnabled": true,
+          "sha256CertFingerprints": ["AA:BB"]
+        }
+      }
+    }
+  },
+  "expected": {
+    "primary": {
+      "data": {
+        "themeCreate": {
+          "theme": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "name": "Local preview theme",
+            "role": "UNPUBLISHED",
+            "processing": false,
+            "processingFailed": false
+          },
+          "userErrors": []
+        },
+        "scriptTagCreate": {
+          "scriptTag": {
+            "id": "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic",
+            "src": "https://cdn.example.com/local.js",
+            "displayScope": "ONLINE_STORE",
+            "cache": true
+          },
+          "userErrors": []
+        },
+        "webPixelCreate": {
+          "webPixel": {
+            "id": "gid://shopify/WebPixel/3?shopify-draft-proxy=synthetic",
+            "settings": {
+              "accountId": "local-account"
+            }
+          },
+          "userErrors": []
+        },
+        "serverPixelCreate": {
+          "serverPixel": {
+            "id": "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic",
+            "status": "CONNECTED",
+            "webhookEndpointAddress": null
+          },
+          "userErrors": []
+        },
+        "eventBridgeServerPixelUpdate": {
+          "serverPixel": {
+            "id": "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic",
+            "status": "CONNECTED",
+            "webhookEndpointAddress": "arn:aws:events:us-east-1:123456789012:event-bus/local"
+          },
+          "userErrors": []
+        },
+        "pubSubServerPixelUpdate": {
+          "serverPixel": {
+            "id": "gid://shopify/ServerPixel/4?shopify-draft-proxy=synthetic",
+            "status": "CONNECTED",
+            "webhookEndpointAddress": "local-project/local-topic"
+          },
+          "userErrors": []
+        },
+        "storefrontAccessTokenCreate": {
+          "storefrontAccessToken": {
+            "id": "gid://shopify/StorefrontAccessToken/5?shopify-draft-proxy=synthetic",
+            "title": "Headless preview",
+            "accessToken": "shpat_redacted"
+          },
+          "userErrors": []
+        },
+        "mobilePlatformApplicationCreate": {
+          "mobilePlatformApplication": {
+            "__typename": "AndroidApplication",
+            "id": "gid://shopify/MobilePlatformApplication/6?shopify-draft-proxy=synthetic",
+            "applicationId": "com.example.local",
+            "appLinksEnabled": true,
+            "sha256CertFingerprints": ["AA:BB"]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "evidence": {
+    "apiVersion": "2026-04",
+    "source": "local-runtime",
+    "notes": [
+      "Live probe succeeded for harry-test-heelo.myshopify.com on 2026-04.",
+      "Live safe-read probe confirmed themes and shop.storefrontAccessTokens shape.",
+      "Current live credential returns ACCESS_DENIED for scriptTags, pixels, and mobile platform applications, so this fixture records executable local-runtime expectations for side-effect-safe proxy staging."
+    ]
+  }
+}
