@@ -1,0 +1,71 @@
+{
+  "capturedAt": "2026-04-28",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-362 live blocker evidence for product and shop feedback mutation success capture.",
+    "The configured app token can probe Shopify but lacks write_resource_feedbacks and Storefront API / Sales Channel configuration required by both feedback mutations."
+  ],
+  "probes": [
+    {
+      "name": "bulkProductResourceFeedbackCreate-access-denied",
+      "operationNames": ["bulkProductResourceFeedbackCreate"],
+      "variables": {
+        "feedbackInput": [
+          {
+            "productId": "gid://shopify/Product/999999999",
+            "state": "REQUIRES_ACTION",
+            "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+            "productUpdatedAt": "2024-01-01T00:00:00Z",
+            "messages": ["missing"]
+          }
+        ]
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Access denied for bulkProductResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
+            "locations": [{ "line": 1, "column": 71 }],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
+            },
+            "path": ["bulkProductResourceFeedbackCreate"]
+          }
+        ],
+        "data": {
+          "bulkProductResourceFeedbackCreate": null
+        }
+      }
+    },
+    {
+      "name": "shopResourceFeedbackCreate-access-denied",
+      "operationNames": ["shopResourceFeedbackCreate"],
+      "variables": {
+        "input": {
+          "state": "ACCEPTED",
+          "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+          "messages": ["ready"]
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Access denied for shopResourceFeedbackCreate field. Required access: `write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel.",
+            "locations": [{ "line": 1, "column": 63 }],
+            "extensions": {
+              "code": "ACCESS_DENIED",
+              "documentation": "https://shopify.dev/api/usage/access-scopes",
+              "requiredAccess": "`write_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
+            },
+            "path": ["shopResourceFeedbackCreate"]
+          }
+        ],
+        "data": {
+          "shopResourceFeedbackCreate": null
+        }
+      }
+    }
+  ]
+}

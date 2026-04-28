@@ -1,0 +1,115 @@
+{
+  "scenarioId": "price-list-fixed-prices-by-product-update",
+  "operationNames": ["priceListFixedPricesByProductUpdate", "priceList"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/price-list-fixed-prices-by-product-update-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/markets-lifecycle-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-update.graphql",
+    "variablesCapturePath": "$.successPath[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-fixed-price-add-payload",
+        "capturePath": "$.successPath[0].response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.priceList.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "downstream-product-fixed-price-read",
+        "capturePath": "$.successPath[1].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-read.graphql",
+          "variablesCapturePath": "$.successPath[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.prices.edges[0].cursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          },
+          {
+            "path": "$.prices.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify emits opaque connection cursors; the local proxy uses deterministic variant-id cursors."
+          }
+        ]
+      },
+      {
+        "name": "product-fixed-price-delete-cleanup-payload",
+        "capturePath": "$.successPath[2].response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-update.graphql",
+          "variablesCapturePath": "$.successPath[2].request.variables"
+        }
+      },
+      {
+        "name": "downstream-product-fixed-price-cleanup-read",
+        "capturePath": "$.successPath[3].response.payload.data.priceList",
+        "proxyPath": "$.data.priceList",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-read.graphql",
+          "variablesCapturePath": "$.successPath[3].request.variables"
+        }
+      },
+      {
+        "name": "product-fixed-price-unknown-product-add-validation",
+        "capturePath": "$.validationBranches[0].response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-update.graphql",
+          "variablesCapturePath": "$.validationBranches[0].request.variables"
+        }
+      },
+      {
+        "name": "product-fixed-price-unknown-product-delete-validation",
+        "capturePath": "$.validationBranches[1].response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-update.graphql",
+          "variablesCapturePath": "$.validationBranches[1].request.variables"
+        }
+      },
+      {
+        "name": "product-fixed-price-unknown-price-list-validation",
+        "capturePath": "$.validationBranches[2].response.payload.data.priceListFixedPricesByProductUpdate",
+        "proxyPath": "$.data.priceListFixedPricesByProductUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/price-list-fixed-prices-by-product-update.graphql",
+          "variablesCapturePath": "$.validationBranches[2].request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-391 captures Admin GraphQL 2026-04 product-level priceListFixedPricesByProductUpdate behavior. The current Shopify schema takes pricesToAdd product IDs and pricesToDeleteByProductIds, returns pricesToAddProducts/pricesToDeleteProducts, materializes product fixed prices as FIXED PriceList.prices rows for the product variant, and returns PRODUCT_DOES_NOT_EXIST / PRICE_LIST_DOES_NOT_EXIST validation errors for missing product or price-list targets. The success path captures cleanup and downstream empty fixed-price reads so replay remains local-only."
+}

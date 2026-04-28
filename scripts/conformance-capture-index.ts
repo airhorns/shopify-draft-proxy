@@ -377,6 +377,19 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'markets',
+    packageScript: 'conformance:capture-product-contextual-pricing',
+    scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
+    purpose: 'Product and variant contextual pricing reads tied to Markets price-list fixed prices.',
+    requiredAuthScopes: ['read_markets', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-contextual-pricing-price-list-parity.json`,
+      'config/parity-specs/product-contextual-pricing-price-list-read.json',
+    ],
+    cleanupBehavior: 'Adds a disposable product fixed price to the Mexico price list, then deletes it after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     packageScript: 'conformance:capture-marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',

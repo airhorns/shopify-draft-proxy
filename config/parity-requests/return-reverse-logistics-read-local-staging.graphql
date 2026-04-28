@@ -1,0 +1,49 @@
+query ReturnReverseLogisticsRead(
+  $returnId: ID!
+  $orderId: ID!
+  $reverseDeliveryId: ID!
+  $reverseFulfillmentOrderId: ID!
+) {
+  return(id: $returnId) {
+    id
+    status
+    totalQuantity
+  }
+  order(id: $orderId) {
+    id
+    returns(first: 5) {
+      nodes {
+        id
+        status
+        totalQuantity
+      }
+    }
+  }
+  reverseDelivery(id: $reverseDeliveryId) {
+    id
+    deliverable {
+      __typename
+      ... on ReverseDeliveryShippingDeliverable {
+        tracking {
+          number
+        }
+      }
+    }
+  }
+  reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {
+    id
+    status
+    lineItems(first: 5) {
+      nodes {
+        id
+        remainingQuantity
+        dispositionType
+      }
+    }
+    reverseDeliveries(first: 5) {
+      nodes {
+        id
+      }
+    }
+  }
+}

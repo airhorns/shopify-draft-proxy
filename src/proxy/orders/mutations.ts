@@ -17,8 +17,12 @@ import type {
   OrderFulfillmentRecord,
   OrderLineItemRecord,
   OrderRecord,
+  OrderReverseDeliveryRecord,
+  OrderReverseFulfillmentOrderLineItemRecord,
+  OrderReverseFulfillmentOrderRecord,
   OrderReturnLineItemRecord,
   OrderReturnRecord,
+  OrderShippingLineRecord,
 } from '../../state/types.js';
 import { getDocumentFragments, getFieldResponseKey, readNullableStringArgument } from '../graphql-helpers.js';
 import {
@@ -39,6 +43,7 @@ import {
   serializeOrderLineItemNode,
   serializeOrderManagementPayload,
   serializeOrderNode,
+  serializeOrderReverseDelivery,
   serializeOrderReturn,
   serializeRefundCreatePayload,
   serializeTransactionVoidPayload,
@@ -59,7 +64,9 @@ import {
   DRAFT_ORDER_SAVED_SEARCHES,
   duplicateDraftOrder,
   findOrderWithTransaction,
+  formatDecimalAmount,
   getSelectedChildFields,
+  makeOrderMoneyBag,
   markOrderAsPaid,
   type MutationUserError,
   normalizeDraftOrderAddress,
@@ -925,6 +932,69 @@ function serializeOrderEditSession(field: FieldNode, calculatedOrder: Calculated
   );
 }
 
+function serializeMoneySetSelection(
+  field: FieldNode,
+  moneySet: { shopMoney: MoneyV2Record } | null,
+): Record<string, unknown> | null {
+  if (!moneySet) {
+    return null;
+  }
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'shopMoney':
+      case 'presentmentMoney':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((moneySelection) => {
+            const moneyKey = getFieldResponseKey(moneySelection);
+            switch (moneySelection.name.value) {
+              case 'amount':
+                return [moneyKey, moneySet.shopMoney.amount];
+              case 'currencyCode':
+                return [moneyKey, moneySet.shopMoney.currencyCode];
+              default:
+                return [moneyKey, null];
+            }
+          }),
+        );
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
+function serializeCalculatedShippingLinePayload(
+  field: FieldNode,
+  shippingLine: OrderShippingLineRecord,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = shippingLine.id ?? null;
+        break;
+      case 'title':
+        result[key] = shippingLine.title;
+        break;
+      case 'price':
+        result[key] = serializeMoneySetSelection(selection, shippingLine.originalPriceSet);
+        break;
+      case 'stagedStatus':
+        result[key] = shippingLine.stagedStatus ?? 'ADDED';
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; message: string }> {
   return [
     {
@@ -932,6 +1002,170 @@ function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; mess
       message: "can't convert Integer[0] to a positive Integer to use as an untrusted id",
     },
   ];
+}
+
+function readMoneyInputAmount(raw: unknown): { amount: string; currencyCode: string } | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+  const input = raw as Record<string, unknown>;
+  const rawAmount = input['amount'];
+  const rawCurrencyCode = input['currencyCode'];
+  if ((typeof rawAmount !== 'string' && typeof rawAmount !== 'number') || typeof rawCurrencyCode !== 'string') {
+    return null;
+  }
+  return {
+    amount: formatDecimalAmount(parseDecimalAmount(rawAmount)),
+    currencyCode: rawCurrencyCode,
+  };
+}
+
+function recalculateCalculatedOrder(calculatedOrder: CalculatedOrderRecord): CalculatedOrderRecord {
+  const currencyCode =
+    calculatedOrder.currentTotalPriceSet?.shopMoney.currencyCode ??
+    calculatedOrder.subtotalPriceSet?.shopMoney.currencyCode ??
+    'CAD';
+  const totalDiscount = calculatedOrder.lineItems.reduce(
+    (sum, lineItem) => sum + parseDecimalAmount(lineItem.totalDiscountSet?.shopMoney.amount),
+    0,
+  );
+  return recalculateOrderTotals({
+    ...calculatedOrder,
+    totalDiscountsSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+    currentTotalDiscountsSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+  }) as CalculatedOrderRecord;
+}
+
+function buildCalculatedCustomLineItem(args: Record<string, unknown>): OrderLineItemRecord | null {
+  const title = typeof args['title'] === 'string' ? args['title'] : null;
+  const quantity = typeof args['quantity'] === 'number' ? args['quantity'] : null;
+  const price = readMoneyInputAmount(args['price']);
+  if (!title || quantity === null || quantity <= 0 || !price) {
+    return null;
+  }
+  const currencyCode = price.currencyCode;
+  return {
+    id: makeSyntheticGid('CalculatedLineItem'),
+    originalLineItemId: null,
+    isAdded: true,
+    title,
+    quantity,
+    currentQuantity: quantity,
+    sku: null,
+    variantId: null,
+    variantTitle: null,
+    originalUnitPriceSet: makeOrderMoneyBag(price.amount, currencyCode),
+    discountedUnitPriceSet: makeOrderMoneyBag(price.amount, currencyCode),
+    totalDiscountSet: makeOrderMoneyBag(0, currencyCode),
+    calculatedDiscountAllocations: [],
+    taxLines: [],
+    requiresShipping: typeof args['requiresShipping'] === 'boolean' ? args['requiresShipping'] : true,
+    taxable: typeof args['taxable'] === 'boolean' ? args['taxable'] : true,
+  };
+}
+
+function buildCalculatedShippingLine(args: Record<string, unknown>): OrderShippingLineRecord | null {
+  const shippingLineInput =
+    typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
+      ? (args['shippingLine'] as Record<string, unknown>)
+      : null;
+  const title = typeof shippingLineInput?.['title'] === 'string' ? shippingLineInput['title'] : null;
+  const price = readMoneyInputAmount(shippingLineInput?.['price']);
+  if (!title || !price) {
+    return null;
+  }
+  return {
+    id: makeSyntheticGid('CalculatedShippingLine'),
+    title,
+    code: title,
+    source: 'shopify-draft-proxy',
+    originalPriceSet: makeOrderMoneyBag(price.amount, price.currencyCode),
+    taxLines: [],
+    stagedStatus: 'ADDED',
+  };
+}
+
+function applyLineItemDiscount(
+  calculatedOrder: CalculatedOrderRecord,
+  lineItemId: string,
+  discountInput: Record<string, unknown>,
+): { calculatedOrder: CalculatedOrderRecord; calculatedLineItem: OrderLineItemRecord } | null {
+  const targetLineItem = calculatedOrder.lineItems.find((lineItem) => lineItem.id === lineItemId) ?? null;
+  if (!targetLineItem) {
+    return null;
+  }
+  const currencyCode = targetLineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+  const fixedValue = readMoneyInputAmount(discountInput['fixedValue']);
+  const percentValue = typeof discountInput['percentValue'] === 'number' ? discountInput['percentValue'] : null;
+  const subtotal = parseDecimalAmount(targetLineItem.originalUnitPriceSet?.shopMoney.amount) * targetLineItem.quantity;
+  const discountAmount = fixedValue
+    ? parseDecimalAmount(fixedValue.amount) * targetLineItem.quantity
+    : percentValue !== null
+      ? (subtotal * percentValue) / 100
+      : 0;
+  const boundedDiscount = Math.min(subtotal, Math.max(0, discountAmount));
+  const allocation = {
+    id: makeSyntheticGid('CalculatedDiscountApplication'),
+    description: typeof discountInput['description'] === 'string' ? discountInput['description'] : null,
+    allocatedAmountSet: makeOrderMoneyBag(boundedDiscount, fixedValue?.currencyCode ?? currencyCode),
+  };
+  const updatedLineItem: OrderLineItemRecord = {
+    ...targetLineItem,
+    calculatedDiscountAllocations: [...(targetLineItem.calculatedDiscountAllocations ?? []), allocation],
+    totalDiscountSet: makeOrderMoneyBag(
+      parseDecimalAmount(targetLineItem.totalDiscountSet?.shopMoney.amount) + boundedDiscount,
+      currencyCode,
+    ),
+    discountedUnitPriceSet: makeOrderMoneyBag(
+      Math.max(
+        0,
+        parseDecimalAmount(targetLineItem.originalUnitPriceSet?.shopMoney.amount) -
+          boundedDiscount / Math.max(1, targetLineItem.quantity),
+      ),
+      currencyCode,
+    ),
+  };
+  return {
+    calculatedLineItem: updatedLineItem,
+    calculatedOrder: recalculateCalculatedOrder({
+      ...calculatedOrder,
+      lineItems: calculatedOrder.lineItems.map((lineItem) => (lineItem.id === lineItemId ? updatedLineItem : lineItem)),
+    }),
+  };
+}
+
+function removeCalculatedDiscount(
+  calculatedOrder: CalculatedOrderRecord,
+  discountApplicationId: string,
+): CalculatedOrderRecord | null {
+  let removed = false;
+  const lineItems = calculatedOrder.lineItems.map((lineItem) => {
+    const allocations = lineItem.calculatedDiscountAllocations ?? [];
+    const nextAllocations = allocations.filter((allocation) => allocation.id !== discountApplicationId);
+    if (nextAllocations.length === allocations.length) {
+      return lineItem;
+    }
+    removed = true;
+    const currencyCode = lineItem.originalUnitPriceSet?.shopMoney.currencyCode ?? 'CAD';
+    const totalDiscount = nextAllocations.reduce(
+      (sum, allocation) => sum + parseDecimalAmount(allocation.allocatedAmountSet.shopMoney.amount),
+      0,
+    );
+    return {
+      ...lineItem,
+      calculatedDiscountAllocations: nextAllocations,
+      totalDiscountSet: makeOrderMoneyBag(totalDiscount, currencyCode),
+      discountedUnitPriceSet: makeOrderMoneyBag(
+        Math.max(
+          0,
+          parseDecimalAmount(lineItem.originalUnitPriceSet?.shopMoney.amount) -
+            totalDiscount / Math.max(1, lineItem.quantity),
+        ),
+        currencyCode,
+      ),
+    };
+  });
+  return removed ? recalculateCalculatedOrder({ ...calculatedOrder, lineItems }) : null;
 }
 
 function buildCommittedOrderLineItems(
@@ -2707,6 +2941,45 @@ function findOrderWithReturn(returnId: string): { order: OrderRecord; orderRetur
   return null;
 }
 
+function findOrderWithReverseFulfillmentOrder(reverseFulfillmentOrderId: string): {
+  order: OrderRecord;
+  orderReturn: OrderReturnRecord;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
+} | null {
+  for (const order of store.getOrders()) {
+    for (const orderReturn of order.returns) {
+      const reverseFulfillmentOrder =
+        (orderReturn.reverseFulfillmentOrders ?? []).find((candidate) => candidate.id === reverseFulfillmentOrderId) ??
+        null;
+      if (reverseFulfillmentOrder) {
+        return { order, orderReturn, reverseFulfillmentOrder };
+      }
+    }
+  }
+  return null;
+}
+
+function findOrderWithReverseDelivery(reverseDeliveryId: string): {
+  order: OrderRecord;
+  orderReturn: OrderReturnRecord;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord;
+  reverseDelivery: OrderReverseDeliveryRecord;
+} | null {
+  for (const order of store.getOrders()) {
+    for (const orderReturn of order.returns) {
+      for (const reverseFulfillmentOrder of orderReturn.reverseFulfillmentOrders ?? []) {
+        const reverseDelivery =
+          (reverseFulfillmentOrder.reverseDeliveries ?? []).find((candidate) => candidate.id === reverseDeliveryId) ??
+          null;
+        if (reverseDelivery) {
+          return { order, orderReturn, reverseFulfillmentOrder, reverseDelivery };
+        }
+      }
+    }
+  }
+  return null;
+}
+
 function findFulfillmentLineItem(
   order: OrderRecord,
   fulfillmentLineItemId: string,
@@ -2719,6 +2992,44 @@ function findFulfillmentLineItem(
     }
   }
   return null;
+}
+
+function buildReverseFulfillmentOrderFromReturn(
+  order: OrderRecord,
+  orderReturn: OrderReturnRecord,
+): OrderReverseFulfillmentOrderRecord {
+  const lineItems: OrderReverseFulfillmentOrderLineItemRecord[] = (orderReturn.returnLineItems ?? []).map(
+    (lineItem) => ({
+      id: makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
+      returnLineItemId: lineItem.id,
+      fulfillmentLineItemId: lineItem.fulfillmentLineItemId,
+      lineItemId: lineItem.lineItemId,
+      title: lineItem.title,
+      totalQuantity: lineItem.quantity,
+      remainingQuantity: Math.max(0, lineItem.quantity - (lineItem.processedQuantity ?? 0)),
+      disposedQuantity: 0,
+    }),
+  );
+
+  return {
+    id: makeSyntheticGid('ReverseFulfillmentOrder'),
+    orderId: order.id,
+    returnId: orderReturn.id,
+    status: 'OPEN',
+    lineItems,
+    reverseDeliveries: [],
+  };
+}
+
+function ensureReturnReverseFulfillmentOrders(order: OrderRecord, orderReturn: OrderReturnRecord): OrderReturnRecord {
+  if ((orderReturn.reverseFulfillmentOrders ?? []).length > 0) {
+    return orderReturn;
+  }
+
+  return {
+    ...orderReturn,
+    reverseFulfillmentOrders: [buildReverseFulfillmentOrderFromReturn(order, orderReturn)],
+  };
 }
 
 function buildReturnLineItemsFromInput(
@@ -2788,17 +3099,21 @@ function buildOrderReturnFromInput(
 
   const createdAt = typeof input['requestedAt'] === 'string' ? input['requestedAt'] : makeSyntheticTimestamp();
   const totalQuantity = lineItemResult.lineItems.reduce((total, lineItem) => total + lineItem.quantity, 0);
+  const orderReturn: OrderReturnRecord = {
+    id: makeSyntheticGid('Return'),
+    orderId: order.id,
+    name: `${order.name}-R${order.returns.length + 1}`,
+    status,
+    createdAt,
+    closedAt: null,
+    decline: null,
+    totalQuantity,
+    returnLineItems: lineItemResult.lineItems,
+    reverseFulfillmentOrders: [],
+  };
+
   return {
-    orderReturn: {
-      id: makeSyntheticGid('Return'),
-      orderId: order.id,
-      name: `${order.name}-R${order.returns.length + 1}`,
-      status,
-      createdAt,
-      closedAt: null,
-      totalQuantity,
-      returnLineItems: lineItemResult.lineItems,
-    },
+    orderReturn: status === 'OPEN' ? ensureReturnReverseFulfillmentOrders(order, orderReturn) : orderReturn,
   };
 }
 
@@ -2862,6 +3177,336 @@ function applyReturnStatusUpdate(
   return { order: updatedOrder, orderReturn: stagedReturn, userErrors: [] };
 }
 
+function readReturnRequestInputId(input: Record<string, unknown> | null): string | null {
+  return typeof input?.['id'] === 'string' ? input['id'] : null;
+}
+
+function applyReturnApproveRequest(input: Record<string, unknown> | null): {
+  order: OrderRecord | null;
+  orderReturn: OrderReturnRecord | null;
+  userErrors: ReturnUserError[];
+} {
+  const returnId = readReturnRequestInputId(input);
+  if (!returnId) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'id'], message: 'Return does not exist.' }],
+    };
+  }
+
+  const match = findOrderWithReturn(returnId);
+  if (!match) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'id'], message: 'Return does not exist.' }],
+    };
+  }
+
+  if (match.orderReturn.status !== 'REQUESTED') {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [
+        {
+          field: ['input', 'id'],
+          message: 'Return is not approvable. Only returns with status REQUESTED can be approved.',
+        },
+      ],
+    };
+  }
+
+  const approvedReturn = ensureReturnReverseFulfillmentOrders(match.order, {
+    ...match.orderReturn,
+    status: 'OPEN',
+    decline: null,
+  });
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) => (candidate.id === returnId ? approvedReturn : candidate)),
+  });
+  return {
+    order: updatedOrder,
+    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === returnId) ?? approvedReturn,
+    userErrors: [],
+  };
+}
+
+function applyReturnDeclineRequest(input: Record<string, unknown> | null): {
+  order: OrderRecord | null;
+  orderReturn: OrderReturnRecord | null;
+  userErrors: ReturnUserError[];
+} {
+  const returnId = readReturnRequestInputId(input);
+  if (!returnId) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'id'], message: 'Return does not exist.' }],
+    };
+  }
+
+  const match = findOrderWithReturn(returnId);
+  if (!match) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'id'], message: 'Return does not exist.' }],
+    };
+  }
+
+  if (match.orderReturn.status !== 'REQUESTED') {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [
+        {
+          field: ['input', 'id'],
+          message: 'Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.',
+        },
+      ],
+    };
+  }
+
+  const declinedReturn: OrderReturnRecord = {
+    ...match.orderReturn,
+    status: 'DECLINED',
+    decline: {
+      reason: typeof input?.['declineReason'] === 'string' ? input['declineReason'] : null,
+      note: typeof input?.['declineNote'] === 'string' ? input['declineNote'] : null,
+    },
+  };
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) => (candidate.id === returnId ? declinedReturn : candidate)),
+  });
+  return {
+    order: updatedOrder,
+    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === returnId) ?? declinedReturn,
+    userErrors: [],
+  };
+}
+
+function syncReverseFulfillmentLineItems(order: OrderRecord, orderReturn: OrderReturnRecord): OrderReturnRecord {
+  const reverseFulfillmentOrders = orderReturn.reverseFulfillmentOrders ?? [];
+  if (reverseFulfillmentOrders.length === 0) {
+    return orderReturn.status === 'OPEN' ? ensureReturnReverseFulfillmentOrders(order, orderReturn) : orderReturn;
+  }
+
+  const returnLineItems = orderReturn.returnLineItems ?? [];
+  const syncedReverseFulfillmentOrders = reverseFulfillmentOrders.map((reverseFulfillmentOrder) => ({
+    ...reverseFulfillmentOrder,
+    lineItems: returnLineItems.map((returnLineItem) => {
+      const existing =
+        reverseFulfillmentOrder.lineItems.find((lineItem) => lineItem.returnLineItemId === returnLineItem.id) ?? null;
+      const processedQuantity = returnLineItem.processedQuantity ?? 0;
+      return {
+        id: existing?.id ?? makeSyntheticGid('ReverseFulfillmentOrderLineItem'),
+        returnLineItemId: returnLineItem.id,
+        fulfillmentLineItemId: returnLineItem.fulfillmentLineItemId,
+        lineItemId: returnLineItem.lineItemId,
+        title: returnLineItem.title,
+        totalQuantity: returnLineItem.quantity,
+        remainingQuantity: Math.max(0, returnLineItem.quantity - processedQuantity),
+        disposedQuantity: existing?.disposedQuantity ?? 0,
+        dispositionType: existing?.dispositionType ?? null,
+        dispositionLocationId: existing?.dispositionLocationId ?? null,
+      };
+    }),
+  }));
+
+  return {
+    ...orderReturn,
+    reverseFulfillmentOrders: syncedReverseFulfillmentOrders,
+  };
+}
+
+function applyRemoveFromReturn(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): { order: OrderRecord | null; orderReturn: OrderReturnRecord | null; userErrors: ReturnUserError[] } {
+  const args = getFieldArguments(field, variables);
+  const returnId = typeof args['returnId'] === 'string' ? args['returnId'] : null;
+  const match = returnId ? findOrderWithReturn(returnId) : null;
+  if (!match) {
+    return { order: null, orderReturn: null, userErrors: [{ field: ['returnId'], message: 'Return does not exist.' }] };
+  }
+
+  const rawReturnLineItems = Array.isArray(args['returnLineItems']) ? args['returnLineItems'] : [];
+  const rawExchangeLineItems = Array.isArray(args['exchangeLineItems']) ? args['exchangeLineItems'] : [];
+  if (rawReturnLineItems.length === 0 && rawExchangeLineItems.length === 0) {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [{ field: ['returnLineItems'], message: 'Return line items or exchange line items are required.' }],
+    };
+  }
+
+  if (rawExchangeLineItems.length > 0) {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [
+        {
+          field: ['exchangeLineItems'],
+          message: 'Exchange line item removal is not supported by the local return model yet.',
+        },
+      ],
+    };
+  }
+
+  const nextLineItems = [...(match.orderReturn.returnLineItems ?? [])];
+  const userErrors: ReturnUserError[] = [];
+  for (const [index, rawLineItem] of rawReturnLineItems.entries()) {
+    const input =
+      typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
+    const lineItemId = typeof input['returnLineItemId'] === 'string' ? input['returnLineItemId'] : null;
+    const quantity =
+      typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+    const lineItemIndex = lineItemId ? nextLineItems.findIndex((lineItem) => lineItem.id === lineItemId) : -1;
+    const lineItem = lineItemIndex >= 0 ? nextLineItems[lineItemIndex] : null;
+
+    if (!lineItem) {
+      userErrors.push({
+        field: ['returnLineItems', String(index), 'returnLineItemId'],
+        message: 'Return line item does not exist.',
+      });
+      continue;
+    }
+
+    const removableQuantity = lineItem.quantity - (lineItem.processedQuantity ?? 0);
+    if (quantity <= 0 || quantity > removableQuantity) {
+      userErrors.push({
+        field: ['returnLineItems', String(index), 'quantity'],
+        message: 'Quantity is not removable from return.',
+      });
+      continue;
+    }
+
+    const nextQuantity = lineItem.quantity - quantity;
+    if (nextQuantity <= 0) {
+      nextLineItems.splice(lineItemIndex, 1);
+    } else {
+      nextLineItems[lineItemIndex] = { ...lineItem, quantity: nextQuantity };
+    }
+  }
+
+  if (userErrors.length > 0) {
+    return { order: match.order, orderReturn: null, userErrors };
+  }
+
+  const updatedReturn = syncReverseFulfillmentLineItems(match.order, {
+    ...match.orderReturn,
+    totalQuantity: nextLineItems.reduce((total, lineItem) => total + lineItem.quantity, 0),
+    returnLineItems: nextLineItems,
+  });
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) =>
+      candidate.id === match.orderReturn.id ? updatedReturn : candidate,
+    ),
+  });
+  return {
+    order: updatedOrder,
+    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === match.orderReturn.id) ?? updatedReturn,
+    userErrors: [],
+  };
+}
+
+function applyReturnProcess(input: Record<string, unknown> | null): {
+  order: OrderRecord | null;
+  orderReturn: OrderReturnRecord | null;
+  userErrors: ReturnUserError[];
+} {
+  const returnId = typeof input?.['returnId'] === 'string' ? input['returnId'] : null;
+  const match = returnId ? findOrderWithReturn(returnId) : null;
+  if (!match) {
+    return {
+      order: null,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'returnId'], message: 'Return does not exist.' }],
+    };
+  }
+
+  if (match.orderReturn.status !== 'OPEN') {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'returnId'], message: 'Only OPEN returns can be processed.' }],
+    };
+  }
+
+  const rawReturnLineItems = Array.isArray(input?.['returnLineItems']) ? input['returnLineItems'] : [];
+  if (rawReturnLineItems.length === 0) {
+    return {
+      order: match.order,
+      orderReturn: null,
+      userErrors: [{ field: ['input', 'returnLineItems'], message: 'Return line items are required.' }],
+    };
+  }
+
+  const nextLineItems = [...(match.orderReturn.returnLineItems ?? [])];
+  const userErrors: ReturnUserError[] = [];
+  for (const [index, rawLineItem] of rawReturnLineItems.entries()) {
+    const item =
+      typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
+    const lineItemId = typeof item['id'] === 'string' ? item['id'] : null;
+    const quantity = typeof item['quantity'] === 'number' && Number.isFinite(item['quantity']) ? item['quantity'] : 0;
+    const lineItemIndex = lineItemId ? nextLineItems.findIndex((lineItem) => lineItem.id === lineItemId) : -1;
+    const lineItem = lineItemIndex >= 0 ? nextLineItems[lineItemIndex] : null;
+
+    if (!lineItem) {
+      userErrors.push({
+        field: ['input', 'returnLineItems', String(index), 'id'],
+        message: 'Return line item does not exist.',
+      });
+      continue;
+    }
+
+    const unprocessedQuantity = lineItem.quantity - (lineItem.processedQuantity ?? 0);
+    if (quantity <= 0 || quantity > unprocessedQuantity) {
+      userErrors.push({
+        field: ['input', 'returnLineItems', String(index), 'quantity'],
+        message: 'Quantity is not processable.',
+      });
+      continue;
+    }
+
+    nextLineItems[lineItemIndex] = {
+      ...lineItem,
+      processedQuantity: (lineItem.processedQuantity ?? 0) + quantity,
+    };
+  }
+
+  if (userErrors.length > 0) {
+    return { order: match.order, orderReturn: null, userErrors };
+  }
+
+  const allProcessed = nextLineItems.every((lineItem) => (lineItem.processedQuantity ?? 0) >= lineItem.quantity);
+  const updatedReturn = syncReverseFulfillmentLineItems(match.order, {
+    ...ensureReturnReverseFulfillmentOrders(match.order, match.orderReturn),
+    status: allProcessed ? 'CLOSED' : match.orderReturn.status,
+    closedAt: allProcessed ? makeSyntheticTimestamp() : match.orderReturn.closedAt,
+    returnLineItems: nextLineItems,
+  });
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) =>
+      candidate.id === match.orderReturn.id ? updatedReturn : candidate,
+    ),
+  });
+  return {
+    order: updatedOrder,
+    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === match.orderReturn.id) ?? updatedReturn,
+    userErrors: [],
+  };
+}
+
 function serializeReturnMutationPayload(
   field: FieldNode,
   orderReturn: OrderReturnRecord | null,
@@ -2887,6 +3532,421 @@ function serializeReturnMutationPayload(
   }
 
   return payload;
+}
+
+function serializeReverseDeliveryMutationPayload(
+  field: FieldNode,
+  reverseDelivery: OrderReverseDeliveryRecord | null,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord | null,
+  orderReturn: OrderReturnRecord | null,
+  order: OrderRecord | null,
+  userErrors: ReturnUserError[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'reverseDelivery':
+        payload[key] =
+          reverseDelivery && reverseFulfillmentOrder && orderReturn && order
+            ? serializeOrderReverseDelivery(
+                selection,
+                reverseDelivery,
+                reverseFulfillmentOrder,
+                orderReturn,
+                order,
+                variables,
+              )
+            : null;
+        break;
+      case 'userErrors':
+        payload[key] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function serializeReverseFulfillmentOrderDisposePayload(
+  field: FieldNode,
+  lineItems: OrderReverseFulfillmentOrderLineItemRecord[],
+  userErrors: ReturnUserError[],
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'reverseFulfillmentOrderLineItems':
+        payload[key] = lineItems.map((lineItem) =>
+          Object.fromEntries(
+            getSelectedChildFields(selection).map((lineItemSelection) => {
+              const lineItemKey = getFieldResponseKey(lineItemSelection);
+              switch (lineItemSelection.name.value) {
+                case 'id':
+                  return [lineItemKey, lineItem.id];
+                case 'totalQuantity':
+                case 'quantity':
+                  return [lineItemKey, lineItem.totalQuantity];
+                case 'remainingQuantity':
+                  return [lineItemKey, lineItem.remainingQuantity];
+                case 'dispositionType':
+                  return [lineItemKey, lineItem.dispositionType ?? null];
+                default:
+                  return [lineItemKey, null];
+              }
+            }),
+          ),
+        );
+        break;
+      case 'userErrors':
+        payload[key] = serializeSelectedUserErrors(selection, userErrors);
+        break;
+      default:
+        payload[key] = null;
+        break;
+    }
+  }
+  return payload;
+}
+
+function normalizeReverseDeliveryTracking(raw: unknown): OrderReverseDeliveryRecord['tracking'] {
+  const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null;
+  if (!input) {
+    return null;
+  }
+  return {
+    number:
+      typeof input['number'] === 'string'
+        ? input['number']
+        : typeof input['trackingNumber'] === 'string'
+          ? input['trackingNumber']
+          : null,
+    url:
+      typeof input['url'] === 'string'
+        ? input['url']
+        : typeof input['trackingUrl'] === 'string'
+          ? input['trackingUrl']
+          : null,
+    company:
+      typeof input['company'] === 'string'
+        ? input['company']
+        : typeof input['carrierName'] === 'string'
+          ? input['carrierName']
+          : null,
+  };
+}
+
+function normalizeReverseDeliveryLabel(raw: unknown): OrderReverseDeliveryRecord['label'] {
+  const input = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null;
+  if (!input) {
+    return null;
+  }
+  return {
+    publicFileUrl:
+      typeof input['publicFileUrl'] === 'string'
+        ? input['publicFileUrl']
+        : typeof input['url'] === 'string'
+          ? input['url']
+          : null,
+  };
+}
+
+function applyReverseDeliveryCreateWithShipping(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord | null;
+  orderReturn: OrderReturnRecord | null;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord | null;
+  reverseDelivery: OrderReverseDeliveryRecord | null;
+  userErrors: ReturnUserError[];
+} {
+  const args = getFieldArguments(field, variables);
+  const reverseFulfillmentOrderId =
+    typeof args['reverseFulfillmentOrderId'] === 'string' ? args['reverseFulfillmentOrderId'] : null;
+  const match = reverseFulfillmentOrderId ? findOrderWithReverseFulfillmentOrder(reverseFulfillmentOrderId) : null;
+  if (!match) {
+    return {
+      order: null,
+      orderReturn: null,
+      reverseFulfillmentOrder: null,
+      reverseDelivery: null,
+      userErrors: [{ field: ['reverseFulfillmentOrderId'], message: 'Reverse fulfillment order does not exist.' }],
+    };
+  }
+
+  const rawLineItems = Array.isArray(args['reverseDeliveryLineItems']) ? args['reverseDeliveryLineItems'] : [];
+  if (rawLineItems.length === 0) {
+    return {
+      order: match.order,
+      orderReturn: match.orderReturn,
+      reverseFulfillmentOrder: match.reverseFulfillmentOrder,
+      reverseDelivery: null,
+      userErrors: [{ field: ['reverseDeliveryLineItems'], message: 'Reverse delivery line items are required.' }],
+    };
+  }
+
+  const userErrors: ReturnUserError[] = [];
+  const lineItems = rawLineItems.flatMap(
+    (rawLineItem, index): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] => {
+      const input =
+        typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
+      const lineItemId =
+        typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
+          ? input['reverseFulfillmentOrderLineItemId']
+          : null;
+      const quantity =
+        typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+      const lineItem = lineItemId
+        ? (match.reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null)
+        : null;
+      if (!lineItem) {
+        userErrors.push({
+          field: ['reverseDeliveryLineItems', String(index), 'reverseFulfillmentOrderLineItemId'],
+          message: 'Reverse fulfillment order line item does not exist.',
+        });
+        return [];
+      }
+      if (quantity <= 0 || quantity > lineItem.totalQuantity) {
+        userErrors.push({
+          field: ['reverseDeliveryLineItems', String(index), 'quantity'],
+          message: 'Quantity is not available for reverse delivery.',
+        });
+        return [];
+      }
+      return [
+        {
+          id: makeSyntheticGid('ReverseDeliveryLineItem'),
+          reverseFulfillmentOrderLineItemId: lineItem.id,
+          quantity,
+        },
+      ];
+    },
+  );
+
+  if (userErrors.length > 0) {
+    return {
+      order: match.order,
+      orderReturn: match.orderReturn,
+      reverseFulfillmentOrder: match.reverseFulfillmentOrder,
+      reverseDelivery: null,
+      userErrors,
+    };
+  }
+
+  const reverseDelivery: OrderReverseDeliveryRecord = {
+    id: makeSyntheticGid('ReverseDelivery'),
+    reverseFulfillmentOrderId: match.reverseFulfillmentOrder.id,
+    reverseDeliveryLineItems: lineItems,
+    tracking: normalizeReverseDeliveryTracking(args['trackingInput']),
+    label: normalizeReverseDeliveryLabel(args['labelInput']),
+  };
+  const updatedReverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord = {
+    ...match.reverseFulfillmentOrder,
+    reverseDeliveries: [reverseDelivery, ...(match.reverseFulfillmentOrder.reverseDeliveries ?? [])],
+  };
+  const updatedReturn: OrderReturnRecord = {
+    ...match.orderReturn,
+    reverseFulfillmentOrders: (match.orderReturn.reverseFulfillmentOrders ?? []).map((candidate) =>
+      candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
+    ),
+  };
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) => (candidate.id === updatedReturn.id ? updatedReturn : candidate)),
+  });
+  const stagedReturn = updatedOrder.returns.find((candidate) => candidate.id === updatedReturn.id) ?? updatedReturn;
+  const stagedReverseFulfillmentOrder =
+    (stagedReturn.reverseFulfillmentOrders ?? []).find(
+      (candidate) => candidate.id === updatedReverseFulfillmentOrder.id,
+    ) ?? updatedReverseFulfillmentOrder;
+  const stagedReverseDelivery =
+    (stagedReverseFulfillmentOrder.reverseDeliveries ?? []).find((candidate) => candidate.id === reverseDelivery.id) ??
+    reverseDelivery;
+  return {
+    order: updatedOrder,
+    orderReturn: stagedReturn,
+    reverseFulfillmentOrder: stagedReverseFulfillmentOrder,
+    reverseDelivery: stagedReverseDelivery,
+    userErrors: [],
+  };
+}
+
+function applyReverseDeliveryShippingUpdate(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): {
+  order: OrderRecord | null;
+  orderReturn: OrderReturnRecord | null;
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord | null;
+  reverseDelivery: OrderReverseDeliveryRecord | null;
+  userErrors: ReturnUserError[];
+} {
+  const args = getFieldArguments(field, variables);
+  const reverseDeliveryId = typeof args['reverseDeliveryId'] === 'string' ? args['reverseDeliveryId'] : null;
+  const match = reverseDeliveryId ? findOrderWithReverseDelivery(reverseDeliveryId) : null;
+  if (!match) {
+    return {
+      order: null,
+      orderReturn: null,
+      reverseFulfillmentOrder: null,
+      reverseDelivery: null,
+      userErrors: [{ field: ['reverseDeliveryId'], message: 'Reverse delivery does not exist.' }],
+    };
+  }
+
+  const updatedReverseDelivery: OrderReverseDeliveryRecord = {
+    ...match.reverseDelivery,
+    tracking: normalizeReverseDeliveryTracking(args['trackingInput']) ?? match.reverseDelivery.tracking ?? null,
+    label: normalizeReverseDeliveryLabel(args['labelInput']) ?? match.reverseDelivery.label ?? null,
+  };
+  const updatedReverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord = {
+    ...match.reverseFulfillmentOrder,
+    reverseDeliveries: (match.reverseFulfillmentOrder.reverseDeliveries ?? []).map((candidate) =>
+      candidate.id === updatedReverseDelivery.id ? updatedReverseDelivery : candidate,
+    ),
+  };
+  const updatedReturn: OrderReturnRecord = {
+    ...match.orderReturn,
+    reverseFulfillmentOrders: (match.orderReturn.reverseFulfillmentOrders ?? []).map((candidate) =>
+      candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
+    ),
+  };
+  const updatedOrder = store.updateOrder({
+    ...match.order,
+    updatedAt: makeSyntheticTimestamp(),
+    returns: match.order.returns.map((candidate) => (candidate.id === updatedReturn.id ? updatedReturn : candidate)),
+  });
+  return {
+    order: updatedOrder,
+    orderReturn: updatedReturn,
+    reverseFulfillmentOrder: updatedReverseFulfillmentOrder,
+    reverseDelivery: updatedReverseDelivery,
+    userErrors: [],
+  };
+}
+
+function applyReverseFulfillmentOrderDispose(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): { lineItems: OrderReverseFulfillmentOrderLineItemRecord[]; userErrors: ReturnUserError[] } {
+  const args = getFieldArguments(field, variables);
+  const rawInputs = Array.isArray(args['dispositionInputs']) ? args['dispositionInputs'] : [];
+  if (rawInputs.length === 0) {
+    return {
+      lineItems: [],
+      userErrors: [{ field: ['dispositionInputs'], message: 'Disposition inputs are required.' }],
+    };
+  }
+
+  const updates: Array<{
+    match: NonNullable<ReturnType<typeof findOrderWithReverseFulfillmentOrder>>;
+    lineItem: OrderReverseFulfillmentOrderLineItemRecord;
+    quantity: number;
+    dispositionType: string | null;
+    locationId: string | null;
+  }> = [];
+  const userErrors: ReturnUserError[] = [];
+
+  for (const [index, rawInput] of rawInputs.entries()) {
+    const input = typeof rawInput === 'object' && rawInput !== null ? (rawInput as Record<string, unknown>) : {};
+    const lineItemId =
+      typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
+        ? input['reverseFulfillmentOrderLineItemId']
+        : null;
+    const quantity =
+      typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+    let found: {
+      match: NonNullable<ReturnType<typeof findOrderWithReverseFulfillmentOrder>>;
+      lineItem: OrderReverseFulfillmentOrderLineItemRecord;
+    } | null = null;
+    if (lineItemId) {
+      for (const order of store.getOrders()) {
+        for (const orderReturn of order.returns) {
+          for (const reverseFulfillmentOrder of orderReturn.reverseFulfillmentOrders ?? []) {
+            const lineItem = reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null;
+            if (lineItem) {
+              found = { match: { order, orderReturn, reverseFulfillmentOrder }, lineItem };
+              break;
+            }
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+    }
+
+    if (!found) {
+      userErrors.push({
+        field: ['dispositionInputs', String(index), 'reverseFulfillmentOrderLineItemId'],
+        message: 'Reverse fulfillment order line item does not exist.',
+      });
+      continue;
+    }
+
+    const disposableQuantity = found.lineItem.totalQuantity - (found.lineItem.disposedQuantity ?? 0);
+    if (quantity <= 0 || quantity > disposableQuantity) {
+      userErrors.push({
+        field: ['dispositionInputs', String(index), 'quantity'],
+        message: 'Quantity is not disposable.',
+      });
+      continue;
+    }
+
+    updates.push({
+      ...found,
+      quantity,
+      dispositionType: typeof input['dispositionType'] === 'string' ? input['dispositionType'] : null,
+      locationId: typeof input['locationId'] === 'string' ? input['locationId'] : null,
+    });
+  }
+
+  if (userErrors.length > 0) {
+    return { lineItems: [], userErrors };
+  }
+
+  const disposedLineItems: OrderReverseFulfillmentOrderLineItemRecord[] = [];
+  for (const update of updates) {
+    const updatedLineItem: OrderReverseFulfillmentOrderLineItemRecord = {
+      ...update.lineItem,
+      remainingQuantity: Math.max(0, update.lineItem.remainingQuantity - update.quantity),
+      disposedQuantity: (update.lineItem.disposedQuantity ?? 0) + update.quantity,
+      dispositionType: update.dispositionType,
+      dispositionLocationId: update.locationId,
+    };
+    const updatedReverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord = {
+      ...update.match.reverseFulfillmentOrder,
+      status: update.match.reverseFulfillmentOrder.lineItems.every((lineItem) =>
+        lineItem.id === updatedLineItem.id ? updatedLineItem.remainingQuantity === 0 : lineItem.remainingQuantity === 0,
+      )
+        ? 'CLOSED'
+        : update.match.reverseFulfillmentOrder.status,
+      lineItems: update.match.reverseFulfillmentOrder.lineItems.map((lineItem) =>
+        lineItem.id === updatedLineItem.id ? updatedLineItem : lineItem,
+      ),
+    };
+    const updatedReturn: OrderReturnRecord = {
+      ...update.match.orderReturn,
+      reverseFulfillmentOrders: (update.match.orderReturn.reverseFulfillmentOrders ?? []).map((candidate) =>
+        candidate.id === updatedReverseFulfillmentOrder.id ? updatedReverseFulfillmentOrder : candidate,
+      ),
+    };
+    store.updateOrder({
+      ...update.match.order,
+      updatedAt: makeSyntheticTimestamp(),
+      returns: update.match.order.returns.map((candidate) =>
+        candidate.id === updatedReturn.id ? updatedReturn : candidate,
+      ),
+    });
+    disposedLineItems.push(updatedLineItem);
+  }
+
+  return { lineItems: disposedLineItems, userErrors: [] };
 }
 
 export function handleOrderMutation(
@@ -3015,6 +4075,80 @@ export function handleOrderMutation(
       handled = true;
       const result = applyReturnCreate(readReturnInput(variables, 'input'), 'REQUESTED');
       data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (field.name.value === 'returnApproveRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyReturnApproveRequest(readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (field.name.value === 'returnDeclineRequest' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyReturnDeclineRequest(readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (field.name.value === 'removeFromReturn' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyRemoveFromReturn(field, variables);
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (field.name.value === 'returnProcess' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const result = applyReturnProcess(readReturnInput(variables, 'input'));
+      data[key] = serializeReturnMutationPayload(field, result.orderReturn, result.order, result.userErrors, variables);
+      continue;
+    }
+
+    if (
+      field.name.value === 'reverseDeliveryCreateWithShipping' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const result = applyReverseDeliveryCreateWithShipping(field, variables);
+      data[key] = serializeReverseDeliveryMutationPayload(
+        field,
+        result.reverseDelivery,
+        result.reverseFulfillmentOrder,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
+      continue;
+    }
+
+    if (
+      field.name.value === 'reverseDeliveryShippingUpdate' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const result = applyReverseDeliveryShippingUpdate(field, variables);
+      data[key] = serializeReverseDeliveryMutationPayload(
+        field,
+        result.reverseDelivery,
+        result.reverseFulfillmentOrder,
+        result.orderReturn,
+        result.order,
+        result.userErrors,
+        variables,
+      );
+      continue;
+    }
+
+    if (
+      field.name.value === 'reverseFulfillmentOrderDispose' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      handled = true;
+      const result = applyReverseFulfillmentOrderDispose(field, variables);
+      data[key] = serializeReverseFulfillmentOrderDisposePayload(field, result.lineItems, result.userErrors);
       continue;
     }
 
@@ -3464,6 +4598,33 @@ export function handleOrderMutation(
         cancelReason: typeof variables['reason'] === 'string' ? variables['reason'] : 'OTHER',
       });
       data[key] = serializeOrderCancelPayload(field, []);
+      continue;
+    }
+
+    if (field.name.value === 'orderDelete' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      handled = true;
+      const args = getFieldArguments(field, variables);
+      const orderId = typeof args['orderId'] === 'string' ? args['orderId'] : null;
+      const order = orderId ? store.getOrderById(orderId) : null;
+      if (orderId && order) {
+        store.deleteOrder(orderId);
+      }
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'deletedId':
+            payload[selectionKey] = order ? orderId : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = order ? [] : [{ field: ['orderId'], message: 'Order does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
       continue;
     }
 
@@ -4711,10 +5872,10 @@ export function handleOrderMutation(
 
       handled = true;
       const updatedCalculatedOrder = store.updateCalculatedOrder(
-        recalculateOrderTotals({
+        recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
-        }) as CalculatedOrderRecord,
+        }),
       );
       const payload: Record<string, unknown> = {};
       for (const selection of getSelectedChildFields(field)) {
@@ -4731,6 +5892,274 @@ export function handleOrderMutation(
             break;
           case 'userErrors':
             payload[selectionKey] = [];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditAddCustomItem' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder) {
+        continue;
+      }
+
+      handled = true;
+      const calculatedLineItem = buildCalculatedCustomLineItem(args);
+      const updatedCalculatedOrder = calculatedLineItem
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              lineItems: [...calculatedOrder.lineItems, calculatedLineItem],
+            }),
+          )
+        : calculatedOrder;
+      const userErrors = calculatedLineItem ? [] : [{ field: ['price'], message: 'Price must be present' }];
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = calculatedLineItem
+              ? serializeCalculatedOrder(selection, updatedCalculatedOrder)
+              : null;
+            break;
+          case 'calculatedLineItem':
+            payload[selectionKey] = calculatedLineItem
+              ? serializeOrderLineItemNode(selection, calculatedLineItem)
+              : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = userErrors;
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (
+      field.name.value === 'orderEditAddLineItemDiscount' &&
+      (readMode === 'snapshot' || readMode === 'live-hybrid')
+    ) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const lineItemId = typeof args['lineItemId'] === 'string' ? args['lineItemId'] : null;
+      const discountInput =
+        typeof args['discount'] === 'object' && args['discount'] !== null
+          ? (args['discount'] as Record<string, unknown>)
+          : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !lineItemId || !discountInput) {
+        continue;
+      }
+
+      handled = true;
+      const result = applyLineItemDiscount(calculatedOrder, lineItemId, discountInput);
+      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result.calculatedOrder) : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = result ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            break;
+          case 'calculatedLineItem':
+            payload[selectionKey] = result ? serializeOrderLineItemNode(selection, result.calculatedLineItem) : null;
+            break;
+          case 'addedDiscountStagedChange':
+            payload[selectionKey] = null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = result ? [] : [{ field: ['lineItemId'], message: 'Line item does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditRemoveDiscount' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const discountApplicationId =
+        typeof args['discountApplicationId'] === 'string' ? args['discountApplicationId'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !discountApplicationId) {
+        continue;
+      }
+
+      handled = true;
+      const result = removeCalculatedDiscount(calculatedOrder, discountApplicationId);
+      const updatedCalculatedOrder = result ? store.updateCalculatedOrder(result) : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = result
+              ? []
+              : [{ field: ['discountApplicationId'], message: 'Discount does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditAddShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder) {
+        continue;
+      }
+
+      handled = true;
+      const shippingLine = buildCalculatedShippingLine(args);
+      const updatedCalculatedOrder = shippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: [...calculatedOrder.shippingLines, shippingLine],
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = shippingLine ? serializeCalculatedOrder(selection, updatedCalculatedOrder) : null;
+            break;
+          case 'calculatedShippingLine':
+            payload[selectionKey] = shippingLine
+              ? serializeCalculatedShippingLinePayload(selection, shippingLine)
+              : null;
+            break;
+          case 'userErrors':
+            payload[selectionKey] = shippingLine
+              ? []
+              : [{ field: ['shippingLine'], message: 'Shipping line is invalid' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditRemoveShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const shippingLineId = typeof args['shippingLineId'] === 'string' ? args['shippingLineId'] : null;
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !shippingLineId) {
+        continue;
+      }
+
+      handled = true;
+      const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
+      const updatedCalculatedOrder = hadShippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: calculatedOrder.shippingLines.filter((shippingLine) => shippingLine.id !== shippingLineId),
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = hadShippingLine
+              ? []
+              : [{ field: ['shippingLineId'], message: 'Shipping line does not exist' }];
+            break;
+          default:
+            payload[selectionKey] = null;
+            break;
+        }
+      }
+      data[key] = payload;
+      continue;
+    }
+
+    if (field.name.value === 'orderEditUpdateShippingLine' && (readMode === 'snapshot' || readMode === 'live-hybrid')) {
+      const args = getFieldArguments(field, variables);
+      const calculatedOrderId = typeof args['id'] === 'string' ? args['id'] : null;
+      const shippingLineId = typeof args['shippingLineId'] === 'string' ? args['shippingLineId'] : null;
+      const shippingLineInput =
+        typeof args['shippingLine'] === 'object' && args['shippingLine'] !== null
+          ? (args['shippingLine'] as Record<string, unknown>)
+          : {};
+      const calculatedOrder = calculatedOrderId ? store.getCalculatedOrderById(calculatedOrderId) : null;
+      if (!calculatedOrder || !shippingLineId) {
+        continue;
+      }
+
+      handled = true;
+      const price = readMoneyInputAmount(shippingLineInput['price']);
+      const hadShippingLine = calculatedOrder.shippingLines.some((shippingLine) => shippingLine.id === shippingLineId);
+      const updatedCalculatedOrder = hadShippingLine
+        ? store.updateCalculatedOrder(
+            recalculateCalculatedOrder({
+              ...calculatedOrder,
+              shippingLines: calculatedOrder.shippingLines.map((shippingLine) =>
+                shippingLine.id === shippingLineId
+                  ? {
+                      ...shippingLine,
+                      title:
+                        typeof shippingLineInput['title'] === 'string'
+                          ? shippingLineInput['title']
+                          : shippingLine.title,
+                      code:
+                        typeof shippingLineInput['title'] === 'string' ? shippingLineInput['title'] : shippingLine.code,
+                      originalPriceSet: price
+                        ? makeOrderMoneyBag(price.amount, price.currencyCode)
+                        : shippingLine.originalPriceSet,
+                      stagedStatus: shippingLine.stagedStatus === 'ADDED' ? 'ADDED' : 'UPDATED',
+                    }
+                  : shippingLine,
+              ),
+            }),
+          )
+        : calculatedOrder;
+      const payload: Record<string, unknown> = {};
+      for (const selection of getSelectedChildFields(field)) {
+        const selectionKey = getFieldResponseKey(selection);
+        switch (selection.name.value) {
+          case 'calculatedOrder':
+            payload[selectionKey] = serializeCalculatedOrder(selection, updatedCalculatedOrder);
+            break;
+          case 'userErrors':
+            payload[selectionKey] = hadShippingLine
+              ? []
+              : [{ field: ['shippingLineId'], message: 'Shipping line does not exist' }];
             break;
           default:
             payload[selectionKey] = null;
@@ -4765,12 +6194,12 @@ export function handleOrderMutation(
 
       handled = true;
       const updatedCalculatedOrder = store.updateCalculatedOrder(
-        recalculateOrderTotals({
+        recalculateCalculatedOrder({
           ...calculatedOrder,
           lineItems: calculatedOrder.lineItems.map((lineItem) =>
             lineItem.id === lineItemId ? { ...lineItem, quantity, currentQuantity: quantity } : lineItem,
           ),
-        }) as CalculatedOrderRecord,
+        }),
       );
       const updatedCalculatedLineItem =
         updatedCalculatedOrder.lineItems.find((lineItem) => lineItem.id === lineItemId) ?? targetLineItem;
@@ -4821,6 +6250,7 @@ export function handleOrderMutation(
           ...originalOrder,
           updatedAt: makeSyntheticTimestamp(),
           lineItems: buildCommittedOrderLineItems(originalOrder, calculatedOrder),
+          shippingLines: structuredClone(calculatedOrder.shippingLines),
         }),
       );
       store.discardCalculatedOrder(calculatedOrder.id);

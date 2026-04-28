@@ -1672,4 +1672,416 @@ describe('order edit flow', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('stages residual calculated-order item, discount, and shipping-line edits locally before commit', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('residual order edit roots should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const orderId = await createLocalOrder(app);
+
+    const beginResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation BeginResidualOrderEdit($id: ID!) {
+          orderEditBegin(id: $id) {
+            calculatedOrder {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { id: orderId },
+      });
+    expect(beginResponse.body.data.orderEditBegin.userErrors).toEqual([]);
+    const calculatedOrderId = beginResponse.body.data.orderEditBegin.calculatedOrder.id as string;
+
+    const customItemResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddCustomItem($id: ID!, $price: MoneyInput!) {
+          orderEditAddCustomItem(id: $id, title: "Gift wrap", quantity: 2, price: $price, taxable: false, requiresShipping: false) {
+            calculatedOrder {
+              id
+              subtotalLineItemsQuantity
+              subtotalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            calculatedLineItem {
+              id
+              title
+              quantity
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: calculatedOrderId,
+          price: { amount: '3.00', currencyCode: 'CAD' },
+        },
+      });
+
+    expect(customItemResponse.status).toBe(200);
+    expect(customItemResponse.body.data.orderEditAddCustomItem.userErrors).toEqual([]);
+    expect(customItemResponse.body.data.orderEditAddCustomItem.calculatedOrder.subtotalLineItemsQuantity).toBe(3);
+    expect(customItemResponse.body.data.orderEditAddCustomItem.calculatedOrder.subtotalPriceSet.shopMoney).toEqual({
+      amount: '16.0',
+      currencyCode: 'CAD',
+    });
+    const customLineItemId = customItemResponse.body.data.orderEditAddCustomItem.calculatedLineItem.id as string;
+
+    const discountResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DiscountCustomItem($id: ID!, $lineItemId: ID!, $discount: OrderEditAppliedDiscountInput!) {
+          orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+            calculatedOrder {
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            calculatedLineItem {
+              id
+              hasStagedLineItemDiscount
+              calculatedDiscountAllocations {
+                id
+                allocatedAmountSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+              discountedUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: calculatedOrderId,
+          lineItemId: customLineItemId,
+          discount: {
+            description: 'Line discount',
+            fixedValue: { amount: '1.00', currencyCode: 'CAD' },
+          },
+        },
+      });
+
+    expect(discountResponse.status).toBe(200);
+    expect(discountResponse.body.data.orderEditAddLineItemDiscount.userErrors).toEqual([]);
+    expect(discountResponse.body.data.orderEditAddLineItemDiscount.calculatedOrder.totalPriceSet.shopMoney).toEqual({
+      amount: '14.0',
+      currencyCode: 'CAD',
+    });
+    expect(discountResponse.body.data.orderEditAddLineItemDiscount.calculatedLineItem.hasStagedLineItemDiscount).toBe(
+      true,
+    );
+    const discountApplicationId = discountResponse.body.data.orderEditAddLineItemDiscount.calculatedLineItem
+      .calculatedDiscountAllocations[0].id as string;
+
+    const removeDiscountResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RemoveCustomItemDiscount($id: ID!, $discountApplicationId: ID!) {
+          orderEditRemoveDiscount(id: $id, discountApplicationId: $discountApplicationId) {
+            calculatedOrder {
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { id: calculatedOrderId, discountApplicationId },
+      });
+    expect(removeDiscountResponse.body.data.orderEditRemoveDiscount.userErrors).toEqual([]);
+    expect(removeDiscountResponse.body.data.orderEditRemoveDiscount.calculatedOrder.totalPriceSet.shopMoney).toEqual({
+      amount: '16.0',
+      currencyCode: 'CAD',
+    });
+
+    const addShippingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation AddShipping($id: ID!, $price: MoneyInput!) {
+          orderEditAddShippingLine(id: $id, shippingLine: { title: "Ground", price: $price }) {
+            calculatedOrder {
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              shippingLines {
+                id
+                title
+                stagedStatus
+                price {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+            calculatedShippingLine {
+              id
+              title
+              stagedStatus
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { id: calculatedOrderId, price: { amount: '4.00', currencyCode: 'CAD' } },
+      });
+    expect(addShippingResponse.body.data.orderEditAddShippingLine.userErrors).toEqual([]);
+    const shippingLineId = addShippingResponse.body.data.orderEditAddShippingLine.calculatedShippingLine.id as string;
+    expect(addShippingResponse.body.data.orderEditAddShippingLine.calculatedOrder.totalPriceSet.shopMoney).toEqual({
+      amount: '20.0',
+      currencyCode: 'CAD',
+    });
+
+    const updateShippingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateShipping($id: ID!, $shippingLineId: ID!, $price: MoneyInput!) {
+          orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: { title: "Express", price: $price }) {
+            calculatedOrder {
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              shippingLines {
+                id
+                title
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: calculatedOrderId,
+          shippingLineId,
+          price: { amount: '6.00', currencyCode: 'CAD' },
+        },
+      });
+    expect(updateShippingResponse.body.data.orderEditUpdateShippingLine.userErrors).toEqual([]);
+    expect(updateShippingResponse.body.data.orderEditUpdateShippingLine.calculatedOrder.shippingLines).toEqual([
+      { id: shippingLineId, title: 'Express' },
+    ]);
+
+    const removeShippingResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RemoveShipping($id: ID!, $shippingLineId: ID!) {
+          orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+            calculatedOrder {
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              shippingLines {
+                id
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { id: calculatedOrderId, shippingLineId },
+      });
+    expect(removeShippingResponse.body.data.orderEditRemoveShippingLine.userErrors).toEqual([]);
+    expect(removeShippingResponse.body.data.orderEditRemoveShippingLine.calculatedOrder.shippingLines).toEqual([]);
+
+    const commitResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CommitResidualOrderEdit($id: ID!) {
+          orderEditCommit(id: $id) {
+            order {
+              id
+              lineItems(first: 10) {
+                nodes {
+                  title
+                  quantity
+                }
+              }
+              shippingLines(first: 10) {
+                nodes {
+                  title
+                }
+              }
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            successMessages
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { id: calculatedOrderId },
+      });
+
+    expect(commitResponse.body.data.orderEditCommit.userErrors).toEqual([]);
+    expect(commitResponse.body.data.orderEditCommit.successMessages).toEqual(['Order updated']);
+    expect(commitResponse.body.data.orderEditCommit.order.lineItems.nodes).toEqual([
+      { title: 'Original staged line item', quantity: 1 },
+      { title: 'Gift wrap', quantity: 2 },
+    ]);
+    expect(commitResponse.body.data.orderEditCommit.order.shippingLines.nodes).toEqual([]);
+    expect(commitResponse.body.data.orderEditCommit.order.totalPriceSet.shopMoney).toEqual({
+      amount: '16.0',
+      currencyCode: 'CAD',
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'orderCreate',
+      'orderEditBegin',
+      'orderEditAddCustomItem',
+      'orderEditAddLineItemDiscount',
+      'orderEditRemoveDiscount',
+      'orderEditAddShippingLine',
+      'orderEditUpdateShippingLine',
+      'orderEditRemoveShippingLine',
+      'orderEditCommit',
+    ]);
+    const stateResponse = await request(app).get('/__meta/state');
+    expect(stateResponse.body.stagedState.calculatedOrders).toEqual({});
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('stages orderDelete tombstones and removes orders from downstream reads without hitting upstream', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('orderDelete should not hit upstream in snapshot mode');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const orderId = await createLocalOrder(app);
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DeleteOrder($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { orderId },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.orderDelete).toEqual({
+      deletedId: orderId,
+      userErrors: [],
+    });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query DeletedOrderDownstream($id: ID!) {
+          order(id: $id) {
+            id
+          }
+          orders(first: 10) {
+            nodes {
+              id
+            }
+          }
+          ordersCount {
+            count
+            precision
+          }
+        }`,
+        variables: { id: orderId },
+      });
+
+    expect(downstreamResponse.body.data).toEqual({
+      order: null,
+      orders: { nodes: [] },
+      ordersCount: { count: 0, precision: 'EXACT' },
+    });
+
+    const repeatedDeleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DeleteOrderAgain($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: { orderId },
+      });
+    expect(repeatedDeleteResponse.body.data.orderDelete).toEqual({
+      deletedId: null,
+      userErrors: [{ field: ['orderId'], message: 'Order does not exist' }],
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'orderCreate',
+      'orderDelete',
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

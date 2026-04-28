@@ -1,0 +1,916 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-04-28T03:47:17.424Z",
+  "scope": "HAR-412 product and variant contextual pricing read parity for Markets price lists",
+  "setup": {
+    "priceListId": "gid://shopify/PriceList/31575408946",
+    "productId": "gid://shopify/Product/9801098789170",
+    "variantId": "gid://shopify/ProductVariant/49875425296690",
+    "country": "MX",
+    "priceQuery": "product_id:9801098789170",
+    "fixedPrice": {
+      "amount": "777.77",
+      "currencyCode": "MXN"
+    },
+    "fixedCompareAtPrice": {
+      "amount": "888.88",
+      "currencyCode": "MXN"
+    },
+    "cleanup": "The capture deletes the product-level fixed price after reading contextual pricing."
+  },
+  "schemaEvidence": {
+    "contextualPricingContextFields": ["country", "companyLocationId", "locationId"],
+    "productContextualPricingFields": [
+      "fixedQuantityRulesCount",
+      "priceRange",
+      "minVariantPricing",
+      "maxVariantPricing"
+    ],
+    "variantContextualPricingFields": ["price", "compareAtPrice", "unitPrice", "quantityRule", "quantityPriceBreaks"],
+    "downstreamReadTargets": [
+      "Product.contextualPricing(context: country)",
+      "ProductVariant.contextualPricing(context: country)"
+    ]
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9801098789170",
+      "title": "The Inventory Not Tracked Snowboard",
+      "contextualPricing": {
+        "fixedQuantityRulesCount": 0,
+        "priceRange": {
+          "minVariantPrice": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "maxVariantPrice": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          }
+        },
+        "minVariantPricing": {
+          "price": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "compareAtPrice": {
+            "amount": "888.88",
+            "currencyCode": "MXN"
+          },
+          "quantityRule": {
+            "minimum": 1,
+            "maximum": null,
+            "increment": 1
+          },
+          "quantityPriceBreaks": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "maxVariantPricing": {
+          "price": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "compareAtPrice": {
+            "amount": "888.88",
+            "currencyCode": "MXN"
+          },
+          "quantityRule": {
+            "minimum": 1,
+            "maximum": null,
+            "increment": 1
+          },
+          "quantityPriceBreaks": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "handle": "the-inventory-not-tracked-snowboard",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Default Title",
+            "sku": "sku-untracked-1",
+            "price": "949.95",
+            "compareAtPrice": null,
+            "product": {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard"
+            },
+            "contextualPricing": {
+              "price": {
+                "amount": "777.77",
+                "currencyCode": "MXN"
+              },
+              "compareAtPrice": {
+                "amount": "888.88",
+                "currencyCode": "MXN"
+              },
+              "unitPrice": null,
+              "quantityRule": {
+                "minimum": 1,
+                "maximum": null,
+                "increment": 1
+              },
+              "quantityPriceBreaks": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "data": {
+    "product": {
+      "id": "gid://shopify/Product/9801098789170",
+      "title": "The Inventory Not Tracked Snowboard",
+      "contextualPricing": {
+        "fixedQuantityRulesCount": 0,
+        "priceRange": {
+          "minVariantPrice": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "maxVariantPrice": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          }
+        },
+        "minVariantPricing": {
+          "price": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "compareAtPrice": {
+            "amount": "888.88",
+            "currencyCode": "MXN"
+          },
+          "quantityRule": {
+            "minimum": 1,
+            "maximum": null,
+            "increment": 1
+          },
+          "quantityPriceBreaks": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "maxVariantPricing": {
+          "price": {
+            "amount": "777.77",
+            "currencyCode": "MXN"
+          },
+          "compareAtPrice": {
+            "amount": "888.88",
+            "currencyCode": "MXN"
+          },
+          "quantityRule": {
+            "minimum": 1,
+            "maximum": null,
+            "increment": 1
+          },
+          "quantityPriceBreaks": {
+            "edges": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      }
+    },
+    "productVariant": {
+      "id": "gid://shopify/ProductVariant/49875425296690",
+      "title": "Default Title",
+      "sku": "sku-untracked-1",
+      "price": "949.95",
+      "compareAtPrice": null,
+      "product": {
+        "id": "gid://shopify/Product/9801098789170",
+        "title": "The Inventory Not Tracked Snowboard"
+      },
+      "contextualPricing": {
+        "price": {
+          "amount": "777.77",
+          "currencyCode": "MXN"
+        },
+        "compareAtPrice": {
+          "amount": "888.88",
+          "currencyCode": "MXN"
+        },
+        "unitPrice": null,
+        "quantityRule": {
+          "minimum": 1,
+          "maximum": null,
+          "increment": 1
+        },
+        "quantityPriceBreaks": {
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    }
+  },
+  "successPath": [
+    {
+      "name": "pre-cleanup product fixed price",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575408946",
+          "priceQuery": "product_id:9801098789170",
+          "pricesToAdd": [],
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/31575408946",
+                "name": "Mexico Buyers",
+                "currency": "MXN",
+                "fixedPricesCount": 0,
+                "prices": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pricesToAddProducts": [],
+              "pricesToDeleteProducts": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "contextual pricing before fixed price add",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/9801098789170",
+          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "country": "MX"
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "contextualPricing": {
+                "fixedQuantityRulesCount": 0,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  }
+                },
+                "minVariantPricing": {
+                  "price": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": null,
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                },
+                "maxVariantPricing": {
+                  "price": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": null,
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                }
+              }
+            },
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "price": "949.95",
+              "compareAtPrice": null,
+              "product": {
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard"
+              },
+              "contextualPricing": {
+                "price": {
+                  "amount": "11742.0",
+                  "currencyCode": "MXN"
+                },
+                "compareAtPrice": null,
+                "unitPrice": null,
+                "quantityRule": {
+                  "minimum": 1,
+                  "maximum": null,
+                  "increment": 1
+                },
+                "quantityPriceBreaks": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "add product fixed price",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575408946",
+          "priceQuery": "product_id:9801098789170",
+          "pricesToAdd": [
+            {
+              "productId": "gid://shopify/Product/9801098789170",
+              "price": {
+                "amount": "777.77",
+                "currencyCode": "MXN"
+              },
+              "compareAtPrice": {
+                "amount": "888.88",
+                "currencyCode": "MXN"
+              }
+            }
+          ],
+          "pricesToDeleteByProductIds": []
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/31575408946",
+                "name": "Mexico Buyers",
+                "currency": "MXN",
+                "fixedPricesCount": 1,
+                "prices": {
+                  "edges": [
+                    {
+                      "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                      "node": {
+                        "price": {
+                          "amount": "777.77",
+                          "currencyCode": "MXN"
+                        },
+                        "compareAtPrice": {
+                          "amount": "888.88",
+                          "currencyCode": "MXN"
+                        },
+                        "originType": "FIXED",
+                        "variant": {
+                          "id": "gid://shopify/ProductVariant/49875425296690",
+                          "sku": "sku-untracked-1",
+                          "product": {
+                            "id": "gid://shopify/Product/9801098789170",
+                            "title": "The Inventory Not Tracked Snowboard"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0="
+                  }
+                }
+              },
+              "pricesToAddProducts": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard"
+                }
+              ],
+              "pricesToDeleteProducts": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "contextual pricing after fixed price add",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/9801098789170",
+          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "country": "MX"
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "contextualPricing": {
+                "fixedQuantityRulesCount": 0,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "777.77",
+                    "currencyCode": "MXN"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "777.77",
+                    "currencyCode": "MXN"
+                  }
+                },
+                "minVariantPricing": {
+                  "price": {
+                    "amount": "777.77",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": {
+                    "amount": "888.88",
+                    "currencyCode": "MXN"
+                  },
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                },
+                "maxVariantPricing": {
+                  "price": {
+                    "amount": "777.77",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": {
+                    "amount": "888.88",
+                    "currencyCode": "MXN"
+                  },
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                }
+              }
+            },
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "price": "949.95",
+              "compareAtPrice": null,
+              "product": {
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard"
+              },
+              "contextualPricing": {
+                "price": {
+                  "amount": "777.77",
+                  "currencyCode": "MXN"
+                },
+                "compareAtPrice": {
+                  "amount": "888.88",
+                  "currencyCode": "MXN"
+                },
+                "unitPrice": null,
+                "quantityRule": {
+                  "minimum": 1,
+                  "maximum": null,
+                  "increment": 1
+                },
+                "quantityPriceBreaks": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "price-list fixed row after fixed price add",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575408946",
+          "priceQuery": "product_id:9801098789170",
+          "originType": "FIXED"
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "priceList": {
+              "id": "gid://shopify/PriceList/31575408946",
+              "name": "Mexico Buyers",
+              "currency": "MXN",
+              "fixedPricesCount": 1,
+              "prices": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "price": {
+                        "amount": "777.77",
+                        "currencyCode": "MXN"
+                      },
+                      "compareAtPrice": {
+                        "amount": "888.88",
+                        "currencyCode": "MXN"
+                      },
+                      "originType": "FIXED",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "sku": "sku-untracked-1",
+                        "product": {
+                          "id": "gid://shopify/Product/9801098789170",
+                          "title": "The Inventory Not Tracked Snowboard"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup delete product fixed price",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575408946",
+          "priceQuery": "product_id:9801098789170",
+          "pricesToAdd": [],
+          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "priceListFixedPricesByProductUpdate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/31575408946",
+                "name": "Mexico Buyers",
+                "currency": "MXN",
+                "fixedPricesCount": 0,
+                "prices": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pricesToAddProducts": [],
+              "pricesToDeleteProducts": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "contextual pricing after cleanup",
+      "request": {
+        "variables": {
+          "productId": "gid://shopify/Product/9801098789170",
+          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "country": "MX"
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/9801098789170",
+              "title": "The Inventory Not Tracked Snowboard",
+              "contextualPricing": {
+                "fixedQuantityRulesCount": 0,
+                "priceRange": {
+                  "minVariantPrice": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "maxVariantPrice": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  }
+                },
+                "minVariantPricing": {
+                  "price": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": null,
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                },
+                "maxVariantPricing": {
+                  "price": {
+                    "amount": "11742.0",
+                    "currencyCode": "MXN"
+                  },
+                  "compareAtPrice": null,
+                  "quantityRule": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1
+                  },
+                  "quantityPriceBreaks": {
+                    "edges": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false,
+                      "startCursor": null,
+                      "endCursor": null
+                    }
+                  }
+                }
+              }
+            },
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "price": "949.95",
+              "compareAtPrice": null,
+              "product": {
+                "id": "gid://shopify/Product/9801098789170",
+                "title": "The Inventory Not Tracked Snowboard"
+              },
+              "contextualPricing": {
+                "price": {
+                  "amount": "11742.0",
+                  "currencyCode": "MXN"
+                },
+                "compareAtPrice": null,
+                "unitPrice": null,
+                "quantityRule": {
+                  "minimum": 1,
+                  "maximum": null,
+                  "increment": 1
+                },
+                "quantityPriceBreaks": {
+                  "edges": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 23,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "price-list fixed row after cleanup",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/31575408946",
+          "priceQuery": "product_id:9801098789170",
+          "originType": "FIXED"
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "priceList": {
+              "id": "gid://shopify/PriceList/31575408946",
+              "name": "Mexico Buyers",
+              "currency": "MXN",
+              "fixedPricesCount": 0,
+              "prices": {
+                "edges": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

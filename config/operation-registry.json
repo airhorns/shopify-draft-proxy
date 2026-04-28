@@ -1698,20 +1698,23 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["bulkProductResourceFeedbackCreate", "BulkProductResourceFeedbackCreate"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Registered unsupported feedback mutation. Future support must stage ProductResourceFeedback records locally, preserve raw mutation order for commit, and expose downstream productResourceFeedback reads without runtime Shopify writes. Until then, runtime passthrough remains the unsupported escape hatch and is logged as proxied."
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages ProductResourceFeedback records locally, preserves the raw mutation in the staged log for commit, and exposes immediate productResourceFeedback(id:) read-after-write results without runtime Shopify writes. Live HAR-362 evidence still records current sales-channel/scope blockers for Shopify success capture."
   },
   {
     "name": "shopResourceFeedbackCreate",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["shopResourceFeedbackCreate", "ShopResourceFeedbackCreate"],
-    "runtimeTests": [],
-    "supportNotes": "Registered unsupported shop feedback mutation. Future support requires an app/shop feedback state model, access-scope-backed conformance, local staging, and downstream read effects before this root can be supported without runtime Shopify writes."
+    "runtimeTests": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+    "supportNotes": "Stages shop-level AppFeedback locally and preserves meta state/log visibility without runtime Shopify writes. Shopify success capture requires sales-channel/resource-feedback app configuration beyond the current disposable store."
   },
   {
     "name": "productCreate",
@@ -1776,60 +1779,78 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productFeedCreate", "ProductFeedCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo probe for country US/language EN returned a top-level NOT_FOUND error: Unable to find channel for product feed. Full local support needs channel-backed success evidence and downstream productFeed/productFeeds read-after-write behavior."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages ProductFeed rows locally with ACTIVE status and exposes productFeed/productFeeds read-after-write results. Current live store evidence still records Shopify channel lookup blockers for success capture."
   },
   {
     "name": "productFeedDelete",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productFeedDelete", "ProductFeedDelete"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned deletedId null plus userErrors field [id], message ProductFeed does not exist. Full support needs delete success evidence and downstream productFeeds removal behavior."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Deletes locally staged ProductFeed rows and returns Shopify-like unknown-id userErrors for absent feeds without runtime Shopify writes."
   },
   {
     "name": "productFullSync",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productFullSync", "ProductFullSync"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-id probe returned id null plus userErrors field [id], message ProductFeed does not exist. Full support needs product-feed job/status success evidence before staging locally."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages product-feed sync acknowledgement locally for known staged feeds and returns captured unknown-id userErrors for absent feeds without runtime Shopify writes."
   },
   {
     "name": "productBundleCreate",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productBundleCreate", "ProductBundleCreate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo empty-components probe returned productBundleOperation null plus userErrors message At least one component is required. Full support needs component-backed success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages a bundle product, ProductBundleOperation, and normalized bundle components locally, with downstream Product.bundleComponents reads."
   },
   {
     "name": "productBundleUpdate",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productBundleUpdate", "ProductBundleUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown-product probe returned productBundleOperation null plus userErrors message Product does not exist. Full support needs bundle update success evidence, ProductBundleOperation lifecycle shape, and downstream product reads."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages bundle title/component updates and ProductBundleOperation rows locally, with downstream Product.bundleComponents reads."
   },
   {
     "name": "combinedListingUpdate",
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["combinedListingUpdate", "CombinedListingUpdate"],
-    "runtimeTests": ["tests/integration/proxy-capability-classification.test.ts"],
-    "supportNotes": "Registered product merchandising gap only. A 2025-01 harry-test-heelo unknown parent probe returned product null plus userErrors field [parentProductId], code PARENT_PRODUCT_NOT_FOUND, message Product does not exist. Full support needs combined listing relationship success evidence and downstream product option/child visibility."
+    "runtimeTests": [
+      "tests/integration/proxy-capability-classification.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Stages parent/child combined-listing roles and child relationships locally, with downstream Product.combinedListing and combinedListingRole reads."
   },
   {
     "name": "publicationCreate",
@@ -3097,10 +3118,10 @@
     "type": "mutation",
     "domain": "products",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["productVariantRelationshipBulkUpdate", "ProductVariantRelationshipBulkUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-299 registers the bundle relationship root as an explicit gap. Full support requires normalized ProductVariantComponent state, bundle-specific validation, and downstream productVariantComponents reads; do not mark validation-only or branch-only handling as implemented."
+    "runtimeTests": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+    "supportNotes": "Stages ProductVariantComponent relationships locally and exposes downstream ProductVariant.requiresComponents/productVariantComponents reads."
   },
   {
     "name": "inventoryItemUpdate",
@@ -3756,20 +3777,20 @@
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDelivery", "ReverseDelivery"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires a normalized reverse-delivery graph linked to reverse fulfillment orders, labels/tracking, and return line items before local detail reads can be supported."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse-logistics slice. Resolves reverse deliveries staged from order-backed returns and returns null for missing IDs in snapshot mode; labels/tracking are stored as local metadata and no carrier or label side effects are invoked."
   },
   {
     "name": "reverseFulfillmentOrder",
     "type": "query",
     "domain": "shipping-fulfillments",
     "execution": "overlay-read",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseFulfillmentOrder", "ReverseFulfillmentOrder"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires reverse fulfillment order lifecycle, status, line items, reverse deliveries, and order linkage parity before local detail reads can be supported."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse-logistics slice. Resolves reverse fulfillment orders staged from returnCreate/returnApproveRequest, including line-item quantities, disposal status, reverse deliveries, return linkage, and order linkage."
   },
   {
     "name": "abandonedCheckouts",
@@ -4972,30 +4993,70 @@
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditAddShippingLine", "OrderEditAddShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Order edit support exists for variant quantity changes, but shipping-line edit roots need captured calculated-order shippingLine/totals behavior before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line additions locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
   },
   {
     "name": "orderEditRemoveShippingLine",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditRemoveShippingLine", "OrderEditRemoveShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order removal semantics, total recalculation, and downstream order shippingLines visibility before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line removal locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
   },
   {
     "name": "orderEditUpdateShippingLine",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["orderEditUpdateShippingLine", "OrderEditUpdateShippingLine"],
-    "runtimeTests": [],
-    "supportNotes": "Registry-only declared gap for future local staging. Requires captured calculated-order update semantics, tax/discount interactions, total recalculation, and downstream order shippingLines visibility before support."
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated-order shipping-line updates locally and materializes committed shippingLines/totals on orderEditCommit without runtime Shopify writes."
+  },
+  {
+    "name": "orderDelete",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderDelete", "OrderDelete"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages order tombstones locally so downstream order, orders, and ordersCount reads observe deletion without runtime Shopify writes."
+  },
+  {
+    "name": "orderEditAddCustomItem",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditAddCustomItem", "OrderEditAddCustomItem"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages custom calculated line items locally and materializes them on orderEditCommit without runtime Shopify writes."
+  },
+  {
+    "name": "orderEditAddLineItemDiscount",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditAddLineItemDiscount", "OrderEditAddLineItemDiscount"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages calculated line-item fixed/percentage discounts locally, recalculates totals, and preserves downstream committed order visibility."
+  },
+  {
+    "name": "orderEditRemoveDiscount",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["orderEditRemoveDiscount", "OrderEditRemoveDiscount"],
+    "runtimeTests": ["tests/integration/order-edit-flow.test.ts"],
+    "supportNotes": "Stages removal of locally added calculated line-item discounts and recalculates calculated-order totals without runtime Shopify writes."
   },
   {
     "name": "orderCreate",
@@ -5046,6 +5107,26 @@
     "supportNotes": "HAR-311 order-backed return request staging. Creates REQUESTED local Return rows for known orders/fulfillment line items and keeps downstream Return/Order.returns reads consistent without upstream writes."
   },
   {
+    "name": "returnApproveRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnApproveRequest", "ReturnApproveRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return request lifecycle support. Approves REQUESTED local returns to OPEN, creates reverse fulfillment order work, records raw mutation replay metadata, and keeps downstream return/order/reverse-fulfillment reads local."
+  },
+  {
+    "name": "returnDeclineRequest",
+    "type": "mutation",
+    "domain": "orders",
+    "execution": "stage-locally",
+    "implemented": true,
+    "matchNames": ["returnDeclineRequest", "ReturnDeclineRequest"],
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return request lifecycle support. Declines REQUESTED local returns to DECLINED with captured reason/note metadata and does not send notification side effects or runtime Shopify writes."
+  },
+  {
     "name": "returnCancel",
     "type": "mutation",
     "domain": "orders",
@@ -5080,50 +5161,50 @@
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["removeFromReturn", "RemoveFromReturn"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires captured removal semantics for return and exchange line items, quantity recomputation, validation errors, and downstream Return/Order.returns read effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local return-line removal support. Reduces/removes local return line quantities, recomputes totalQuantity and reverse fulfillment line work, and keeps exchange-line removal explicitly unsupported until exchange fixtures exist."
   },
   {
     "name": "returnProcess",
     "type": "mutation",
     "domain": "orders",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["returnProcess", "ReturnProcess"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires processing semantics for return/exchange line items, refund duties/shipping, financial transfers, notifications, and downstream refund/return/order effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 bounded return processing support. Updates processed quantities, closes fully processed local returns, and syncs reverse fulfillment quantities; refund duties, shipping, financial transfers, exchange processing, and notifications remain documented side-effect boundaries."
   },
   {
     "name": "reverseDeliveryCreateWithShipping",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires normalized reverse fulfillment orders, reverse delivery line items, tracking/label payload behavior, notifications, and downstream reverseDelivery reads before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items and local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
   },
   {
     "name": "reverseDeliveryShippingUpdate",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseDeliveryShippingUpdate", "ReverseDeliveryShippingUpdate"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires captured reverse-delivery tracking/label update semantics and downstream reverseDelivery read effects before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 local reverse delivery update support. Updates staged tracking/label metadata and downstream reverseDelivery reads without runtime Shopify writes or notification side effects."
   },
   {
     "name": "reverseFulfillmentOrderDispose",
     "type": "mutation",
     "domain": "shipping-fulfillments",
     "execution": "stage-locally",
-    "implemented": false,
+    "implemented": true,
     "matchNames": ["reverseFulfillmentOrderDispose", "ReverseFulfillmentOrderDispose"],
-    "runtimeTests": [],
-    "supportNotes": "HAR-311 declared blocker. Requires disposition semantics, inventory/location effects, reverse fulfillment order status updates, and downstream reads before support."
+    "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
+    "supportNotes": "HAR-370 bounded disposition support. Updates staged reverse fulfillment order line remaining/disposed quantities and closes the reverse fulfillment order when all local work is disposed; inventory/location stock movements remain local metadata only."
   },
   {
     "name": "draftOrder",

@@ -1,0 +1,6 @@
+query OrderEditResidualLocalStagingBaseline {
+  ordersCount {
+    count
+    precision
+  }
+}
