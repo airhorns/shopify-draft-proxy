@@ -21,6 +21,261 @@
     "delegateAccessTokenDestroy"
   ],
   "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "name": "Local plan",
+                "status": "PENDING",
+                "test": true,
+                "trialDays": 7,
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "100",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "oneTimeCreate": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "Import package",
+                "status": "PENDING",
+                "test": true,
+                "price": {
+                  "amount": "10",
+                  "currencyCode": "USD"
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "lineItemUpdate": {
+          "data": {
+            "appSubscriptionLineItemUpdate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "150",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "usageCreate": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "metered import",
+                "price": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                },
+                "subscriptionLineItem": {
+                  "id": "gid://shopify/AppSubscriptionLineItem/expected"
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "trialExtend": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "trialDays": 10
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "cancel": {
+          "data": {
+            "appSubscriptionCancel": {
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "CANCELLED",
+                "trialDays": 10
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "billingRead": {
+          "data": {
+            "currentAppInstallation": {
+              "id": "gid://shopify/AppInstallation/expected",
+              "activeSubscriptions": [],
+              "allSubscriptions": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/AppSubscription/expected",
+                    "status": "CANCELLED",
+                    "trialDays": 10,
+                    "lineItems": [
+                      {
+                        "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                        "usageRecords": {
+                          "nodes": [
+                            {
+                              "description": "metered import",
+                              "price": {
+                                "amount": "12.5",
+                                "currencyCode": "USD"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "oneTimePurchases": {
+                "nodes": [
+                  {
+                    "name": "Import package",
+                    "status": "PENDING",
+                    "price": {
+                      "amount": "10",
+                      "currencyCode": "USD"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "revoke": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [
+                {
+                  "handle": "write_products",
+                  "description": null
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "Access scope 'write_orders' is not granted.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "accessRead": {
+          "data": {
+            "currentAppInstallation": {
+              "accessScopes": [
+                {
+                  "handle": "read_products"
+                }
+              ]
+            }
+          }
+        },
+        "delegateCreate": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": {
+                "accessToken": "shpat_delegate_proxy_redacted",
+                "accessScopes": ["read_products"],
+                "createdAt": "2026-04-28T02:10:00.000Z",
+                "expiresIn": 3600
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "delegateDestroy": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": true,
+              "userErrors": []
+            }
+          }
+        },
+        "delegateDestroyRepeat": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "userErrors": [
+                {
+                  "field": ["accessToken"],
+                  "message": "Access token not found.",
+                  "code": "ACCESS_TOKEN_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "uninstall": {
+          "data": {
+            "appUninstall": {
+              "app": {
+                "id": "gid://shopify/App/expected",
+                "handle": "shopify-draft-proxy"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "afterUninstallRead": {
+          "data": {
+            "currentAppInstallation": null
+          }
+        }
+      }
+    },
     "unknownCancel": {
       "variables": {
         "id": "gid://shopify/AppSubscription/0"

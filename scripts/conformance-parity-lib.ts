@@ -1795,7 +1795,10 @@ async function executeGraphQLAgainstLocalProxy(
     };
   }
 
-  if (capability.execution === 'overlay-read' && capability.domain === 'apps') {
+  if (
+    (capability.execution === 'overlay-read' && capability.domain === 'apps') ||
+    (registeredCapability.execution === 'overlay-read' && registeredCapability.domain === 'apps')
+  ) {
     if (upstreamPayload !== undefined) {
       hydrateAppsFromUpstreamResponse(upstreamPayload);
     }

@@ -1,0 +1,12 @@
+mutation AppUninstallLocalLifecycle {
+  appUninstall {
+    app {
+      id
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,32 @@
+mutation AppSubscriptionLineItemUpdateLocalLifecycle($id: ID!) {
+  appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 150, currencyCode: USD }) {
+    confirmationUrl
+    appSubscription {
+      id
+      lineItems {
+        id
+        plan {
+          pricingDetails {
+            __typename
+            ... on AppUsagePricing {
+              cappedAmount {
+                amount
+                currencyCode
+              }
+              balanceUsed {
+                amount
+                currencyCode
+              }
+              interval
+              terms
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

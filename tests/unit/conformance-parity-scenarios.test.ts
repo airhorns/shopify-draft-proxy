@@ -77,6 +77,43 @@ describe('conformance parity scenarios (convention-driven suite)', () => {
     ]);
   });
 
+  it('keeps the app billing ready parity spec scoped to executed mutation roots', async () => {
+    const scenario = readyScenarios.find((candidate) => candidate.id === 'app-billing-access-local-staging');
+    expect(scenario).toBeDefined();
+
+    const result = await executeParityScenario({
+      repoRoot,
+      scenario: scenario!,
+      paritySpec: scenario!.paritySpec,
+    });
+
+    expect(result.operationNameValidation.declaredMutationOperationNames).toEqual([
+      'appPurchaseOneTimeCreate',
+      'appRevokeAccessScopes',
+      'appSubscriptionCancel',
+      'appSubscriptionCreate',
+      'appSubscriptionLineItemUpdate',
+      'appSubscriptionTrialExtend',
+      'appUninstall',
+      'appUsageRecordCreate',
+      'delegateAccessTokenCreate',
+      'delegateAccessTokenDestroy',
+    ]);
+    expect(result.operationNameValidation.actualMutationOperationNames).toEqual([
+      'appPurchaseOneTimeCreate',
+      'appRevokeAccessScopes',
+      'appSubscriptionCancel',
+      'appSubscriptionCreate',
+      'appSubscriptionLineItemUpdate',
+      'appSubscriptionTrialExtend',
+      'appUninstall',
+      'appUsageRecordCreate',
+      'delegateAccessTokenCreate',
+      'delegateAccessTokenDestroy',
+    ]);
+    expect(result.operationNameValidation.errors).toEqual([]);
+  });
+
   it.each(readyScenarios.map((scenario) => [scenario.id, scenario] as const))(
     'executes ready-for-comparison scenario %s against the local proxy harness',
     async (_id, scenario) => {
