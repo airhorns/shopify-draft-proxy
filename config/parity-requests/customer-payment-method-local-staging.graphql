@@ -1,0 +1,141 @@
+mutation CustomerPaymentMethodLocalStaging(
+  $customerId: ID!
+  $targetCustomerId: ID!
+  $billingAddress: MailingAddressInput!
+  $sessionId: String!
+  $remoteReference: CustomerPaymentMethodRemoteInput!
+  $paymentScheduleId: ID!
+) {
+  cardCreate: customerPaymentMethodCreditCardCreate(
+    customerId: $customerId
+    billingAddress: $billingAddress
+    sessionId: $sessionId
+  ) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+        ... on CustomerCreditCard {
+          lastDigits
+          maskedNumber
+        }
+      }
+      customer {
+        id
+      }
+    }
+    processing
+    userErrors {
+      field
+      message
+    }
+  }
+  cardUpdate: customerPaymentMethodCreditCardUpdate(
+    id: "gid://shopify/CustomerPaymentMethod/base-card"
+    billingAddress: $billingAddress
+    sessionId: $sessionId
+  ) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+        ... on CustomerCreditCard {
+          lastDigits
+          maskedNumber
+        }
+      }
+    }
+    processing
+    userErrors {
+      field
+      message
+    }
+  }
+  remoteCreate: customerPaymentMethodRemoteCreate(customerId: $customerId, remoteReference: $remoteReference) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  paypalCreate: customerPaymentMethodPaypalBillingAgreementCreate(
+    customerId: $customerId
+    billingAddress: $billingAddress
+    billingAgreementId: "B-sensitive-agreement"
+    inactive: true
+  ) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+        ... on CustomerPaypalBillingAgreement {
+          paypalAccountEmail
+          inactive
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  paypalUpdate: customerPaymentMethodPaypalBillingAgreementUpdate(
+    id: "gid://shopify/CustomerPaymentMethod/base-paypal"
+    billingAddress: $billingAddress
+  ) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+        ... on CustomerPaypalBillingAgreement {
+          paypalAccountEmail
+          inactive
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  duplication: customerPaymentMethodGetDuplicationData(
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+    targetShopId: "gid://shopify/Shop/target"
+    targetCustomerId: $targetCustomerId
+  ) {
+    encryptedDuplicationData
+    userErrors {
+      field
+      message
+    }
+  }
+  updateUrl: customerPaymentMethodGetUpdateUrl(
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+  ) {
+    updatePaymentMethodUrl
+    userErrors {
+      field
+      message
+    }
+  }
+  revoke: customerPaymentMethodRevoke(customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card") {
+    revokedCustomerPaymentMethodId
+    userErrors {
+      field
+      message
+    }
+  }
+  reminder: paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+    success
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
