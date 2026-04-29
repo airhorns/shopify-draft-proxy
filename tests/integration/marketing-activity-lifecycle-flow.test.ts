@@ -404,6 +404,138 @@ describe('marketing activity external lifecycle flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('deletes only external activities when delete-all runs after mixed native and external staging', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('marketing delete-all stays local'));
+    const app = createApp(config).callback();
+
+    const nativeCreate = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation NativeCreate($input: MarketingActivityCreateInput!) {
+          marketingActivityCreate(input: $input) {
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            marketingActivityExtensionId: 'gid://shopify/MarketingActivityExtension/har-453-local-extension',
+            status: 'DRAFT',
+          },
+        },
+      });
+
+    expect(nativeCreate.status).toBe(200);
+    expect(nativeCreate.body.data.marketingActivityCreate.userErrors).toEqual([]);
+
+    const stateAfterNativeCreate = await request(app).get('/__meta/state');
+    const nativeActivityId = Object.keys(stateAfterNativeCreate.body.stagedState.marketingActivities)[0];
+    expect(nativeActivityId).toBe('gid://shopify/MarketingActivity/1');
+    if (!nativeActivityId) {
+      throw new Error('expected native marketing activity to be staged');
+    }
+
+    const externalCreate = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ExternalCreate($input: MarketingActivityCreateExternalInput!) {
+          marketingActivityCreateExternal(input: $input) {
+            marketingActivity { id title isExternal marketingEvent { id remoteId } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            title: 'HAR-453 External Delete-All Candidate',
+            remoteId: 'har-453-delete-all-external',
+            status: 'ACTIVE',
+            remoteUrl: 'https://example.com/har-453-delete-all-external',
+            tactic: 'NEWSLETTER',
+            marketingChannelType: 'EMAIL',
+            utm: {
+              campaign: 'har-453-delete-all-external',
+              source: 'newsletter',
+              medium: 'email',
+            },
+          },
+        },
+      });
+
+    expect(externalCreate.status).toBe(200);
+    const externalActivity = externalCreate.body.data.marketingActivityCreateExternal.marketingActivity;
+    expect(externalActivity).toMatchObject({
+      title: 'HAR-453 External Delete-All Candidate',
+      isExternal: true,
+    });
+
+    const deleteAll = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DeleteAllExternal {
+          marketingActivitiesDeleteAllExternal {
+            job { id done }
+            userErrors { field message code }
+          }
+        }`,
+      });
+
+    expect(deleteAll.status).toBe(200);
+    expect(deleteAll.body.data.marketingActivitiesDeleteAllExternal).toMatchObject({
+      job: { done: false },
+      userErrors: [],
+    });
+
+    const downstreamRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadMixedAfterDeleteAll($nativeActivityId: ID!, $externalActivityId: ID!, $activityIds: [ID!]) {
+          nativeActivity: marketingActivity(id: $nativeActivityId) {
+            id
+            isExternal
+            marketingEvent { id }
+          }
+          externalActivity: marketingActivity(id: $externalActivityId) {
+            id
+          }
+          marketingActivities(first: 10, marketingActivityIds: $activityIds, sortKey: ID) {
+            nodes {
+              id
+              isExternal
+            }
+          }
+        }`,
+        variables: {
+          nativeActivityId,
+          externalActivityId: externalActivity.id,
+          activityIds: [nativeActivityId, externalActivity.id],
+        },
+      });
+
+    expect(downstreamRead.status).toBe(200);
+    expect(downstreamRead.body.data).toEqual({
+      nativeActivity: {
+        id: nativeActivityId,
+        isExternal: false,
+        marketingEvent: null,
+      },
+      externalActivity: null,
+      marketingActivities: {
+        nodes: [
+          {
+            id: nativeActivityId,
+            isExternal: false,
+          },
+        ],
+      },
+    });
+
+    const stateAfterDeleteAll = await request(app).get('/__meta/state');
+    expect(stateAfterDeleteAll.body.stagedState.deletedMarketingActivityIds).toMatchObject({
+      [externalActivity.id]: true,
+    });
+    expect(stateAfterDeleteAll.body.stagedState.deletedMarketingActivityIds[nativeActivityId]).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('returns captured userErrors for invalid external lifecycle branches without staging records', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('marketing validation stays local'));
     const app = createApp(config).callback();

@@ -8,6 +8,7 @@ import { z } from 'zod';
 const domainSchema = z.enum([
   'admin-platform',
   'apps',
+  'b2b',
   'bulk-operations',
   'collections',
   'customers',
@@ -68,6 +69,22 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 }
 
 export const conformanceCaptureIndex = defineCaptureIndex([
+  {
+    domain: 'b2b',
+    captureId: 'b2b-company-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
+    purpose:
+      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+    requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
+      'config/parity-specs/b2b/b2b-company-contact-main-delete.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable companies and a disposable customer; deletes companies during the scenario and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
   {
     domain: 'products',
     captureId: 'products',

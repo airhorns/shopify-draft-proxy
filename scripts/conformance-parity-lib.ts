@@ -6164,6 +6164,21 @@ function readTagQueryValue(query: string | null): string | null {
 
 function readTagsRemoveSearchLaggedTags(capture: unknown): Set<string> {
   const downstreamVariables = readRecordField(capture as Record<string, unknown>, 'downstreamReadVariables');
+  const downstreamData = readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data');
+  return new Set(
+    ['remainingQuery', 'removedQuery']
+      .map((key) => {
+        const tag = readTagQueryValue(readStringField(downstreamVariables, key));
+        const responseKey = key === 'remainingQuery' ? 'remaining' : 'removed';
+        const nodes = readArrayField(readRecordField(downstreamData, responseKey), 'nodes');
+        return nodes.length > 0 ? tag : null;
+      })
+      .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0),
+  );
+}
+
+function readTagsRemoveQueriedTags(capture: unknown): Set<string> {
+  const downstreamVariables = readRecordField(capture as Record<string, unknown>, 'downstreamReadVariables');
   return new Set(
     ['remainingQuery', 'removedQuery']
       .map((key) => readTagQueryValue(readStringField(downstreamVariables, key)))
@@ -6187,11 +6202,19 @@ function seedTagsRemovePreconditions(
   );
   const removedTags = readArrayField(variables, 'tags').filter((tag): tag is string => typeof tag === 'string');
   const searchLaggedTags = readTagsRemoveSearchLaggedTags(capture);
-  const baseTags = postMutationTags.filter((tag) => !searchLaggedTags.has(tag));
+  const queriedTags = readTagsRemoveQueriedTags(capture);
+  const searchableTags = postMutationTags.filter((tag) => !queriedTags.has(tag) || searchLaggedTags.has(tag));
+  for (const removedTag of removedTags) {
+    if (searchLaggedTags.has(removedTag)) {
+      searchableTags.push(removedTag);
+    }
+  }
+  const baseTags = [...new Set(searchableTags)];
   const preMutationTags = [...new Set([...postMutationTags, ...removedTags])];
 
   runtime.store.upsertBaseProducts([makeSeedProduct(productId, { ...productPayload, tags: baseTags })]);
   runtime.store.stageUpdateProduct(makeSeedProduct(productId, { ...productPayload, tags: preMutationTags }));
+  runtime.store.markTagSearchLagged(productId, 10_000, baseTags);
   return true;
 }
 
@@ -7996,11 +8019,7 @@ function seedPreconditionsFromCapture(
 
     const captureSeedProduct = readRecordField(capture as Record<string, unknown>, 'seedProduct');
     const seedSource =
-      mutationName === 'tagsAdd'
-        ? null
-        : readStringField(captureSeedProduct, 'id') === productId
-          ? captureSeedProduct
-          : (productPayload ?? productInput);
+      readStringField(captureSeedProduct, 'id') === productId ? captureSeedProduct : (productPayload ?? productInput);
     runtime.store.upsertBaseProducts([makeSeedProduct(productId, seedSource)]);
     if (
       mutationName === 'productVariantsBulkCreate' ||

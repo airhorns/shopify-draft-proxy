@@ -1,0 +1,24 @@
+mutation DiscountAutomaticAppLifecycleDeactivate($id: ID!) {
+  discountAutomaticDeactivate(id: $id) {
+    automaticDiscountNode {
+      id
+      automaticDiscount {
+        __typename
+        ... on DiscountAutomaticApp {
+          title
+          status
+          endsAt
+          appDiscountType {
+            functionId
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

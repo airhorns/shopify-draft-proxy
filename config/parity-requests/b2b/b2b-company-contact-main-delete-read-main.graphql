@@ -1,0 +1,35 @@
+query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    note
+    externalId
+    contactsCount {
+      count
+    }
+    locationsCount {
+      count
+    }
+    mainContact {
+      id
+      title
+      isMainContact
+    }
+    contacts(first: 5) {
+      nodes {
+        id
+        title
+        isMainContact
+        customer {
+          id
+        }
+      }
+    }
+    locations(first: 5) {
+      nodes {
+        id
+        name
+      }
+    }
+  }
+}

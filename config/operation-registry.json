@@ -1037,7 +1037,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizations", "PaymentCustomizations"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
+    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. Lifecycle writes are supported by the paymentCustomizationCreate, paymentCustomizationUpdate, paymentCustomizationActivation, and paymentCustomizationDelete mutation entries."
   },
   {
     "name": "validation",

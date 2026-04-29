@@ -250,6 +250,71 @@
       }
     }
   },
+  "automaticLifecycle": {
+    "deactivate": {
+      "response": {
+        "data": {
+          "discountAutomaticDeactivate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticApp",
+                "title": "HAR-366 automatic app updated",
+                "status": "EXPIRED",
+                "endsAt": "2024-01-01T00:00:04.000Z",
+                "appDiscountType": {
+                  "functionId": "discount-local"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "activate": {
+      "response": {
+        "data": {
+          "discountAutomaticActivate": {
+            "automaticDiscountNode": {
+              "id": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+              "automaticDiscount": {
+                "__typename": "DiscountAutomaticApp",
+                "title": "HAR-366 automatic app updated",
+                "status": "ACTIVE",
+                "endsAt": null,
+                "appDiscountType": {
+                  "functionId": "discount-local"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "delete": {
+      "response": {
+        "data": {
+          "discountAutomaticDelete": {
+            "deletedAutomaticDiscountId": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "deletedRead": {
+      "response": {
+        "data": {
+          "automaticDiscountNode": null,
+          "discountNodesCount": {
+            "count": 1,
+            "precision": "EXACT"
+          }
+        }
+      }
+    }
+  },
   "bulkJobs": {
     "variables": {
       "activateIds": ["gid://shopify/DiscountCodeNode/366001"],
@@ -261,7 +326,7 @@
       "data": {
         "activate": {
           "job": {
-            "id": "gid://shopify/Job/4?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/Job/6?shopify-draft-proxy=synthetic",
             "done": true,
             "query": null
           },
@@ -269,7 +334,7 @@
         },
         "deactivate": {
           "job": {
-            "id": "gid://shopify/Job/5?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/Job/7?shopify-draft-proxy=synthetic",
             "done": true,
             "query": null
           },
@@ -277,7 +342,7 @@
         },
         "deleteCode": {
           "job": {
-            "id": "gid://shopify/Job/6?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/Job/8?shopify-draft-proxy=synthetic",
             "done": true,
             "query": null
           },
@@ -285,7 +350,7 @@
         },
         "deleteAutomatic": {
           "job": {
-            "id": "gid://shopify/Job/7?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/Job/9?shopify-draft-proxy=synthetic",
             "done": true,
             "query": null
           },
@@ -304,7 +369,7 @@
       "data": {
         "addCodes": {
           "bulkCreation": {
-            "id": "gid://shopify/DiscountRedeemCodeBulkCreation/8?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/DiscountRedeemCodeBulkCreation/10?shopify-draft-proxy=synthetic",
             "done": true,
             "codesCount": 2,
             "importedCount": 2,
@@ -314,7 +379,7 @@
         },
         "deleteCodes": {
           "job": {
-            "id": "gid://shopify/Job/11?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/Job/13?shopify-draft-proxy=synthetic",
             "done": true,
             "query": null
           },
