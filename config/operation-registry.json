@@ -204,7 +204,7 @@
     "implemented": true,
     "matchNames": ["taxonomy", "Taxonomy"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode taxonomy category reads are modeled from captured 2026-04 catalog/search slices: unmatched search empty connections, non-empty root catalog pages, raw Shopify cursors/pageInfo for captured windows, simple term search over captured id/name/fullName fields, and selected hierarchy fields. The proxy does not claim exhaustive Shopify taxonomy catalog coverage beyond records present in snapshot/local state."
+    "supportNotes": "Snapshot-mode taxonomy category reads are modeled from captured 2026-04 catalog/search/hierarchy slices: unmatched search empty connections, non-empty root catalog pages, hierarchy-filtered category pages, raw Shopify cursors/pageInfo for captured windows, simple term search over captured id/name/fullName fields, and selected hierarchy fields. Generic TaxonomyCategory Node dispatch is supported only for taxonomy records present in snapshot/local state. The proxy does not claim exhaustive Shopify taxonomy catalog coverage beyond records present in snapshot/local state."
   },
   {
     "name": "domain",
@@ -1037,7 +1037,7 @@
     "implemented": true,
     "matchNames": ["paymentCustomizations", "PaymentCustomizations"],
     "runtimeTests": ["tests/integration/payment-customization-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. No lifecycle mutations are supported."
+    "supportNotes": "Snapshot-mode payment customization catalog reads are modeled from normalized state with empty/no-data connections, cursor pagination, reverse ordering, and captured-safe enabled/function_id/id filters. Lifecycle writes are supported by the paymentCustomizationCreate, paymentCustomizationUpdate, paymentCustomizationActivation, and paymentCustomizationDelete mutation entries."
   },
   {
     "name": "validation",
@@ -6549,7 +6549,7 @@
     "implemented": true,
     "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
     "runtimeTests": ["tests/integration/localization-flow.test.ts"],
-    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+    "supportNotes": "Stages non-primary locale removal locally, removes translations for that locale, and returns the disabled locale string."
   },
   {
     "name": "translationsRegister",

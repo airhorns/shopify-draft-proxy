@@ -53,7 +53,7 @@ Local staged mutations:
   accept the upload bytes or prove upload success/failure.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
 - `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status.
-- `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
+- `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. `referencesToAdd` can attach a locally staged file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion.
 - `fileAcknowledgeUpdateFailed(fileIds:)` stages a local acknowledgement for
   existing `READY` Files API records and does not proxy supported requests
@@ -89,6 +89,13 @@ Local staged mutations:
   create. A safely staged bad-source update stayed READY in the capture and was
   accepted by acknowledgement, so richer external update-failure generation is
   documented as an upload boundary rather than fabricated locally.
+- HAR-429 adds executable local-runtime parity for the Files API product-reference
+  lifecycle: a local `fileCreate` MediaImage is updated through
+  `fileUpdate.referencesToAdd`, becomes visible in downstream `product.media`,
+  and remains visible through top-level `files`. This is intentionally local
+  evidence because external upload byte transfer is still outside the proxy
+  boundary; existing live Files API fixtures anchor the generic create/update
+  payload family.
 
 ### Validation anchors
 

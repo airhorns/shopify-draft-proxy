@@ -292,6 +292,66 @@ describe('saved search flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('normalizes captured Shopify saved-search query grammar for downstream reads', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('saved search query grammar must stay local'));
+    const app = createApp(config).callback();
+
+    const createResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateSavedSearch($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id legacyResourceId name query resourceType searchTerms filters { key value } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            resourceType: 'PRODUCT',
+            name: 'HAR-458 Grammar',
+            query: "title:'HAR-458 Alpha' OR (status:ACTIVE tag:'HAR-458-tag') -vendor:Archived",
+          },
+        },
+      });
+
+    expect(createResponse.body.data.savedSearchCreate).toMatchObject({
+      savedSearch: {
+        name: 'HAR-458 Grammar',
+        query: "title:'HAR-458 Alpha' OR (status:ACTIVE tag:'HAR-458-tag') -vendor:Archived",
+        resourceType: 'PRODUCT',
+        searchTerms: 'title:"HAR-458 Alpha" OR (status:ACTIVE tag:"HAR-458-tag")',
+        filters: [{ key: 'vendor_not', value: 'Archived' }],
+      },
+      userErrors: [],
+    });
+    const savedSearchId = createResponse.body.data.savedSearchCreate.savedSearch.id;
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadSavedSearches($query: String!) {
+          productSavedSearches(first: 1, query: $query) {
+            nodes { id name query resourceType searchTerms filters { key value } }
+          }
+        }`,
+        variables: { query: 'HAR-458 Grammar' },
+      });
+
+    expect(readResponse.body.data.productSavedSearches.nodes).toEqual([
+      {
+        id: savedSearchId,
+        name: 'HAR-458 Grammar',
+        query: 'title:"HAR-458 Alpha" OR (status:ACTIVE tag:"HAR-458-tag") -vendor:Archived',
+        resourceType: 'PRODUCT',
+        searchTerms: 'title:"HAR-458 Alpha" OR (status:ACTIVE tag:"HAR-458-tag")',
+        filters: [{ key: 'vendor_not', value: 'Archived' }],
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('routes staged saved searches through their resource-specific roots', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')

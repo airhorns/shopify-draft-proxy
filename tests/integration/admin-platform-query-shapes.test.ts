@@ -1119,6 +1119,96 @@ describe('admin platform utility query shapes', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('filters captured taxonomy categories by hierarchy arguments without inventing missing rows', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('taxonomy hierarchy reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseTaxonomyCategories(capturedTaxonomyCategories);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query TaxonomyHierarchyRead {
+          taxonomy {
+            children: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/ap-2") {
+              nodes {
+                id
+                name
+                parentId
+              }
+            }
+            descendants: categories(first: 5, descendantsOf: "gid://shopify/TaxonomyCategory/ap") {
+              nodes {
+                id
+                name
+                ancestorIds
+              }
+            }
+            siblings: categories(first: 5, siblingsOf: "gid://shopify/TaxonomyCategory/ap-2-6") {
+              nodes {
+                id
+                name
+              }
+            }
+            missingChildren: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/missing") {
+              nodes {
+                id
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+          }
+        }`,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.taxonomy.children.nodes).toEqual([
+      {
+        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+        name: 'Pet Apparel Hangers',
+        parentId: 'gid://shopify/TaxonomyCategory/ap-2',
+      },
+      {
+        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+        name: 'Pet Apparel',
+        parentId: 'gid://shopify/TaxonomyCategory/ap-2',
+      },
+    ]);
+    expect(response.body.data.taxonomy.descendants.nodes).toEqual([
+      {
+        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+        name: 'Pet Apparel Hangers',
+        ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
+      },
+      {
+        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+        name: 'Pet Apparel',
+        ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
+      },
+    ]);
+    expect(response.body.data.taxonomy.siblings.nodes).toEqual([
+      {
+        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+        name: 'Pet Apparel Hangers',
+      },
+    ]);
+    expect(response.body.data.taxonomy.missingChildren).toEqual({
+      nodes: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors captured staff utility access blockers locally in snapshot mode', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('staff utility blockers should resolve locally in snapshot mode');
@@ -1236,6 +1326,79 @@ describe('admin platform utility query shapes', () => {
             host: 'node-test-shop.myshopify.com',
             url: 'https://node-test-shop.myshopify.com',
             sslEnabled: true,
+          },
+          null,
+          null,
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves captured taxonomy category IDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('taxonomy category node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseTaxonomyCategories(capturedTaxonomyCategories);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query TaxonomyNodeResolution($ids: [ID!]!) {
+          node(id: "gid://shopify/TaxonomyCategory/aa") {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on TaxonomyCategory {
+              name
+              fullName
+              isRoot
+              isLeaf
+              level
+              parentId
+            }
+          }
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on TaxonomyCategory {
+              name
+              fullName
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/TaxonomyCategory/ap-2-6',
+            'gid://shopify/TaxonomyCategory/missing',
+            'gid://shopify/ProductTaxonomyNode/1',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        node: {
+          __typename: 'TaxonomyCategory',
+          nodeId: 'gid://shopify/TaxonomyCategory/aa',
+          name: 'Apparel & Accessories',
+          fullName: 'Apparel & Accessories',
+          isRoot: true,
+          isLeaf: false,
+          level: 1,
+          parentId: null,
+        },
+        nodes: [
+          {
+            __typename: 'TaxonomyCategory',
+            nodeId: 'gid://shopify/TaxonomyCategory/ap-2-6',
+            name: 'Pet Apparel',
+            fullName: 'Animals & Pet Supplies > Pet Supplies > Pet Apparel',
           },
           null,
           null,
