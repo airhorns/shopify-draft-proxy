@@ -1,0 +1,10 @@
+mutation B2BContactLocationAssignmentsAddressDelete($addressId: ID!) {
+  companyAddressDelete(addressId: $addressId) {
+    deletedAddressId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
