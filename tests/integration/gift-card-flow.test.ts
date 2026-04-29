@@ -110,6 +110,16 @@ describe('gift-card local staging', () => {
           currencyCode: 'CAD',
         },
       }),
+      baseGiftCard({
+        id: 'gid://shopify/GiftCard/1003',
+        legacyResourceId: '1003',
+        lastCharacters: 'PART',
+        maskedCode: '**** **** **** PART',
+        balance: {
+          amount: '10.0',
+          currencyCode: 'CAD',
+        },
+      }),
     ]);
     store.upsertBaseGiftCardConfiguration({
       issueLimit: {
@@ -196,6 +206,31 @@ describe('gift-card local staging', () => {
             count
             precision
           }
+          fullBalanceGiftCards: giftCards(first: 5, query: "balance_status:full", sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          partialBalanceGiftCards: giftCards(first: 5, query: "balance_status:partial", sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          emptyBalanceGiftCards: giftCards(first: 5, query: "balance_status:empty", sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: "balance_status:full_or_partial") {
+            count
+            precision
+          }
+          codeSearchGiftCards: giftCards(first: 5, query: "PART", sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+            }
+          }
           giftCardConfiguration {
             issueLimit {
               amount
@@ -268,13 +303,13 @@ describe('gift-card local staging', () => {
         },
       ],
       pageInfo: {
-        hasNextPage: false,
+        hasNextPage: true,
         hasPreviousPage: false,
         startCursor: 'cursor:gid://shopify/GiftCard/1001',
         endCursor: 'cursor:gid://shopify/GiftCard/1002',
       },
     });
-    expect(response.body.data.giftCardsCount).toEqual({ count: 2, precision: 'EXACT' });
+    expect(response.body.data.giftCardsCount).toEqual({ count: 3, precision: 'EXACT' });
     expect(response.body.data.filteredEmptyGiftCards).toEqual({
       nodes: [],
       edges: [],
@@ -286,9 +321,19 @@ describe('gift-card local staging', () => {
       },
     });
     expect(response.body.data.filteredEmptyGiftCardsCount).toEqual({ count: 0, precision: 'EXACT' });
-    expect(response.body.data.enabledGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1001', enabled: true }]);
+    expect(response.body.data.enabledGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1001', enabled: true },
+      { id: 'gid://shopify/GiftCard/1003', enabled: true },
+    ]);
     expect(response.body.data.disabledGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1002', enabled: false }]);
     expect(response.body.data.disabledGiftCardsCount).toEqual({ count: 1, precision: 'EXACT' });
+    expect(response.body.data.fullBalanceGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1001' }]);
+    expect(response.body.data.partialBalanceGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1003' }]);
+    expect(response.body.data.emptyBalanceGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1002' }]);
+    expect(response.body.data.nonEmptyBalanceGiftCardsCount).toEqual({ count: 2, precision: 'EXACT' });
+    expect(response.body.data.codeSearchGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1003', lastCharacters: 'PART' },
+    ]);
     expect(response.body.data.giftCardConfiguration).toEqual({
       issueLimit: {
         amount: '1000.0',

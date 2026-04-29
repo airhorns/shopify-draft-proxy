@@ -1,0 +1,38 @@
+mutation GiftCardSearchSetup(
+  $id: ID!
+  $updateInput: GiftCardUpdateInput!
+  $creditInput: GiftCardCreditInput!
+  $debitInput: GiftCardDebitInput!
+) {
+  update: giftCardUpdate(id: $id, input: $updateInput) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  credit: giftCardCredit(id: $id, creditInput: $creditInput) {
+    giftCardCreditTransaction {
+      giftCard {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  debit: giftCardDebit(id: $id, debitInput: $debitInput) {
+    giftCardDebitTransaction {
+      giftCard {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

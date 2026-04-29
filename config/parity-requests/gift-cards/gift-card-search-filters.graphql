@@ -1,0 +1,66 @@
+query GiftCardSearchFilters(
+  $partialQuery: String!
+  $fullQuery: String!
+  $emptyQuery: String!
+  $nonEmptyQuery: String!
+  $codeQuery: String!
+) {
+  partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+      enabled
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {
+    count
+    precision
+  }
+  fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {
+    count
+    precision
+  }
+  codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {
+    nodes {
+      id
+      lastCharacters
+      enabled
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {
+    count
+    precision
+  }
+}
