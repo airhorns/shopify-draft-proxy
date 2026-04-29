@@ -5,7 +5,7 @@
   "scenario": "app-billing-access-local-staging",
   "notes": [
     "Runtime fixture enforced by tests/integration/app-billing-access-flow.test.ts.",
-    "The delegateAccessTokenCreate parity replay preserves the recorded local-runtime accessScopes input shape; the current Admin GraphQL delegateAccessScope input is covered by tests/integration/app-billing-access-flow.test.ts.",
+    "The app-billing delegateAccessTokenCreate parity replay preserves the recorded local-runtime accessScopes input shape; the current Admin GraphQL delegateAccessScope input is covered by tests/integration/app-billing-access-flow.test.ts and config/parity-specs/apps/delegate-access-token-current-input-local-staging.json.",
     "Billing confirmation URLs and delegated access tokens are synthetic local values. Raw delegated token values are intentionally absent from meta-visible state.",
     "Live success-path captures for billing approval, app uninstall, access-scope revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects."
   ],
