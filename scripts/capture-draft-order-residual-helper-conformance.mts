@@ -17,6 +17,7 @@ const fixturePath = path.join(
   'conformance',
   storeDomain,
   apiVersion,
+  'orders',
   'draft-order-residual-helper-roots.json',
 );
 
@@ -185,9 +186,27 @@ const bulkAddDocument = `#graphql
   }
 `;
 
+const bulkAddBySearchDocument = `#graphql
+  mutation DraftOrderBulkAddTagsBySearch($search: String, $tags: [String!]!) {
+    draftOrderBulkAddTags(search: $search, tags: $tags) {
+      job { id done }
+      userErrors { field message }
+    }
+  }
+`;
+
 const bulkRemoveDocument = `#graphql
   mutation DraftOrderBulkRemoveTags($ids: [ID!], $tags: [String!]!) {
     draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {
+      job { id done }
+      userErrors { field message }
+    }
+  }
+`;
+
+const bulkRemoveBySearchDocument = `#graphql
+  mutation DraftOrderBulkRemoveTagsBySearch($search: String, $tags: [String!]!) {
+    draftOrderBulkRemoveTags(search: $search, tags: $tags) {
       job { id done }
       userErrors { field message }
     }
@@ -240,6 +259,15 @@ const invoicePreviewVariables = {
 };
 const invoicePreviewResponse = await runGraphql<JsonRecord>(invoicePreviewDocument, invoicePreviewVariables);
 const bulkAddVariables = { ids: [draftOrderId], tags: ['har-318-added'] };
+const bulkAddBySearchVariables = { search: 'tag:har-318-base', tags: ['har-318-search-added'] };
+const bulkAddBySearchResponse = await runGraphql<JsonRecord>(bulkAddBySearchDocument, bulkAddBySearchVariables);
+const afterBulkAddBySearchRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
+const bulkRemoveBySearchVariables = { search: 'tag:har-318-search-added', tags: ['har-318-search-added'] };
+const bulkRemoveBySearchResponse = await runGraphql<JsonRecord>(
+  bulkRemoveBySearchDocument,
+  bulkRemoveBySearchVariables,
+);
+const afterBulkRemoveBySearchRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
 const bulkAddResponse = await runGraphql<JsonRecord>(bulkAddDocument, bulkAddVariables);
 const afterBulkAddRead = await runGraphql<JsonRecord>(draftOrderReadDocument, { id: draftOrderId });
 const bulkRemoveVariables = { ids: [draftOrderId], tags: ['har-318-base'] };
@@ -309,6 +337,16 @@ await writeJson(fixturePath, {
       response: afterBulkAddRead,
     },
   },
+  draftOrderBulkAddTagsBySearch: {
+    document: bulkAddBySearchDocument,
+    variables: bulkAddBySearchVariables,
+    response: bulkAddBySearchResponse,
+    downstreamRead: {
+      document: draftOrderReadDocument,
+      variables: { id: draftOrderId },
+      response: afterBulkAddBySearchRead,
+    },
+  },
   draftOrderBulkRemoveTags: {
     document: bulkRemoveDocument,
     variables: bulkRemoveVariables,
@@ -317,6 +355,16 @@ await writeJson(fixturePath, {
       document: draftOrderReadDocument,
       variables: { id: draftOrderId },
       response: afterBulkRemoveRead,
+    },
+  },
+  draftOrderBulkRemoveTagsBySearch: {
+    document: bulkRemoveBySearchDocument,
+    variables: bulkRemoveBySearchVariables,
+    response: bulkRemoveBySearchResponse,
+    downstreamRead: {
+      document: draftOrderReadDocument,
+      variables: { id: draftOrderId },
+      response: afterBulkRemoveBySearchRead,
     },
   },
   draftOrderTag: {
