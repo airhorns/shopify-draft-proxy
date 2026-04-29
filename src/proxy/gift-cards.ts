@@ -2,7 +2,12 @@ import type { ProxyRuntimeContext } from './runtime-context.js';
 import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
-import { parseSearchQueryTerms, normalizeSearchQueryValue, type SearchQueryTerm } from '../search-query-parser.js';
+import {
+  matchesSearchQueryText,
+  parseSearchQueryTerms,
+  normalizeSearchQueryValue,
+  type SearchQueryTerm,
+} from '../search-query-parser.js';
 import { compareShopifyResourceIds } from '../shopify/resource-ids.js';
 import type {
   GiftCardRecipientAttributesRecord,
@@ -412,13 +417,40 @@ function serializeGiftCard(
 
 function giftCardMatchesTerm(giftCard: GiftCardRecord, term: SearchQueryTerm): boolean {
   const normalizedValue = normalizeSearchQueryValue(term.value);
+  const field = term.field?.toLowerCase() ?? null;
   let matches = true;
 
-  switch (term.field) {
+  switch (field) {
+    case null:
+      matches =
+        matchesSearchQueryText(giftCard.lastCharacters, term) || matchesSearchQueryText(giftCard.maskedCode, term);
+      break;
     case 'id':
       matches =
         normalizedValue === normalizeSearchQueryValue(giftCard.id) || normalizedValue === giftCardTail(giftCard.id);
       break;
+    case 'balance_status': {
+      const initialValue = parseDecimalAmount(giftCard.initialValue.amount);
+      const balance = parseDecimalAmount(giftCard.balance.amount);
+      switch (normalizedValue) {
+        case 'full':
+          matches = balance >= initialValue && balance > 0;
+          break;
+        case 'partial':
+          matches = balance > 0 && balance < initialValue;
+          break;
+        case 'empty':
+          matches = balance <= 0;
+          break;
+        case 'full_or_partial':
+          matches = balance > 0;
+          break;
+        default:
+          matches = false;
+          break;
+      }
+      break;
+    }
     case 'status':
       if (['enabled', 'active', 'true'].includes(normalizedValue)) {
         matches = giftCard.enabled;
@@ -442,7 +474,7 @@ function filterGiftCardsByQuery(giftCards: GiftCardRecord[], rawQuery: unknown):
   }
 
   const terms = parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) => term.field === 'id' || term.field === 'status',
+    (term) => term.field === null || ['id', 'status', 'balance_status'].includes(term.field.toLowerCase()),
   );
   return terms.length === 0
     ? giftCards
