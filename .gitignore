@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+gleam/build/
+gleam/elixir_smoke/_build
 
 # Local environment secrets (keep examples tracked)
 .env
@@ -26,6 +28,7 @@ vitest.config.ts.timestamp-*
 .DS_Store
 .vscode/
 .idea/
+.claude/
 
 # Explicitly keep recorded conformance fixtures versioned
 !fixtures/conformance/

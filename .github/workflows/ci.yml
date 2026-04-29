@@ -29,6 +29,13 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
+      - name: Setup BEAM (Erlang + Elixir + Gleam)
+        uses: erlef/setup-beam@v1
+        with:
+          otp-version: '28'
+          elixir-version: '1.18'
+          gleam-version: '1.16.0'
+
       - name: Resolve pnpm store path
         shell: bash
         run: echo "PNPM_STORE_PATH=$(corepack pnpm store path --silent)" >> "$GITHUB_ENV"
@@ -86,6 +93,18 @@ jobs:
 
       - name: Build
         run: corepack pnpm build
+
+      - name: Gleam format check
+        run: corepack pnpm gleam:format:check
+
+      - name: Gleam tests (JavaScript target)
+        run: corepack pnpm gleam:test:js
+
+      - name: Gleam tests (Erlang target)
+        run: corepack pnpm gleam:test:erlang
+
+      - name: Elixir BEAM interop smoke
+        run: corepack pnpm elixir:smoke
 
       - name: Test
         run: corepack pnpm test

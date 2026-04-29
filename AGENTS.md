@@ -210,6 +210,27 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   not commit code, push a branch, or open a PR. Record the blocker in the Linear
   workpad and move the issue to Human Review.
 
+## Working in `gleam/` (in-progress port)
+
+The Gleam port re-implements this proxy targeting both Erlang/BEAM and
+JavaScript. It lives under `gleam/` and ports domain-by-domain alongside
+the TypeScript implementation.
+
+- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables) and the most
+  recent 2–3 entries at the top of `GLEAM_PORT_LOG.md` (running narrative).
+- **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the port-specific
+  patterns (domain module surface, store slice shapes, `MutationOutcome`,
+  dispatcher wiring, synthetic-id mint helpers, FFI shim layout). Use it
+  whenever a task touches `gleam/`.
+- **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
+  the separate `.agents/skills/gleam/SKILL.md`. The two skills are
+  complementary.
+- **Both targets, every change:** `gleam test --target erlang` AND
+  `gleam test --target javascript`. Drift between them is the most
+  expensive bug class.
+- **Append a log entry** to `GLEAM_PORT_LOG.md` for every pass. The log
+  is the running narrative; `GLEAM_PORT_INTENT.md` stays stable.
+
 ## Suggested workflow
 
 1. Read `docs/original-intent.md`.
