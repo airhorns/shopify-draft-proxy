@@ -1,0 +1,117 @@
+query MetaobjectBulkDeleteByTypeRead($type: String!, $firstId: ID!, $secondId: ID!) {
+  first: metaobject(id: $firstId) {
+    id
+    handle
+    type
+    displayName
+    updatedAt
+    fields {
+      key
+      type
+      value
+      jsonValue
+      definition {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+    }
+  }
+  second: metaobject(id: $secondId) {
+    id
+    handle
+    type
+    displayName
+    updatedAt
+    fields {
+      key
+      type
+      value
+      jsonValue
+      definition {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+    }
+  }
+  catalog: metaobjects(type: $type, first: 10) {
+    edges {
+      cursor
+      node {
+        id
+        handle
+        type
+        displayName
+        updatedAt
+        fields {
+          key
+          type
+          value
+          jsonValue
+          definition {
+            key
+            name
+            required
+            type {
+              name
+              category
+            }
+          }
+        }
+      }
+    }
+    nodes {
+      id
+      handle
+      type
+      displayName
+      updatedAt
+      fields {
+        key
+        type
+        value
+        jsonValue
+        definition {
+          key
+          name
+          required
+          type {
+            name
+            category
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  definition: metaobjectDefinitionByType(type: $type) {
+    id
+    type
+    name
+    displayNameKey
+    fieldDefinitions {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+    metaobjectsCount
+  }
+}

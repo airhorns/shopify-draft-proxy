@@ -1,0 +1,15 @@
+mutation MetaobjectBulkDeleteByType($type: String!) {
+  metaobjectBulkDelete(where: { type: $type }) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
