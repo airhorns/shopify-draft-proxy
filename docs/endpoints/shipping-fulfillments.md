@@ -52,11 +52,17 @@ quantities. `reverseDeliveryCreateWithShipping` stores reverse delivery line ite
 when `reverseDeliveryLineItems` is empty, the proxy stages one reverse delivery line for every line item on the reverse
 fulfillment order. `reverseDeliveryShippingUpdate` updates tracking and label metadata, including Shopify's
 `ReverseDeliveryLabelInput.fileUrl` input projected back as downstream `label.publicFileUrl`.
-`reverseFulfillmentOrderDispose` records disposition type/location metadata, reduces remaining local quantities, and closes
-the reverse fulfillment order when all line work is disposed.
+`reverseFulfillmentOrderDispose` records disposition type/location metadata and reduces remaining local quantities. Captured
+2026-04 behavior leaves the reverse fulfillment order status `OPEN` after a full `NOT_RESTOCKED` disposition on the
+disposable custom-line capture, so local staging no longer closes the reverse fulfillment order solely because all line
+work was disposed. Live-shaped reads expose disposition effects through
+`ReverseFulfillmentOrderLineItem.dispositions { type quantity location { id } }`; legacy local fixture selections for
+`remainingQuantity` / `dispositionType` are still serialized for existing runtime assertions.
 These roots do not call carriers, create real labels, notify customers, move inventory, or mutate locations at runtime.
-Executable parity lives in `config/parity-specs/orders/return-reverse-logistics-local-staging.json`; live 2026-04 introspection
-evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json`.
+Executable parity lives in `config/parity-specs/orders/return-reverse-logistics-local-staging.json` and
+`config/parity-specs/orders/return-reverse-logistics-recorded.json`; live 2026-04 evidence lives in
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json` and
+`fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
 
 `fulfillmentEventCreate` stages local events against an existing order-backed fulfillment and makes them immediately visible in both top-level and nested fulfillment detail reads. Captured 2026-04 behavior showed an `IN_TRANSIT` event updating `Fulfillment.displayStatus`, `estimatedDeliveryAt`, and `inTransitAt`; local staging mirrors that captured shipment-milestone slice while preserving the original raw mutation for commit replay and without contacting Shopify at runtime.
 

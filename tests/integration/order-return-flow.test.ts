@@ -566,8 +566,7 @@ describe('order return flow', () => {
       });
     expect(processResponse.body.data.returnProcess.return).toMatchObject({
       id: returnId,
-      status: 'CLOSED',
-      closedAt: expect.any(String),
+      status: 'OPEN',
       returnLineItems: { nodes: [{ id: returnLineItemId, quantity: 1, processedQuantity: 1, unprocessedQuantity: 0 }] },
       reverseFulfillmentOrders: {
         nodes: [
@@ -644,7 +643,7 @@ describe('order return flow', () => {
       },
       reverseFulfillmentOrder: {
         id: reverseFulfillmentOrder.id,
-        status: 'CLOSED',
+        status: 'OPEN',
         lineItems: {
           nodes: [{ id: reverseFulfillmentOrderLineItem.id, remainingQuantity: 0, dispositionType: 'RESTOCKED' }],
         },

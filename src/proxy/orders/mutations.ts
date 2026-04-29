@@ -3642,7 +3642,7 @@ function applyReturnProcess(
   }
 
   const allProcessed = nextLineItems.every((lineItem) => (lineItem.processedQuantity ?? 0) >= lineItem.quantity);
-  const updatedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
+  const persistedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
     ...ensureReturnReverseFulfillmentOrders(runtime, match.order, match.orderReturn),
     status: allProcessed ? 'CLOSED' : match.orderReturn.status,
     closedAt: allProcessed ? runtime.syntheticIdentity.makeSyntheticTimestamp() : match.orderReturn.closedAt,
@@ -3652,12 +3652,19 @@ function applyReturnProcess(
     ...match.order,
     updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) =>
-      candidate.id === match.orderReturn.id ? updatedReturn : candidate,
+      candidate.id === match.orderReturn.id ? persistedReturn : candidate,
     ),
   });
+  const responseReturn = allProcessed
+    ? {
+        ...persistedReturn,
+        status: match.orderReturn.status,
+        closedAt: match.orderReturn.closedAt,
+      }
+    : persistedReturn;
   return {
     order: updatedOrder,
-    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === match.orderReturn.id) ?? updatedReturn,
+    orderReturn: responseReturn,
     userErrors: [],
   };
 }
@@ -3753,6 +3760,44 @@ function serializeReverseFulfillmentOrderDisposePayload(
                   return [lineItemKey, lineItem.remainingQuantity];
                 case 'dispositionType':
                   return [lineItemKey, lineItem.dispositionType ?? null];
+                case 'dispositions':
+                  return [
+                    lineItemKey,
+                    lineItem.disposedQuantity && lineItem.dispositionType
+                      ? [
+                          Object.fromEntries(
+                            getSelectedChildFields(lineItemSelection).map((dispositionSelection) => {
+                              const dispositionKey = getFieldResponseKey(dispositionSelection);
+                              switch (dispositionSelection.name.value) {
+                                case 'type':
+                                  return [dispositionKey, lineItem.dispositionType];
+                                case 'quantity':
+                                  return [dispositionKey, lineItem.disposedQuantity];
+                                case 'location':
+                                  return [
+                                    dispositionKey,
+                                    lineItem.dispositionLocationId
+                                      ? Object.fromEntries(
+                                          getSelectedChildFields(dispositionSelection).map((locationSelection) => {
+                                            const locationKey = getFieldResponseKey(locationSelection);
+                                            switch (locationSelection.name.value) {
+                                              case 'id':
+                                                return [locationKey, lineItem.dispositionLocationId];
+                                              default:
+                                                return [locationKey, null];
+                                            }
+                                          }),
+                                        )
+                                      : null,
+                                  ];
+                                default:
+                                  return [dispositionKey, null];
+                              }
+                            }),
+                          ),
+                        ]
+                      : [],
+                  ];
                 default:
                   return [lineItemKey, null];
               }
@@ -4093,11 +4138,6 @@ function applyReverseFulfillmentOrderDispose(
     };
     const updatedReverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord = {
       ...update.match.reverseFulfillmentOrder,
-      status: update.match.reverseFulfillmentOrder.lineItems.every((lineItem) =>
-        lineItem.id === updatedLineItem.id ? updatedLineItem.remainingQuantity === 0 : lineItem.remainingQuantity === 0,
-      )
-        ? 'CLOSED'
-        : update.match.reverseFulfillmentOrder.status,
       lineItems: update.match.reverseFulfillmentOrder.lineItems.map((lineItem) =>
         lineItem.id === updatedLineItem.id ? updatedLineItem : lineItem,
       ),

@@ -42,9 +42,11 @@ Local staged mutations:
 - `removeFromReturn` reduces or removes return line quantities, recomputes `totalQuantity`, and syncs the associated
   reverse fulfillment order line quantities. Exchange-line removal remains explicitly unsupported until exchange fixtures
   exist.
-- `returnProcess` updates processed quantities for local return line items, closes the return when all lines are processed,
-  and syncs reverse fulfillment order remaining quantities. Refund duties, refund shipping, financial transfers, exchange
-  processing, and notification behavior are not emulated beyond local metadata and validation boundaries.
+- `returnProcess` updates processed quantities for local return line items and closes the return for subsequent reads when
+  all lines are processed. Captured 2026-04 behavior returns the mutation payload with status `OPEN`, then exposes
+  `CLOSED` on immediate downstream `return(id:)` / `Order.returns` reads; local staging mirrors that split. Refund duties,
+  refund shipping, financial transfers, exchange processing, and notification behavior are not emulated beyond local
+  metadata and validation boundaries.
 - `reverseDeliveryCreateWithShipping` treats an empty `reverseDeliveryLineItems` input as Shopify documents it: the proxy
   creates one local reverse delivery line for each line item on the reverse fulfillment order. `ReverseDeliveryLabelInput`
   accepts Shopify's `fileUrl` field and preserves it as the downstream `label.publicFileUrl`; legacy local fixture aliases
@@ -63,10 +65,11 @@ Local staged mutations:
   The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
   return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
   refund-transfer, exchange, notification, or inventory movement fidelity.
-- HAR-442 reviews the return/reverse-logistics slice against current Shopify docs and public examples. It adds executable
-  coverage for documented empty reverse-delivery line expansion and `ReverseDeliveryLabelInput.fileUrl` handling while
-  keeping live success-path captures, exchange processing, carrier label creation, notification sends, refund transfers,
-  duties, and inventory/location movement as explicit unsupported fidelity gaps.
+- HAR-442 reviews the return/reverse-logistics slice against current Shopify docs and public examples. It adds live
+  recorded parity for request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
+  shipping update, `NOT_RESTOCKED` reverse-fulfillment disposal, return processing, and downstream reads. Exchange
+  processing, carrier label creation, notification sends, refund transfers, duties, and inventory/location movement remain
+  explicit unsupported fidelity gaps.
 
 ### Blocked roots
 
@@ -91,7 +94,9 @@ Local staged mutations:
   `config/parity-specs/orders/return-request-decline-local-staging.json`, and
   `config/parity-specs/orders/removeFromReturn-local-staging.json`
 - HAR-442 extends `config/parity-specs/orders/return-reverse-logistics-local-staging.json` to exercise empty
-  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization.
+  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization. It also adds live recorded parity in
+  `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

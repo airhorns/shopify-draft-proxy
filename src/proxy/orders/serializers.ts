@@ -2854,6 +2854,9 @@ function serializeReverseFulfillmentOrderLineItem(
       case 'dispositionType':
         result[key] = lineItem.dispositionType ?? null;
         break;
+      case 'dispositions':
+        result[key] = serializeReverseFulfillmentOrderLineItemDispositions(selection, lineItem);
+        break;
       default:
         result[key] = null;
         break;
@@ -2861,6 +2864,49 @@ function serializeReverseFulfillmentOrderLineItem(
   }
 
   return result;
+}
+
+function serializeReverseFulfillmentOrderLineItemDispositions(
+  field: FieldNode,
+  lineItem: OrderReverseFulfillmentOrderLineItemRecord,
+): Array<Record<string, unknown>> {
+  const quantity = lineItem.disposedQuantity ?? 0;
+  if (quantity <= 0 || !lineItem.dispositionType) {
+    return [];
+  }
+
+  const disposition: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'type':
+        disposition[key] = lineItem.dispositionType;
+        break;
+      case 'quantity':
+        disposition[key] = quantity;
+        break;
+      case 'location':
+        disposition[key] = lineItem.dispositionLocationId
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((locationSelection) => {
+                const locationKey = getFieldResponseKey(locationSelection);
+                switch (locationSelection.name.value) {
+                  case 'id':
+                    return [locationKey, lineItem.dispositionLocationId];
+                  default:
+                    return [locationKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      default:
+        disposition[key] = null;
+        break;
+    }
+  }
+
+  return [disposition];
 }
 
 function serializeReverseFulfillmentOrderLineItemsConnection(
