@@ -1,0 +1,27 @@
+mutation ReturnRequestRecorded($input: ReturnRequestInput!) {
+  returnRequest(input: $input) {
+    return {
+      id
+      name
+      status
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

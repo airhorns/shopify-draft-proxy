@@ -1,0 +1,945 @@
+{
+  "capturedAt": "2026-04-29T11:08:44.996Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "source": "live-shopify-admin-graphql",
+  "notes": "HAR-442 live return/reverse-logistics capture. The replay request files are the same GraphQL documents used for return request approval, empty reverseDeliveryLineItems creation, fileUrl label input, shipping update, disposal, processing, and downstream reads.",
+  "locations": {
+    "query": "query ReturnReverseLogisticsLocations($first: Int!) {\n    locations(first: $first) {\n      nodes {\n        id\n        name\n        isActive\n      }\n    }\n  }",
+    "variables": {
+      "first": 10
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location",
+                "isActive": true
+              },
+              {
+                "id": "gid://shopify/Location/106318430514",
+                "name": "Shop location",
+                "isActive": true
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "#graphql\n  fragment ReturnReverseLogisticsOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n          location {\n            id\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  mutation ReturnReverseLogisticsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        ...ReturnReverseLogisticsOrderFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-442-return-reverse-20260429110840@example.com",
+          "note": "HAR-442 return reverse logistics capture 20260429110840",
+          "tags": ["har-442", "return-reverse-logistics", "20260429110840"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "Return",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-442 return item 20260429110840",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8716803244338",
+                "name": "#1048",
+                "createdAt": "2026-04-29T11:08:40Z",
+                "updatedAt": "2026-04-29T11:08:40Z",
+                "displayFinancialStatus": null,
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "totalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "40.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "totalRefundedSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19279731425586",
+                      "title": "HAR-442 return item 20260429110840",
+                      "quantity": 2,
+                      "currentQuantity": 2
+                    }
+                  ]
+                },
+                "fulfillments": [],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9640339407154",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19428779852082",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19279731425586",
+                              "title": "HAR-442 return item 20260429110840"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "returns": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 64,
+              "actualQueryCost": 26,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation ReturnReverseLogisticsFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "HAR442-FULFILL-20260429110840",
+            "url": "https://example.com/track/HAR442-FULFILL-20260429110840",
+            "company": "Hermes Carrier"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9640339407154",
+              "fulfillmentOrderLineItems": [
+                {
+                  "id": "gid://shopify/FulfillmentOrderLineItem/19428779852082",
+                  "quantity": 2
+                }
+              ]
+            }
+          ]
+        },
+        "message": "HAR-442 return reverse logistics fulfillment 20260429110840"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/7866624508210",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-04-29T11:08:41Z",
+                "updatedAt": "2026-04-29T11:08:41Z",
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17062242058546",
+                      "quantity": 2,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19279731425586",
+                        "title": "HAR-442 return item 20260429110840"
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderReadAfterFulfillment": {
+      "query": "#graphql\n  fragment ReturnReverseLogisticsOrderFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    totalPriceSet { shopMoney { amount currencyCode } }\n    currentTotalPriceSet { shopMoney { amount currencyCode } }\n    totalRefundedSet { shopMoney { amount currencyCode } }\n    tags\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n          location {\n            id\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n\n  query ReturnReverseLogisticsOrderRead($id: ID!) {\n    order(id: $id) {\n      ...ReturnReverseLogisticsOrderFields\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8716803244338"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8716803244338",
+              "name": "#1048",
+              "createdAt": "2026-04-29T11:08:40Z",
+              "updatedAt": "2026-04-29T11:08:41Z",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "40.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19279731425586",
+                    "title": "HAR-442 return item 20260429110840",
+                    "quantity": 2,
+                    "currentQuantity": 2
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/7866624508210",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-04-29T11:08:41Z",
+                  "updatedAt": "2026-04-29T11:08:41Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/17062242058546",
+                        "quantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19279731425586",
+                          "title": "HAR-442 return item 20260429110840"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9640339407154",
+                    "status": "CLOSED",
+                    "requestStatus": "UNSUBMITTED",
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19428779852082",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 0,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19279731425586",
+                            "title": "HAR-442 return item 20260429110840"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "returns": {
+                "nodes": []
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 55,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "seedOrder": {
+    "id": "gid://shopify/Order/8716803244338",
+    "name": "#1048",
+    "createdAt": "2026-04-29T11:08:40Z",
+    "updatedAt": "2026-04-29T11:08:41Z",
+    "displayFinancialStatus": null,
+    "displayFulfillmentStatus": "FULFILLED",
+    "totalPriceSet": {
+      "shopMoney": {
+        "amount": "40.0",
+        "currencyCode": "USD"
+      }
+    },
+    "currentTotalPriceSet": {
+      "shopMoney": {
+        "amount": "40.0",
+        "currencyCode": "USD"
+      }
+    },
+    "totalRefundedSet": {
+      "shopMoney": {
+        "amount": "0.0",
+        "currencyCode": "USD"
+      }
+    },
+    "tags": ["20260429110840", "har-442", "return-reverse-logistics"],
+    "lineItems": {
+      "nodes": [
+        {
+          "id": "gid://shopify/LineItem/19279731425586",
+          "title": "HAR-442 return item 20260429110840",
+          "quantity": 2,
+          "currentQuantity": 2
+        }
+      ]
+    },
+    "fulfillments": [
+      {
+        "id": "gid://shopify/Fulfillment/7866624508210",
+        "status": "SUCCESS",
+        "displayStatus": "FULFILLED",
+        "createdAt": "2026-04-29T11:08:41Z",
+        "updatedAt": "2026-04-29T11:08:41Z",
+        "fulfillmentLineItems": {
+          "nodes": [
+            {
+              "id": "gid://shopify/FulfillmentLineItem/17062242058546",
+              "quantity": 2,
+              "lineItem": {
+                "id": "gid://shopify/LineItem/19279731425586",
+                "title": "HAR-442 return item 20260429110840"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "fulfillmentOrders": {
+      "nodes": [
+        {
+          "id": "gid://shopify/FulfillmentOrder/9640339407154",
+          "status": "CLOSED",
+          "requestStatus": "UNSUBMITTED",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19428779852082",
+                "totalQuantity": 2,
+                "remainingQuantity": 0,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19279731425586",
+                  "title": "HAR-442 return item 20260429110840"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "returns": {
+      "nodes": []
+    }
+  },
+  "returnRequest": {
+    "query": "mutation ReturnRequestRecorded($input: ReturnRequestInput!) {\n  returnRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/8716803244338",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/17062242058546",
+            "quantity": 1,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnRequest": {
+            "return": {
+              "id": "gid://shopify/Return/13661602098",
+              "name": "#1048-R1",
+              "status": "REQUESTED",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/21111734578",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "returnApproveRequest": {
+    "query": "mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {\n  returnApproveRequest(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              fulfillmentLineItem {\n                id\n                lineItem {\n                  id\n                  title\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Return/13661602098"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnApproveRequest": {
+            "return": {
+              "id": "gid://shopify/Return/13661602098",
+              "name": "#1048-R1",
+              "status": "OPEN",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/21111734578",
+                    "quantity": 1,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": 1
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseFulfillmentOrder/13277462834",
+                    "status": "OPEN",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+                          "totalQuantity": 1,
+                          "fulfillmentLineItem": {
+                            "id": "gid://shopify/FulfillmentLineItem/17062242058546",
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19279731425586",
+                              "title": "HAR-442 return item 20260429110840"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 53,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reverseLogistics": {
+    "trackingInput": {
+      "number": "HAR442-RETURN-20260429110840",
+      "url": "https://example.com/returns/HAR442-RETURN-20260429110840"
+    },
+    "updatedTrackingInput": {
+      "number": "HAR442-RETURN-UPDATED-20260429110840",
+      "url": "https://example.com/returns/HAR442-RETURN-UPDATED-20260429110840"
+    },
+    "labelInput": {
+      "fileUrl": "https://example.com/labels/HAR442-20260429110840.pdf"
+    }
+  },
+  "reverseDeliveryCreate": {
+    "query": "mutation ReverseDeliveryCreateWithShippingRecorded(\n  $reverseFulfillmentOrderId: ID!\n  $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!\n  $trackingInput: ReverseDeliveryTrackingInput\n  $labelInput: ReverseDeliveryLabelInput\n) {\n  reverseDeliveryCreateWithShipping(\n    reverseFulfillmentOrderId: $reverseFulfillmentOrderId\n    reverseDeliveryLineItems: $reverseDeliveryLineItems\n    trackingInput: $trackingInput\n    labelInput: $labelInput\n    notifyCustomer: true\n  ) {\n    reverseDelivery {\n      id\n      reverseFulfillmentOrder {\n        id\n      }\n      reverseDeliveryLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          reverseFulfillmentOrderLineItem {\n            id\n            totalQuantity\n          }\n        }\n      }\n      deliverable {\n        __typename\n        ... on ReverseDeliveryShippingDeliverable {\n          tracking {\n            number\n            url\n            carrierName\n          }\n          label {\n            publicFileUrl\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/13277462834",
+      "reverseDeliveryLineItems": [],
+      "trackingInput": {
+        "number": "HAR442-RETURN-20260429110840",
+        "url": "https://example.com/returns/HAR442-RETURN-20260429110840"
+      },
+      "labelInput": {
+        "fileUrl": "https://example.com/labels/HAR442-20260429110840.pdf"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "reverseDeliveryCreateWithShipping": {
+            "reverseDelivery": {
+              "id": "gid://shopify/ReverseDelivery/4751589682",
+              "reverseFulfillmentOrder": {
+                "id": "gid://shopify/ReverseFulfillmentOrder/13277462834"
+              },
+              "reverseDeliveryLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseDeliveryLineItem/6502089010",
+                    "quantity": 1,
+                    "reverseFulfillmentOrderLineItem": {
+                      "id": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+                      "totalQuantity": 1
+                    }
+                  }
+                ]
+              },
+              "deliverable": {
+                "__typename": "ReverseDeliveryShippingDeliverable",
+                "tracking": {
+                  "number": "HAR442-RETURN-20260429110840",
+                  "url": "https://example.com/returns/HAR442-RETURN-20260429110840",
+                  "carrierName": null
+                },
+                "label": {
+                  "publicFileUrl": "https://example.com/labels/HAR442-20260429110840.pdf"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reverseDeliveryUpdate": {
+    "query": "mutation ReverseDeliveryShippingUpdateRecorded($reverseDeliveryId: ID!, $trackingInput: ReverseDeliveryTrackingInput) {\n  reverseDeliveryShippingUpdate(reverseDeliveryId: $reverseDeliveryId, trackingInput: $trackingInput) {\n    reverseDelivery {\n      id\n      deliverable {\n        __typename\n        ... on ReverseDeliveryShippingDeliverable {\n          tracking {\n            number\n            url\n            carrierName\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "reverseDeliveryId": "gid://shopify/ReverseDelivery/4751589682",
+      "trackingInput": {
+        "number": "HAR442-RETURN-UPDATED-20260429110840",
+        "url": "https://example.com/returns/HAR442-RETURN-UPDATED-20260429110840"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "reverseDeliveryShippingUpdate": {
+            "reverseDelivery": {
+              "id": "gid://shopify/ReverseDelivery/4751589682",
+              "deliverable": {
+                "__typename": "ReverseDeliveryShippingDeliverable",
+                "tracking": {
+                  "number": "HAR442-RETURN-UPDATED-20260429110840",
+                  "url": "https://example.com/returns/HAR442-RETURN-UPDATED-20260429110840",
+                  "carrierName": null
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reverseFulfillmentDispose": {
+    "query": "mutation ReverseFulfillmentOrderDisposeRecorded($dispositionInputs: [ReverseFulfillmentOrderDisposeInput!]!) {\n  reverseFulfillmentOrderDispose(dispositionInputs: $dispositionInputs) {\n    reverseFulfillmentOrderLineItems {\n      id\n      totalQuantity\n      dispositions {\n        type\n        quantity\n        location {\n          id\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "dispositionInputs": [
+        {
+          "reverseFulfillmentOrderLineItemId": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+          "quantity": 1,
+          "dispositionType": "NOT_RESTOCKED",
+          "locationId": "gid://shopify/Location/106318463282"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "reverseFulfillmentOrderDispose": {
+            "reverseFulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+                "totalQuantity": 1,
+                "dispositions": [
+                  {
+                    "type": "NOT_RESTOCKED",
+                    "quantity": 1,
+                    "location": {
+                      "id": "gid://shopify/Location/106318463282"
+                    }
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "returnProcess": {
+    "query": "mutation ReturnProcessRecorded($input: ReturnProcessInput!) {\n  returnProcess(input: $input) {\n    return {\n      id\n      name\n      status\n      totalQuantity\n      returnLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          processedQuantity\n          unprocessedQuantity\n        }\n      }\n      reverseFulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              dispositions {\n                type\n                quantity\n                location {\n                  id\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "input": {
+        "returnId": "gid://shopify/Return/13661602098",
+        "returnLineItems": [
+          {
+            "id": "gid://shopify/ReturnLineItem/21111734578",
+            "quantity": 1
+          }
+        ],
+        "notifyCustomer": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "returnProcess": {
+            "return": {
+              "id": "gid://shopify/Return/13661602098",
+              "name": "#1048-R1",
+              "status": "OPEN",
+              "totalQuantity": 1,
+              "returnLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReturnLineItem/21111734578",
+                    "quantity": 1,
+                    "processedQuantity": 1,
+                    "unprocessedQuantity": 0
+                  }
+                ]
+              },
+              "reverseFulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ReverseFulfillmentOrder/13277462834",
+                    "status": "OPEN",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+                          "totalQuantity": 1,
+                          "dispositions": [
+                            {
+                              "type": "NOT_RESTOCKED",
+                              "quantity": 1,
+                              "location": {
+                                "id": "gid://shopify/Location/106318463282"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 53,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query ReturnReverseLogisticsReadRecorded(\n  $returnId: ID!\n  $orderId: ID!\n  $reverseDeliveryId: ID!\n  $reverseFulfillmentOrderId: ID!\n) {\n  return(id: $returnId) {\n    id\n    name\n    status\n    totalQuantity\n    returnLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        processedQuantity\n        unprocessedQuantity\n      }\n    }\n  }\n  order(id: $orderId) {\n    id\n    name\n    returns(first: 5) {\n      nodes {\n        id\n        name\n        status\n        totalQuantity\n      }\n    }\n  }\n  reverseDelivery(id: $reverseDeliveryId) {\n    id\n    deliverable {\n      __typename\n      ... on ReverseDeliveryShippingDeliverable {\n        tracking {\n          number\n          url\n          carrierName\n        }\n        label {\n          publicFileUrl\n        }\n      }\n    }\n  }\n  reverseFulfillmentOrder(id: $reverseFulfillmentOrderId) {\n    id\n    status\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        dispositions {\n          type\n          quantity\n          location {\n            id\n          }\n        }\n      }\n    }\n    reverseDeliveries(first: 5) {\n      nodes {\n        id\n      }\n    }\n  }\n}",
+    "variables": {
+      "returnId": "gid://shopify/Return/13661602098",
+      "orderId": "gid://shopify/Order/8716803244338",
+      "reverseDeliveryId": "gid://shopify/ReverseDelivery/4751589682",
+      "reverseFulfillmentOrderId": "gid://shopify/ReverseFulfillmentOrder/13277462834"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "return": {
+            "id": "gid://shopify/Return/13661602098",
+            "name": "#1048-R1",
+            "status": "CLOSED",
+            "totalQuantity": 1,
+            "returnLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReturnLineItem/21111734578",
+                  "quantity": 1,
+                  "processedQuantity": 1,
+                  "unprocessedQuantity": 0
+                }
+              ]
+            }
+          },
+          "order": {
+            "id": "gid://shopify/Order/8716803244338",
+            "name": "#1048",
+            "returns": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Return/13661602098",
+                  "name": "#1048-R1",
+                  "status": "CLOSED",
+                  "totalQuantity": 1
+                }
+              ]
+            }
+          },
+          "reverseDelivery": {
+            "id": "gid://shopify/ReverseDelivery/4751589682",
+            "deliverable": {
+              "__typename": "ReverseDeliveryShippingDeliverable",
+              "tracking": {
+                "number": "HAR442-RETURN-UPDATED-20260429110840",
+                "url": "https://example.com/returns/HAR442-RETURN-UPDATED-20260429110840",
+                "carrierName": null
+              },
+              "label": {
+                "publicFileUrl": "https://example.com/labels/HAR442-20260429110840.pdf"
+              }
+            }
+          },
+          "reverseFulfillmentOrder": {
+            "id": "gid://shopify/ReverseFulfillmentOrder/13277462834",
+            "status": "OPEN",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseFulfillmentOrderLineItem/20348404018",
+                  "totalQuantity": 1,
+                  "dispositions": [
+                    {
+                      "type": "NOT_RESTOCKED",
+                      "quantity": 1,
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "reverseDeliveries": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ReverseDelivery/4751589682"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 33,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation ReturnReverseLogisticsOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8716803244338",
+      "reason": "OTHER",
+      "notifyCustomer": false,
+      "restock": true
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/7da7758d-b3e0-4219-9468-630fe1b5b998"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

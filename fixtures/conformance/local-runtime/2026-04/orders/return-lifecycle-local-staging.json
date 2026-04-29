@@ -139,7 +139,7 @@
       "company": "Updated Carrier"
     },
     "labelInput": {
-      "publicFileUrl": "https://labels.example/return.pdf"
+      "fileUrl": "https://labels.example/return.pdf"
     }
   },
   "expected": {
@@ -406,7 +406,7 @@
         "returnProcess": {
           "return": {
             "id": "gid://shopify/Return/2",
-            "status": "CLOSED",
+            "status": "OPEN",
             "returnLineItems": {
               "nodes": [
                 {
@@ -421,7 +421,7 @@
               "nodes": [
                 {
                   "id": "gid://shopify/ReverseFulfillmentOrder/5",
-                  "status": "CLOSED",
+                  "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
@@ -469,7 +469,7 @@
         },
         "reverseFulfillmentOrder": {
           "id": "gid://shopify/ReverseFulfillmentOrder/5",
-          "status": "CLOSED",
+          "status": "OPEN",
           "lineItems": {
             "nodes": [
               {

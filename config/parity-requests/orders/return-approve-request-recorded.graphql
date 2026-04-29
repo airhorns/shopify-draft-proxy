@@ -1,0 +1,41 @@
+mutation ReturnApproveRequestRecorded($input: ReturnApproveRequestInput!) {
+  returnApproveRequest(input: $input) {
+    return {
+      id
+      name
+      status
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              id
+              totalQuantity
+              fulfillmentLineItem {
+                id
+                lineItem {
+                  id
+                  title
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

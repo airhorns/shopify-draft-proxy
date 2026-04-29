@@ -1290,7 +1290,9 @@ const DOMAIN_DISPATCHERS: DomainDispatcher[] = [
         setGraphQLResponse(
           request,
           200,
-          request.primaryRootField !== null && ORDER_BACKED_FULFILLMENT_QUERY_ROOTS.has(request.primaryRootField)
+          request.primaryRootField !== null &&
+            (ORDER_BACKED_FULFILLMENT_QUERY_ROOTS.has(request.primaryRootField) ||
+              ORDER_BACKED_REVERSE_LOGISTICS_QUERY_ROOTS.has(request.primaryRootField))
             ? handleOrderQuery(request.runtime, request.body.query, request.variables)
             : handleStorePropertiesQuery(request.runtime, request.body.query, request.variables),
         );

@@ -1,0 +1,21 @@
+mutation ReverseDeliveryShippingUpdateRecorded($reverseDeliveryId: ID!, $trackingInput: ReverseDeliveryTrackingInput) {
+  reverseDeliveryShippingUpdate(reverseDeliveryId: $reverseDeliveryId, trackingInput: $trackingInput) {
+    reverseDelivery {
+      id
+      deliverable {
+        __typename
+        ... on ReverseDeliveryShippingDeliverable {
+          tracking {
+            number
+            url
+            carrierName
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
