@@ -5,6 +5,9 @@
     "discountCodeAppUpdate",
     "discountAutomaticAppCreate",
     "discountAutomaticAppUpdate",
+    "discountAutomaticDeactivate",
+    "discountAutomaticActivate",
+    "discountAutomaticDelete",
     "discountCodeBulkActivate",
     "discountCodeBulkDeactivate",
     "discountCodeBulkDelete",
@@ -65,6 +68,32 @@
         }
       },
       {
+        "name": "automatic-app-deactivate-payload",
+        "capturePath": "$.automaticLifecycle.deactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-lifecycle-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-activate-payload",
+        "capturePath": "$.automaticLifecycle.activate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-lifecycle-activate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
         "name": "discount-bulk-job-payloads",
         "capturePath": "$.bulkJobs.response.data",
         "proxyPath": "$.data",
@@ -101,8 +130,34 @@
             "removedCode": "HAR366REDEEM"
           }
         }
+      },
+      {
+        "name": "automatic-app-delete-payload",
+        "capturePath": "$.automaticLifecycle.delete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-app-read-after-delete",
+        "capturePath": "$.automaticLifecycle.deletedRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-app-automatic-lifecycle-read-after-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountAutomaticAppCreate.automaticAppDiscount.discountId"
+            }
+          }
+        }
       }
     ]
   },
-  "notes": "HAR-366 provides executable local-runtime parity for app-managed discount create/update and discount bulk job staging without runtime Shopify writes. The fixture seeds explicit Shopify Function metadata as the app-discount ownership evidence; live app-discount success capture remains blocked because the checked-in disposable conformance app has no discount Function extension. Bulk selectors are also covered by runtime tests for search selectors and broad destructive refusals."
+  "notes": "HAR-437 extends the HAR-366 executable local-runtime parity fixture to cover app-managed automatic discount create/update plus shared automatic deactivate/activate/delete lifecycle behavior and read-after-delete absence without runtime Shopify writes. The fixture seeds explicit Shopify Function metadata as the app-discount ownership evidence; live app-discount success capture remains blocked because the checked-in disposable conformance app has no discount Function extension. Bulk selectors are also covered by runtime tests for search selectors and broad destructive refusals."
 }
