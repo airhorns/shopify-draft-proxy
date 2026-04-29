@@ -256,7 +256,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'inventoryActivate/inventoryDeactivate/inventoryBulkToggleActivation linkage behavior.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
-      `${CAPTURE_ROOT}inventory-linkage-mutation-*.json`,
+      `${CAPTURE_ROOT}inventory-linkage-parity.json`,
+      `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',

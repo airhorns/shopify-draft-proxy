@@ -107,6 +107,7 @@ export const inventoryLevelRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema,
   location: inventoryLevelLocationRecordSchema.nullable(),
+  isActive: z.boolean().optional(),
   quantities: z.array(inventoryLevelQuantityRecordSchema),
 });
 export type InventoryLevelRecord = z.infer<typeof inventoryLevelRecordSchema>;

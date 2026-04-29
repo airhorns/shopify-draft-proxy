@@ -6367,6 +6367,7 @@ function readCapturedInventoryLevel(source: Record<string, unknown>): InventoryL
     id,
     cursor: readStringField(source, 'cursor'),
     location: locationId ? { id: locationId, name: readStringField(location, 'name') } : null,
+    isActive: readBooleanField(source, 'isActive') ?? true,
     quantities: readArrayField(source, 'quantities')
       .filter(isPlainObject)
       .map((quantity) => ({
@@ -6425,7 +6426,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
     !(
       'inventoryActivateNoOp' in captureObject ||
       'inventoryDeactivateOnlyLocationError' in captureObject ||
-      'inventoryBulkToggleActivateNoOp' in captureObject
+      'inventoryBulkToggleActivateNoOp' in captureObject ||
+      'inventoryInactiveLifecycleDeactivate' in captureObject
     )
   ) {
     return false;
@@ -6446,8 +6448,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
   runtime.store.upsertBaseProducts([
     makeSeedProduct(productId, {
       ...product,
-      totalInventory: firstVariant?.inventoryQuantity ?? null,
-      tracksInventory: firstVariant?.inventoryItem?.tracked ?? null,
+      totalInventory: readNumberField(product, 'totalInventory') ?? firstVariant?.inventoryQuantity ?? null,
+      tracksInventory: readBooleanField(product, 'tracksInventory') ?? firstVariant?.inventoryItem?.tracked ?? null,
     }),
   ]);
   if (variants.length > 0) {

@@ -1,0 +1,8 @@
+mutation InventoryInactiveLifecycleDeactivate($inventoryLevelId: ID!, $idempotencyKey: String!) {
+  inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
+    userErrors {
+      field
+      message
+    }
+  }
+}
