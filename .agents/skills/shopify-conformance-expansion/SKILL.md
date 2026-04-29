@@ -52,6 +52,31 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
     Linear workpad with the blocker, move the issue to Human Review, and do
     **not** commit, push, or open a PR.
 
+## Rejected-review guardrails
+
+Recent PR rejections in this repo have clustered around the same conformance
+mistakes. Check these before opening or returning a PR:
+
+- A fidelity claim needs executable parity evidence, not just local integration
+  tests. If the change says "Shopify does X" or changes local emulation to match
+  Shopify, add or update a captured parity spec and run `conformance:parity`.
+- Documentation is not a replacement for implementation. If review identifies a
+  concrete behavior gap, model it locally or add a justified, linked follow-up;
+  do not only document the deficiency.
+- Parity replay files must preserve the captured request shape. Do not change
+  input names, variables, selected fields, or operation shape in
+  `config/parity-requests/` without a corresponding capture or re-capture that
+  proves Shopify accepted that shape.
+- Treat one reviewed miss as a family-level signal. Audit sibling serializers,
+  error payloads, Node implementors, state buckets, search branches, and
+  endpoint docs for the same flaw before handing off.
+- Register new capture scripts through the aggregate capture index/runner.
+  Avoid adding resource-specific package shortcuts or instructions that bypass
+  the central conformance flow.
+- If `main` already contains the needed behavior/evidence and the branch has no
+  useful delta, close the PR and cancel or update the Linear ticket instead of
+  shipping no-op churn.
+
 ## Live-store setup
 
 ### What you need
