@@ -29,5 +29,5 @@
       }
     ]
   },
-  "notes": "HAR-412 captures Admin GraphQL 2026-04 Product.contextualPricing and ProductVariant.contextualPricing for country MX while a disposable product-level fixed price is active on the Mexico Markets price list, then deletes that fixed price and captures cleanup reads. Local parity is captured-read replay only: the proxy preserves hydrated contextualPricing payloads for product and variant reads, but does not synthesize broader contextual pricing from staged price-list writes."
+  "notes": "HAR-412 captures Admin GraphQL 2026-04 Product.contextualPricing and ProductVariant.contextualPricing for country MX while a disposable product-level fixed price is active on the Mexico Markets price list, then deletes that fixed price and captures cleanup reads. Local parity preserves hydrated contextualPricing payloads for product and variant reads. Runtime staging also derives the fixed-price/quantity-pricing subset from effective Market -> MarketCatalog -> PriceList state for known product variants; relative price-list adjustments, market priority conflicts, and B2B/app catalog contextual pricing remain explicit gaps."
 }

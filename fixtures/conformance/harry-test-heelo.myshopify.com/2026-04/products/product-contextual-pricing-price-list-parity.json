@@ -1,7 +1,7 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-04-28T03:47:17.424Z",
+  "capturedAt": "2026-04-29T11:03:55.275Z",
   "scope": "HAR-412 product and variant contextual pricing read parity for Markets price lists",
   "setup": {
     "priceListId": "gid://shopify/PriceList/31575408946",
@@ -317,17 +317,17 @@
                 "fixedQuantityRulesCount": 0,
                 "priceRange": {
                   "minVariantPrice": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "maxVariantPrice": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   }
                 },
                 "minVariantPricing": {
                   "price": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "compareAtPrice": null,
@@ -348,7 +348,7 @@
                 },
                 "maxVariantPricing": {
                   "price": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "compareAtPrice": null,
@@ -381,7 +381,7 @@
               },
               "contextualPricing": {
                 "price": {
-                  "amount": "11742.0",
+                  "amount": "11709.0",
                   "currencyCode": "MXN"
                 },
                 "compareAtPrice": null,
@@ -409,7 +409,7 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1982,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -690,7 +690,7 @@
               "actualQueryCost": 6,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1992,
                 "restoreRate": 100
               }
             }
@@ -770,17 +770,17 @@
                 "fixedQuantityRulesCount": 0,
                 "priceRange": {
                   "minVariantPrice": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "maxVariantPrice": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   }
                 },
                 "minVariantPricing": {
                   "price": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "compareAtPrice": null,
@@ -801,7 +801,7 @@
                 },
                 "maxVariantPricing": {
                   "price": {
-                    "amount": "11742.0",
+                    "amount": "11709.0",
                     "currencyCode": "MXN"
                   },
                   "compareAtPrice": null,
@@ -834,7 +834,7 @@
               },
               "contextualPricing": {
                 "price": {
-                  "amount": "11742.0",
+                  "amount": "11709.0",
                   "currencyCode": "MXN"
                 },
                 "compareAtPrice": null,
