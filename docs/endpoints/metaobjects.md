@@ -138,7 +138,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 
 - Definition delete support deliberately stops short of destructive associated-entry cascades. The local proxy returns an explicit `UNSUPPORTED` userError when effective `metaobjectsCount` is nonzero; future cascade behavior needs conformance-backed migration, deletion ordering, and downstream-read evidence before support widens.
 - Metaobject relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and `mixed_reference` need separate conformance evidence before support is widened.
-- Broader bulk delete selection semantics and Shopify async job timing need additional live conformance before widening beyond the local ids/type branches.
+- Broader bulk delete selection semantics still need additional live conformance before widening beyond the local ids/type branches. HAR-450 captures the `where.type` branch and confirms Shopify returns an async job while immediate downstream reads already hide selected rows and report the definition's `metaobjectsCount` as zero.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
 
 ### Empty and no-data expectations
@@ -151,7 +151,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 ### Conformance evidence still needed before widening support
 
 - Capture associated-entry `metaobjectDefinitionDelete` cascade behavior before replacing the current local `UNSUPPORTED` guardrail for definitions with entries.
-- Capture additional `metaobjectBulkDelete` selector branches, async job timing, partial-result behavior, and downstream reads before widening beyond the current `where.ids` / `where.type` local branches.
+- Capture additional `metaobjectBulkDelete` selector branches and partial-result behavior before widening beyond the current `where.ids` / captured `where.type` local branches.
 - Capture more `metaobjectUpdate` / `metaobjectUpsert` conflict and validation branches, especially field type families beyond the current scalar/JSON/reference slice.
 - Expand `standardMetaobjectDefinitionEnable` success captures for additional standard templates before broadening the bounded local template catalog.
 - Capture generic metafield-backed references, `mixed_reference`, and non-metaobject owner relationship edges before claiming broader reference support.
@@ -181,6 +181,8 @@ HAR-242 adds `config/parity-specs/metaobjects/metaobject-definition-lifecycle-lo
 
 HAR-244 adds `config/parity-specs/metaobjects/metaobject-entry-lifecycle-local-staging.json` and `tests/integration/metaobject-draft-flow.test.ts` for local entry row lifecycle staging. The test covers create/update/upsert/delete/bulk delete, downstream ID/handle/catalog reads, definition count updates, meta API state/log visibility, ordered missing-row bulk errors, and no runtime Shopify writes. HAR-246 extends that runtime coverage for GraphQL variable validation versus resolver `userErrors`, missing definition type, invalid field key/value, duplicate create/update handle behavior, stale row update/delete, blank upsert handle generation, and `where.ids` bulk partial-result behavior. The captured create/delete branches in `metaobjects-read.json` are used as shape evidence; additional live captures are still needed before promoting broader update/upsert/bulk delete parity scenarios.
 
+HAR-450 adds `config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-bulk-delete-type-*.graphql`, and a live 2026-04 fixture for `metaobjectBulkDelete(where: { type })`. The recorder creates a disposable definition with two rows, captures the seeded read, bulk deletes by type, records downstream ID/catalog/definition-count reads, and then cleans up the definition. The parity runner hydrates the proxy from the captured seeded read, replays the type-scoped bulk delete locally, compares mutation `userErrors` and downstream reads strictly, and records Shopify's async job id/`done` timing as the only accepted payload volatility.
+
 HAR-245 adds `tests/integration/metaobject-schema-change-flow.test.ts` for the combined definition/row lifecycle matrix and promotes the live schema-change sequence through `config/parity-specs/metaobjects/metaobject-schema-change-lifecycle.json`. The fixture-backed local scenario creates a definition, creates/updates/deletes rows before a schema edit, updates the definition with an added required field, removed field, reordered fields, display-name key change, validation change, and capability changes, then validates pre-existing and post-change row reads plus post-change create/update/delete behavior. It also checks singular ID/handle lookups, catalog reads, meta state/log visibility, and no runtime Shopify writes.
 
 HAR-384 adds `config/parity-specs/metaobjects/metaobject-reference-lifecycle.json`, `config/parity-requests/metaobjects/metaobject-reference-read.graphql`, and a live 2026-04 fixture for metaobject reference relationships. The parity runner hydrates the local proxy from captured definition and entry reads, then strictly compares selected `reference`, `references`, and `referencedBy` payloads against Shopify while allowing only opaque cursor differences. `tests/integration/metaobject-draft-flow.test.ts` covers staged create/update/delete reference effects and no runtime upstream writes.
@@ -197,3 +199,4 @@ HAR-384 adds `config/parity-specs/metaobjects/metaobject-reference-lifecycle.jso
 - Read fixture recorder: `scripts/capture-metaobject-read-conformance.mts`
 - Schema-change fixture recorder: `scripts/capture-metaobject-schema-change-conformance.ts`
 - Reference relationship fixture recorder: `scripts/capture-metaobject-reference-conformance.ts`
+- Bulk-delete fixture recorder: `scripts/capture-metaobject-bulk-delete-conformance.ts`

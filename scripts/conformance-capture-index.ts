@@ -430,6 +430,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-conformance.ts',
+    purpose: 'Metaobject bulk delete by type plus downstream deleted-row and definition-count reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-type-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
