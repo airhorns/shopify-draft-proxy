@@ -1,0 +1,73 @@
+{
+  "primary": {
+    "variables": {
+      "page": {
+        "title": "HAR 451 Default Visible Page",
+        "body": "<p>Visible by default</p>"
+      }
+    }
+  },
+  "expected": {
+    "create": {
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/1?shopify-draft-proxy=synthetic",
+              "title": "HAR 451 Default Visible Page",
+              "handle": "har-451-default-visible-page",
+              "body": "<p>Visible by default</p>",
+              "bodySummary": "Visible by default",
+              "isPublished": true,
+              "publishedAt": "2024-01-01T00:00:00.000Z",
+              "templateSuffix": null
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "readAfterCreate": {
+      "response": {
+        "data": {
+          "page": {
+            "id": "gid://shopify/Page/1?shopify-draft-proxy=synthetic",
+            "title": "HAR 451 Default Visible Page",
+            "handle": "har-451-default-visible-page",
+            "body": "<p>Visible by default</p>",
+            "bodySummary": "Visible by default",
+            "isPublished": true,
+            "publishedAt": "2024-01-01T00:00:00.000Z",
+            "templateSuffix": null
+          },
+          "pages": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Page/1?shopify-draft-proxy=synthetic",
+                "title": "HAR 451 Default Visible Page",
+                "handle": "har-451-default-visible-page",
+                "isPublished": true,
+                "publishedAt": "2024-01-01T00:00:00.000Z"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "cursor:gid://shopify/Page/1?shopify-draft-proxy=synthetic",
+              "endCursor": "cursor:gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+            }
+          }
+        }
+      }
+    }
+  },
+  "evidence": {
+    "apiVersion": "2026-04",
+    "source": "local-runtime-backed-by-live-doc-behavior",
+    "notes": [
+      "HAR-451 reviewed current Shopify PageCreateInput documentation and confirmed the default publication behavior: when no publish date is supplied, pages default to published.",
+      "The existing live online-store content lifecycle capture proves explicit `isPublished: true`; this fixture records the local runtime path for omitted `isPublished` and `publishDate` so the generic parity runner verifies the branch fix directly.",
+      "The downstream read proves the staged page remains visible through `page(id:)` and `pages(query: \"published_status:published ...\")` without runtime Shopify writes."
+    ]
+  }
+}

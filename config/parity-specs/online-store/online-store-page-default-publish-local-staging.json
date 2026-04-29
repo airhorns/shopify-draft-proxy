@@ -1,0 +1,43 @@
+{
+  "scenarioId": "online-store-page-default-publish-local-staging",
+  "operationNames": ["page", "pages", "pageCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "downstream-read-parity", "search-query-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/online-store-page-default-publish-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-content-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-page-default-publish-create.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pageCreate omitted publish fields defaults to published",
+        "capturePath": "$.expected.create.response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate"
+      },
+      {
+        "name": "default-published page is readable and searchable downstream",
+        "capturePath": "$.expected.readAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-page-default-publish-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
+            "publishedQuery": "published_status:published title:'HAR 451 Default Visible Page'"
+          }
+        },
+        "selectedPaths": ["$.page", "$.pages.nodes", "$.pages.pageInfo.hasNextPage", "$.pages.pageInfo.hasPreviousPage"]
+      }
+    ]
+  },
+  "notes": "HAR-451 rework adds the PR-requested executable parity proof for the branch-specific pageCreate default publication fix. Existing live Shopify content captures covered explicit `isPublished: true`; this local-runtime-backed parity scenario exercises the omitted `isPublished`/`publishDate` input path, then verifies the staged page is published in the mutation payload and through downstream `page` plus `pages(query: \"published_status:published ...\")` reads. The behavior is also covered by tests/integration/online-store-content-flow.test.ts."
+}
