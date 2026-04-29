@@ -1,0 +1,367 @@
+{
+  "scenarioId": "b2b-company-contact-main-delete",
+  "operationNames": [
+    "companyCreate",
+    "companyUpdate",
+    "companyContactCreate",
+    "companyAssignCustomerAsContact",
+    "companyAssignMainContact",
+    "companyRevokeMainContact",
+    "company",
+    "companiesDelete",
+    "companyDelete",
+    "companies"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "read-after-write",
+    "main-contact-lifecycle",
+    "bulk-delete",
+    "empty-read"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-contact-main-delete.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": [
+    "tests/integration/b2b-company-lifecycle-flow.test.ts",
+    "tests/integration/b2b-company-query-shapes.test.ts"
+  ],
+  "notes": "Executable parity coverage for HAR-445 high-risk B2B company lifecycle paths. The live fixture creates disposable companies and a disposable customer, then records companyUpdate, companyContactCreate, companyAssignCustomerAsContact, companyAssignMainContact, companyRevokeMainContact, companiesDelete, companyDelete, and filtered empty reads after deletion. Shopify 2026-04 rejects `companiesCount(query:)`, so post-delete empty evidence uses singular `company(id:)` nulls plus `companies(query:)` empty connections. Local replay stages the same B2B company graph in memory and uses the captured customer ID only as a B2B contact reference.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-payload",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "company-update-payload",
+        "capturePath": "$.companyUpdate.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-update.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.companyUpdate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy update targets the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "company-contact-create-payload",
+        "capturePath": "$.contactCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-contact-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.contactCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.companyContact.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy contact is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "assign-customer-contact-payload",
+        "capturePath": "$.assignCustomer.response.data.companyAssignCustomerAsContact",
+        "proxyPath": "$.data.companyAssignCustomerAsContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-assign-customer.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "customerId": { "fromCapturePath": "$.assignCustomer.request.variables.customerId" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.companyContact.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy contact is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "assign-main-contact-payload",
+        "capturePath": "$.assignMainContact.response.data.companyAssignMainContact",
+        "proxyPath": "$.data.companyAssignMainContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-assign-main.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "companyContactId": {
+              "fromProxyResponse": "company-contact-create-payload",
+              "path": "$.data.companyContactCreate.companyContact.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy main-contact mutation targets the locally staged company ID."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy main contact uses the locally staged contact ID."
+          },
+          {
+            "path": "$.company.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[2].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          }
+        ]
+      },
+      {
+        "name": "revoke-main-contact-payload",
+        "capturePath": "$.revokeMainContact.response.data.companyRevokeMainContact",
+        "proxyPath": "$.data.companyRevokeMainContact",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-revoke-main.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy revoke mutation targets the locally staged company ID."
+          },
+          {
+            "path": "$.company.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[2].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          }
+        ]
+      },
+      {
+        "name": "read-after-main-contact-lifecycle",
+        "capturePath": "$.readAfterMainContact.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-read-main.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy read uses the locally staged company ID."
+          },
+          {
+            "path": "$.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.contacts.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.contacts.nodes[2].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.contacts.nodes[0].customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different customer IDs for contacts created from email input."
+          },
+          {
+            "path": "$.contacts.nodes[1].customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different customer IDs for contacts created from email input."
+          },
+          {
+            "path": "$.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "bulk-company-create-payload",
+        "capturePath": "$.bulkCompanyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-create.graphql",
+          "variablesCapturePath": "$.bulkCompanyCreate.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[1].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different stable system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "companies-delete-payload",
+        "capturePath": "$.companiesDelete.response.data.companiesDelete",
+        "proxyPath": "$.data.companiesDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-companies-delete.graphql",
+          "variables": {
+            "companyIds": [
+              { "fromProxyResponse": "bulk-company-create-payload", "path": "$.data.companyCreate.company.id" }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCompanyIds[0]",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy bulk delete returns the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "bulk-read-after-delete",
+        "capturePath": "$.bulkReadAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-read-after-delete.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "bulk-company-create-payload",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "companyQuery": { "fromCapturePath": "$.bulkReadAfterDelete.request.variables.companyQuery" }
+          }
+        }
+      },
+      {
+        "name": "company-delete-payload",
+        "capturePath": "$.companyDelete.response.data.companyDelete",
+        "proxyPath": "$.data.companyDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-company-delete.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCompanyId",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy delete returns the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-company-delete",
+        "capturePath": "$.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-read-after-delete.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "companyQuery": { "fromCapturePath": "$.readAfterDelete.request.variables.companyQuery" }
+          }
+        }
+      }
+    ]
+  }
+}
