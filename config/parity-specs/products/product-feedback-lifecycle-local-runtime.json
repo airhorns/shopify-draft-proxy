@@ -1,0 +1,73 @@
+{
+  "scenarioId": "product-feedback-lifecycle-local-runtime",
+  "operationNames": ["bulkProductResourceFeedbackCreate", "productResourceFeedback", "shopResourceFeedbackCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/product-feedback-lifecycle-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulkProductResourceFeedbackCreate payload",
+        "capturePath": "$.create.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate"
+      },
+      {
+        "name": "productResourceFeedback read after write",
+        "capturePath": "$.read.response.data.productResourceFeedback",
+        "proxyPath": "$.data.productResourceFeedback",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-read-local-runtime.graphql",
+          "variables": {
+            "id": "gid://shopify/Product/7001"
+          }
+        }
+      },
+      {
+        "name": "missing product feedback validation",
+        "capturePath": "$.missingProductValidation.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.missingProductValidation.variables"
+        }
+      },
+      {
+        "name": "missing product feedback read",
+        "capturePath": "$.missingProductRead.response.data.productResourceFeedback",
+        "proxyPath": "$.data.productResourceFeedback",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-read-local-runtime.graphql",
+          "variables": {
+            "id": "gid://shopify/Product/7999"
+          }
+        }
+      },
+      {
+        "name": "shopResourceFeedbackCreate payload",
+        "capturePath": "$.shopCreate.response.data.shopResourceFeedbackCreate",
+        "proxyPath": "$.data.shopResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/shop-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.shopCreate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-431 local-runtime parity evidence for feedback roots. Live HAR-362 probes still hit resource-feedback access and sales-channel configuration blockers, so this fixture enforces the local contract: valid product feedback stages and reads back by product id, missing products return userErrors without partial feedback, shop feedback stages locally, and supported feedback mutations do not proxy upstream at runtime."
+}
