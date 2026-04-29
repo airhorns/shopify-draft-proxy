@@ -3183,7 +3183,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryActivate", "InventoryActivate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Stages activation locally, including 2026-04 same item/location reactivation that preserves inactive inventory-level id and quantity rows without runtime Shopify writes."
   },
   {
     "name": "inventoryDeactivate",
@@ -3192,7 +3193,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryDeactivate", "InventoryDeactivate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Stages deactivation locally by marking product-backed inventory levels inactive, preserving them for includeInactive reads and later reactivation while retaining the captured minimum-one-active-location guard."
   },
   {
     "name": "inventoryBulkToggleActivation",

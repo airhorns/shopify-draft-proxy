@@ -1,0 +1,819 @@
+{
+  "capturedAt": "2026-04-29T09:33:03.737Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "locations": [
+    {
+      "id": "gid://shopify/Location/106318430514",
+      "name": "Shop location"
+    },
+    {
+      "id": "gid://shopify/Location/106318463282",
+      "name": "My Custom Location"
+    }
+  ],
+  "createdProduct": {
+    "id": "gid://shopify/Product/10173439443250",
+    "title": "hermes-inventory-inactive-lifecycle-1777455181697",
+    "handle": "hermes-inventory-inactive-lifecycle-1777455181697",
+    "status": "ACTIVE",
+    "totalInventory": 0,
+    "tracksInventory": true,
+    "variants": {
+      "nodes": [
+        {
+          "id": "gid://shopify/ProductVariant/51111189479730",
+          "title": "Default Title",
+          "sku": null,
+          "barcode": null,
+          "price": "0.00",
+          "compareAtPrice": null,
+          "taxable": true,
+          "inventoryPolicy": "DENY",
+          "inventoryQuantity": 12,
+          "inventoryItem": {
+            "id": "gid://shopify/InventoryItem/53214089609522",
+            "tracked": true,
+            "requiresShipping": true,
+            "inventoryLevels": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                  "isActive": true,
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 5
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 5
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                  "isActive": true,
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  },
+                  "quantities": [
+                    {
+                      "name": "available",
+                      "quantity": 7
+                    },
+                    {
+                      "name": "on_hand",
+                      "quantity": 7
+                    },
+                    {
+                      "name": "incoming",
+                      "quantity": 0
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "setup": {
+    "productCreate": {
+      "id": "gid://shopify/Product/10173439443250",
+      "title": "hermes-inventory-inactive-lifecycle-1777455181697",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51111189479730",
+            "inventoryQuantity": 0,
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53214089609522",
+              "tracked": false,
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2026-04-29T09:33:01Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "trackInventory": {
+      "variables": {
+        "productId": "gid://shopify/Product/10173439443250",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51111189479730",
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "productVariantsBulkUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10173439443250",
+              "totalInventory": 0,
+              "tracksInventory": true
+            },
+            "productVariants": [
+              {
+                "id": "gid://shopify/ProductVariant/51111189479730",
+                "inventoryQuantity": 0,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53214089609522",
+                  "tracked": true,
+                  "requiresShipping": true
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "setPrimaryQuantity": {
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-468/primary/1777455181697",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 5,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "har-468-primary-1777455181697"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "id": "gid://shopify/InventoryAdjustmentGroup/53849699451186",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 5,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53214089609522"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 5,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53214089609522"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inventoryActivateSecondaryLocation": {
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+        "locationId": "gid://shopify/Location/106318463282",
+        "available": 0,
+        "idempotencyKey": "har-468-activate-secondary-1777455181697"
+      },
+      "response": {
+        "data": {
+          "inventoryActivate": {
+            "inventoryLevel": {
+              "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+              "isActive": true,
+              "location": {
+                "id": "gid://shopify/Location/106318463282",
+                "name": "My Custom Location"
+              },
+              "quantities": [
+                {
+                  "name": "available",
+                  "quantity": 0,
+                  "updatedAt": "2026-04-29T09:33:02Z"
+                },
+                {
+                  "name": "on_hand",
+                  "quantity": 0,
+                  "updatedAt": null
+                },
+                {
+                  "name": "incoming",
+                  "quantity": 0,
+                  "updatedAt": null
+                }
+              ],
+              "item": {
+                "id": "gid://shopify/InventoryItem/53214089609522",
+                "tracked": true,
+                "variant": {
+                  "id": "gid://shopify/ProductVariant/51111189479730",
+                  "inventoryQuantity": 5,
+                  "product": {
+                    "id": "gid://shopify/Product/10173439443250",
+                    "totalInventory": 0,
+                    "tracksInventory": true
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 15,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "setSecondaryQuantity": {
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-468/secondary/1777455181697",
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+              "locationId": "gid://shopify/Location/106318463282",
+              "quantity": 7,
+              "changeFromQuantity": 0
+            }
+          ]
+        },
+        "idempotencyKey": "har-468-secondary-1777455181697"
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "id": "gid://shopify/InventoryAdjustmentGroup/53849699516722",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 7,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53214089609522"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 7,
+                  "quantityAfterChange": null,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53214089609522"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "seedProductRead": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10173439443250",
+          "title": "hermes-inventory-inactive-lifecycle-1777455181697",
+          "handle": "hermes-inventory-inactive-lifecycle-1777455181697",
+          "status": "ACTIVE",
+          "totalInventory": 0,
+          "tracksInventory": true,
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/51111189479730",
+                "title": "Default Title",
+                "sku": null,
+                "barcode": null,
+                "price": "0.00",
+                "compareAtPrice": null,
+                "taxable": true,
+                "inventoryPolicy": "DENY",
+                "inventoryQuantity": 12,
+                "inventoryItem": {
+                  "id": "gid://shopify/InventoryItem/53214089609522",
+                  "tracked": true,
+                  "requiresShipping": true,
+                  "inventoryLevels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318430514",
+                          "name": "Shop location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 5
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 5
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0
+                          }
+                        ]
+                      },
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 7
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 7
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryInactiveLifecycleDeactivate": {
+    "variables": {
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+      "idempotencyKey": "har-468-deactivate-1777455181697"
+    },
+    "response": {
+      "data": {
+        "inventoryDeactivate": {
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryInactiveLifecycleReadAfterDeactivate": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+      "inactiveLocationId": "gid://shopify/Location/106318463282"
+    },
+    "response": {
+      "data": {
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53214089609522",
+          "tracked": true,
+          "variant": {
+            "id": "gid://shopify/ProductVariant/51111189479730",
+            "inventoryQuantity": 5,
+            "product": {
+              "id": "gid://shopify/Product/10173439443250",
+              "totalInventory": 0,
+              "tracksInventory": true
+            }
+          },
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                "isActive": true,
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 5
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 5
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                "isActive": false,
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "inactiveLevel": {
+            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+            "isActive": false,
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 7
+              },
+              {
+                "name": "on_hand",
+                "quantity": 7
+              },
+              {
+                "name": "incoming",
+                "quantity": 0
+              }
+            ]
+          }
+        },
+        "inventoryLevel": {
+          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+          "isActive": false,
+          "location": {
+            "id": "gid://shopify/Location/106318463282",
+            "name": "My Custom Location"
+          },
+          "quantities": [
+            {
+              "name": "available",
+              "quantity": 7
+            },
+            {
+              "name": "on_hand",
+              "quantity": 7
+            },
+            {
+              "name": "incoming",
+              "quantity": 0
+            }
+          ],
+          "item": {
+            "id": "gid://shopify/InventoryItem/53214089609522",
+            "tracked": true
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryInactiveLifecycleReactivate": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+      "locationId": "gid://shopify/Location/106318463282",
+      "idempotencyKey": "har-468-reactivate-1777455181697"
+    },
+    "response": {
+      "data": {
+        "inventoryActivate": {
+          "inventoryLevel": {
+            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+            "isActive": true,
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 7,
+                "updatedAt": "2026-04-29T09:33:02Z"
+              },
+              {
+                "name": "on_hand",
+                "quantity": 7,
+                "updatedAt": null
+              },
+              {
+                "name": "incoming",
+                "quantity": 0,
+                "updatedAt": null
+              }
+            ],
+            "item": {
+              "id": "gid://shopify/InventoryItem/53214089609522",
+              "tracked": true,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/51111189479730",
+                "inventoryQuantity": 12,
+                "product": {
+                  "id": "gid://shopify/Product/10173439443250",
+                  "totalInventory": 0,
+                  "tracksInventory": true
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "inventoryInactiveLifecycleReadAfterReactivate": {
+    "variables": {
+      "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",
+      "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+      "inactiveLocationId": "gid://shopify/Location/106318463282"
+    },
+    "response": {
+      "data": {
+        "inventoryItem": {
+          "id": "gid://shopify/InventoryItem/53214089609522",
+          "tracked": true,
+          "variant": {
+            "id": "gid://shopify/ProductVariant/51111189479730",
+            "inventoryQuantity": 12,
+            "product": {
+              "id": "gid://shopify/Product/10173439443250",
+              "totalInventory": 0,
+              "tracksInventory": true
+            }
+          },
+          "inventoryLevels": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                "isActive": true,
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 5
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 5
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0
+                  }
+                ]
+              },
+              {
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                "isActive": true,
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "inactiveLevel": {
+            "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+            "isActive": true,
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            },
+            "quantities": [
+              {
+                "name": "available",
+                "quantity": 7
+              },
+              {
+                "name": "on_hand",
+                "quantity": 7
+              },
+              {
+                "name": "incoming",
+                "quantity": 0
+              }
+            ]
+          }
+        },
+        "inventoryLevel": {
+          "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+          "isActive": true,
+          "location": {
+            "id": "gid://shopify/Location/106318463282",
+            "name": "My Custom Location"
+          },
+          "quantities": [
+            {
+              "name": "available",
+              "quantity": 7
+            },
+            {
+              "name": "on_hand",
+              "quantity": 7
+            },
+            {
+              "name": "incoming",
+              "quantity": 0
+            }
+          ],
+          "item": {
+            "id": "gid://shopify/InventoryItem/53214089609522",
+            "tracked": true
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

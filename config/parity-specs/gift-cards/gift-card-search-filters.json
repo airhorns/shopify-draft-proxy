@@ -6,6 +6,7 @@
     "search-filter-parity",
     "balance-status-parity",
     "code-fragment-search-parity",
+    "advanced-search-filter-parity",
     "captured-vs-proxy-request"
   ],
   "liveCaptureFiles": [
@@ -29,8 +30,17 @@
           "documentPath": "config/parity-requests/gift-cards/gift-card-search-filters.graphql",
           "variablesCapturePath": "$.proxyVariables.searchFilters"
         }
+      },
+      {
+        "name": "gift-card advanced search filters match",
+        "capturePath": "$.operations.advancedSearchFilterRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-advanced-search-filters.graphql",
+          "variablesCapturePath": "$.proxyVariables.advancedSearchFilters"
+        }
       }
     ]
   },
-  "notes": "HAR-457 rework adds executable strict parity for giftCards/giftCardsCount search behavior that was previously covered only by integration tests. The live capture records the post-credit/debit, pre-deactivation gift-card state so `balance_status:partial`, `balance_status:full`, `balance_status:empty`, `balance_status:full_or_partial`, and visible code-fragment search are compared against the local proxy without customer-visible notification delivery."
+  "notes": "HAR-457 rework adds executable strict parity for giftCards/giftCardsCount search behavior that was previously covered only by integration tests. The live capture records the post-credit/debit, pre-deactivation gift-card state so `balance_status:partial`, `balance_status:full`, `balance_status:empty`, `balance_status:full_or_partial`, and visible code-fragment search are compared against the local proxy without customer-visible notification delivery. HAR-464 extends the same executable parity slice to populated date/range, customer_id, recipient_id, source, and initial_value filters captured against a disposable customer-backed gift card."
 }
