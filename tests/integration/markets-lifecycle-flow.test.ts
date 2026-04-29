@@ -2828,4 +2828,406 @@ describe('Markets lifecycle staging', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('derives product contextual pricing from staged market catalog price-list quantity pricing', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('contextual pricing must not proxy'));
+    const app = createApp(config).callback();
+
+    const productResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateProduct {
+            productCreate(product: { title: "Contextual Market Hat" }) {
+              product {
+                id
+                variants(first: 1) {
+                  nodes {
+                    id
+                  }
+                }
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+      });
+
+    expect(productResponse.status).toBe(200);
+    const product = productResponse.body.data.productCreate.product as {
+      id: string;
+      variants: { nodes: Array<{ id: string }> };
+    };
+    const variantId = product.variants.nodes[0]!.id;
+
+    const marketResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateMarket($input: MarketCreateInput!) {
+            marketCreate(input: $input) {
+              market {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: 'United States Contextual',
+            conditions: {
+              regionsCondition: {
+                regions: [{ countryCode: 'US' }],
+              },
+            },
+            currencySettings: {
+              baseCurrency: 'USD',
+            },
+          },
+        },
+      });
+
+    expect(marketResponse.body.data.marketCreate.userErrors).toEqual([]);
+    const marketId = marketResponse.body.data.marketCreate.market.id as string;
+
+    const catalogResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreateCatalog($input: CatalogCreateInput!) {
+            catalogCreate(input: $input) {
+              catalog {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            title: 'United States Contextual Catalog',
+            context: {
+              marketIds: [marketId],
+            },
+          },
+        },
+      });
+
+    expect(catalogResponse.body.data.catalogCreate.userErrors).toEqual([]);
+    const catalogId = catalogResponse.body.data.catalogCreate.catalog.id as string;
+
+    const priceListResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation CreatePriceList($input: PriceListCreateInput!) {
+            priceListCreate(input: $input) {
+              priceList {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            name: 'United States Contextual Fixed Prices',
+            currency: 'USD',
+            catalogId,
+          },
+        },
+      });
+
+    expect(priceListResponse.body.data.priceListCreate.userErrors).toEqual([]);
+    const priceListId = priceListResponse.body.data.priceListCreate.priceList.id as string;
+
+    const fixedPriceResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AddFixedPrice($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
+            priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
+              priceList {
+                fixedPricesCount
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          prices: [
+            {
+              variantId,
+              price: {
+                amount: '42.00',
+                currencyCode: 'USD',
+              },
+              compareAtPrice: {
+                amount: '50.00',
+                currencyCode: 'USD',
+              },
+            },
+          ],
+        },
+      });
+
+    expect(fixedPriceResponse.body.data.priceListFixedPricesAdd).toEqual({
+      priceList: {
+        fixedPricesCount: 1,
+      },
+      userErrors: [],
+    });
+
+    const quantityPricingResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation AddQuantityPricing($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
+            quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
+              productVariants {
+                id
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+          }
+        `,
+        variables: {
+          priceListId,
+          input: {
+            pricesToAdd: [
+              {
+                variantId,
+                price: {
+                  amount: '38.00',
+                  currencyCode: 'USD',
+                },
+              },
+            ],
+            pricesToDeleteByVariantId: [],
+            quantityRulesToAdd: [
+              {
+                variantId,
+                minimum: 4,
+                maximum: 12,
+                increment: 4,
+              },
+            ],
+            quantityRulesToDeleteByVariantId: [],
+            quantityPriceBreaksToAdd: [
+              {
+                variantId,
+                minimumQuantity: 8,
+                price: {
+                  amount: '35.00',
+                  currencyCode: 'USD',
+                },
+              },
+            ],
+            quantityPriceBreaksToDelete: [],
+          },
+        },
+      });
+
+    expect(quantityPricingResponse.body.data.quantityPricingByVariantUpdate).toEqual({
+      productVariants: [{ id: variantId }],
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ReadContextualPricing($productId: ID!, $variantId: ID!) {
+            product(id: $productId) {
+              contextualPricing(context: { country: US }) {
+                fixedQuantityRulesCount
+                priceRange {
+                  minVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                  maxVariantPrice {
+                    amount
+                    currencyCode
+                  }
+                }
+                minVariantPricing {
+                  price {
+                    amount
+                    currencyCode
+                  }
+                  quantityRule {
+                    minimum
+                    maximum
+                    increment
+                  }
+                  quantityPriceBreaks(first: 3) {
+                    edges {
+                      node {
+                        minimumQuantity
+                        price {
+                          amount
+                          currencyCode
+                        }
+                      }
+                    }
+                    pageInfo {
+                      hasNextPage
+                      hasPreviousPage
+                      startCursor
+                      endCursor
+                    }
+                  }
+                }
+                maxVariantPricing {
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+            productVariant(id: $variantId) {
+              contextualPricing(context: { country: US }) {
+                price {
+                  amount
+                  currencyCode
+                }
+                compareAtPrice {
+                  amount
+                  currencyCode
+                }
+                unitPrice {
+                  amount
+                  currencyCode
+                }
+                quantityRule {
+                  minimum
+                  maximum
+                  increment
+                }
+                quantityPriceBreaks(first: 3) {
+                  edges {
+                    node {
+                      minimumQuantity
+                      price {
+                        amount
+                        currencyCode
+                      }
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                    startCursor
+                    endCursor
+                  }
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          productId: product.id,
+          variantId,
+        },
+      });
+
+    const expectedBreakConnection = {
+      edges: [
+        {
+          node: {
+            minimumQuantity: 8,
+            price: {
+              amount: '35.0',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: expect.stringMatching(/^gid:\/\/shopify\/QuantityPriceBreak\//),
+        endCursor: expect.stringMatching(/^gid:\/\/shopify\/QuantityPriceBreak\//),
+      },
+    };
+    expect(readResponse.body.data).toEqual({
+      product: {
+        contextualPricing: {
+          fixedQuantityRulesCount: 1,
+          priceRange: {
+            minVariantPrice: {
+              amount: '38.0',
+              currencyCode: 'USD',
+            },
+            maxVariantPrice: {
+              amount: '38.0',
+              currencyCode: 'USD',
+            },
+          },
+          minVariantPricing: {
+            price: {
+              amount: '38.0',
+              currencyCode: 'USD',
+            },
+            quantityRule: {
+              minimum: 4,
+              maximum: 12,
+              increment: 4,
+            },
+            quantityPriceBreaks: expectedBreakConnection,
+          },
+          maxVariantPricing: {
+            price: {
+              amount: '38.0',
+              currencyCode: 'USD',
+            },
+          },
+        },
+      },
+      productVariant: {
+        contextualPricing: {
+          price: {
+            amount: '38.0',
+            currencyCode: 'USD',
+          },
+          compareAtPrice: null,
+          unitPrice: null,
+          quantityRule: {
+            minimum: 4,
+            maximum: 12,
+            increment: 4,
+          },
+          quantityPriceBreaks: expectedBreakConnection,
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

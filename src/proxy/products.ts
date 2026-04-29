@@ -79,6 +79,7 @@ import {
 } from './products/options.js';
 import { serializeCountValue, serializeJobSelectionSet } from './products/serializers.js';
 import { serializeLocation as serializeStorePropertiesLocation } from './store-properties.js';
+import { listMarketPriceListContextsForCountry } from './markets.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -6872,6 +6873,189 @@ function serializeSellingPlanGroupConnection(
   });
 }
 
+type ObjectConnectionEdge = {
+  cursor: string;
+  node: Record<string, unknown>;
+};
+
+type DerivedVariantContextualPricing = {
+  payload: Record<string, unknown>;
+  priceAmount: number;
+  hasFixedQuantityRule: boolean;
+};
+
+function readContextCountryCode(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  const context = args['context'];
+  if (!isObject(context) || typeof context['country'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = context['country'].toUpperCase();
+  return /^[A-Z]{2}$/u.test(countryCode) ? countryCode : null;
+}
+
+function readObjectConnectionEdges(value: unknown): ObjectConnectionEdge[] {
+  if (!isObject(value) || !Array.isArray(value['edges'])) {
+    return [];
+  }
+
+  return value['edges'].flatMap((edge): ObjectConnectionEdge[] => {
+    if (!isObject(edge) || !isObject(edge['node'])) {
+      return [];
+    }
+
+    const node = edge['node'];
+    const nodeId = typeof node['id'] === 'string' ? node['id'] : null;
+    const cursor = typeof edge['cursor'] === 'string' && edge['cursor'].length > 0 ? edge['cursor'] : nodeId;
+    return cursor ? [{ cursor, node }] : [];
+  });
+}
+
+function emptyContextualPricingConnection(): Record<string, unknown> {
+  return {
+    edges: [],
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    },
+  };
+}
+
+function readPriceListPriceVariantId(node: Record<string, unknown>): string | null {
+  const variant = node['variant'];
+  return isObject(variant) && typeof variant['id'] === 'string' ? variant['id'] : null;
+}
+
+function readQuantityRuleVariantId(node: Record<string, unknown>): string | null {
+  const productVariant = node['productVariant'];
+  return isObject(productVariant) && typeof productVariant['id'] === 'string' ? productVariant['id'] : null;
+}
+
+function findFixedPriceNodeForVariant(
+  priceListData: Record<string, unknown>,
+  variantId: string,
+): Record<string, unknown> | null {
+  for (const edge of readObjectConnectionEdges(priceListData['prices'])) {
+    if (edge.node['originType'] === 'FIXED' && readPriceListPriceVariantId(edge.node) === variantId) {
+      return edge.node;
+    }
+  }
+
+  return null;
+}
+
+function quantityRuleForVariant(
+  priceListData: Record<string, unknown>,
+  variantId: string,
+): { payload: Record<string, unknown>; isFixed: boolean } {
+  for (const edge of readObjectConnectionEdges(priceListData['quantityRules'])) {
+    if (readQuantityRuleVariantId(edge.node) === variantId) {
+      return {
+        payload: {
+          minimum: edge.node['minimum'] ?? null,
+          maximum: edge.node['maximum'] ?? null,
+          increment: edge.node['increment'] ?? null,
+        },
+        isFixed: true,
+      };
+    }
+  }
+
+  return {
+    payload: {
+      minimum: 1,
+      maximum: null,
+      increment: 1,
+    },
+    isFixed: false,
+  };
+}
+
+function readMoneyAmountNumber(money: unknown): number | null {
+  if (!isObject(money)) {
+    return null;
+  }
+
+  const rawAmount = money['amount'];
+  const amount = typeof rawAmount === 'number' ? rawAmount : typeof rawAmount === 'string' ? Number(rawAmount) : NaN;
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function derivedVariantContextualPricing(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DerivedVariantContextualPricing | null {
+  const countryCode = readContextCountryCode(field, variables);
+  const priceLists = countryCode
+    ? listMarketPriceListContextsForCountry(runtime, countryCode).map((context) => context.priceList)
+    : [];
+  const match =
+    priceLists
+      .map((priceList) => ({ priceList, priceNode: findFixedPriceNodeForVariant(priceList.data, variant.id) }))
+      .find(({ priceNode }) => priceNode !== null) ?? null;
+  const priceList = match?.priceList ?? null;
+  const priceNode = match?.priceNode ?? null;
+  if (!priceList || !priceNode || !isObject(priceNode['price'])) {
+    return null;
+  }
+
+  const priceAmount = readMoneyAmountNumber(priceNode['price']);
+  if (priceAmount === null) {
+    return null;
+  }
+
+  const quantityRule = quantityRuleForVariant(priceList.data, variant.id);
+  return {
+    payload: {
+      price: structuredClone(priceNode['price']),
+      compareAtPrice: isObject(priceNode['compareAtPrice']) ? structuredClone(priceNode['compareAtPrice']) : null,
+      unitPrice: null,
+      quantityRule: quantityRule.payload,
+      quantityPriceBreaks: isObject(priceNode['quantityPriceBreaks'])
+        ? structuredClone(priceNode['quantityPriceBreaks'])
+        : emptyContextualPricingConnection(),
+    },
+    priceAmount,
+    hasFixedQuantityRule: quantityRule.isFixed,
+  };
+}
+
+function derivedProductContextualPricing(
+  runtime: ProxyRuntimeContext,
+  product: ProductRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const variantPricing = runtime.store
+    .getEffectiveVariantsByProductId(product.id)
+    .flatMap((variant) => {
+      const pricing = derivedVariantContextualPricing(runtime, variant, field, variables);
+      return pricing ? [pricing] : [];
+    })
+    .sort((left, right) => left.priceAmount - right.priceAmount);
+
+  const minVariantPricing = variantPricing[0] ?? null;
+  const maxVariantPricing = variantPricing.at(-1) ?? null;
+  if (!minVariantPricing || !maxVariantPricing) {
+    return null;
+  }
+
+  return {
+    fixedQuantityRulesCount: variantPricing.filter((pricing) => pricing.hasFixedQuantityRule).length,
+    priceRange: {
+      minVariantPrice: minVariantPricing.payload['price'],
+      maxVariantPrice: maxVariantPricing.payload['price'],
+    },
+    minVariantPricing: minVariantPricing.payload,
+    maxVariantPricing: maxVariantPricing.payload,
+  };
+}
+
 function serializeVariantSelectionSet(
   runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
@@ -6951,7 +7135,7 @@ function serializeVariantSelectionSet(
         break;
       case 'contextualPricing':
         result[key] = projectGraphqlValue(
-          variant.contextualPricing,
+          derivedVariantContextualPricing(runtime, variant, selection, variables)?.payload ?? variant.contextualPricing,
           selection.selectionSet?.selections ?? [],
           new Map(),
         );
@@ -8812,7 +8996,11 @@ function serializeProductField(
     case 'metafields':
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(runtime, product.id), field, variables);
     case 'contextualPricing':
-      return projectGraphqlValue(product.contextualPricing, field.selectionSet?.selections ?? [], new Map());
+      return projectGraphqlValue(
+        derivedProductContextualPricing(runtime, product, field, variables) ?? product.contextualPricing,
+        field.selectionSet?.selections ?? [],
+        new Map(),
+      );
     case 'sellingPlanGroups':
       return serializeSellingPlanGroupConnection(
         runtime,

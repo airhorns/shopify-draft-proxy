@@ -4960,6 +4960,44 @@ function catalogsForMarket(runtime: ProxyRuntimeContext, market: MarketRecord | 
   return Array.from(catalogsById.values());
 }
 
+export function listMarketPriceListContextsForCountry(
+  runtime: ProxyRuntimeContext,
+  countryCode: string,
+): Array<{ market: MarketRecord; catalog: CatalogRecord; priceList: PriceListRecord }> {
+  const normalizedCountryCode = countryCode.toUpperCase();
+  if (!SHOPIFY_COUNTRY_CODES.has(normalizedCountryCode)) {
+    return [];
+  }
+
+  const market = resolveMarketForBuyerCountry(runtime, normalizedCountryCode);
+  if (!market) {
+    return [];
+  }
+
+  const contexts: Array<{ market: MarketRecord; catalog: CatalogRecord; priceList: PriceListRecord }> = [];
+  for (const catalog of catalogsForMarket(runtime, market)) {
+    const rawLinkedPriceListId = isPlainObject(catalog.data['priceList']) ? catalog.data['priceList']['id'] : null;
+    const linkedPriceList =
+      typeof rawLinkedPriceListId === 'string'
+        ? runtime.store.getEffectivePriceListRecordById(rawLinkedPriceListId)
+        : null;
+    if (linkedPriceList) {
+      contexts.push({ market, catalog, priceList: linkedPriceList });
+      continue;
+    }
+
+    const priceList = runtime.store.listEffectivePriceLists().find((candidate) => {
+      const candidateCatalog = candidate.data['catalog'];
+      return isPlainObject(candidateCatalog) && candidateCatalog['id'] === catalog.id;
+    });
+    if (priceList) {
+      contexts.push({ market, catalog, priceList });
+    }
+  }
+
+  return contexts;
+}
+
 function connectionPayloadFromRecords<
   T extends { id: string; cursor?: string | null | undefined; data: Record<string, JsonValue> },
 >(records: T[], getCursorValue: (record: T) => string): Record<string, unknown> {
