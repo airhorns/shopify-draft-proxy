@@ -44,6 +44,8 @@ mutation MarketingEngagementLifecycle(
         currencyCode
       }
       orders
+      primaryConversions
+      allConversions
       firstTimeCustomers
       returningCustomers
       marketingActivity {

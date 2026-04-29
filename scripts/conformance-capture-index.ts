@@ -572,6 +572,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'marketing',
+    captureId: 'marketing-engagement',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-engagement-conformance.mts',
+    purpose:
+      'Marketing engagement activity-level success, 2026-04 conversion metrics, selector validation, delete branches, and recognized channel-handle probes.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [`${CAPTURE_ROOT}marketing-engagement-lifecycle.json`],
+    cleanupBehavior:
+      'Creates a disposable external marketing activity, writes activity-level engagement metrics, probes candidate channel handles with immediate channel cleanup if any succeeds, and deletes the disposable activity.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Recognized channel-handle success depends on the disposable shop exposing a valid marketing channel handle.',
+  },
+  {
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
