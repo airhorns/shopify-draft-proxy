@@ -37,6 +37,7 @@ Local staged mutations:
 - `baseState` includes a nullable normalized `shop` slice. Snapshot mode returns `shop: null` when no shop slice is present instead of inventing store identity; live-hybrid can serve a locally staged shop overlay when one exists.
 - `shop.fulfillmentServices` is serialized from the normalized fulfillment-service graph owned by `docs/endpoints/shipping-fulfillments.md`; the field returns an empty list when no services are staged or snapshotted.
 - `shopPolicyUpdate` stages legal policy writes into the shop slice by `ShopPolicyType`. Downstream `shop.shopPolicies` reads in snapshot and live-hybrid modes observe staged body, identity, URL, title, timestamps, and empty translations shape without sending supported policy mutations upstream at runtime.
+- Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves `ShopAddress` from the effective `shop.shopAddress` row and `ShopPolicy` from the effective `shop.shopPolicies` list. Missing address/policy IDs still return `null`; this does not broaden unsupported store-property roots beyond the already modeled shop/policy state.
 - Snapshot `location` and `locationByIdentifier` detail reads use the Store properties overlay. They combine narrow normalized location metadata for captured address/lifecycle scalars with nested inventory-level connections derived from the effective inventory-level graph.
 - Top-level `locations` is still dispatched through the product/inventory read path, but it serializes each `Location` node with the Store properties location serializer. Selected lifecycle, address, metafield, local-pickup, and inventory-level fields therefore stay aligned with `location`, `locationByIdentifier`, and staged location lifecycle mutations instead of being limited to catalog `id` / `name`.
 - The first location detail slice supports primary-location fallback when `location(id:)` omits `id`, identifier lookup by `LocationIdentifierInput.id`, unknown-location `null` behavior, address and lifecycle scalar shapes, empty metafield/suggested-address structures, and nested `inventoryLevel` / `inventoryLevels` selections.
@@ -72,6 +73,7 @@ Remaining gaps are intentional rather than silent support claims:
 
 - Shop reads: `tests/integration/shop-query-shapes.test.ts`
 - Shop policy mutation flow: `tests/integration/shop-policy-update-flow.test.ts`
+- Generic Node coverage for `ShopAddress` / `ShopPolicy`: `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json` and `tests/integration/admin-platform-query-shapes.test.ts`
 - Location reads: `tests/integration/location-query-shapes.test.ts`
 - Fulfillment-service location linkage: `tests/integration/fulfillment-service-flow.test.ts`
 - Business entity and Shopify Payments account reads: `tests/integration/business-entity-query-shapes.test.ts`

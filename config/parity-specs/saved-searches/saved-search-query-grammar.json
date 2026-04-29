@@ -1,0 +1,93 @@
+{
+  "scenarioId": "saved-search-query-grammar",
+  "operationNames": ["productSavedSearches", "savedSearchCreate", "savedSearchDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "query-grammar-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/saved-search-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateProductQueryGrammar.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-458 live evidence for savedSearchCreate query grammar normalization. Shopify preserves the submitted single-quoted grouped/OR query in the mutation payload, normalizes quoted values to double quotes in searchTerms and downstream stored query, keeps the grouped/OR expression in searchTerms, and extracts the top-level negated field term -vendor:Archived as filters[{ key: \"vendor_not\", value: \"Archived\" }].",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "saved-search-query-grammar-create-payload",
+        "capturePath": "$.savedSearchCreateProductQueryGrammar.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "saved-search-query-grammar-read-after-create",
+        "capturePath": "$.productSavedSearchesAfterCreate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-read-after-create.graphql",
+          "variablesCapturePath": "$.productSavedSearchesAfterCreate.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.productSavedSearches.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream read returns the deterministic local SavedSearch id instead of Shopify's live id."
+          },
+          {
+            "path": "$.productSavedSearches.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; the proxy emits deterministic local cursors while preserving cursor presence."
+          },
+          {
+            "path": "$.productSavedSearches.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque; the proxy emits deterministic local cursors while preserving cursor presence."
+          }
+        ]
+      },
+      {
+        "name": "saved-search-query-grammar-cleanup-delete",
+        "capturePath": "$.cleanupDelete.payload.data.savedSearchDelete",
+        "proxyPath": "$.data.savedSearchDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.id"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedSavedSearchId",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy deletes its deterministic local SavedSearch id while Shopify deleted the live store id."
+          }
+        ]
+      }
+    ]
+  }
+}

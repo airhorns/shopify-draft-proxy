@@ -1,0 +1,42 @@
+{
+  "scenarioId": "admin-platform-store-property-node-reads",
+  "operationNames": ["node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["selected-fields", "node-read-parity", "snapshot-read"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/shop-policy-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-store-property-node-reads.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "notes": "HAR-466 executable parity for generic Relay Node reads of store-property nested records. The checked-in shop-policy fixture seeds the captured ShopAddress and existing CONTACT_INFORMATION ShopPolicy baseline, then node(id:) and nodes(ids:) resolve those same local records without inventing broader store-property support.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-address-node",
+        "capturePath": "$.readOnlyBaselines.shop.data.shop.shopAddress",
+        "proxyPath": "$.data.shopAddressNode"
+      },
+      {
+        "name": "shop-policy-node",
+        "capturePath": "$.readOnlyBaselines.shop.data.shop.shopPolicies[0]",
+        "proxyPath": "$.data.shopPolicyNode"
+      },
+      {
+        "name": "shop-address-nodes-entry",
+        "capturePath": "$.readOnlyBaselines.shop.data.shop.shopAddress",
+        "proxyPath": "$.data.nodes[0]"
+      },
+      {
+        "name": "shop-policy-nodes-entry",
+        "capturePath": "$.readOnlyBaselines.shop.data.shop.shopPolicies[0]",
+        "proxyPath": "$.data.nodes[1]"
+      }
+    ]
+  }
+}

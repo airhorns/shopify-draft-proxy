@@ -241,12 +241,145 @@ describe('discount app and broad bulk staging', () => {
       discountNodesCount: { count: 2, precision: 'EXACT' },
     });
 
+    const appLifecycleSelection = `#graphql
+      automaticDiscountNode {
+        id
+        automaticDiscount {
+          __typename
+          ... on DiscountAutomaticApp {
+            title
+            status
+            endsAt
+            appDiscountType {
+              functionId
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+        extraInfo
+      }
+    `;
+
+    const deactivateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeactivateAutomaticApp($id: ID!) {
+          discountAutomaticDeactivate(id: $id) {
+            ${appLifecycleSelection}
+          }
+        }`,
+        variables: { id: automaticId },
+      });
+
+    expect(deactivateResponse.body.data.discountAutomaticDeactivate).toMatchObject({
+      automaticDiscountNode: {
+        id: automaticId,
+        automaticDiscount: {
+          __typename: 'DiscountAutomaticApp',
+          title: 'HAR-366 automatic app updated',
+          status: 'EXPIRED',
+          appDiscountType: { functionId: 'discount-local' },
+        },
+      },
+      userErrors: [],
+    });
+    expect(
+      deactivateResponse.body.data.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.endsAt,
+    ).toEqual(expect.any(String));
+
+    const expiredAppCount = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ExpiredAppCount {
+          discountNodesCount(query: "type:app status:expired") { count precision }
+        }`,
+      });
+    expect(expiredAppCount.body.data.discountNodesCount).toEqual({ count: 1, precision: 'EXACT' });
+
+    const activateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ActivateAutomaticApp($id: ID!) {
+          discountAutomaticActivate(id: $id) {
+            ${appLifecycleSelection}
+          }
+        }`,
+        variables: { id: automaticId },
+      });
+
+    expect(activateResponse.body.data.discountAutomaticActivate).toEqual({
+      automaticDiscountNode: {
+        id: automaticId,
+        automaticDiscount: {
+          __typename: 'DiscountAutomaticApp',
+          title: 'HAR-366 automatic app updated',
+          status: 'ACTIVE',
+          endsAt: null,
+          appDiscountType: { functionId: 'discount-local' },
+        },
+      },
+      userErrors: [],
+    });
+
+    const activeAppCount = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ActiveAppCount {
+          discountNodesCount(query: "type:app status:active") { count precision }
+        }`,
+      });
+    expect(activeAppCount.body.data.discountNodesCount).toEqual({ count: 2, precision: 'EXACT' });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation DeleteAutomaticApp($id: ID!) {
+          discountAutomaticDelete(id: $id) {
+            deletedAutomaticDiscountId
+            userErrors {
+              field
+              message
+              code
+              extraInfo
+            }
+          }
+        }`,
+        variables: { id: automaticId },
+      });
+
+    expect(deleteResponse.body.data.discountAutomaticDelete).toEqual({
+      deletedAutomaticDiscountId: automaticId,
+      userErrors: [],
+    });
+
+    const readAfterDelete = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadAutomaticAppAfterDelete($id: ID!) {
+          automaticDiscountNode(id: $id) { id }
+          discountNodesCount(query: "type:app") { count precision }
+        }`,
+        variables: { id: automaticId },
+      });
+    expect(readAfterDelete.body.data).toEqual({
+      automaticDiscountNode: null,
+      discountNodesCount: { count: 1, precision: 'EXACT' },
+    });
+
     const stateResponse = await request(app).get('/__meta/state');
-    expect(Object.keys(stateResponse.body.stagedState.discounts)).toEqual([codeId, automaticId]);
+    expect(Object.keys(stateResponse.body.stagedState.discounts)).toEqual([codeId]);
+    expect(stateResponse.body.stagedState.deletedDiscountIds[automaticId]).toBe(true);
     const logResponse = await request(app).get('/__meta/log');
     expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
       'discountCodeAppCreate',
       'discountCodeAppUpdate',
+      'discountAutomaticDeactivate',
+      'discountAutomaticActivate',
+      'discountAutomaticDelete',
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

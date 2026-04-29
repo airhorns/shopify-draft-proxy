@@ -1,0 +1,15 @@
+mutation ProductFeedCreateLocalRuntime($input: ProductFeedInput) {
+  productFeedCreate(input: $input) {
+    productFeed {
+      id
+      country
+      language
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -252,6 +252,48 @@ describe('metafield definition draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('rejects non-product metafield definition create locally without broadening owner support', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unsupported owner must stay local'));
+    const server = createApp(config).callback();
+
+    const response = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation {
+            metafieldDefinitionCreate(
+              definition: {
+                name: "Customer tier"
+                namespace: "custom"
+                key: "tier"
+                ownerType: CUSTOMER
+                type: "single_line_text_field"
+              }
+            ) {
+              createdDefinition { id }
+              userErrors { field message code }
+            }
+          }
+        `,
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.metafieldDefinitionCreate).toEqual({
+      createdDefinition: null,
+      userErrors: [
+        {
+          field: ['definition', 'ownerType'],
+          message: 'Only PRODUCT metafield definitions are supported locally.',
+          code: 'UNSUPPORTED_OWNER_TYPE',
+        },
+      ],
+    });
+
+    const stateResponse = await request(server).get('/__meta/state');
+    expect(stateResponse.body.stagedState.metafieldDefinitions).toEqual({});
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('uses staged definitions when validating and materializing product metafieldsSet writes', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('definition-backed metafieldsSet must stay local'));
     const server = createApp(config).callback();
@@ -495,6 +537,152 @@ describe('metafield definition draft flow', () => {
         },
       },
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps definition deleteAllAssociatedMetafields scoped to product-owned metafields', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('definition owner-boundary cleanup must stay local'));
+    const server = createApp(config).callback();
+
+    const createDefinitionResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation {
+            metafieldDefinitionCreate(
+              definition: {
+                name: "Material"
+                namespace: "custom"
+                key: "material"
+                ownerType: PRODUCT
+                type: "single_line_text_field"
+              }
+            ) {
+              createdDefinition { id }
+              userErrors { field message code }
+            }
+          }
+        `,
+      });
+    const definition = createDefinitionResponse.body.data.metafieldDefinitionCreate.createdDefinition;
+
+    const createProductResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation {
+            productCreate(product: { title: "Owner Boundary Hat" }) {
+              product { id variants(first: 1) { nodes { id } } }
+              userErrors { field message }
+            }
+          }
+        `,
+      });
+    const product = createProductResponse.body.data.productCreate.product;
+    const productId = product.id as string;
+    const variantId = product.variants.nodes[0].id as string;
+
+    const setResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation SetMetafields($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { id namespace key value ownerType }
+              userErrors { field message code elementIndex }
+            }
+          }
+        `,
+        variables: {
+          metafields: [
+            {
+              ownerId: productId,
+              namespace: 'custom',
+              key: 'material',
+              value: 'Canvas',
+            },
+            {
+              ownerId: variantId,
+              namespace: 'custom',
+              key: 'material',
+              type: 'single_line_text_field',
+              value: 'Variant canvas',
+            },
+          ],
+        },
+      });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.data.metafieldsSet.userErrors).toEqual([]);
+    expect(setResponse.body.data.metafieldsSet.metafields).toMatchObject([
+      { namespace: 'custom', key: 'material', value: 'Canvas', ownerType: 'PRODUCT' },
+      { namespace: 'custom', key: 'material', value: 'Variant canvas', ownerType: 'PRODUCTVARIANT' },
+    ]);
+
+    const deleteResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DeleteDefinition($id: ID!) {
+            metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {
+              deletedDefinitionId
+              userErrors { field message code }
+            }
+          }
+        `,
+        variables: { id: definition.id },
+      });
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body.data.metafieldDefinitionDelete).toEqual({
+      deletedDefinitionId: definition.id,
+      userErrors: [],
+    });
+
+    const readResponse = await request(server)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `#graphql
+          query($productId: ID!) {
+            product(id: $productId) {
+              material: metafield(namespace: "custom", key: "material") { id }
+              metafields(first: 5) { nodes { namespace key value ownerType } }
+              variants(first: 1) {
+                nodes {
+                  material: metafield(namespace: "custom", key: "material") {
+                    namespace
+                    key
+                    value
+                    ownerType
+                  }
+                  metafields(first: 5) { nodes { namespace key value ownerType } }
+                }
+              }
+            }
+          }
+        `,
+        variables: { productId },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.product.material).toBeNull();
+    expect(readResponse.body.data.product.metafields.nodes).toEqual([]);
+    expect(readResponse.body.data.product.variants.nodes[0].material).toEqual({
+      namespace: 'custom',
+      key: 'material',
+      value: 'Variant canvas',
+      ownerType: 'PRODUCTVARIANT',
+    });
+    expect(readResponse.body.data.product.variants.nodes[0].metafields.nodes).toEqual([
+      {
+        namespace: 'custom',
+        key: 'material',
+        value: 'Variant canvas',
+        ownerType: 'PRODUCTVARIANT',
+      },
+    ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

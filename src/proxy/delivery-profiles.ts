@@ -730,6 +730,9 @@ function serializeProvince(
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryProvince';
+        break;
       case 'id':
         result[key] = province.id;
         break;
@@ -755,6 +758,9 @@ function serializeCountry(
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryCountry';
+        break;
       case 'id':
         result[key] = country.id;
         break;
@@ -807,6 +813,9 @@ function serializeZone(zone: DeliveryProfileZoneRecord, selections: readonly Sel
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryZone';
+        break;
       case 'id':
         result[key] = zone.id;
         break;
@@ -832,6 +841,9 @@ function serializeMethodCondition(
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryCondition';
+        break;
       case 'id':
         result[key] = condition.id;
         break;
@@ -860,6 +872,9 @@ function serializeMethodDefinition(
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryMethodDefinition';
+        break;
       case 'id':
         result[key] = methodDefinition.id;
         break;
@@ -986,6 +1001,9 @@ function serializeLocationGroup(
   for (const field of selectedFields(selections)) {
     const key = responseKey(field);
     switch (field.name.value) {
+      case '__typename':
+        result[key] = 'DeliveryLocationGroup';
+        break;
       case 'id':
         result[key] = group.id;
         break;
@@ -1004,6 +1022,180 @@ function serializeLocationGroup(
     }
   }
   return result;
+}
+
+type DeliveryProfileNodeType =
+  | 'DeliveryCondition'
+  | 'DeliveryCountry'
+  | 'DeliveryLocationGroup'
+  | 'DeliveryMethodDefinition'
+  | 'DeliveryParticipant'
+  | 'DeliveryProvince'
+  | 'DeliveryRateDefinition'
+  | 'DeliveryZone';
+
+function findDeliveryProfileCountryById(
+  profiles: DeliveryProfileRecord[],
+  id: string,
+): DeliveryProfileCountryRecord | null {
+  for (const profile of profiles) {
+    for (const group of profile.profileLocationGroups) {
+      for (const countryAndZone of group.countriesInAnyZone) {
+        if (countryAndZone.country.id === id) {
+          return countryAndZone.country;
+        }
+      }
+
+      for (const zone of group.locationGroupZones) {
+        const country = zone.zone.countries.find((candidate) => candidate.id === id);
+        if (country) {
+          return country;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDeliveryProfileProvinceById(
+  profiles: DeliveryProfileRecord[],
+  id: string,
+): DeliveryProfileProvinceRecord | null {
+  for (const profile of profiles) {
+    for (const group of profile.profileLocationGroups) {
+      for (const countryAndZone of group.countriesInAnyZone) {
+        const province = countryAndZone.country.provinces.find((candidate) => candidate.id === id);
+        if (province) {
+          return province;
+        }
+      }
+
+      for (const zone of group.locationGroupZones) {
+        for (const country of zone.zone.countries) {
+          const province = country.provinces.find((candidate) => candidate.id === id);
+          if (province) {
+            return province;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDeliveryProfileMethodDefinitionById(
+  profiles: DeliveryProfileRecord[],
+  id: string,
+): DeliveryProfileMethodDefinitionRecord | null {
+  for (const profile of profiles) {
+    for (const group of profile.profileLocationGroups) {
+      for (const zone of group.locationGroupZones) {
+        const method = zone.methodDefinitions.find((candidate) => candidate.id === id);
+        if (method) {
+          return method;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDeliveryProfileMethodConditionById(
+  profiles: DeliveryProfileRecord[],
+  id: string,
+): DeliveryProfileMethodConditionRecord | null {
+  for (const profile of profiles) {
+    for (const group of profile.profileLocationGroups) {
+      for (const zone of group.locationGroupZones) {
+        for (const method of zone.methodDefinitions) {
+          const condition = method.methodConditions.find((candidate) => candidate.id === id);
+          if (condition) {
+            return condition;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function findDeliveryProfileRateProviderById(
+  profiles: DeliveryProfileRecord[],
+  id: string,
+  typeName: 'DeliveryParticipant' | 'DeliveryRateDefinition',
+): Record<string, unknown> | null {
+  for (const profile of profiles) {
+    for (const group of profile.profileLocationGroups) {
+      for (const zone of group.locationGroupZones) {
+        for (const method of zone.methodDefinitions) {
+          const rateProvider = method.rateProvider;
+          if (rateProvider['id'] === id && rateProvider['__typename'] === typeName) {
+            return rateProvider;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+export function serializeDeliveryProfileNestedNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  typeName: DeliveryProfileNodeType,
+  selectedFields: readonly FieldNode[],
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const profiles = runtime.store.listEffectiveDeliveryProfiles();
+
+  switch (typeName) {
+    case 'DeliveryCondition': {
+      const condition = findDeliveryProfileMethodConditionById(profiles, id);
+      return condition ? serializeMethodCondition(condition, selectedFields) : null;
+    }
+    case 'DeliveryCountry': {
+      const country = findDeliveryProfileCountryById(profiles, id);
+      return country ? serializeCountry(country, selectedFields) : null;
+    }
+    case 'DeliveryLocationGroup': {
+      for (const profile of profiles) {
+        const group = profile.profileLocationGroups.find((candidate) => candidate.id === id);
+        if (group) {
+          return serializeLocationGroup(runtime, group, selectedFields, variables);
+        }
+      }
+      return null;
+    }
+    case 'DeliveryMethodDefinition': {
+      const method = findDeliveryProfileMethodDefinitionById(profiles, id);
+      return method ? serializeMethodDefinition(method, selectedFields) : null;
+    }
+    case 'DeliveryParticipant':
+    case 'DeliveryRateDefinition': {
+      const rateProvider = findDeliveryProfileRateProviderById(profiles, id, typeName);
+      return rateProvider ? (projectPlainValue(rateProvider, selectedFields) as Record<string, unknown>) : null;
+    }
+    case 'DeliveryProvince': {
+      const province = findDeliveryProfileProvinceById(profiles, id);
+      return province ? serializeProvince(province, selectedFields) : null;
+    }
+    case 'DeliveryZone': {
+      for (const profile of profiles) {
+        for (const group of profile.profileLocationGroups) {
+          const zone = group.locationGroupZones.find((candidate) => candidate.zone.id === id);
+          if (zone) {
+            return serializeZone(zone.zone, selectedFields);
+          }
+        }
+      }
+      return null;
+    }
+  }
 }
 
 function serializeProfileLocationGroup(

@@ -1,0 +1,57 @@
+{
+  "scenarioId": "admin-platform-taxonomy-hierarchy-node-reads",
+  "operationNames": ["taxonomy", "node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "null-empty-behavior", "pagination-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-459 rework executable parity for taxonomy hierarchy filters and TaxonomyCategory generic Node dispatch. The proxy harness seeds only captured taxonomy category records and must preserve Shopify cursor/pageInfo, null/no-data behavior for missing parents, and null entries for missing TaxonomyCategory node IDs without inventing uncaptured taxonomy rows.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "taxonomy-children-filter-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.taxonomy.children",
+        "proxyPath": "$.data.taxonomy.children",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-descendants-filter-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.taxonomy.descendants",
+        "proxyPath": "$.data.taxonomy.descendants",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-siblings-filter-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.taxonomy.siblings",
+        "proxyPath": "$.data.taxonomy.siblings",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-missing-parent-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.taxonomy.missingChildren",
+        "proxyPath": "$.data.taxonomy.missingChildren",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-category-node-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.node",
+        "proxyPath": "$.data.node",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "taxonomy-category-nodes-data",
+        "capturePath": "$.captures.taxonomyHierarchyAndNodeReads.result.payload.data.nodes",
+        "proxyPath": "$.data.nodes",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

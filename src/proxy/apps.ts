@@ -741,9 +741,11 @@ function handleDelegateCreate(
 ): unknown {
   const args = getFieldArguments(field, variables);
   const input = isPlainObject(args['input']) ? args['input'] : {};
-  const accessScopes = Array.isArray(input['accessScopes'])
+  const delegateAccessScope = asString(input['delegateAccessScope']);
+  const legacyAccessScopes = Array.isArray(input['accessScopes'])
     ? input['accessScopes'].filter((value): value is string => typeof value === 'string')
     : [];
+  const accessScopes = delegateAccessScope ? [delegateAccessScope] : legacyAccessScopes;
   const rawToken = `shpat_delegate_proxy_${runtime.syntheticIdentity.makeSyntheticGid('DelegateAccessToken').split('/').at(-1)}`;
   const createdAt = runtime.syntheticIdentity.makeSyntheticTimestamp();
   runtime.store.stageDelegatedAccessToken({

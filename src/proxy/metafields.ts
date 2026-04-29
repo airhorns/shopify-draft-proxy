@@ -8,6 +8,7 @@ import {
   paginateConnectionItems,
   serializeConnection,
 } from './graphql-helpers.js';
+import { normalizeMetafieldValue, parseMetafieldJsonValue } from './products/metafield-values.js';
 
 export type MetafieldRecordCore = {
   id: string;
@@ -39,36 +40,6 @@ function readOptionalString(value: unknown): string | null {
 
 function hasOwnField(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
-}
-
-function parseMetafieldJsonValue(type: string | null, value: string | null): JsonValue {
-  if (value === null) {
-    return null;
-  }
-
-  if (type === 'json' || type?.startsWith('list.')) {
-    try {
-      return JSON.parse(value) as JsonValue;
-    } catch {
-      return value;
-    }
-  }
-
-  if (type === 'number_integer') {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'number_decimal') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? parsed : value;
-  }
-
-  if (type === 'boolean') {
-    return value === 'true';
-  }
-
-  return value;
 }
 
 function makeMetafieldCompareDigest(metafield: MetafieldRecordCore): string {
@@ -189,7 +160,7 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
     const identityKey = `${namespace}:${key}`;
     const existing = existingById ?? metafieldsByIdentity.get(identityKey);
     const type = (options.trimIdentity ? rawType?.trim() : rawType) ?? existing?.type ?? null;
-    const value = readOptionalString(input['value']) ?? existing?.value ?? null;
+    const value = normalizeMetafieldValue(type, readOptionalString(input['value']) ?? existing?.value ?? null);
     const nextCore: MetafieldRecordCore = {
       id: existing?.id ?? runtime.syntheticIdentity.makeSyntheticGid('Metafield'),
       namespace,
@@ -224,12 +195,7 @@ export function upsertOwnerMetafields<OwnerKey extends string>(
   }
 
   return {
-    metafields: Array.from(metafieldsByIdentity.values()).sort(
-      (left, right) =>
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id),
-    ),
+    metafields: Array.from(metafieldsByIdentity.values()),
     createdOrUpdated,
   };
 }

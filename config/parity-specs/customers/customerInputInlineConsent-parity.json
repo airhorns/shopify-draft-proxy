@@ -1,0 +1,141 @@
+{
+  "scenarioId": "customer-input-inline-consent-parity",
+  "operationNames": ["customerCreate", "customerUpdate", "customer", "customerByIdentifier", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "consent-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for CustomerInput inline consent semantics: customerCreate accepts emailMarketingConsent and smsMarketingConsent input and immediately reflects those values on Customer.defaultEmailAddress/defaultPhoneNumber and compatibility consent fields; customerUpdate rejects inline emailMarketingConsent and smsMarketingConsent with userErrors directing callers to the dedicated consent mutations, leaving downstream reads unchanged. Runtime tests cover no-upstream local staging and mutation-log behavior.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-inline-consent",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber",
+          "$.customerCreate.customer.emailMarketingConsent",
+          "$.customerCreate.customer.smsMarketingConsent"
+        ]
+      },
+      {
+        "name": "create-inline-consent-downstream-read",
+        "capturePath": "$.mutation.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": {
+              "fromCapturePath": "$.mutation.downstreamRead.variables.query"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber",
+          "$.customer.emailMarketingConsent",
+          "$.customer.smsMarketingConsent",
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.defaultEmailAddress",
+          "$.customerByIdentifier.defaultPhoneNumber",
+          "$.customerByIdentifier.emailMarketingConsent",
+          "$.customerByIdentifier.smsMarketingConsent"
+        ]
+      },
+      {
+        "name": "update-inline-email-consent-rejection",
+        "capturePath": "$.validation.updateEmailConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "emailMarketingConsent": {
+                "marketingState": "UNSUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": "2026-04-25T02:00:00Z"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "update-inline-sms-consent-rejection",
+        "capturePath": "$.validation.updateSmsConsent.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "smsMarketingConsent": {
+                "marketingState": "UNSUBSCRIBED",
+                "marketingOptInLevel": "SINGLE_OPT_IN",
+                "consentUpdatedAt": "2026-04-25T02:05:00Z"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "rejected-inline-consent-downstream-read",
+        "capturePath": "$.validation.downstreamAfterRejectedUpdates.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": {
+              "fromCapturePath": "$.validation.downstreamAfterRejectedUpdates.variables.query"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber",
+          "$.customer.emailMarketingConsent",
+          "$.customer.smsMarketingConsent",
+          "$.customerByIdentifier.email",
+          "$.customerByIdentifier.defaultEmailAddress",
+          "$.customerByIdentifier.defaultPhoneNumber",
+          "$.customerByIdentifier.emailMarketingConsent",
+          "$.customerByIdentifier.smsMarketingConsent"
+        ]
+      }
+    ]
+  }
+}
