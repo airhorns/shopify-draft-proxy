@@ -117,6 +117,7 @@ This policy was reviewed against Shopify Admin GraphQL 2026-04 webhook subscript
 - detail read-after-create, read-after-update, and read-after-delete behavior
 - missing URI validation on create
 - unknown-id validation on update and delete
+- GraphQL validation errors for missing required `webhookSubscriptionCreate(topic:)` and null `webhookSubscriptionUpdate(webhookSubscription:)`
 
 The capture used `WebhookSubscriptionInput.uri` with an `https://example.com/...` HTTP endpoint, `format: JSON`, selected `includeFields`, and selected `metafieldNamespaces`. The created subscription was deleted during the same script run. HAR-399 reviewed the current 2026-04 docs and 2025-10 webhook changelog and added local executable coverage for unified `uri` projection and filtering across HTTPS, Google Pub/Sub (`pubsub://{project-id}:{topic-id}`), and Amazon EventBridge ARN endpoint shapes without adding any delivery/outbox side effects.
 
@@ -124,10 +125,11 @@ HAR-356 promotes the captured evidence into two executable strict parity contrac
 
 - `webhook-subscription-catalog-read` compares the captured empty `webhookSubscriptions` connection, count precision, filtered count, and unknown-detail null behavior against the local proxy in snapshot mode.
 - `webhook-subscription-conformance` replays the captured create/update/delete lifecycle through local staging, then compares mutation payloads, detail read-after-write responses, read-after-delete absence, and captured validation branches. Live Shopify IDs and timestamps are accepted only through path-scoped matchers because the proxy uses synthetic IDs and a deterministic synthetic clock.
+- `webhook-subscription-required-argument-validation` compares captured GraphQL validation errors for missing create topic and null update input against the local proxy. These requests fail before resolver side effects and do not stage webhook subscriptions.
 
 ### HAR-461 Fidelity Review
 
-The 2026-04 and latest Admin GraphQL webhook subscription docs and public usage examples were re-reviewed for HAR-461. Current examples use `WebhookSubscriptionInput.uri` for HTTP callback URLs, Google Pub/Sub `pubsub://{project-id}:{topic-id}` destinations, and Amazon EventBridge ARNs; deprecated endpoint-specific projections are still preserved by the proxy only as read compatibility fields. The existing parity contracts cover API-created subscription lifecycle, empty catalog/count reads, unknown-detail null behavior, missing URI userErrors, unknown-id update/delete userErrors, and downstream read-after-write/read-after-delete effects.
+The 2026-04 and latest Admin GraphQL webhook subscription docs and public usage examples were re-reviewed for HAR-461. Current examples use `WebhookSubscriptionInput.uri` for HTTP callback URLs, Google Pub/Sub `pubsub://{project-id}:{topic-id}` destinations, and Amazon EventBridge ARNs; deprecated endpoint-specific projections are still preserved by the proxy only as read compatibility fields. The existing parity contracts cover API-created subscription lifecycle, empty catalog/count reads, unknown-detail null behavior, missing URI userErrors, unknown-id update/delete userErrors, required-argument GraphQL validation, and downstream read-after-write/read-after-delete effects.
 
 Remaining fidelity gaps are intentionally narrower than webhook delivery:
 

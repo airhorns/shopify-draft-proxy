@@ -14,6 +14,7 @@ const repoRoot = resolve(import.meta.dirname, '../..');
 const fixturePath =
   'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json';
 const specPath = 'config/parity-specs/webhooks/webhook-subscription-conformance.json';
+const requiredArgumentSpecPath = 'config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json';
 
 function readText(relativePath: string): string {
   return readFileSync(resolve(repoRoot, relativePath), 'utf8');
@@ -46,6 +47,10 @@ describe('webhook subscription conformance fixture', () => {
     const scenarios = loadConformanceScenarios(repoRoot);
     const scenario = scenarios.find((candidate) => candidate.id === 'webhook-subscription-conformance');
     const paritySpec = readJson<ParitySpec>(specPath);
+    const requiredArgumentScenario = scenarios.find(
+      (candidate) => candidate.id === 'webhook-subscription-required-argument-validation',
+    );
+    const requiredArgumentSpec = readJson<ParitySpec>(requiredArgumentSpecPath);
 
     expect(scenario).toMatchObject({
       status: 'captured',
@@ -61,6 +66,12 @@ describe('webhook subscription conformance fixture', () => {
     });
     expect(classifyParityScenarioState(scenario!, paritySpec)).toBe('ready-for-comparison');
     expect(paritySpec.comparison?.targets?.length).toBeGreaterThan(0);
+    expect(requiredArgumentScenario).toMatchObject({
+      status: 'captured',
+      operationNames: ['webhookSubscriptionCreate', 'webhookSubscriptionUpdate'],
+      captureFiles: [fixturePath],
+    });
+    expect(classifyParityScenarioState(requiredArgumentScenario!, requiredArgumentSpec)).toBe('ready-for-comparison');
 
     const parsedCreate = parseOperation(
       readText('config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql'),
@@ -114,6 +125,12 @@ describe('webhook subscription conformance fixture', () => {
       'webhookSubscriptionUpdate',
       'webhookSubscriptionDelete',
       'webhookSubscriptionCreate',
+    ]);
+    expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-missing-create-topic.graphql')).toEqual(
+      ['webhookSubscriptionCreate'],
+    );
+    expect(rootFieldNames('config/parity-requests/webhooks/webhook-subscription-null-update-input.graphql')).toEqual([
+      'webhookSubscriptionUpdate',
     ]);
   });
 
@@ -208,5 +225,40 @@ describe('webhook subscription conformance fixture', () => {
         userErrors: [{ field: ['webhookSubscription', 'callbackUrl'], message: "Address can't be blank" }],
       },
     });
+
+    const graphqlValidation = asRecord(fixture['graphqlValidation']);
+    const missingCreateTopicErrors = asRecord(
+      asRecord(asRecord(graphqlValidation['missingCreateTopic'])['response'])['payload'],
+    )['errors'];
+    expect(missingCreateTopicErrors).toEqual([
+      {
+        message: "Field 'webhookSubscriptionCreate' is missing required arguments: topic",
+        locations: [{ line: 2, column: 3 }],
+        path: ['mutation MissingCreateWebhookTopic', 'webhookSubscriptionCreate'],
+        extensions: {
+          code: 'missingRequiredArguments',
+          className: 'Field',
+          name: 'webhookSubscriptionCreate',
+          arguments: 'topic',
+        },
+      },
+    ]);
+
+    const nullUpdateInputErrors = asRecord(
+      asRecord(asRecord(graphqlValidation['nullUpdateInput'])['response'])['payload'],
+    )['errors'];
+    expect(nullUpdateInputErrors).toEqual([
+      {
+        message:
+          "Argument 'webhookSubscription' on Field 'webhookSubscriptionUpdate' has an invalid value (null). Expected type 'WebhookSubscriptionInput!'.",
+        locations: [{ line: 2, column: 3 }],
+        path: ['mutation NullUpdateWebhookInput', 'webhookSubscriptionUpdate', 'webhookSubscription'],
+        extensions: {
+          code: 'argumentLiteralsIncompatible',
+          typeName: 'Field',
+          argumentName: 'webhookSubscription',
+        },
+      },
+    ]);
   });
 });

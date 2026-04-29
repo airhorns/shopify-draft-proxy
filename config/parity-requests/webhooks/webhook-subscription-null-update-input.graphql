@@ -1,0 +1,11 @@
+mutation NullUpdateWebhookInput {
+  webhookSubscriptionUpdate(id: "gid://shopify/WebhookSubscription/999999999999", webhookSubscription: null) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
