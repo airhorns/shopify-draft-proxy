@@ -1,0 +1,10 @@
+mutation ProductFeedDeleteLocalRuntime($id: ID!) {
+  productFeedDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
