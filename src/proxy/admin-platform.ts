@@ -1,4 +1,5 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
+import { Buffer } from 'node:buffer';
 import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
@@ -432,6 +433,40 @@ function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
   return category.cursor ?? category.id;
 }
 
+function taxonomyCategoryCursorSortKey(category: TaxonomyCategoryRecord): number | null {
+  if (!category.cursor) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(category.cursor, 'base64').toString('utf8')) as unknown;
+    if (!isPlainObject(decoded)) {
+      return null;
+    }
+    const id = decoded['id'];
+    return typeof id === 'number' && Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function sortTaxonomyHierarchyCategories(categories: TaxonomyCategoryRecord[]): TaxonomyCategoryRecord[] {
+  return categories
+    .map((category, index) => ({
+      category,
+      index,
+      sortKey: taxonomyCategoryCursorSortKey(category),
+    }))
+    .sort((left, right) => {
+      if (left.sortKey !== null && right.sortKey !== null && left.sortKey !== right.sortKey) {
+        return left.sortKey - right.sortKey;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ category }) => category);
+}
+
 function taxonomyCategoryMatchesSearchTerm(category: TaxonomyCategoryRecord, term: SearchQueryTerm): boolean {
   switch (term.field) {
     case null:
@@ -513,22 +548,57 @@ function serializeTaxonomyCategory(
   return result;
 }
 
+function serializeTaxonomyCategoryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const category = runtime.store.getEffectiveTaxonomyCategories().find((candidate) => candidate.id === id) ?? null;
+  return category ? serializeTaxonomyCategory(category, selectedFields) : null;
+}
+
 function serializeTaxonomyCategories(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
+  const rawChildrenOf = args['childrenOf'];
+  const rawDescendantsOf = args['descendantsOf'];
+  const rawSiblingsOf = args['siblingsOf'];
   const rawSearch = args['search'];
+  const allCategories = runtime.store.getEffectiveTaxonomyCategories();
+  const hasHierarchyFilter =
+    (typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0) ||
+    (typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0) ||
+    (typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0);
+  const hierarchyFilteredCategories =
+    typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0
+      ? allCategories.filter((category) => category.parentId === rawChildrenOf)
+      : typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0
+        ? allCategories.filter((category) => category.ancestorIds.includes(rawDescendantsOf))
+        : typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0
+          ? allCategories.filter((category) => {
+              const siblingSubject = allCategories.find((candidate) => candidate.id === rawSiblingsOf) ?? null;
+              return (
+                siblingSubject?.parentId !== undefined &&
+                category.parentId === siblingSubject.parentId &&
+                category.id !== rawSiblingsOf
+              );
+            })
+          : allCategories;
+  const orderedHierarchyFilteredCategories = hasHierarchyFilter
+    ? sortTaxonomyHierarchyCategories(hierarchyFilteredCategories)
+    : hierarchyFilteredCategories;
   const categories =
     typeof rawSearch === 'string' && rawSearch.trim().length > 0
       ? applySearchQueryTerms(
-          runtime.store.getEffectiveTaxonomyCategories(),
+          orderedHierarchyFilteredCategories,
           rawSearch,
           { ignoredKeywords: ['AND'], dropEmptyValues: true },
           taxonomyCategoryMatchesSearchTerm,
         )
-      : runtime.store.getEffectiveTaxonomyCategories();
+      : orderedHierarchyFilteredCategories;
   const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
   const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
 
@@ -681,6 +751,10 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'MarketRegionCountry',
     typeConditions: ['MarketRegion'],
     serialize: (runtime, id, selectedFields) => serializeMarketRegionCountryNodeById(runtime, id, selectedFields),
+  },
+  TaxonomyCategory: {
+    typename: 'TaxonomyCategory',
+    serialize: (runtime, id, selectedFields) => serializeTaxonomyCategoryNodeById(runtime, id, selectedFields),
   },
 
   PaymentCustomization: {

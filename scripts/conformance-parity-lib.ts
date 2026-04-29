@@ -7375,21 +7375,53 @@ function readTaxonomyConnectionCategories(connection: Record<string, unknown> | 
 function readTaxonomyCaptureCategories(
   captures: Record<string, unknown> | null,
   captureName: string,
+  connectionName = 'categories',
 ): TaxonomyCategoryRecord[] {
   const payload = readRecordField(readRecordField(readRecordField(captures, captureName), 'result'), 'payload');
   const data = readRecordField(payload, 'data');
   const taxonomy = readRecordField(data, 'taxonomy');
-  return readTaxonomyConnectionCategories(readRecordField(taxonomy, 'categories'));
+  return readTaxonomyConnectionCategories(readRecordField(taxonomy, connectionName));
+}
+
+function readTaxonomyNodeCaptureCategories(
+  captures: Record<string, unknown> | null,
+  captureName: string,
+): TaxonomyCategoryRecord[] {
+  const payload = readRecordField(readRecordField(readRecordField(captures, captureName), 'result'), 'payload');
+  const data = readRecordField(payload, 'data');
+  const node = readRecordField(data, 'node');
+  const nodes = readArrayField(data, 'nodes').filter(isPlainObject);
+  return [node, ...nodes]
+    .filter((candidate): candidate is Record<string, unknown> => candidate !== null)
+    .filter((candidate) => readStringField(candidate, '__typename') === 'TaxonomyCategory')
+    .map((candidate) => readTaxonomyCategoryRecord(candidate, null))
+    .filter((category): category is TaxonomyCategoryRecord => category !== null);
+}
+
+function dedupeTaxonomyCategories(categories: TaxonomyCategoryRecord[]): TaxonomyCategoryRecord[] {
+  const seen = new Set<string>();
+  return categories.filter((category) => {
+    if (seen.has(category.id)) {
+      return false;
+    }
+    seen.add(category.id);
+    return true;
+  });
 }
 
 function seedAdminPlatformTaxonomyPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const captures = readRecordField(capture as Record<string, unknown>, 'captures');
-  const categories = [
+  const categories = dedupeTaxonomyCategories([
     ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogFirstPage'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogNextPage'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparel'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparelOverflowSeed'),
-  ];
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'children'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'descendants'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'siblings'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchySiblingOverflowSeed', 'siblings'),
+    ...readTaxonomyNodeCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads'),
+  ]);
   if (categories.length > 0) {
     runtime.store.upsertBaseTaxonomyCategories(categories);
   }

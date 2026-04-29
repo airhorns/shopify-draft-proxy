@@ -801,7 +801,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
+      `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
     cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

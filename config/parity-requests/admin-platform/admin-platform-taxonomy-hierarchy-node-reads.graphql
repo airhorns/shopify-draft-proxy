@@ -1,0 +1,142 @@
+query AdminPlatformTaxonomyHierarchyNodeReads {
+  taxonomy {
+    children: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/ap-2") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    descendants: categories(first: 5, descendantsOf: "gid://shopify/TaxonomyCategory/ap") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    siblings: categories(first: 5, siblingsOf: "gid://shopify/TaxonomyCategory/ap-2-6") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+    missingChildren: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/missing") {
+      nodes {
+        id
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+      edges {
+        cursor
+        node {
+          id
+          name
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+  node(id: "gid://shopify/TaxonomyCategory/aa") {
+    __typename
+    id
+    ... on TaxonomyCategory {
+      name
+      fullName
+      isRoot
+      isLeaf
+      level
+      parentId
+      ancestorIds
+      childrenIds
+      isArchived
+    }
+  }
+  nodes(ids: ["gid://shopify/TaxonomyCategory/ap-2-6", "gid://shopify/TaxonomyCategory/missing"]) {
+    __typename
+    id
+    ... on TaxonomyCategory {
+      name
+      fullName
+      isRoot
+      isLeaf
+      level
+      parentId
+      ancestorIds
+      childrenIds
+      isArchived
+    }
+  }
+}
