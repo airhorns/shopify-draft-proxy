@@ -9,6 +9,301 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-29 — Pass 26: bulk-operations domain (empty-read stub)
+
+Adds a new `BulkOperationsDomain` covering the always-on read shape
+for the bulk-operations API. Same Pass 22k pattern: every singular
+root returns null, the connection root returns the empty-connection
+shape. The dispatcher routes the existing `BulkOperations` capability;
+legacy fallback recognises the three query roots by name.
+
+The full TS module (`src/proxy/bulk-operations.ts`, ~1462 LOC) covers
+the run-query / run-mutation / cancel lifecycle, the stored bulk-
+operation overlay (with status transitions, JSONL import-log replay
+for `objects` substitution, and polling-friendly id-vs-window
+validation), and connection pagination with
+`createdAt`/`completedAt`/`status:` query filters. None of that ships
+in this pass; the next bulk-operations pass will port the state slice
+(`BulkOperationRecord`, the active/historical id pair, the
+`BulkOperationImportLogEntry` shape) and start filling in real reads.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam` | New module (~80 LOC). Public surface: `is_bulk_operations_query_root`, `handle_bulk_operations_query`, `wrap_data`, `process`, `BulkOperationsError`. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `BulkOperationsDomain` variant. `BulkOperations → BulkOperationsDomain` capability mapping (queries only). Legacy fallback adds the bulk-operations predicate after marketing. Query dispatcher arm calls `bulk_operations.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | +5 tests: predicate, two singular nulls (`bulkOperation`, `currentBulkOperation`), two empty connections (`bulkOperations` with both `nodes`/`pageInfo` and `edges` selection sets), envelope wrapping. |
+
+Both `--target erlang` and `--target javascript` are green at 629
+passing tests (the headline counter sweeps every test, including
+parity-runner cases that now exercise the new domain).
+
+### What still doesn't move
+
+- **State slice.** No `BulkOperationRecord` yet, and none of the
+  store helpers (`getEffectiveBulkOperationById`,
+  `listEffectiveBulkOperations`, `stageBulkOperation`,
+  `setActiveBulkOperationId`, etc.).
+- **Mutations.** `bulkOperationRunQuery`, `bulkOperationRunMutation`,
+  `bulkOperationCancel` remain unrouted.
+- **Connection filters.** `bulkOperations(query:)` parses a small
+  grammar (`createdAt:>=...`, `status:COMPLETED`) that the empty-
+  connection serializer doesn't need but the real read path will.
+- **Import-log replay.** TS reads a JSONL fixture to substitute
+  `objects` payloads; the state slice port will need to decide
+  whether this stays an upstream concern or moves into the local
+  store overlay.
+
+---
+
+## 2026-04-29 — Pass 25: marketing domain (empty-read stub)
+
+Adds a new `MarketingDomain` covering the always-on read shape for
+marketing activities and events. Same Pass 22k pattern: every singular
+root returns null, every connection root returns the empty-connection
+shape. The dispatcher routes the existing `Marketing` capability;
+legacy fallback recognises the four query roots by name.
+
+The full TS module (`src/proxy/marketing.ts`, ~1285 LOC) covers
+marketing-activity lifecycle (8 mutation roots — create/update/
+external/upsert/delete/deleteExternal/deleteAllExternal plus
+marketingEngagementCreate and marketingEngagementsDelete), channel-
+handle inspection, query-grammar filters, and connection pagination
+by tactic/status. None of that ships in this pass; the next marketing
+pass will port the state slice (`MarketingRecord`,
+`MarketingEngagementRecord`, `EffectiveMarketingActivityRecord`) and
+start filling in real reads.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/proxy/marketing.gleam` | New module (~85 LOC). Public surface: `is_marketing_query_root`, `handle_marketing_query`, `wrap_data`, `process`, `MarketingError`. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MarketingDomain` variant. `Marketing → MarketingDomain` capability mapping (queries only). Legacy fallback adds the marketing predicate after metaobject-definitions. Query dispatcher arm calls `marketing.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam` | +6 tests: predicate, two singular nulls (`marketingActivity`, `marketingEvent`), two empty connections (`marketingActivities`, `marketingEvents`), envelope wrapping. |
+
+Test count: 584 → 590. Both `--target erlang` and `--target javascript`
+are green.
+
+### Drive-by
+
+A `MetaCommit -> dispatch_meta_commit_sync(proxy, request)` arm in
+`process_request` was referencing an undefined function (left over
+from in-progress commit-dispatch work that brought in `gleam/fetch`,
+`gleam/httpc`, and `gleam/javascript/promise`). Added a one-line stub
+that delegates to the existing `commit_not_implemented_response()` so
+the build is unblocked; the in-progress commit work can replace the
+body when it's ready without changing the call site.
+
+### What still doesn't move
+
+- **State slice.** No `MarketingRecord` /
+  `MarketingEngagementRecord` /
+  `EffectiveMarketingActivityRecord` types yet, and none of the 16
+  `runtime.store.*` helpers (`getEffectiveMarketingActivityById`,
+  `getEffectiveMarketingActivityByRemoteId`,
+  `listEffectiveMarketingActivities`,
+  `stageMarketingActivity`, etc.).
+- **Mutation lifecycle.** All marketing mutations remain unrouted
+  until the state slice ports.
+- **Query-grammar filters.** `marketingActivities(query: ...)`
+  accepts a filter grammar (`tactic:AD AND status:ACTIVE`) parsed by
+  the shared search-query parser; the empty-connection serializer
+  doesn't need it but the real read path will.
+
+---
+
+## 2026-04-29 — Pass 24: metaobject-definitions domain (empty-read stub)
+
+Adds a new `MetaobjectDefinitionsDomain` covering the always-on read
+shape for both metaobjects and metaobject definitions. Mirrors the
+Pass 22k pattern: every singular root returns null, every connection
+root returns the empty-connection shape (`nodes`/`edges` empty,
+`pageInfo` all-false-with-null-cursors). The dispatcher now routes the
+existing `Metaobjects` capability and the legacy fallback recognises
+the six query roots by name, so unimplemented Admin clients stop
+falling through to the upstream proxy.
+
+The full TS module (`src/proxy/metaobject-definitions.ts`, ~2700 LOC)
+covers metaobject + definition lifecycle (create/update/upsert/delete
+/bulkDelete plus definitionCreate/Update/Delete plus
+standardMetaobjectDefinitionEnable), field-level validation,
+type-scoped enumeration, handle/type lookups, and connection
+pagination with field-value query filters. None of that ships in this
+pass — the next metaobjects pass will port the state slice
+(`MetaobjectDefinitionRecord`, `MetaobjectRecord`,
+`MetaobjectFieldDefinitionRecord`, the validation record, and the
+capabilities record) and start filling in real reads.
+
+Mutation routes are intentionally not added: the
+`metaobject{Create,Update,Upsert,Delete,BulkDelete}` and
+`metaobjectDefinition{Create,Update,Delete}` plus
+`standardMetaobjectDefinitionEnable` mutations stay on the existing
+`No mutation dispatcher implemented` arm until the store slice lands.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam` | New module (~110 LOC). Public surface: `is_metaobject_definitions_query_root`, `handle_metaobject_definitions_query`, `wrap_data`, `process`, `MetaobjectDefinitionsError`. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MetaobjectDefinitionsDomain` variant. `Metaobjects → MetaobjectDefinitionsDomain` capability mapping (queries only). Legacy fallback adds the metaobject-definitions predicate after localization. Query dispatcher arm calls `metaobject_definitions.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam` | +8 tests: predicate, four singular nulls (`metaobject`, `metaobjectByHandle`, `metaobjectDefinition`, `metaobjectDefinitionByType`), two empty connections (`metaobjects`, `metaobjectDefinitions`), envelope wrapping. |
+
+Test count: 576 → 584. Both `--target erlang` and `--target javascript`
+are green.
+
+### What still doesn't move
+
+- **State slice.** No `MetaobjectDefinitionRecord` /
+  `MetaobjectRecord` / `MetaobjectFieldDefinitionRecord` /
+  `MetaobjectFieldDefinitionValidationRecord` /
+  `MetaobjectDefinitionCapabilitiesRecord` types yet, and no store
+  helpers (`getEffectiveMetaobjectDefinitionById`,
+  `findEffectiveMetaobjectDefinitionByType`,
+  `listEffectiveMetaobjects`, etc.). Once those land, the singular
+  reads can return real records and the connection roots can
+  paginate against staged data.
+- **Mutation lifecycle.** All nine metaobject(-definition) mutation
+  roots are deferred. They share field-validation primitives
+  (`validateMetaobjectField`, capability inspection) that should port
+  alongside the state slice in one cohesive follow-up pass.
+- **Field-value query filters.** `metaobjects(query: ...)` accepts a
+  filter grammar (`fields:title:foo AND ...`) handled by the same
+  search-query parser used elsewhere; the empty-connection serializer
+  doesn't need it but the real read path will.
+
+---
+
+## 2026-04-29 — Pass 23: localization domain (read + 5 mutation roots)
+
+Adds the localization slice end-to-end: a new
+`LocalizationDomain` covering the always-on read surfaces
+(`availableLocales`, `shopLocales`, `translatableResource(s)`,
+`translatableResourcesByIds`) and all five mutation roots
+(`shopLocale{Enable,Update,Disable}` plus
+`translations{Register,Remove}`), wired through the registry
+dispatcher and the legacy-name fallback.
+
+Without the Products domain there is no real `TranslatableResource`
+catalog to enumerate, so two design choices kept the surface useful:
+
+- **Default catalog of eight ISO codes** seeded inline in
+  `localization.gleam` (en/fr/de/es/it/pt-BR/ja/zh-CN). The store may
+  override the list via `replace_base_available_locales`. Default
+  shop locales likewise return `[en, primary, published]` until a
+  staged record shadows them.
+- **Resource synthesis from staged translations** in
+  `find_resource_or_synthesize` — staging a translation makes its
+  `resourceId` reachable via `translatableResource` and
+  `translatableResourcesByIds`, even though the underlying Product
+  isn't in the store. This preserves register→read parity for the
+  parts of the API that don't need the full Products domain.
+
+Translation mutations always validate against `find_resource`, which
+currently returns `None` for every gid — so any
+`translationsRegister`/`translationsRemove` against a real Product id
+deterministically returns `RESOURCE_NOT_FOUND`. That matches the TS
+contract for unknown resources; the success path will activate
+automatically once Products ports.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam` | New `LocaleRecord`, `ShopLocaleRecord`, `TranslationRecord` resource types (~50 LOC). |
+| `gleam/src/shopify_draft_proxy/state/store.gleam` | Extends `BaseState`/`StagedState` with `available_locales`, `shop_locales`, `translations` (and matching `deleted_*` markers). 12 helpers: `replace_base_available_locales`, `list_effective_available_locales`, `upsert_base_shop_locales`, `stage_shop_locale`, `disable_shop_locale`, `get_effective_shop_locale`, `list_effective_shop_locales`, `translation_storage_key` (`<resource_id>::<locale>::<market_id?>::<key>`), `stage_translation`, `remove_translation`, `remove_translations_for_locale`, `list_effective_translations`, `has_localization_state`. ~350 LOC. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam` | New module (~1100 LOC). Public surface: `is_localization_query_root`, `is_localization_mutation_root`, `handle_localization_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`. Private `AnyUserError` sum (`TranslationError(field, message, code)` / `ShopLocaleError(field, message)`). `@internal pub` on `TranslatableContent`/`TranslatableResource` so the types stay reachable for the future Products port without unused-constructor warnings. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | `LocalizationDomain` added to the `Domain` sum. Capability-based (`Localization → LocalizationDomain`) and legacy-name fallback (the five query roots + five mutation roots) both routed. Query and mutation dispatch arms call `localization.process`/`process_mutation`. |
+| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam` | +11 read-path tests: predicates, default availableLocales catalog (all 8 codes), store override, default shopLocales (primary+published), staged-record shadowing, `published: false` filter, `translatableResource` null vs. synthesized, `translatableResourcesByIds` empty + synthesized. |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | +11 mutation-path tests: data envelope, shopLocaleEnable success + invalid-locale userError, shopLocaleUpdate success + unknown-locale userError, shopLocaleDisable success + primary-locale userError, translationsRegister and translationsRemove resource-not-found + blank-input userError chains. |
+
+Test count: 554 → 576. Both `gleam test --target erlang` and
+`gleam test --target javascript` are green.
+
+### What still doesn't move
+
+- **Real translatable-resource enumeration.** `find_resource` and
+  `list_resources` return `None`/`[]` for every input. Once the
+  Products domain ports its `ProductRecord` and
+  `ProductMetafieldRecord` types, both helpers should derive a
+  `TranslatableResource` from the matching record (mirroring the TS
+  `findResource` reducer). At that point the synthesize-on-staged-
+  translation path can stay as a fallback or be retired.
+- **Market-scoped translations.** `marketIds` arguments produce a
+  `MARKET_CUSTOM_CONTENT_NOT_ALLOWED` user error pending a real
+  Markets domain; the storage key already accommodates an optional
+  `market_id` so future support is purely a validation change.
+- **Outdated/digest reconciliation.** `translatable_content_digest`
+  is stored verbatim and compared on register; the digest-vs-content
+  mismatch path that the TS handler exercises is gated on
+  `find_resource` returning a real record, so it stays dormant until
+  the Products port.
+
+---
+
+## 2026-04-29 — Pass 22l: standardMetafieldDefinitionEnable validation parity
+
+Adds a minimal mutation handler for `standardMetafieldDefinitionEnable`
+to the existing metafield-definitions domain, covering the
+`findStandardMetafieldDefinitionTemplate` user-error branches. Without
+the standard-template catalog seeded, every well-formed request falls
+through to the captured `TEMPLATE_NOT_FOUND` branch (`field: null`,
+"A standard definition wasn't found...") matching the
+`standard-metafield-definition-enable-validation` parity scenario's
+single target. The success branch that creates a real metafield
+definition is deferred until the catalog ports.
+
+The user-error projection respects the request's `userErrors` selection
+set (`field`/`message`/`code`); `createdDefinition` is `SrcNull` so its
+sub-selection collapses to `null`.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | New `UserError(field, message, code)` type, `MutationOutcome`, `is_metafield_definitions_mutation_root/1`, `process_mutation`, `handle_standard_metafield_definition_enable`, `find_standard_template_user_errors` (3 branches: missing args / id supplied / namespace+key supplied), `user_error_to_source`. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Mutation dispatcher gains a `MetafieldDefinitionsDomain` case (capability-based via `Metafields → MetafieldDefinitionsDomain` and legacy fallback by mutation root name). |
+| `gleam/test/parity_test.gleam` | +`standard_metafield_definition_enable_validation_test`. |
+
+Test count: 527 → 528. Both targets green.
+
+### What still doesn't move
+
+- Standard-template catalog: success-path projection of
+  `createdDefinition` (id/namespace/key/ownerType/name/type) needs the
+  `STANDARD_METAFIELD_DEFINITION_TEMPLATES` table ported. Once seeded,
+  the id-supplied branch can also distinguish "id not in catalog" from
+  "id not in catalog for ownerType".
+- The four lifecycle mutations
+  (`metafieldDefinition{Create,Update,Delete,Pin,Unpin}`) — deferred
+  until parity scenarios exercise them.
+
+---
+
+## 2026-04-29 — Pass 22k: minimal metafield-definitions domain (empty-read parity)
+
+Adds a new `MetafieldDefinitionsDomain` with the lightest possible
+serializer — `metafieldDefinition` → null, `metafieldDefinitions` →
+empty connection — modeled on the `events.gleam` pattern. Enables the
+`metafield-definitions-product-empty-read` parity scenario, whose
+checked targets are `$.data.missing` (null) and `$.data.empty` (empty
+connection). The other roots in the document (`byIdentifier`,
+`metafieldDefinitions`, `filteredByQuery`, `seedCatalog`) serialize to
+null/empty too; they're not compared by the spec.
+
+The TS module (`src/proxy/metafield-definitions.ts`, ~1550 LOC) covers
+definition lifecycle, validation, capability inspection, and seeded
+catalog reads. None of that is needed for the empty-read scenario —
+that's deferred until a parity spec actually exercises it.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | New file (~85 LOC). Selection-driven serializer using `serialize_empty_connection` for `metafieldDefinitions` and `json.null()` for everything else. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MetafieldDefinitionsDomain` enum value with both capability-based dispatch (`Metafields → MetafieldDefinitionsDomain`) and legacy-fallback by root-field name. |
+| `gleam/test/parity_test.gleam` | +`metafield_definitions_product_empty_read_test`. |
+
+Test count: 526 → 527 (one new parity test exercising 2 targets).
+Both targets green.
+
+### What still doesn't move
+
+- Definition lifecycle (create/update/delete/pin/unpin), validation,
+  capability inspection, seeded catalog reads — all deferred until a
+  parity spec needs them.
+
+---
+
 ## 2026-04-29 — Pass 22j: customerSegmentMembersQuery / customerSegmentMembers / customerSegmentMembership read roots
 
 Closes Pass 22i's "what still doesn't move" list. Stages the

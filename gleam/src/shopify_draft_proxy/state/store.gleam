@@ -18,9 +18,10 @@ import shopify_draft_proxy/state/types.{
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
   type AppUsageRecord, type CartTransformRecord,
   type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
-  type GiftCardConfigurationRecord, type GiftCardRecord,
-  type SavedSearchRecord, type SegmentRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type ValidationRecord,
+  type GiftCardConfigurationRecord, type GiftCardRecord, type LocaleRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
+  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type TranslationRecord, type ValidationRecord,
   type WebhookSubscriptionRecord,
 } as types_mod
 
@@ -71,6 +72,9 @@ pub type BaseState {
       CustomerSegmentMembersQueryRecord,
     ),
     customer_segment_members_query_order: List(String),
+    available_locales: List(LocaleRecord),
+    shop_locales: Dict(String, ShopLocaleRecord),
+    translations: Dict(String, TranslationRecord),
   )
 }
 
@@ -119,6 +123,10 @@ pub type StagedState {
       CustomerSegmentMembersQueryRecord,
     ),
     customer_segment_members_query_order: List(String),
+    shop_locales: Dict(String, ShopLocaleRecord),
+    deleted_shop_locales: Dict(String, Bool),
+    translations: Dict(String, TranslationRecord),
+    deleted_translations: Dict(String, Bool),
   )
 }
 
@@ -232,6 +240,9 @@ pub fn empty_base_state() -> BaseState {
     deleted_segment_ids: dict.new(),
     customer_segment_members_queries: dict.new(),
     customer_segment_members_query_order: [],
+    available_locales: [],
+    shop_locales: dict.new(),
+    translations: dict.new(),
   )
 }
 
@@ -276,6 +287,10 @@ pub fn empty_staged_state() -> StagedState {
     deleted_segment_ids: dict.new(),
     customer_segment_members_queries: dict.new(),
     customer_segment_members_query_order: [],
+    shop_locales: dict.new(),
+    deleted_shop_locales: dict.new(),
+    translations: dict.new(),
+    deleted_translations: dict.new(),
   )
 }
 
@@ -1650,6 +1665,366 @@ pub fn get_effective_customer_segment_members_query_by_id(
 }
 
 // ---------------------------------------------------------------------------
+// Localization slice (Pass 23)
+// ---------------------------------------------------------------------------
+
+/// Replace the entire `availableLocales` catalog. Mirrors
+/// `replaceBaseAvailableLocales`. The TS handler hydrates this from
+/// upstream responses; the Gleam port only ever sees it via tests
+/// today, but keeping the helper surface intact unblocks future
+/// hydration work.
+pub fn replace_base_available_locales(
+  store: Store,
+  locales: List(LocaleRecord),
+) -> Store {
+  let new_base = BaseState(..store.base_state, available_locales: locales)
+  Store(..store, base_state: new_base)
+}
+
+/// Read the catalog of every locale Shopify recognises. Mirrors
+/// `listEffectiveAvailableLocales`. Empty when no upstream response
+/// has hydrated it; the localization handler falls back to its own
+/// hardcoded default catalog in that case.
+pub fn list_effective_available_locales(store: Store) -> List(LocaleRecord) {
+  store.base_state.available_locales
+}
+
+/// Upsert one or more shop-locale records into the base state. Mirrors
+/// `upsertBaseShopLocales`. Removes any existing "deleted" markers
+/// (in either base or staged) for the same locale, since the upstream
+/// answer wins.
+pub fn upsert_base_shop_locales(
+  store: Store,
+  records: List(ShopLocaleRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        shop_locales: dict.insert(base.shop_locales, record.locale, record),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_shop_locales: dict.delete(
+          staged.deleted_shop_locales,
+          record.locale,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+/// Stage a shop-locale record. Mirrors `stageShopLocale`.
+pub fn stage_shop_locale(
+  store: Store,
+  record: ShopLocaleRecord,
+) -> #(ShopLocaleRecord, Store) {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      shop_locales: dict.insert(staged.shop_locales, record.locale, record),
+      deleted_shop_locales: dict.delete(
+        staged.deleted_shop_locales,
+        record.locale,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Mark a shop-locale as disabled. Mirrors `disableShopLocale`. Returns
+/// the record that was previously effective (if any) so the caller can
+/// build the mutation response payload.
+pub fn disable_shop_locale(
+  store: Store,
+  locale: String,
+) -> #(Option(ShopLocaleRecord), Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let existing = case dict.get(staged.shop_locales, locale) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(base.shop_locales, locale) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+  let new_staged = case existing {
+    Some(_) ->
+      StagedState(
+        ..staged,
+        shop_locales: dict.delete(staged.shop_locales, locale),
+        deleted_shop_locales: dict.insert(
+          staged.deleted_shop_locales,
+          locale,
+          True,
+        ),
+      )
+    None ->
+      StagedState(
+        ..staged,
+        shop_locales: dict.delete(staged.shop_locales, locale),
+      )
+  }
+  #(existing, Store(..store, staged_state: new_staged))
+}
+
+/// Look up the effective shop-locale for a locale code. Staged wins
+/// over base; any "deleted" marker on the staged side suppresses the
+/// record. Mirrors `getEffectiveShopLocale`.
+pub fn get_effective_shop_locale(
+  store: Store,
+  locale: String,
+) -> Option(ShopLocaleRecord) {
+  case dict_has(store.staged_state.deleted_shop_locales, locale) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.shop_locales, locale) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.shop_locales, locale) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+/// List every effective shop locale. Optionally filter by `published`.
+/// Sort: primary locale first, then by locale code. Mirrors
+/// `listEffectiveShopLocales`.
+pub fn list_effective_shop_locales(
+  store: Store,
+  published: Option(Bool),
+) -> List(ShopLocaleRecord) {
+  let base_records =
+    dict.values(store.base_state.shop_locales)
+    |> list.filter(fn(record) {
+      !dict_has(store.staged_state.deleted_shop_locales, record.locale)
+    })
+  let staged_records =
+    dict.values(store.staged_state.shop_locales)
+    |> list.filter(fn(record) {
+      !dict_has(store.staged_state.deleted_shop_locales, record.locale)
+    })
+  let merged_dict =
+    list.fold(base_records, dict.new(), fn(acc, record) {
+      dict.insert(acc, record.locale, record)
+    })
+  let merged_dict =
+    list.fold(staged_records, merged_dict, fn(acc, record) {
+      dict.insert(acc, record.locale, record)
+    })
+  let merged = dict.values(merged_dict)
+  let filtered = case published {
+    Some(target) -> list.filter(merged, fn(r) { r.published == target })
+    None -> merged
+  }
+  list.sort(filtered, fn(left, right) {
+    case left.primary, right.primary {
+      True, False -> order.Lt
+      False, True -> order.Gt
+      _, _ -> string.compare(left.locale, right.locale)
+    }
+  })
+}
+
+/// Build the storage key used to address a translation:
+/// `<resource_id>::<locale>::<market_id?>::<key>`. Mirrors
+/// `translationStorageKey`.
+pub fn translation_storage_key(
+  resource_id: String,
+  locale: String,
+  key: String,
+  market_id: Option(String),
+) -> String {
+  let market_part = option.unwrap(market_id, "")
+  resource_id <> "::" <> locale <> "::" <> market_part <> "::" <> key
+}
+
+/// Stage a translation record. Mirrors `stageTranslation`.
+pub fn stage_translation(
+  store: Store,
+  record: TranslationRecord,
+) -> #(TranslationRecord, Store) {
+  let storage_key =
+    translation_storage_key(
+      record.resource_id,
+      record.locale,
+      record.key,
+      record.market_id,
+    )
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      translations: dict.insert(staged.translations, storage_key, record),
+      deleted_translations: dict.delete(
+        staged.deleted_translations,
+        storage_key,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Remove a translation. Returns the record that was effective before
+/// removal (if any). Mirrors `removeTranslation`.
+pub fn remove_translation(
+  store: Store,
+  resource_id: String,
+  locale: String,
+  key: String,
+  market_id: Option(String),
+) -> #(Option(TranslationRecord), Store) {
+  let storage_key =
+    translation_storage_key(resource_id, locale, key, market_id)
+  let staged = store.staged_state
+  let base = store.base_state
+  let existing = case dict.get(staged.translations, storage_key) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(base.translations, storage_key) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+  let new_staged = case existing {
+    Some(_) ->
+      StagedState(
+        ..staged,
+        translations: dict.delete(staged.translations, storage_key),
+        deleted_translations: dict.insert(
+          staged.deleted_translations,
+          storage_key,
+          True,
+        ),
+      )
+    None ->
+      StagedState(
+        ..staged,
+        translations: dict.delete(staged.translations, storage_key),
+      )
+  }
+  #(existing, Store(..store, staged_state: new_staged))
+}
+
+/// Remove every translation registered against a given locale. Returns
+/// the records that were effective before removal, sorted by
+/// (resource_id, key, updated_at). Mirrors `removeTranslationsForLocale`.
+pub fn remove_translations_for_locale(
+  store: Store,
+  locale: String,
+) -> #(List(TranslationRecord), Store) {
+  let base_matching =
+    dict.values(store.base_state.translations)
+    |> list.filter(fn(t) { t.locale == locale })
+  let staged_matching =
+    dict.values(store.staged_state.translations)
+    |> list.filter(fn(t) { t.locale == locale })
+  let merged_dict =
+    list.fold(base_matching, dict.new(), fn(acc, t) {
+      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      dict.insert(acc, k, t)
+    })
+  let merged_dict =
+    list.fold(staged_matching, merged_dict, fn(acc, t) {
+      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      dict.insert(acc, k, t)
+    })
+  let staged = store.staged_state
+  let staged_after_removal =
+    list.fold(dict.keys(merged_dict), staged, fn(acc, storage_key) {
+      StagedState(
+        ..acc,
+        translations: dict.delete(acc.translations, storage_key),
+        deleted_translations: dict.insert(
+          acc.deleted_translations,
+          storage_key,
+          True,
+        ),
+      )
+    })
+  let removed =
+    dict.values(merged_dict)
+    |> list.sort(fn(left, right) {
+      case string.compare(left.resource_id, right.resource_id) {
+        order.Eq ->
+          case string.compare(left.key, right.key) {
+            order.Eq -> string.compare(left.updated_at, right.updated_at)
+            other -> other
+          }
+        other -> other
+      }
+    })
+  #(removed, Store(..store, staged_state: staged_after_removal))
+}
+
+/// List the effective translations for a `(resource_id, locale, market_id)`
+/// triple. Mirrors `listEffectiveTranslations`. Sort: by `key`, then
+/// `updated_at`.
+pub fn list_effective_translations(
+  store: Store,
+  resource_id: String,
+  locale: String,
+  market_id: Option(String),
+) -> List(TranslationRecord) {
+  let base_matching =
+    dict.values(store.base_state.translations)
+    |> list.filter(fn(t) {
+      t.resource_id == resource_id
+      && t.locale == locale
+      && t.market_id == market_id
+      && {
+        let storage_key =
+          translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+        !dict_has(store.staged_state.deleted_translations, storage_key)
+      }
+    })
+  let staged_matching =
+    dict.values(store.staged_state.translations)
+    |> list.filter(fn(t) {
+      t.resource_id == resource_id
+      && t.locale == locale
+      && t.market_id == market_id
+    })
+  let merged_dict =
+    list.fold(base_matching, dict.new(), fn(acc, t) {
+      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      dict.insert(acc, k, t)
+    })
+  let merged_dict =
+    list.fold(staged_matching, merged_dict, fn(acc, t) {
+      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      dict.insert(acc, k, t)
+    })
+  dict.values(merged_dict)
+  |> list.sort(fn(left, right) {
+    case string.compare(left.key, right.key) {
+      order.Eq -> string.compare(left.updated_at, right.updated_at)
+      other -> other
+    }
+  })
+}
+
+/// True if the store contains any localization state. Mirrors
+/// `hasLocalizationState`. Used by the meta-state serializer (not yet
+/// ported on the Gleam side); kept here for parity.
+pub fn has_localization_state(store: Store) -> Bool {
+  let base = store.base_state
+  let staged = store.staged_state
+  !list.is_empty(base.available_locales)
+  || !list.is_empty(dict.keys(base.shop_locales))
+  || !list.is_empty(dict.keys(staged.shop_locales))
+  || !list.is_empty(dict.keys(staged.deleted_shop_locales))
+  || !list.is_empty(dict.keys(base.translations))
+  || !list.is_empty(dict.keys(staged.translations))
+  || !list.is_empty(dict.keys(staged.deleted_translations))
+}
+
+// ---------------------------------------------------------------------------
 // Mutation log
 // ---------------------------------------------------------------------------
 
@@ -1664,6 +2039,26 @@ pub fn record_mutation_log_entry(
 /// Read the mutation log in insertion order. Mirrors `getLog`.
 pub fn get_log(store: Store) -> List(MutationLogEntry) {
   store.mutation_log
+}
+
+/// Update the status and notes of a single log entry, looked up by id.
+/// Mirrors `InMemoryStore.updateLogEntry` — used by the commit path to
+/// flip entries from `Staged` to `Committed` or `Failed` and stamp the
+/// reason. A no-op when no entry matches the id.
+pub fn update_log_entry(
+  store: Store,
+  id: String,
+  status: EntryStatus,
+  notes: Option(String),
+) -> Store {
+  let updated =
+    list.map(store.mutation_log, fn(entry) {
+      case entry.id == id {
+        True -> MutationLogEntry(..entry, status: status, notes: notes)
+        False -> entry
+      }
+    })
+  Store(..store, mutation_log: updated)
 }
 
 // ---------------------------------------------------------------------------

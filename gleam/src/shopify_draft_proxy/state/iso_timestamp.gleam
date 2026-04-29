@@ -21,3 +21,11 @@ pub fn format_iso(ms: Int) -> String
 @external(erlang, "iso_timestamp_ffi", "parse_iso")
 @external(javascript, "./iso_timestamp_ffi.mjs", "parse_iso")
 pub fn parse_iso(iso: String) -> Result(Int, Nil)
+
+/// Wall-clock current time, formatted as `YYYY-MM-DDTHH:MM:SS.sssZ`.
+/// Used by `dump_state` for the `createdAt` field of the envelope.
+/// This is non-deterministic; callers that want a fixed timestamp
+/// should pass one explicitly to `dump_state`.
+@external(erlang, "iso_timestamp_ffi", "now_iso")
+@external(javascript, "./iso_timestamp_ffi.mjs", "now_iso")
+pub fn now_iso() -> String

@@ -748,3 +748,336 @@ pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
 }
 
+// ---------------------------------------------------------------------------
+// Standalone DraftProxy methods
+// ---------------------------------------------------------------------------
+
+pub fn get_config_snapshot_default_test() {
+  let proxy = draft_proxy.new()
+  assert json.to_string(draft_proxy.get_config_snapshot(proxy))
+    == "{\"runtime\":{\"readMode\":\"snapshot\"},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
+}
+
+pub fn get_config_snapshot_with_snapshot_path_test() {
+  let cfg =
+    Config(
+      read_mode: LiveHybrid,
+      port: 4001,
+      shopify_admin_origin: "https://example.myshopify.com",
+      snapshot_path: Some("/tmp/snap.json"),
+    )
+  let proxy = draft_proxy.with_config(cfg)
+  assert json.to_string(draft_proxy.get_config_snapshot(proxy))
+    == "{\"runtime\":{\"readMode\":\"live-hybrid\"},\"proxy\":{\"port\":4001,\"shopifyAdminOrigin\":\"https://example.myshopify.com\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
+}
+
+pub fn get_config_snapshot_matches_meta_route_body_test() {
+  // Drives invariant: the standalone getter and the route handler
+  // produce byte-identical bodies.
+  let proxy = draft_proxy.new()
+  let standalone = json.to_string(draft_proxy.get_config_snapshot(proxy))
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/config"))
+  assert standalone == json.to_string(body)
+}
+
+pub fn get_log_snapshot_empty_test() {
+  let proxy = draft_proxy.new()
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn get_log_snapshot_matches_meta_route_body_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  let standalone = json.to_string(draft_proxy.get_log_snapshot(proxy))
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/log"))
+  assert standalone == json.to_string(body)
+}
+
+pub fn get_state_snapshot_matches_meta_route_body_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  let standalone = json.to_string(draft_proxy.get_state_snapshot(proxy))
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/state"))
+  assert standalone == json.to_string(body)
+}
+
+pub fn reset_method_clears_state_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  // Sanity: the create staged something.
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    != "{\"entries\":[]}"
+  let proxy = draft_proxy.reset(proxy)
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+  assert json.to_string(draft_proxy.get_state_snapshot(proxy))
+    == "{\"baseState\":{},\"stagedState\":{}}"
+}
+
+pub fn reset_method_resets_synthetic_identity_counter_test() {
+  // After reset, a fresh saved_searchCreate mints the same gid as it
+  // would on a new proxy — confirms the registry was rewound.
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  let proxy = draft_proxy.reset(proxy)
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  assert string.contains(
+    json.to_string(body),
+    "\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\"",
+  )
+}
+
+pub fn process_graphql_request_uses_default_path_test() {
+  let proxy = draft_proxy.new()
+  let body = "{\"query\":\"{ events(first: 1) { nodes { id } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_graphql_request(
+      proxy,
+      body,
+      draft_proxy.default_graphql_request_options(),
+    )
+  assert status == 200
+  assert json.to_string(response_body) == "{\"data\":{\"events\":{\"nodes\":[]}}}"
+}
+
+pub fn process_graphql_request_honors_explicit_api_version_test() {
+  let proxy = draft_proxy.new()
+  let body = "{\"query\":\"{ events(first: 1) { nodes { id } } }\"}"
+  let #(Response(status: status, ..), _) =
+    draft_proxy.process_graphql_request(
+      proxy,
+      body,
+      draft_proxy.GraphQLRequestOptions(
+        path: None,
+        api_version: Some("2024-10"),
+        headers: empty_headers(),
+      ),
+    )
+  // Mismatched version still routes since the path matcher is
+  // version-agnostic.
+  assert status == 200
+}
+
+pub fn process_graphql_request_honors_explicit_path_test() {
+  let proxy = draft_proxy.new()
+  let body = "{\"query\":\"{ events(first: 1) { nodes { id } } }\"}"
+  let #(Response(status: status, ..), _) =
+    draft_proxy.process_graphql_request(
+      proxy,
+      body,
+      draft_proxy.GraphQLRequestOptions(
+        path: Some("/admin/api/2025-04/graphql.json"),
+        api_version: None,
+        headers: empty_headers(),
+      ),
+    )
+  assert status == 200
+}
+
+pub fn default_graphql_path_test() {
+  assert draft_proxy.default_graphql_path("2025-01")
+    == "/admin/api/2025-01/graphql.json"
+  assert draft_proxy.default_graphql_path("unstable")
+    == "/admin/api/unstable/graphql.json"
+}
+
+// ---------------------------------------------------------------------------
+// /__meta/commit
+//
+// On Erlang, `process_request` drives the upstream replay synchronously
+// via gleam_httpc — for an empty log it returns 200 with no attempts.
+// On JavaScript, the synchronous route returns 501 pointing callers at
+// `process_request_async`.
+// ---------------------------------------------------------------------------
+
+@target(erlang)
+pub fn meta_commit_empty_log_returns_200_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    Request(
+      method: "POST",
+      path: "/__meta/commit",
+      headers: empty_headers(),
+      body: "",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"ok\":true")
+  assert string.contains(serialized, "\"stopIndex\":null")
+  assert string.contains(serialized, "\"attempts\":[]")
+}
+
+@target(javascript)
+pub fn meta_commit_sync_returns_501_on_js_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    Request(
+      method: "POST",
+      path: "/__meta/commit",
+      headers: empty_headers(),
+      body: "",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 501
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"ok\":false")
+  assert string.contains(serialized, "process_request_async")
+}
+
+pub fn meta_commit_get_returns_405_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: status, ..), _) =
+    draft_proxy.process_request(proxy, meta_get("/__meta/commit"))
+  assert status == 405
+}
+
+// ---------------------------------------------------------------------------
+// dump_state / restore_state
+// ---------------------------------------------------------------------------
+
+const fixed_created_at: String = "2026-04-29T12:00:00.000Z"
+
+pub fn dump_state_default_proxy_test() {
+  let proxy = draft_proxy.new()
+  assert json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+    == "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+}
+
+pub fn dump_state_after_mutation_includes_log_and_advances_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+  let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
+  // savedSearchCreate mints SavedSearch/1 + MutationLogEntry/2, advancing
+  // the counter to 3.
+  assert string.contains(dumped, "\"nextSyntheticId\":3")
+  // Synthetic timestamp advances by 1s per mint (mutation log entry).
+  assert string.contains(
+    dumped,
+    "\"nextSyntheticTimestamp\":\"2024-01-01T00:00:01.000Z\"",
+  )
+  assert string.contains(dumped, "\"id\":\"gid://shopify/MutationLogEntry/2\"")
+  assert string.contains(dumped, "\"status\":\"staged\"")
+}
+
+pub fn dump_state_now_returns_envelope_with_wallclock_created_at_test() {
+  let proxy = draft_proxy.new()
+  let dumped = json.to_string(draft_proxy.dump_state_now(proxy))
+  // We can't assert the exact timestamp without injecting a clock; just
+  // confirm the envelope has the right schema and a non-empty createdAt.
+  assert string.contains(dumped, "\"schema\":\"shopify-draft-proxy/state-dump\"")
+  assert string.contains(dumped, "\"createdAt\":\"")
+  assert !string.contains(dumped, "\"createdAt\":\"\"")
+}
+
+pub fn restore_state_round_trips_synthetic_identity_test() {
+  let original = draft_proxy.new()
+  let #(_, original) =
+    draft_proxy.process_request(original, graphql_request(saved_search_create_body))
+  let dumped = json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  // After restore, the next mint reuses the dump's counter, so a new
+  // savedSearchCreate gets SavedSearch/3, not SavedSearch/1.
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(restored, graphql_request(saved_search_create_body))
+  assert string.contains(
+    json.to_string(body),
+    "\"id\":\"gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic\"",
+  )
+}
+
+pub fn restore_state_round_trips_mutation_log_test() {
+  let original = draft_proxy.new()
+  let #(_, original) =
+    draft_proxy.process_request(original, graphql_request(saved_search_create_body))
+  let original_log = json.to_string(draft_proxy.get_log_snapshot(original))
+  let dumped = json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
+}
+
+pub fn restore_state_rejects_unsupported_schema_test() {
+  let proxy = draft_proxy.new()
+  let dump_with_bad_schema =
+    "{\"schema\":\"some/other/schema\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_bad_schema)
+  case err {
+    draft_proxy.UnsupportedSchema(found: "some/other/schema") -> Nil
+    _ -> panic as "expected UnsupportedSchema error"
+  }
+}
+
+pub fn restore_state_rejects_unsupported_version_test() {
+  let proxy = draft_proxy.new()
+  let dump_with_bad_version =
+    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":99,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_bad_version)
+  case err {
+    draft_proxy.UnsupportedVersion(found: 99) -> Nil
+    _ -> panic as "expected UnsupportedVersion error"
+  }
+}
+
+pub fn restore_state_rejects_unsupported_store_version_test() {
+  let proxy = draft_proxy.new()
+  let dump_with_bad_store_version =
+    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":7,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let assert Error(err) =
+    draft_proxy.restore_state(proxy, dump_with_bad_store_version)
+  case err {
+    draft_proxy.UnsupportedStoreVersion(found: 7) -> Nil
+    _ -> panic as "expected UnsupportedStoreVersion error"
+  }
+}
+
+pub fn restore_state_rejects_invalid_synthetic_id_test() {
+  let proxy = draft_proxy.new()
+  let dump_with_zero_id =
+    "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":0,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_zero_id)
+  case err {
+    draft_proxy.InvalidSyntheticIdentity(_) -> Nil
+    _ -> panic as "expected InvalidSyntheticIdentity error"
+  }
+}
+
+pub fn restore_state_rejects_malformed_json_test() {
+  let proxy = draft_proxy.new()
+  let assert Error(err) = draft_proxy.restore_state(proxy, "not-json")
+  case err {
+    draft_proxy.MalformedDumpJson(_) -> Nil
+    _ -> panic as "expected MalformedDumpJson error"
+  }
+}
+
+pub fn restore_state_rejects_missing_fields_test() {
+  let proxy = draft_proxy.new()
+  // Missing `schema` field.
+  let dump_missing_schema =
+    "{\"version\":1,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
+  let assert Error(err) = draft_proxy.restore_state(proxy, dump_missing_schema)
+  case err {
+    draft_proxy.MalformedDumpJson(_) -> Nil
+    _ -> panic as "expected MalformedDumpJson error"
+  }
+}
+
+pub fn dump_state_constants_are_stable_test() {
+  // The schema string and version live in the wire format; assert them
+  // explicitly so a refactor can't silently change the on-disk shape.
+  assert draft_proxy.state_dump_schema == "shopify-draft-proxy/state-dump"
+  assert draft_proxy.state_dump_version == 1
+}
+

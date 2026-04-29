@@ -126,6 +126,12 @@ pub fn metafield_definitions_product_empty_read_test() {
   )
 }
 
+pub fn standard_metafield_definition_enable_validation_test() {
+  check(
+    "config/parity-specs/metafields/standard-metafield-definition-enable-validation.json",
+  )
+}
+
 // ----------- runner self-check -----------
 
 /// Confirms `into_assert` actually surfaces non-empty mismatches as a

@@ -51,4 +51,113 @@ defmodule ShopifyDraftProxy.InteropTest do
     {{:response, 200, _, _}, _} =
       DraftProxy.process_request(proxy, {:request, "GET", "/__meta/health", %{}, ""})
   end
+
+  test "default_graphql_path/1 builds the documented Admin path" do
+    assert DraftProxy.default_graphql_path("2025-01") ==
+             "/admin/api/2025-01/graphql.json"
+  end
+
+  test "process_graphql_request convenience dispatches a POST to the Admin GraphQL path" do
+    proxy = DraftProxy.new()
+    options = DraftProxy.default_graphql_request_options()
+
+    body =
+      ~s|{"query":"mutation { savedSearchCreate(input: { name: \\"Smoke\\", query: \\"tag:vip\\", resourceType: ORDER }) { savedSearch { id name } userErrors { field message } } }"}|
+
+    {{:response, 200, json_tree, _}, _next_proxy} =
+      DraftProxy.process_graphql_request(proxy, body, options)
+
+    response = :gleam@json.to_string(json_tree)
+    assert response =~ "savedSearchCreate"
+    assert response =~ "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+  end
+
+  test "reset/1 clears mutation log and rewinds synthetic identity counter" do
+    proxy = DraftProxy.new()
+    options = DraftProxy.default_graphql_request_options()
+
+    body =
+      ~s|{"query":"mutation { savedSearchCreate(input: { name: \\"Smoke\\", query: \\"tag:vip\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }"}|
+
+    {_, mutated} = DraftProxy.process_graphql_request(proxy, body, options)
+
+    log_before = :gleam@json.to_string(DraftProxy.get_log_snapshot(mutated))
+    assert log_before =~ "savedSearchCreate"
+
+    cleared = DraftProxy.reset(mutated)
+    log_after = :gleam@json.to_string(DraftProxy.get_log_snapshot(cleared))
+    assert log_after == ~s({"entries":[]})
+
+    {{:response, 200, json_tree, _}, _} =
+      DraftProxy.process_graphql_request(cleared, body, options)
+
+    refreshed = :gleam@json.to_string(json_tree)
+    assert refreshed =~ "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+  end
+
+  test "/__meta/commit returns 501 with an explanation about the missing upstream client" do
+    proxy = DraftProxy.new()
+
+    {{:response, 501, json_tree, _}, _} =
+      DraftProxy.process_request(
+        proxy,
+        {:request, "POST", "/__meta/commit", %{}, ""}
+      )
+
+    body = :gleam@json.to_string(json_tree)
+    assert body =~ "not yet implemented"
+    assert body =~ "upstream"
+  end
+
+  test "dump_state + restore_state round-trips synthetic identity counters" do
+    proxy = DraftProxy.new()
+    options = DraftProxy.default_graphql_request_options()
+
+    body =
+      ~s|{"query":"mutation { savedSearchCreate(input: { name: \\"Smoke\\", query: \\"tag:vip\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }"}|
+
+    {_, mutated} = DraftProxy.process_graphql_request(proxy, body, options)
+
+    dump_json =
+      :gleam@json.to_string(
+        DraftProxy.dump_state(mutated, "2026-04-29T12:00:00.000Z")
+      )
+
+    assert dump_json =~ ~s("schema":"shopify-draft-proxy/state-dump")
+    assert dump_json =~ ~s("createdAt":"2026-04-29T12:00:00.000Z")
+    assert dump_json =~ "savedSearchCreate"
+
+    {:ok, restored} = DraftProxy.restore_state(DraftProxy.new(), dump_json)
+
+    {{:response, 200, json_tree, _}, _} =
+      DraftProxy.process_graphql_request(restored, body, options)
+
+    next = :gleam@json.to_string(json_tree)
+    # After restore, the next mint reuses the dump's counter — the first mutation
+    # advanced the counter past 2 internally, so the next mint is /3.
+    assert next =~ "gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic"
+  end
+
+  test "restore_state returns an error tuple on bad JSON" do
+    proxy = DraftProxy.new()
+    {:error, reason} = DraftProxy.restore_state(proxy, "not json")
+    assert is_tuple(reason)
+    # First element of the error variant tuple is the constructor name
+    assert elem(reason, 0) == :malformed_dump_json
+  end
+
+  test "get_config_snapshot serializes the runtime config envelope" do
+    proxy = DraftProxy.new()
+    json_str = :gleam@json.to_string(DraftProxy.get_config_snapshot(proxy))
+    assert json_str =~ ~s("readMode":"snapshot")
+    assert json_str =~ ~s("port":4000)
+    assert json_str =~ ~s("shopifyAdminOrigin":"https://shopify.com")
+  end
+
+  test "get_state_snapshot returns base + staged state envelope" do
+    proxy = DraftProxy.new()
+    json_str = :gleam@json.to_string(DraftProxy.get_state_snapshot(proxy))
+    assert json_str =~ "baseState"
+    assert json_str =~ "stagedState"
+  end
 end

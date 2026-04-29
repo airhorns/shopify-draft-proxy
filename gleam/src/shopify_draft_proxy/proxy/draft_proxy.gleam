@@ -17,7 +17,14 @@
 
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
+@target(javascript)
+import gleam/fetch
+import gleam/http/request as gleam_http_request
+@target(erlang)
+import gleam/httpc
 import gleam/int
+@target(javascript)
+import gleam/javascript/promise.{type Promise}
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -31,21 +38,46 @@ import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/bulk_operations
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/localization
+import shopify_draft_proxy/proxy/marketing
+import shopify_draft_proxy/proxy/media
 import shopify_draft_proxy/proxy/metafield_definitions
+import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, Apps, Events, Functions, GiftCards, Metafields,
-  SavedSearches, Segments, ShippingFulfillments, Webhooks,
+  type RegistryEntry, Apps, BulkOperations, Events, Functions, GiftCards,
+  Localization, Marketing, Media, Metafields, Metaobjects, SavedSearches,
+  Segments, ShippingFulfillments, Webhooks,
 }
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/webhooks
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types
+
+/// The `schema` string used in the dump envelope. Mirrors
+/// `DRAFT_PROXY_STATE_DUMP_SCHEMA` in the TS proxy so dumps written by
+/// either implementation are accepted by both.
+pub const state_dump_schema: String = "shopify-draft-proxy/state-dump"
+
+/// The `version` integer used in the dump envelope. Bump only when
+/// breaking the on-disk shape.
+pub const state_dump_version: Int = 1
+
+/// The `version` integer for the inner `store` slice of the envelope.
+/// Mirrors `InMemoryStoreStateDumpV1.version`.
+const store_dump_version: Int = 1
+
+/// Default Shopify Admin API version the convenience wrapper uses when
+/// the caller doesn't supply one. Mirrors the TS default.
+const default_admin_api_version: String = "2025-01"
 
 /// The HTTP-shaped request the proxy accepts. Mirrors
 /// `DraftProxyRequest`.
@@ -150,20 +182,11 @@ pub fn process_request(
 ) -> #(Response, DraftProxy) {
   case route(request) {
     Health -> #(health_response(), proxy)
-    MetaConfig -> #(config_response(proxy), proxy)
-    MetaLog -> #(log_response(proxy), proxy)
-    MetaState -> #(state_response(proxy), proxy)
-    MetaReset -> {
-      let next =
-        DraftProxy(
-          ..proxy,
-          synthetic_identity: synthetic_identity.reset(
-            proxy.synthetic_identity,
-          ),
-          store: store.reset(proxy.store),
-        )
-      #(reset_response(), next)
-    }
+    MetaConfig -> #(ok_json_response(get_config_snapshot(proxy)), proxy)
+    MetaLog -> #(ok_json_response(get_log_snapshot(proxy)), proxy)
+    MetaState -> #(ok_json_response(get_state_snapshot(proxy)), proxy)
+    MetaReset -> #(reset_response(), reset(proxy))
+    MetaCommit -> dispatch_meta_commit_sync(proxy, request)
     GraphQL(version: _) -> dispatch_graphql(proxy, request)
     NotFound -> #(not_found_response(), proxy)
     MethodNotAllowed -> #(method_not_allowed_response(), proxy)
@@ -176,6 +199,7 @@ type Route {
   MetaLog
   MetaState
   MetaReset
+  MetaCommit
   GraphQL(version: String)
   NotFound
   MethodNotAllowed
@@ -189,6 +213,7 @@ fn route(request: Request) -> Route {
     "/__meta/log" -> only_method("GET", method, MetaLog)
     "/__meta/state" -> only_method("GET", method, MetaState)
     "/__meta/reset" -> only_method("POST", method, MetaReset)
+    "/__meta/commit" -> only_method("POST", method, MetaCommit)
     other ->
       case is_admin_graphql_path(other) {
         Ok(version) -> only_method("POST", method, GraphQL(version: version))
@@ -224,7 +249,15 @@ fn health_response() -> Response {
   )
 }
 
-fn config_response(proxy: DraftProxy) -> Response {
+fn ok_json_response(body: Json) -> Response {
+  Response(status: 200, body: body, headers: [])
+}
+
+/// Sanitised runtime configuration, equivalent to the TS class's
+/// `getConfig()` and the body of `GET /__meta/config`. Returns the JSON
+/// tree directly so callers can `json.to_string` it or thread it into
+/// their own envelope.
+pub fn get_config_snapshot(proxy: DraftProxy) -> Json {
   let snapshot_enabled = case proxy.config.snapshot_path {
     Some(_) -> True
     None -> False
@@ -233,23 +266,19 @@ fn config_response(proxy: DraftProxy) -> Response {
     Some(p) -> json.string(p)
     None -> json.null()
   }
-  Response(
-    status: 200,
-    body: json.object([
-      #("runtime", json.object([
-        #("readMode", json.string(read_mode_to_string(proxy.config.read_mode))),
-      ])),
-      #("proxy", json.object([
-        #("port", json.int(proxy.config.port)),
-        #("shopifyAdminOrigin", json.string(proxy.config.shopify_admin_origin)),
-      ])),
-      #("snapshot", json.object([
-        #("enabled", json.bool(snapshot_enabled)),
-        #("path", snapshot_path),
-      ])),
-    ]),
-    headers: [],
-  )
+  json.object([
+    #("runtime", json.object([
+      #("readMode", json.string(read_mode_to_string(proxy.config.read_mode))),
+    ])),
+    #("proxy", json.object([
+      #("port", json.int(proxy.config.port)),
+      #("shopifyAdminOrigin", json.string(proxy.config.shopify_admin_origin)),
+    ])),
+    #("snapshot", json.object([
+      #("enabled", json.bool(snapshot_enabled)),
+      #("path", snapshot_path),
+    ])),
+  ])
 }
 
 fn read_mode_to_string(mode: ReadMode) -> String {
@@ -260,28 +289,30 @@ fn read_mode_to_string(mode: ReadMode) -> String {
   }
 }
 
-fn log_response(proxy: DraftProxy) -> Response {
-  Response(
-    status: 200,
-    body: json.object([
-      #(
-        "entries",
-        json.array(store.get_log(proxy.store), serialize_mutation_log_entry),
-      ),
-    ]),
-    headers: [],
-  )
+/// Mutation log snapshot, equivalent to the TS class's `getLog()` and
+/// the body of `GET /__meta/log`. Entries are returned in original
+/// replay order.
+pub fn get_log_snapshot(proxy: DraftProxy) -> Json {
+  json.object([
+    #(
+      "entries",
+      json.array(store.get_log(proxy.store), serialize_mutation_log_entry),
+    ),
+  ])
 }
 
-fn state_response(proxy: DraftProxy) -> Response {
-  Response(
-    status: 200,
-    body: json.object([
-      #("baseState", serialize_base_state(proxy.store.base_state)),
-      #("stagedState", serialize_staged_state(proxy.store.staged_state)),
-    ]),
-    headers: [],
-  )
+/// Base + staged in-memory state snapshot, equivalent to the TS class's
+/// `getState()` and the body of `GET /__meta/state`.
+///
+/// > Note: only resource slices that have been ported (currently
+/// > `savedSearches`) are serialized here. Adding a slice means
+/// > extending `serialize_base_state` / `serialize_staged_state`. Until
+/// > then this lags behind the TS shape, which serializes every slice.
+pub fn get_state_snapshot(proxy: DraftProxy) -> Json {
+  json.object([
+    #("baseState", serialize_base_state(proxy.store.base_state)),
+    #("stagedState", serialize_staged_state(proxy.store.staged_state)),
+  ])
 }
 
 fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
@@ -638,6 +669,52 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(MetafieldDefinitionsDomain) ->
+      case
+        metafield_definitions.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle metafield definitions mutation"),
+          proxy,
+        )
+      }
+    Ok(LocalizationDomain) ->
+      case
+        localization.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle localization mutation"),
+          proxy,
+        )
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -706,6 +783,32 @@ fn route_query(
         metafield_definitions.process(query),
         "Failed to handle metafield definitions query",
       )
+    Ok(LocalizationDomain) ->
+      respond(
+        proxy,
+        localization.process(proxy.store, query, variables),
+        "Failed to handle localization query",
+      )
+    Ok(MetaobjectDefinitionsDomain) ->
+      respond(
+        proxy,
+        metaobject_definitions.process(query),
+        "Failed to handle metaobject definitions query",
+      )
+    Ok(MarketingDomain) ->
+      respond(
+        proxy,
+        marketing.process(query),
+        "Failed to handle marketing query",
+      )
+    Ok(BulkOperationsDomain) ->
+      respond(
+        proxy,
+        bulk_operations.process(query),
+        "Failed to handle bulk operations query",
+      )
+    Ok(MediaDomain) ->
+      respond(proxy, media.process(query), "Failed to handle media query")
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -726,6 +829,11 @@ type Domain {
   GiftCardsDomain
   SegmentsDomain
   MetafieldDefinitionsDomain
+  LocalizationDomain
+  MetaobjectDefinitionsDomain
+  MarketingDomain
+  BulkOperationsDomain
+  MediaDomain
 }
 
 /// Resolve a query operation's domain. With a registry loaded, the
@@ -772,6 +880,11 @@ fn capability_to_query_domain(
         GiftCards -> Ok(GiftCardsDomain)
         Segments -> Ok(SegmentsDomain)
         Metafields -> Ok(MetafieldDefinitionsDomain)
+        Localization -> Ok(LocalizationDomain)
+        Metaobjects -> Ok(MetaobjectDefinitionsDomain)
+        Marketing -> Ok(MarketingDomain)
+        BulkOperations -> Ok(BulkOperationsDomain)
+        Media -> Ok(MediaDomain)
         _ -> Error(Nil)
       }
     }
@@ -793,6 +906,8 @@ fn capability_to_mutation_domain(
         Functions -> Ok(FunctionsDomain)
         GiftCards -> Ok(GiftCardsDomain)
         Segments -> Ok(SegmentsDomain)
+        Metafields -> Ok(MetafieldDefinitionsDomain)
+        Localization -> Ok(LocalizationDomain)
         _ -> Error(Nil)
       }
     }
@@ -829,7 +944,43 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                 )
                               {
                                 True -> Ok(MetafieldDefinitionsDomain)
-                                False -> Error(Nil)
+                                False ->
+                                  case
+                                    localization.is_localization_query_root(
+                                      name,
+                                    )
+                                  {
+                                    True -> Ok(LocalizationDomain)
+                                    False ->
+                                      case
+                                        metaobject_definitions.is_metaobject_definitions_query_root(
+                                          name,
+                                        )
+                                      {
+                                        True ->
+                                          Ok(MetaobjectDefinitionsDomain)
+                                        False ->
+                                          case marketing.is_marketing_query_root(
+                                            name,
+                                          ) {
+                                            True -> Ok(MarketingDomain)
+                                            False ->
+                                              case bulk_operations.is_bulk_operations_query_root(
+                                                name,
+                                              ) {
+                                                True ->
+                                                  Ok(BulkOperationsDomain)
+                                                False ->
+                                                  case media.is_media_query_root(
+                                                    name,
+                                                  ) {
+                                                    True -> Ok(MediaDomain)
+                                                    False -> Error(Nil)
+                                                  }
+                                              }
+                                          }
+                                      }
+                                  }
                               }
                           }
                       }
@@ -858,7 +1009,23 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                     False ->
                       case segments.is_segment_mutation_root(name) {
                         True -> Ok(SegmentsDomain)
-                        False -> Error(Nil)
+                        False ->
+                          case
+                            metafield_definitions.is_metafield_definitions_mutation_root(
+                              name,
+                            )
+                          {
+                            True -> Ok(MetafieldDefinitionsDomain)
+                            False ->
+                              case
+                                localization.is_localization_mutation_root(
+                                  name,
+                                )
+                              {
+                                True -> Ok(LocalizationDomain)
+                                False -> Error(Nil)
+                              }
+                          }
                       }
                   }
               }
@@ -941,4 +1108,515 @@ fn bad_request(message: String) -> Response {
 /// the right config.
 pub fn config_summary(config: Config) -> String {
   read_mode_to_string(config.read_mode) <> "@" <> int.to_string(config.port)
+}
+
+// ---------------------------------------------------------------------------
+// Standalone DraftProxy methods
+//
+// These mirror the TS class's instance methods so callers that don't want
+// to thread an HTTP-shaped request through `process_request` can drive
+// the proxy directly. Every one of these is also reachable via a `__meta`
+// route — the route handlers delegate here.
+// ---------------------------------------------------------------------------
+
+/// Clear staged state, mutation log, and synthetic identity counters.
+/// Mirrors the TS class's `reset()` method and the body-effect of
+/// `POST /__meta/reset`.
+pub fn reset(proxy: DraftProxy) -> DraftProxy {
+  DraftProxy(
+    ..proxy,
+    synthetic_identity: synthetic_identity.reset(proxy.synthetic_identity),
+    store: store.reset(proxy.store),
+  )
+}
+
+/// Options accepted by `process_graphql_request`. Mirrors
+/// `DraftProxyGraphQLRequestOptions` in TS. Use
+/// `default_graphql_request_options()` for the empty value.
+pub type GraphQLRequestOptions {
+  GraphQLRequestOptions(
+    /// Override the request path. Defaults to
+    /// `/admin/api/<api_version>/graphql.json`.
+    path: Option(String),
+    /// Override the API version segment of the default path. Ignored if
+    /// `path` is provided.
+    api_version: Option(String),
+    /// Headers to attach to the synthesized request.
+    headers: Dict(String, String),
+  )
+}
+
+/// Empty options for `process_graphql_request`. Equivalent to passing
+/// `{}` to the TS `processGraphQLRequest`.
+pub fn default_graphql_request_options() -> GraphQLRequestOptions {
+  GraphQLRequestOptions(path: None, api_version: None, headers: dict.new())
+}
+
+/// Convenience wrapper that synthesizes a `POST` to the Admin GraphQL
+/// path and dispatches it through `process_request`. Mirrors the TS
+/// class's `processGraphQLRequest(body, options)`.
+pub fn process_graphql_request(
+  proxy: DraftProxy,
+  body: String,
+  options: GraphQLRequestOptions,
+) -> #(Response, DraftProxy) {
+  let path = case options.path {
+    Some(p) -> p
+    None ->
+      default_graphql_path(option.unwrap(
+        options.api_version,
+        default_admin_api_version,
+      ))
+  }
+  process_request(
+    proxy,
+    Request(method: "POST", path: path, headers: options.headers, body: body),
+  )
+}
+
+/// Build the default `/admin/api/<version>/graphql.json` path. Mirrors
+/// TS `defaultGraphQLPath`.
+pub fn default_graphql_path(api_version: String) -> String {
+  "/admin/api/" <> api_version <> "/graphql.json"
+}
+
+// ---------------------------------------------------------------------------
+// State dump / restore
+//
+// Envelope shape mirrors the TS `DraftProxyStateDump`:
+//   { schema, version, createdAt, store: {version, fields},
+//     syntheticIdentity: {nextSyntheticId, nextSyntheticTimestamp},
+//     extensions }
+//
+// The synthetic identity counters and mutation log round-trip in full.
+// The `store.fields` slice currently only carries `mutationLog`; ports
+// of the per-resource slices (saved searches, webhooks, apps, etc.)
+// will extend this. Until then, restore replaces only what dump emits;
+// untouched slices keep whatever state the target proxy already had.
+// ---------------------------------------------------------------------------
+
+/// Reasons `restore_state` can refuse a dump.
+pub type StateDumpError {
+  /// The dump string failed to parse as JSON, or was missing required
+  /// fields with the expected types.
+  MalformedDumpJson(message: String)
+  /// The `schema` field didn't match `state_dump_schema`.
+  UnsupportedSchema(found: String)
+  /// The envelope `version` field wasn't `state_dump_version`.
+  UnsupportedVersion(found: Int)
+  /// The inner `store.version` field wasn't `store_dump_version`.
+  UnsupportedStoreVersion(found: Int)
+  /// The synthetic identity portion failed validation. See
+  /// `synthetic_identity.RestoreError` for details.
+  InvalidSyntheticIdentity(synthetic_identity.RestoreError)
+}
+
+/// Snapshot all instance-owned runtime state to a JSON-compatible
+/// envelope. Mirrors the TS `dumpState()`. `created_at` is taken as a
+/// parameter so callers control whether the dump is deterministic;
+/// `dump_state_now` is the wall-clock convenience equivalent to TS.
+pub fn dump_state(proxy: DraftProxy, created_at: String) -> Json {
+  json.object([
+    #("schema", json.string(state_dump_schema)),
+    #("version", json.int(state_dump_version)),
+    #("createdAt", json.string(created_at)),
+    #("store", dump_store_slice(proxy.store)),
+    #("syntheticIdentity", dump_synthetic_identity(proxy.synthetic_identity)),
+    #("extensions", json.object([])),
+  ])
+}
+
+/// Same as `dump_state` but reads wall-clock time for `createdAt`.
+/// Equivalent to TS `dumpState()`.
+pub fn dump_state_now(proxy: DraftProxy) -> Json {
+  dump_state(proxy, iso_timestamp.now_iso())
+}
+
+fn dump_store_slice(store: Store) -> Json {
+  json.object([
+    #("version", json.int(store_dump_version)),
+    #(
+      "fields",
+      json.object([
+        #(
+          "mutationLog",
+          json.array(store.mutation_log, serialize_mutation_log_entry),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn dump_synthetic_identity(registry: SyntheticIdentityRegistry) -> Json {
+  let dump = synthetic_identity.dump_state(registry)
+  json.object([
+    #("nextSyntheticId", json.int(dump.next_synthetic_id)),
+    #(
+      "nextSyntheticTimestamp",
+      json.string(dump.next_synthetic_timestamp),
+    ),
+  ])
+}
+
+/// Rebuild a proxy from a dump produced by `dump_state`. The supplied
+/// proxy provides the substrate (config, registry) the restored state
+/// is grafted onto. Mirrors the TS `restoreState(dump)` but returns a
+/// `Result` instead of throwing.
+///
+/// Currently restores: synthetic identity counters, mutation log.
+/// Other store slices land as the per-resource ports complete.
+pub fn restore_state(
+  proxy: DraftProxy,
+  dump_json: String,
+) -> Result(DraftProxy, StateDumpError) {
+  let envelope_decoder = {
+    use schema <- decode.field("schema", decode.string)
+    use version <- decode.field("version", decode.int)
+    use store_field <- decode.field("store", store_slice_decoder())
+    use identity_field <- decode.field(
+      "syntheticIdentity",
+      synthetic_identity_dump_decoder(),
+    )
+    decode.success(#(schema, version, store_field, identity_field))
+  }
+  use parsed <- result.try(
+    json.parse(dump_json, envelope_decoder)
+    |> result.map_error(fn(err) {
+      MalformedDumpJson(message: string.inspect(err))
+    }),
+  )
+  let #(schema, version, store_dump, identity_dump) = parsed
+  use _ <- result.try(case schema == state_dump_schema {
+    True -> Ok(Nil)
+    False -> Error(UnsupportedSchema(found: schema))
+  })
+  use _ <- result.try(case version == state_dump_version {
+    True -> Ok(Nil)
+    False -> Error(UnsupportedVersion(found: version))
+  })
+  let StoreSliceDump(version: store_version, mutation_log: log_entries) =
+    store_dump
+  use _ <- result.try(case store_version == store_dump_version {
+    True -> Ok(Nil)
+    False -> Error(UnsupportedStoreVersion(found: store_version))
+  })
+  use restored_identity <- result.try(
+    synthetic_identity.restore_state(identity_dump)
+    |> result.map_error(InvalidSyntheticIdentity),
+  )
+  let restored_store = restore_store_slice(proxy.store, log_entries)
+  Ok(DraftProxy(
+    ..proxy,
+    synthetic_identity: restored_identity,
+    store: restored_store,
+  ))
+}
+
+type StoreSliceDump {
+  StoreSliceDump(version: Int, mutation_log: List(store.MutationLogEntry))
+}
+
+fn store_slice_decoder() -> decode.Decoder(StoreSliceDump) {
+  use version <- decode.field("version", decode.int)
+  use mutation_log <- decode.subfield(
+    ["fields", "mutationLog"],
+    decode.optional(decode.list(of: mutation_log_entry_decoder())),
+  )
+  decode.success(StoreSliceDump(
+    version: version,
+    mutation_log: option.unwrap(mutation_log, []),
+  ))
+}
+
+fn synthetic_identity_dump_decoder() -> decode.Decoder(
+  synthetic_identity.SyntheticIdentityStateDumpV1,
+) {
+  use next_id <- decode.field("nextSyntheticId", decode.int)
+  use next_ts <- decode.field("nextSyntheticTimestamp", decode.string)
+  decode.success(synthetic_identity.SyntheticIdentityStateDumpV1(
+    next_synthetic_id: next_id,
+    next_synthetic_timestamp: next_ts,
+  ))
+}
+
+fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
+  use id <- decode.field("id", decode.string)
+  use received_at <- decode.field("receivedAt", decode.string)
+  use operation_name <- decode.field(
+    "operationName",
+    decode.optional(decode.string),
+  )
+  use path <- decode.field("path", decode.string)
+  use query <- decode.field("query", decode.string)
+  use variables <- decode.optional_field(
+    "variables",
+    dict.new(),
+    decode.dict(decode.string, decode.string),
+  )
+  use staged_resource_ids <- decode.optional_field(
+    "stagedResourceIds",
+    [],
+    decode.list(of: decode.string),
+  )
+  use status <- decode.field("status", decode.string)
+  use interpreted <- decode.field(
+    "interpreted",
+    interpreted_metadata_decoder(),
+  )
+  use notes <- decode.field("notes", decode.optional(decode.string))
+  decode.success(store.MutationLogEntry(
+    id: id,
+    received_at: received_at,
+    operation_name: operation_name,
+    path: path,
+    query: query,
+    variables: variables,
+    staged_resource_ids: staged_resource_ids,
+    status: parse_entry_status(status),
+    interpreted: interpreted,
+    notes: notes,
+  ))
+}
+
+fn interpreted_metadata_decoder() -> decode.Decoder(store.InterpretedMetadata) {
+  use op_type <- decode.field("operationType", decode.string)
+  use op_name <- decode.field(
+    "operationName",
+    decode.optional(decode.string),
+  )
+  use root_fields <- decode.field("rootFields", decode.list(of: decode.string))
+  use primary <- decode.field(
+    "primaryRootField",
+    decode.optional(decode.string),
+  )
+  use capability <- decode.field("capability", capability_decoder())
+  decode.success(store.InterpretedMetadata(
+    operation_type: parse_operation_type(op_type),
+    operation_name: op_name,
+    root_fields: root_fields,
+    primary_root_field: primary,
+    capability: capability,
+  ))
+}
+
+fn capability_decoder() -> decode.Decoder(store.Capability) {
+  use op_name <- decode.field(
+    "operationName",
+    decode.optional(decode.string),
+  )
+  use domain <- decode.field("domain", decode.string)
+  use execution <- decode.field("execution", decode.string)
+  decode.success(store.Capability(
+    operation_name: op_name,
+    domain: domain,
+    execution: execution,
+  ))
+}
+
+fn parse_entry_status(value: String) -> store.EntryStatus {
+  case value {
+    "staged" -> store.Staged
+    "proxied" -> store.Proxied
+    "committed" -> store.Committed
+    _ -> store.Failed
+  }
+}
+
+fn parse_operation_type(value: String) -> store.OperationType {
+  case value {
+    "mutation" -> store.Mutation
+    _ -> store.Query
+  }
+}
+
+fn restore_store_slice(
+  current: Store,
+  mutation_log: List(store.MutationLogEntry),
+) -> Store {
+  store.Store(..current, mutation_log: mutation_log)
+}
+
+// ---------------------------------------------------------------------------
+// /__meta/commit dispatch
+//
+// The route implementation differs by target:
+//   * Erlang   — `httpc.send/1` is synchronous, so the route handler can
+//                drive `commit.run_commit_sync/4` directly from
+//                `process_request/2`.
+//   * JavaScript — `fetch` returns a `Promise`, so the synchronous route
+//                  cannot resolve the upstream call. `process_request/2`
+//                  surfaces a 501 pointing callers at
+//                  `process_request_async/2`, which awaits the Promise.
+// ---------------------------------------------------------------------------
+
+@target(erlang)
+fn dispatch_meta_commit_sync(
+  proxy: DraftProxy,
+  request: Request,
+) -> #(Response, DraftProxy) {
+  commit_via_route(proxy, request)
+}
+
+@target(javascript)
+fn dispatch_meta_commit_sync(
+  proxy: DraftProxy,
+  _request: Request,
+) -> #(Response, DraftProxy) {
+  #(commit_route_sync_unsupported_response(), proxy)
+}
+
+@target(erlang)
+fn commit_via_route(
+  proxy: DraftProxy,
+  request: Request,
+) -> #(Response, DraftProxy) {
+  let #(next_store, meta) =
+    commit.run_commit_sync(
+      proxy.store,
+      proxy.config.shopify_admin_origin,
+      request.headers,
+      httpc_send,
+    )
+  #(
+    Response(
+      status: 200,
+      body: commit.serialize_meta_response(meta),
+      headers: [],
+    ),
+    DraftProxy(..proxy, store: next_store),
+  )
+}
+
+/// Run the upstream commit replay synchronously. Erlang-only — gleam_httpc
+/// blocks until upstream answers, so this returns the response paired with
+/// the next proxy state directly.
+@target(erlang)
+pub fn commit(
+  proxy: DraftProxy,
+  inbound_headers: Dict(String, String),
+) -> #(Response, DraftProxy) {
+  let #(next_store, meta) =
+    commit.run_commit_sync(
+      proxy.store,
+      proxy.config.shopify_admin_origin,
+      inbound_headers,
+      httpc_send,
+    )
+  #(
+    Response(
+      status: 200,
+      body: commit.serialize_meta_response(meta),
+      headers: [],
+    ),
+    DraftProxy(..proxy, store: next_store),
+  )
+}
+
+/// Run the upstream commit replay asynchronously. JavaScript-only —
+/// `fetch` is Promise-based, so callers must `await` the result. Returns
+/// the same `#(Response, DraftProxy)` pair as the Erlang version once the
+/// Promise resolves.
+@target(javascript)
+pub fn commit(
+  proxy: DraftProxy,
+  inbound_headers: Dict(String, String),
+) -> Promise(#(Response, DraftProxy)) {
+  commit.run_commit_async(
+    proxy.store,
+    proxy.config.shopify_admin_origin,
+    inbound_headers,
+    fetch_send,
+  )
+  |> promise.map(fn(pair) {
+    let #(next_store, meta) = pair
+    #(
+      Response(
+        status: 200,
+        body: commit.serialize_meta_response(meta),
+        headers: [],
+      ),
+      DraftProxy(..proxy, store: next_store),
+    )
+  })
+}
+
+/// Async dispatcher exposed only on JavaScript. Routes every request just
+/// like `process_request/2`, but the `MetaCommit` arm awaits the upstream
+/// fetch instead of returning a 501. Non-commit routes are wrapped in
+/// `promise.resolve` so callers can use a single async entry point.
+@target(javascript)
+pub fn process_request_async(
+  proxy: DraftProxy,
+  request: Request,
+) -> Promise(#(Response, DraftProxy)) {
+  case route(request) {
+    MetaCommit -> commit(proxy, request.headers)
+    _ -> promise.resolve(process_request(proxy, request))
+  }
+}
+
+@target(javascript)
+fn commit_route_sync_unsupported_response() -> Response {
+  Response(
+    status: 501,
+    body: json.object([
+      #("ok", json.bool(False)),
+      #(
+        "message",
+        json.string(
+          "/__meta/commit requires async dispatch on the JavaScript target. Call process_request_async(proxy, request) or commit(proxy, headers) and await the returned Promise.",
+        ),
+      ),
+    ]),
+    headers: [],
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Target-specific HTTP shims that adapt the production HTTP clients to the
+// `commit.run_commit_*` `send` parameter shape.
+// ---------------------------------------------------------------------------
+
+@target(erlang)
+fn httpc_send(
+  req: gleam_http_request.Request(String),
+) -> Result(commit.HttpOutcome, commit.CommitTransportError) {
+  case httpc.send(req) {
+    Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+    Error(err) ->
+      Error(commit.CommitTransportError(message: httpc_error_message(err)))
+  }
+}
+
+@target(erlang)
+fn httpc_error_message(err: httpc.HttpError) -> String {
+  case err {
+    httpc.InvalidUtf8Response -> "upstream response body was not valid UTF-8"
+    httpc.FailedToConnect(_, _) -> "failed to connect to upstream"
+    httpc.ResponseTimeout -> "upstream response timed out"
+  }
+}
+
+@target(javascript)
+fn fetch_send(
+  req: gleam_http_request.Request(String),
+) -> Promise(Result(commit.HttpOutcome, commit.CommitTransportError)) {
+  fetch.send(req)
+  |> promise.try_await(fetch.read_text_body)
+  |> promise.map(fn(result) {
+    case result {
+      Ok(resp) -> Ok(commit.HttpOutcome(status: resp.status, body: resp.body))
+      Error(err) ->
+        Error(commit.CommitTransportError(message: fetch_error_message(err)))
+    }
+  })
+}
+
+@target(javascript)
+fn fetch_error_message(err: fetch.FetchError) -> String {
+  case err {
+    fetch.NetworkError(msg) -> "upstream network error: " <> msg
+    fetch.UnableToReadBody -> "unable to read upstream response body"
+    fetch.InvalidJsonBody -> "invalid JSON body in upstream response"
+  }
 }

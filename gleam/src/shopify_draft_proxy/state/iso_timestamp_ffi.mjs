@@ -11,3 +11,7 @@ export function parse_iso(s) {
   }
   return new Ok(ms);
 }
+
+export function now_iso() {
+  return new Date().toISOString();
+}

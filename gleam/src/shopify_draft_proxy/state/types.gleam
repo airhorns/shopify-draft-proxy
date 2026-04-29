@@ -360,3 +360,46 @@ pub type CustomerSegmentMembersQueryRecord {
     done: Bool,
   )
 }
+
+// ---------------------------------------------------------------------------
+// Localization domain (Pass 23)
+// ---------------------------------------------------------------------------
+
+/// Mirrors `LocaleRecord`. The catalog of every locale Shopify recognises
+/// (independent of which ones the shop has enabled).
+pub type LocaleRecord {
+  LocaleRecord(iso_code: String, name: String)
+}
+
+/// Mirrors `ShopLocaleRecord`. The set of locales this shop has enabled,
+/// each with its primary/published flags and any market web-presence
+/// pinning. `market_web_presence_ids` defaults to `[]` for shops without
+/// markets configured.
+pub type ShopLocaleRecord {
+  ShopLocaleRecord(
+    locale: String,
+    name: String,
+    primary: Bool,
+    published: Bool,
+    market_web_presence_ids: List(String),
+  )
+}
+
+/// Mirrors `TranslationRecord`. One translation entry keyed by
+/// `(resource_id, locale, market_id, key)`. `translatable_content_digest`
+/// is the upstream digest the client supplied at register time;
+/// `outdated` flips to `True` when the underlying source content
+/// changes (this port treats every staged translation as fresh —
+/// `outdated: False` — until source-content tracking ports).
+pub type TranslationRecord {
+  TranslationRecord(
+    resource_id: String,
+    key: String,
+    locale: String,
+    value: String,
+    translatable_content_digest: String,
+    market_id: Option(String),
+    updated_at: String,
+    outdated: Bool,
+  )
+}
