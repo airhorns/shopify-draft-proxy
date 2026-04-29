@@ -118,7 +118,7 @@ pub fn inline_fragment_test() {
     parse_or_panic("{ search { ... on Product { id } ... on Order { name } } }")
   let assert Field(selection_set: Some(ss), ..) =
     first_selection(first_definition(doc))
-  let assert SelectionSet(selections: selections, ..) = ss
+  let SelectionSet(selections: selections, ..) = ss
   let assert [
     InlineFragment(type_condition: Some(NamedType(name: a, ..)), ..),
     InlineFragment(type_condition: Some(NamedType(name: b, ..)), ..),
@@ -144,7 +144,7 @@ pub fn fragment_spread_test() {
 pub fn alias_test() {
   let doc = parse_or_panic("{ a: foo b: bar }")
   let assert OperationDefinition(selection_set: ss, ..) = first_definition(doc)
-  let assert SelectionSet(selections: selections, ..) = ss
+  let SelectionSet(selections: selections, ..) = ss
   let assert [
     Field(alias: Some(alias_a), name: name_a, ..),
     Field(alias: Some(alias_b), name: name_b, ..),
