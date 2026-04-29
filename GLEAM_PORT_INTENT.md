@@ -9,6 +9,10 @@ It deliberately does not enumerate steps; the phase plan lives in conversation
 history and the per-domain skill (`.agents/skills/gleam-port/SKILL.md`, written
 in Phase 6). This file outlives any specific phase.
 
+The running narrative of what has actually been ported, what was learned, and
+what is now blocked or unblocked lives in `GLEAM_PORT_LOG.md`. New passes
+append entries there, not here.
+
 ## Why port
 
 `shopify-draft-proxy` is a high-fidelity Shopify Admin GraphQL digital twin.
@@ -176,99 +180,6 @@ The port is "complete" when:
 - **One target green is not enough.** Every change must be exercised on
   both `--target erlang` and `--target javascript`; behaviour drift between
   the two is the most expensive bug class to find later.
-
-## Spike findings (2026-04-28)
-
-A first viability spike has run end-to-end through Gleam: HTTP-shaped
-request → JSON body parse → custom GraphQL parser → operation summary
-→ events-domain dispatcher → empty-connection serializer → JSON
-response. 98 gleeunit tests pass on both `--target erlang` and
-`--target javascript`. The port is concrete enough now to surface real
-strengths and risks rather than speculate.
-
-### What is ported and working
-
-| Module                            | LOC  | TS counterpart                  |
-| --------------------------------- | ---- | ------------------------------- |
-| `graphql/source` + `location`     | ~80  | `language/source`, `location`   |
-| `graphql/token_kind` + `token`    | ~70  | `language/tokenKind`, `tokenKind`|
-| `graphql/character_classes`       | ~60  | `language/characterClasses`     |
-| `graphql/lexer`                   | ~530 | `language/lexer`                |
-| `graphql/ast`                     | ~140 | `language/ast` (executable subset) |
-| `graphql/parser`                  | ~720 | `language/parser`               |
-| `graphql/parse_operation`         | ~100 | `graphql/parse-operation`       |
-| `graphql/root_field`              | ~200 | `graphql/root-field`            |
-| `state/synthetic_identity` + FFI  | ~180 | `state/synthetic-identity`      |
-| `proxy/graphql_helpers` (slice)   | ~110 | `proxy/graphql-helpers` (15%)   |
-| `proxy/events`                    | ~80  | `proxy/events`                  |
-| `proxy/draft_proxy` (skeleton)    | ~190 | `proxy-instance` + `proxy/routes` (skeleton) |
-
-Roughly **2.5K LOC of Gleam** replacing roughly the same TS surface,
-with FFI proven on both targets via the ISO timestamp helpers.
-
-### Strengths
-
-- **Sum types + exhaustive matching catch GraphQL shape bugs at
-  compile time.** Adding a new `Selection` variant (e.g.
-  `InlineFragment`) makes every consumer fail to compile until it
-  decides what to do — exactly the property the proxy needs to keep
-  null-vs-absent handling honest.
-- **`Result`-threaded parsing replaces graphql-js's mutable lexer
-  cleanly.** The recursive descent reads as well as the TS original;
-  the immutable state threading didn't add meaningful boilerplate
-  beyond `use … <- result.try(…)`.
-- **Cross-target parity is real.** Every test passes on both BEAM and
-  JS, including FFI-bound timestamp formatting. The platform-specific
-  cost was small (one `.erl` + one `.mjs` file, ~10 lines each).
-- **Public API translates 1:1.** `process_request(request) ->
-  (response, proxy)` mirrors the TS `processRequest`, with the
-  registry threaded explicitly to preserve immutability — no design
-  compromise required.
-
-### Risks and open questions
-
-- **Store + types is the long pole.** `src/state/store.ts` is 5800
-  lines with 449+ methods; `src/state/types.ts` is 2800 lines of
-  resource record definitions. This is the single biggest porting
-  cost and was deliberately deferred in the spike. It will dominate
-  the calendar; the events handler skipped the store entirely because
-  events are read-only and always empty in the proxy. Most other
-  domains will not have that escape hatch.
-- **Deep generic helpers like `serializeConnection<T>` need a different
-  shape in Gleam.** The TS version takes callbacks (`serializeNode`,
-  `getCursorValue`) and is reused across every connection-shaped
-  field. In Gleam, parametric polymorphism handles this, but the
-  number of arguments grows quickly; the spike sidestepped by
-  specializing for the empty-items case. For real domains we'll need
-  a more carefully designed connection helper, possibly with a
-  configuration record instead of positional callbacks.
-- **Mutable-API ergonomics.** Threading the proxy through every call
-  is correct but verbose. The right pattern long-term is probably a
-  `gleam_otp` actor that owns the registry + store, with handlers
-  that send messages — but that's only worth introducing when there's
-  enough state to justify it. For now the explicit threading is fine
-  and matches Gleam idioms.
-- **No date/time stdlib.** ISO 8601 formatting requires FFI; this is
-  per-target boilerplate that scales linearly with the number of
-  date/time operations. Manageable, but a friction point.
-- **Block strings, descriptions, schema definitions deliberately
-  omitted from the parser.** Operation documents in
-  `config/parity-requests/**` don't use them — but if any future
-  Shopify client introduces block string arguments the parser will
-  need extending. Documented as a known gap in `lexer.gleam` /
-  `parser.gleam`.
-
-### Recommendation
-
-Continue the port. The substrate is sound; the GraphQL parser is the
-hardest subjective port (4 of the 12 substrate modules) and it landed
-without surprises. The next bottleneck is mechanical: porting
-`state/types.ts` resource records and the corresponding slices of
-`state/store.ts`, one domain at a time. Start with `delivery-settings`
-or `saved-searches` — both are small and have minimal store coupling
-— before tackling `customers` or `products`.
-
----
 
 ## Open architectural decisions deferred until they bind
 
