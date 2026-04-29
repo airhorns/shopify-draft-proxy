@@ -4,11 +4,7 @@
     "collectionAddProductsV2",
     "productOptionsReorder",
     "productVariantAppendMedia",
-    "productVariantDetachMedia",
-    "productJoinSellingPlanGroups",
-    "productLeaveSellingPlanGroups",
-    "productVariantJoinSellingPlanGroups",
-    "productVariantLeaveSellingPlanGroups"
+    "productVariantDetachMedia"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
@@ -17,8 +13,7 @@
   ],
   "runtimeTestFiles": [
     "tests/integration/collection-draft-flow.test.ts",
-    "tests/integration/product-draft-flow.test.ts",
-    "tests/integration/selling-plan-group-flow.test.ts"
+    "tests/integration/product-draft-flow.test.ts"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-relationship-collection-add-products-v2.graphql",
@@ -100,53 +95,8 @@
           "documentPath": "config/parity-requests/products/product-relationship-variant-media-read.graphql",
           "variablesCapturePath": "$.variantMediaDownstreamRead.variables"
         }
-      },
-      {
-        "name": "product-join-selling-plan-groups",
-        "capturePath": "$.productJoinSellingPlanGroups.response.data.productJoinSellingPlanGroups",
-        "proxyPath": "$.data.productJoinSellingPlanGroups",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productJoinSellingPlanGroups.variables"
-        }
-      },
-      {
-        "name": "product-variant-join-selling-plan-groups",
-        "capturePath": "$.productVariantJoinSellingPlanGroups.response.data.productVariantJoinSellingPlanGroups",
-        "proxyPath": "$.data.productVariantJoinSellingPlanGroups",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-relationship-variant-join-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productVariantJoinSellingPlanGroups.variables"
-        }
-      },
-      {
-        "name": "product-leave-selling-plan-groups",
-        "capturePath": "$.productLeaveSellingPlanGroups.response.data.productLeaveSellingPlanGroups",
-        "proxyPath": "$.data.productLeaveSellingPlanGroups",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-relationship-product-leave-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productLeaveSellingPlanGroups.variables"
-        }
-      },
-      {
-        "name": "product-variant-leave-selling-plan-groups",
-        "capturePath": "$.productVariantLeaveSellingPlanGroups.response.data.productVariantLeaveSellingPlanGroups",
-        "proxyPath": "$.data.productVariantLeaveSellingPlanGroups",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-relationship-variant-leave-selling-plan-groups.graphql",
-          "variablesCapturePath": "$.productVariantLeaveSellingPlanGroups.variables"
-        }
-      },
-      {
-        "name": "selling-plan-downstream-read",
-        "capturePath": "$.sellingPlanDownstreamRead.response.data",
-        "proxyPath": "$.data",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql",
-          "variablesCapturePath": "$.sellingPlanDownstreamRead.variables"
-        }
       }
     ]
   },
-  "notes": "Product relationship roots replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner seeds the captured products, collection, product media, and selling-plan group, then executes each relationship root through the local proxy and compares mutation payloads plus downstream read-after-write effects with strict JSON targets."
+  "notes": "Product relationship roots replayable parity scenario captured against a disposable Shopify dev-store setup. The parity runner seeds the captured products, collection, and product media, then executes collection, option, and variant-media relationship roots through the local proxy and compares mutation payloads plus downstream read-after-write effects with strict JSON targets. Selling-plan product/variant association roots from the same capture are enforced by the dedicated selling-plan-product-variant-associations scenario."
 }

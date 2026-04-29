@@ -43,8 +43,9 @@ Shopify's Admin docs describe selling-plan groups as app-scoped purchase options
 
 ### Known gaps
 
-The checked-in 2026-04 captures cover lifecycle, direct product and variant association updates, unknown-group
-validation branches, and downstream read-after-write behavior for staged products and variants. Broader Shopify
+The checked-in 2026-04 captures cover lifecycle, group-centric association updates, product-centric association
+updates, variant-centric association updates, unknown-group validation branches, and downstream read-after-write
+behavior for staged products and variants. Broader Shopify
 validation semantics are not yet exhaustively modeled: invalid nested selling-plan policy combinations, app ownership
 or permission failures, and `sellingPlanGroups(query:, sortKey:, reverse:)` filtering/sorting beyond the staged
 catalog shape should be treated as unsupported fidelity gaps until live conformance evidence is added. Do not expand
@@ -63,5 +64,7 @@ Validation entry points:
 - `corepack pnpm vitest run tests/integration/selling-plan-group-flow.test.ts`
 - `corepack pnpm vitest run tests/integration/admin-platform-query-shapes.test.ts`
 - `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
+- `config/parity-specs/products/selling-plan-product-variant-associations.json`
+- `config/parity-specs/products/selling-plan-group-lifecycle.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
