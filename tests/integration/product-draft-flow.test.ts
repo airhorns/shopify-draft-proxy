@@ -4847,6 +4847,109 @@ describe('product draft flow', () => {
     expect(await readProductState()).toEqual(initialState);
   });
 
+  it('serializes captured bulk variant validation codes when selected', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(JSON.stringify({ data: { product: null } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+
+    const createProductResponse = await request(app).post('/admin/api/2025-01/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "Bulk Variant Code Hat" }) { product { id variants(first: 1) { nodes { id } } } userErrors { field message } } }',
+    });
+
+    const productId = createProductResponse.body.data.productCreate.product.id as string;
+    const defaultVariantId = createProductResponse.body.data.productCreate.product.variants.nodes[0].id as string;
+
+    const createOptionsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation CreateOptions($productId: ID!, $options: [OptionCreateInput!]!) { productOptionsCreate(productId: $productId, options: $options) { product { id } userErrors { field message } } }',
+        variables: {
+          productId,
+          options: [
+            { name: 'Color', values: [{ name: 'Red' }, { name: 'Blue' }] },
+            { name: 'Size', values: [{ name: 'Small' }, { name: 'Large' }] },
+          ],
+        },
+      });
+
+    expect(createOptionsResponse.status).toBe(200);
+    expect(createOptionsResponse.body.data.productOptionsCreate.userErrors).toEqual([]);
+
+    const duplicateCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation DuplicateCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkCreate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message code } } }',
+        variables: {
+          productId,
+          variants: [
+            {
+              optionValues: [
+                { optionName: 'Color', name: 'Blue' },
+                { optionName: 'Color', name: 'Red' },
+              ],
+            },
+          ],
+        },
+      });
+
+    expect(duplicateCreateResponse.status).toBe(200);
+    expect(duplicateCreateResponse.body.data.productVariantsBulkCreate.userErrors).toEqual([
+      {
+        field: ['variants', '0', 'optionValues'],
+        message: "Duplicated option name 'Color'",
+        code: 'INVALID_INPUT',
+      },
+    ]);
+
+    const missingIdUpdateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MissingIdUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) { productVariantsBulkUpdate(productId: $productId, variants: $variants) { product { id } productVariants { id } userErrors { field message code } } }',
+        variables: {
+          productId,
+          variants: [{ inventoryItem: { sku: 'SHOULD-NOT-UPDATE-MISSING-ID' } }],
+        },
+      });
+
+    expect(missingIdUpdateResponse.status).toBe(200);
+    expect(missingIdUpdateResponse.body.data.productVariantsBulkUpdate.userErrors).toEqual([
+      {
+        field: ['variants', '0', 'id'],
+        message: 'Product variant is missing ID attribute',
+        code: 'PRODUCT_VARIANT_ID_MISSING',
+      },
+    ]);
+
+    const mixedDeleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query:
+          'mutation MixedDelete($productId: ID!, $variantsIds: [ID!]!) { productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) { product { id } userErrors { field message code } } }',
+        variables: {
+          productId,
+          variantsIds: [defaultVariantId, 'gid://shopify/ProductVariant/999999999999999999'],
+        },
+      });
+
+    expect(mixedDeleteResponse.status).toBe(200);
+    expect(mixedDeleteResponse.body.data.productVariantsBulkDelete.userErrors).toEqual([
+      {
+        field: ['variantsIds', '1'],
+        message: 'At least one variant does not belong to the product',
+        code: 'AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT',
+      },
+    ]);
+  });
+
   it('adds missing option values and updates hasVariants during bulk variant mutations', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       return new Response(JSON.stringify({ data: { product: null } }), {

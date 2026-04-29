@@ -55,6 +55,7 @@ import { handleWebhookSubscriptionMutation } from './webhooks.js';
 type BulkOperationUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 type GraphqlResponseBody = {
@@ -246,6 +247,9 @@ function serializeBulkOperationUserErrors(
           break;
         case 'message':
           result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
           break;
         default:
           result[key] = null;
@@ -533,8 +537,12 @@ function findUnsupportedConnectionSelection(
   return null;
 }
 
-function bulkQueryUserError(message: string, field: string[] | null = ['query']): BulkOperationUserError {
-  return { field, message };
+function bulkQueryUserError(
+  message: string,
+  field: string[] | null = ['query'],
+  code: string | null = 'INVALID',
+): BulkOperationUserError {
+  return { field, message, code };
 }
 
 function validateBulkRunQueryDocument(query: string): BulkQueryValidationResult {

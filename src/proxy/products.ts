@@ -1944,6 +1944,7 @@ function updateVariantRecord(
 type BulkVariantUserError = {
   field: string[] | null;
   message: string;
+  code: string | null;
 };
 
 function readBulkVariantInputs(raw: unknown): Record<string, unknown>[] {
@@ -1991,6 +1992,7 @@ function validateBulkVariantOptionInput(
       userErrors.push({
         field: ['variants', String(index), optionFieldName],
         message: `Duplicated option name '${selectedOption.name}'`,
+        code: 'INVALID_INPUT',
       });
       return { selectedOptions, userErrors };
     }
@@ -2001,6 +2003,7 @@ function validateBulkVariantOptionInput(
       userErrors.push({
         field: ['variants', String(index), optionFieldName, String(optionIndex)],
         message: 'Option does not exist',
+        code: mode === 'update' ? 'OPTION_DOES_NOT_EXIST' : 'INVALID_INPUT',
       });
       return { selectedOptions, userErrors };
     }
@@ -2013,6 +2016,7 @@ function validateBulkVariantOptionInput(
       userErrors.push({
         field: ['variants', String(index)],
         message: `You need to add option values for ${missingOption.name}`,
+        code: 'NEED_TO_ADD_OPTION_VALUES',
       });
     }
   }
@@ -2055,6 +2059,7 @@ function validateBulkCreateVariantBatch(
       userErrors.push({
         field: ['variants', String(index), 'inventoryQuantities'],
         message: `Quantity for ${deriveVariantTitle(input['title'], validation.selectedOptions, 'Default Title')} couldn't be set because the location was deleted.`,
+        code: 'TRACKED_VARIANT_LOCATION_NOT_FOUND',
       });
     }
   }
@@ -2069,7 +2074,7 @@ function validateBulkUpdateVariantBatch(
   variantsById: Map<string, ProductVariantRecord>,
 ): BulkVariantUserError[] {
   if (inputs.length === 0) {
-    return [{ field: null, message: 'Something went wrong, please try again.' }];
+    return [{ field: null, message: 'Something went wrong, please try again.', code: null }];
   }
 
   const userErrors: BulkVariantUserError[] = [];
@@ -2079,6 +2084,7 @@ function validateBulkUpdateVariantBatch(
       userErrors.push({
         field: ['variants', String(index), 'id'],
         message: 'Product variant is missing ID attribute',
+        code: 'PRODUCT_VARIANT_ID_MISSING',
       });
       continue;
     }
@@ -2087,6 +2093,7 @@ function validateBulkUpdateVariantBatch(
       userErrors.push({
         field: ['variants', String(index), 'id'],
         message: 'Product variant does not exist',
+        code: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
       });
       continue;
     }
@@ -2096,6 +2103,7 @@ function validateBulkUpdateVariantBatch(
         field: ['variants', String(index), 'inventoryQuantities'],
         message:
           'Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.',
+        code: 'NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE',
       });
       continue;
     }
@@ -5639,6 +5647,7 @@ function serializeInventoryLevelsConnection(
 type InventoryTransferUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 type InventoryTransferLineItemInput = {
@@ -5705,6 +5714,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
         message: "The inventory item can't be found.",
+        code: 'ITEM_NOT_FOUND',
       });
       return;
     }
@@ -5714,6 +5724,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
         message: 'The inventory item does not track inventory.',
+        code: 'UNTRACKED_ITEM',
       });
     }
 
@@ -5721,6 +5732,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'quantity'],
         message: 'Quantity must be greater than 0.',
+        code: 'INVALID_QUANTITY',
       });
     }
   });
@@ -5802,6 +5814,7 @@ function applyInventoryTransferReservation(
         field: ['id'],
         message:
           'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
       });
       continue;
     }
@@ -5816,6 +5829,7 @@ function applyInventoryTransferReservation(
         field: ['id'],
         message:
           'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
       });
       continue;
     }
@@ -5879,6 +5893,9 @@ function serializeInventoryTransferUserErrors(
           break;
         case 'message':
           result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
           break;
         default:
           result[key] = null;
@@ -6152,7 +6169,7 @@ function inventoryTransferNotFoundPayload(rootName: string, field: FieldNode): R
       inventoryTransfer: rootName === 'inventoryTransferDelete' ? undefined : null,
       deletedId: rootName === 'inventoryTransferDelete' ? null : undefined,
       userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), [
-        { field: ['id'], message: "The inventory transfer can't be found." },
+        { field: ['id'], message: "The inventory transfer can't be found.", code: 'TRANSFER_NOT_FOUND' },
       ]),
     },
   };
@@ -14548,7 +14565,10 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product id is required', code: null }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14561,7 +14581,10 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product does not exist', code: 'PRODUCT_DOES_NOT_EXIST' }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14577,7 +14600,7 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors,
+              userErrors: serializeUserErrorLikeList(userErrors, getChildField(field, 'userErrors')),
             },
           },
         };
@@ -14612,7 +14635,7 @@ export function handleProductMutation(
           [responseKey]: {
             product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             productVariants: serializeVariantPayload(runtime, createdVariants, getChildField(field, 'productVariants')),
-            userErrors: [],
+            userErrors: serializeUserErrorLikeList([], getChildField(field, 'userErrors')),
           },
         },
       };
@@ -14626,7 +14649,10 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: [],
-              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product id is required', code: null }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14639,7 +14665,10 @@ export function handleProductMutation(
             [responseKey]: {
               product: null,
               productVariants: null,
-              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product does not exist', code: 'PRODUCT_DOES_NOT_EXIST' }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14658,7 +14687,7 @@ export function handleProductMutation(
                   ? null
                   : serializeProduct(runtime, existingProduct, getChildField(field, 'product'), variables),
               productVariants: null,
-              userErrors,
+              userErrors: serializeUserErrorLikeList(userErrors, getChildField(field, 'userErrors')),
             },
           },
         };
@@ -14688,7 +14717,7 @@ export function handleProductMutation(
           [responseKey]: {
             product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
             productVariants: serializeVariantPayload(runtime, updatedVariants, getChildField(field, 'productVariants')),
-            userErrors: [],
+            userErrors: serializeUserErrorLikeList([], getChildField(field, 'userErrors')),
           },
         },
       };
@@ -14701,7 +14730,10 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product id is required' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product id is required', code: null }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14713,7 +14745,10 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [{ field: ['productId'], message: 'Product does not exist' }],
+              userErrors: serializeUserErrorLikeList(
+                [{ field: ['productId'], message: 'Product does not exist', code: 'PRODUCT_DOES_NOT_EXIST' }],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14733,12 +14768,16 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               product: null,
-              userErrors: [
-                {
-                  field: ['variantsIds', String(missingVariantIndex)],
-                  message: 'At least one variant does not belong to the product',
-                },
-              ],
+              userErrors: serializeUserErrorLikeList(
+                [
+                  {
+                    field: ['variantsIds', String(missingVariantIndex)],
+                    message: 'At least one variant does not belong to the product',
+                    code: 'AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT',
+                  },
+                ],
+                getChildField(field, 'userErrors'),
+              ),
             },
           },
         };
@@ -14756,7 +14795,7 @@ export function handleProductMutation(
         data: {
           [responseKey]: {
             product: serializeProduct(runtime, product, getChildField(field, 'product'), variables),
-            userErrors: [],
+            userErrors: serializeUserErrorLikeList([], getChildField(field, 'userErrors')),
           },
         },
       };
