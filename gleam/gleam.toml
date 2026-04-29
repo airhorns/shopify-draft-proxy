@@ -1,0 +1,29 @@
+name = "shopify_draft_proxy"
+version = "0.1.0"
+
+description = "Shopify Admin GraphQL digital twin / draft proxy"
+licences = ["Apache-2.0"]
+
+# This project sits inside the larger shopify-draft-proxy repository alongside
+# the legacy TypeScript implementation in ../src. Parity specs in
+# ../config/parity-specs and conformance fixtures in ../fixtures/conformance
+# are shared between both implementations during the port.
+#
+# When the TypeScript port is complete this directory will be promoted to the
+# repository root.
+
+# Default to the JavaScript target so `gleam test` exercises the runtime that
+# Node consumers will use. The Erlang target is run alongside in CI and via
+# `gleam test --target erlang`.
+target = "javascript"
+
+[javascript]
+typescript_declarations = true
+runtime = "node"
+
+[dependencies]
+gleam_stdlib = ">= 0.60.0 and < 2.0.0"
+gleam_json = ">= 3.0.0 and < 4.0.0"
+
+[dev_dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
