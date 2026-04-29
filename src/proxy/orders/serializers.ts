@@ -1809,6 +1809,21 @@ function serializeCalculatedDiscountAllocation(
       case 'description':
         result[key] = allocation.description ?? null;
         break;
+      case 'discountApplication':
+        result[key] = Object.fromEntries(
+          getSelectedChildFields(selection).map((applicationSelection) => {
+            const applicationKey = getFieldResponseKey(applicationSelection);
+            switch (applicationSelection.name.value) {
+              case 'id':
+                return [applicationKey, allocation.id];
+              case 'description':
+                return [applicationKey, allocation.description ?? null];
+              default:
+                return [applicationKey, null];
+            }
+          }),
+        );
+        break;
       default:
         result[key] = null;
         break;

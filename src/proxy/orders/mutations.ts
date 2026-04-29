@@ -1044,6 +1044,28 @@ function serializeCalculatedShippingLinePayload(
   return result;
 }
 
+function serializeOrderEditStagedChange(
+  field: FieldNode,
+  stagedChange: { id: string; description: string | null },
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'id':
+        result[key] = stagedChange.id;
+        break;
+      case 'description':
+        result[key] = stagedChange.description;
+        break;
+      default:
+        result[key] = null;
+        break;
+    }
+  }
+  return result;
+}
+
 function buildOrderEditInvalidVariantUserErrors(): Array<{ field: string[]; message: string }> {
   return [
     {
@@ -1145,7 +1167,11 @@ function applyLineItemDiscount(
   calculatedOrder: CalculatedOrderRecord,
   lineItemId: string,
   discountInput: Record<string, unknown>,
-): { calculatedOrder: CalculatedOrderRecord; calculatedLineItem: OrderLineItemRecord } | null {
+): {
+  addedDiscountStagedChange: { id: string; description: string | null };
+  calculatedOrder: CalculatedOrderRecord;
+  calculatedLineItem: OrderLineItemRecord;
+} | null {
   const targetLineItem = calculatedOrder.lineItems.find((lineItem) => lineItem.id === lineItemId) ?? null;
   if (!targetLineItem) {
     return null;
@@ -1160,10 +1186,15 @@ function applyLineItemDiscount(
       ? (subtotal * percentValue) / 100
       : 0;
   const boundedDiscount = Math.min(subtotal, Math.max(0, discountAmount));
+  const description = typeof discountInput['description'] === 'string' ? discountInput['description'] : null;
   const allocation = {
-    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedDiscountApplication'),
-    description: typeof discountInput['description'] === 'string' ? discountInput['description'] : null,
+    id: runtime.syntheticIdentity.makeSyntheticGid('CalculatedManualDiscountApplication'),
+    description,
     allocatedAmountSet: makeOrderMoneyBag(boundedDiscount, fixedValue?.currencyCode ?? currencyCode),
+  };
+  const addedDiscountStagedChange = {
+    id: runtime.syntheticIdentity.makeSyntheticGid('OrderStagedChangeAddLineItemDiscount'),
+    description,
   };
   const updatedLineItem: OrderLineItemRecord = {
     ...targetLineItem,
@@ -1182,6 +1213,7 @@ function applyLineItemDiscount(
     ),
   };
   return {
+    addedDiscountStagedChange,
     calculatedLineItem: updatedLineItem,
     calculatedOrder: recalculateCalculatedOrder({
       ...calculatedOrder,
@@ -6212,7 +6244,9 @@ export function handleOrderMutation(
             payload[selectionKey] = result ? serializeOrderLineItemNode(selection, result.calculatedLineItem) : null;
             break;
           case 'addedDiscountStagedChange':
-            payload[selectionKey] = null;
+            payload[selectionKey] = result
+              ? serializeOrderEditStagedChange(selection, result.addedDiscountStagedChange)
+              : null;
             break;
           case 'userErrors':
             payload[selectionKey] = result ? [] : [{ field: ['lineItemId'], message: 'Line item does not exist' }];
