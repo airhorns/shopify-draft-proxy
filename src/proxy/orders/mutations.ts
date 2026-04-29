@@ -4789,12 +4789,14 @@ export function handleOrderMutation(
       const order = orderId ? runtime.store.getOrderById(orderId) : null;
 
       if (!order) {
-        data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order does not exist' }]);
+        data[key] = serializeOrderCancelPayload(field, null, [{ field: ['orderId'], message: 'Order does not exist' }]);
         continue;
       }
 
       if (orderId && runtime.store.hasStagedOrder(orderId) && order.cancelledAt) {
-        data[key] = serializeOrderCancelPayload(field, [{ field: ['orderId'], message: 'Order is already canceled' }]);
+        data[key] = serializeOrderCancelPayload(field, null, [
+          { field: ['orderId'], message: 'Order is already canceled' },
+        ]);
         continue;
       }
 
@@ -4807,7 +4809,7 @@ export function handleOrderMutation(
         cancelledAt,
         cancelReason: typeof variables['reason'] === 'string' ? variables['reason'] : 'OTHER',
       });
-      data[key] = serializeOrderCancelPayload(field, []);
+      data[key] = serializeOrderCancelPayload(field, runtime.syntheticIdentity.makeSyntheticGid('Job'), []);
       continue;
     }
 

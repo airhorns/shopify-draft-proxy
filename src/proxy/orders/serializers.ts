@@ -351,6 +351,7 @@ export function serializeOrderCreateMandatePaymentPayload(
 
 export function serializeOrderCancelPayload(
   field: FieldNode,
+  jobId: string | null,
   userErrors: Array<{ field: string[] | null; message: string }>,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
@@ -358,9 +359,10 @@ export function serializeOrderCancelPayload(
     const selectionKey = getFieldResponseKey(selection);
     switch (selection.name.value) {
       case 'job':
-        payload[selectionKey] = null;
+        payload[selectionKey] = jobId ? serializeJob(selection, jobId, false) : null;
         break;
       case 'orderCancelUserErrors':
+      case 'userErrors':
         payload[selectionKey] = serializeSelectedUserErrors(selection, userErrors);
         break;
       default:
