@@ -1,0 +1,32 @@
+#graphql
+query InventoryQuantityContractDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
+  product(id: $productId) {
+    id
+    totalInventory
+    tracksInventory
+  }
+  inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
+      }
+    }
+    inventoryLevels(first: 5) {
+      nodes {
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand"]) {
+          name
+          quantity
+        }
+      }
+    }
+  }
+}
