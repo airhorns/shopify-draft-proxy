@@ -1,0 +1,13 @@
+mutation DiscountRedeemCodeBulkLiveDelete($discountId: ID!, $ids: [ID!]!) {
+  discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {
+    job {
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

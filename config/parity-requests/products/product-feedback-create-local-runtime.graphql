@@ -1,0 +1,16 @@
+mutation ProductFeedbackCreateLocalRuntime($feedbackInput: [ProductResourceFeedbackInput!]!) {
+  bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) {
+    feedback {
+      productId
+      state
+      messages
+      feedbackGeneratedAt
+      productUpdatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

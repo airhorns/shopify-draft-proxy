@@ -424,6 +424,94 @@ describe('Localization staging', () => {
     expect(store.getLog().map((entry) => entry.status)).toEqual(['staged', 'staged', 'staged']);
   });
 
+  it('removes locale translations when a staged shop locale is disabled', async () => {
+    seedLocalizationState();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('shopLocaleDisable cleanup must not proxy'));
+    const app = createApp(config).callback();
+
+    const mutationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation DisableLocaleWithTranslations($resourceId: ID!, $translations: [TranslationInput!]!) {
+            shopLocaleEnable(locale: "fr") {
+              shopLocale {
+                locale
+              }
+              userErrors {
+                field
+                message
+              }
+            }
+            translationsRegister(resourceId: $resourceId, translations: $translations) {
+              translations {
+                key
+                value
+                locale
+              }
+              userErrors {
+                field
+                message
+                code
+              }
+            }
+            shopLocaleDisable(locale: "fr") {
+              locale
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          resourceId: productId,
+          translations: [
+            {
+              locale: 'fr',
+              key: 'title',
+              value: 'Planche a desactiver',
+              translatableContentDigest: digest('Localization Snowboard'),
+            },
+          ],
+        },
+      });
+
+    expect(mutationResponse.status).toBe(200);
+    expect(mutationResponse.body.data.translationsRegister).toMatchObject({
+      translations: [{ key: 'title', value: 'Planche a desactiver', locale: 'fr' }],
+      userErrors: [],
+    });
+    expect(mutationResponse.body.data.shopLocaleDisable).toEqual({ locale: 'fr', userErrors: [] });
+
+    const downstreamResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query DisabledLocaleRead($resourceId: ID!) {
+            translatableResource(resourceId: $resourceId) {
+              translations(locale: "fr") {
+                key
+                value
+                locale
+              }
+            }
+            shopLocales {
+              locale
+            }
+          }
+        `,
+        variables: { resourceId: productId },
+      });
+
+    expect(downstreamResponse.body.data).toEqual({
+      translatableResource: { translations: [] },
+      shopLocales: [{ locale: 'en' }],
+    });
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(store.getLog().map((entry) => entry.status)).toEqual(['staged']);
+  });
+
   it('stages product metafield translations and validates key, digest, and locale guardrails', async () => {
     seedLocalizationState();
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('metafield localization must not proxy'));

@@ -8,12 +8,14 @@ import type {
   BulkOperationRecord,
   CustomerPaymentMethodRecord,
   CustomerRecord,
+  DeliveryProfileRecord,
   DiscountRecord,
   FileRecord,
   PaymentTermsTemplateRecord,
   ProductMetafieldRecord,
   ProductRecord,
   SavedSearchRecord,
+  SellingPlanGroupRecord,
   ShopRecord,
   TaxonomyCategoryRecord,
 } from '../../src/state/types.js';
@@ -114,6 +116,94 @@ function makeBulkOperation(id: string): BulkOperationRecord {
     url: 'https://example.com/bulk-result.jsonl',
     partialDataUrl: null,
     query: '{ products { edges { node { id title } } } }',
+  };
+}
+
+function makeDeliveryProfile(id: string): DeliveryProfileRecord {
+  return {
+    id,
+    name: 'Relay Delivery Profile',
+    default: false,
+    merchantOwned: true,
+    version: 1,
+    activeMethodDefinitionsCount: 2,
+    locationsWithoutRatesCount: 0,
+    originLocationCount: 1,
+    zoneCountryCount: 1,
+    productVariantsCount: { count: 0, precision: 'EXACT' },
+    profileItems: [],
+    unassignedLocationIds: [],
+    sellingPlanGroups: [],
+    profileLocationGroups: [
+      {
+        id: 'gid://shopify/DeliveryLocationGroup/9100',
+        locationIds: ['gid://shopify/Location/9100'],
+        locationCursors: { 'gid://shopify/Location/9100': 'delivery-location-cursor' },
+        countriesInAnyZone: [
+          {
+            zone: 'Domestic',
+            country: {
+              id: 'gid://shopify/DeliveryCountry/9100',
+              name: 'United States',
+              translatedName: 'United States',
+              code: { countryCode: 'US', restOfWorld: false },
+              provinces: [{ id: 'gid://shopify/DeliveryProvince/9100', name: 'New York', code: 'NY' }],
+            },
+          },
+        ],
+        locationGroupZones: [
+          {
+            zone: {
+              id: 'gid://shopify/DeliveryZone/9100',
+              name: 'Domestic',
+              countries: [
+                {
+                  id: 'gid://shopify/DeliveryCountry/9100',
+                  name: 'United States',
+                  translatedName: 'United States',
+                  code: { countryCode: 'US', restOfWorld: false },
+                  provinces: [{ id: 'gid://shopify/DeliveryProvince/9100', name: 'New York', code: 'NY' }],
+                },
+              ],
+            },
+            methodDefinitions: [
+              {
+                id: 'gid://shopify/DeliveryMethodDefinition/9100',
+                name: 'Standard',
+                active: true,
+                description: null,
+                rateProvider: {
+                  __typename: 'DeliveryRateDefinition',
+                  id: 'gid://shopify/DeliveryRateDefinition/9100',
+                  price: { amount: '5.00', currencyCode: 'USD' },
+                },
+                methodConditions: [
+                  {
+                    id: 'gid://shopify/DeliveryCondition/9100?operator=greater_than_or_equal_to',
+                    field: 'TOTAL_PRICE',
+                    operator: 'GREATER_THAN_OR_EQUAL_TO',
+                    conditionCriteria: { __typename: 'MoneyV2', amount: '10.00', currencyCode: 'USD' },
+                  },
+                ],
+              },
+              {
+                id: 'gid://shopify/DeliveryMethodDefinition/9101',
+                name: 'Carrier',
+                active: true,
+                description: 'carrier service',
+                rateProvider: {
+                  __typename: 'DeliveryParticipant',
+                  id: 'gid://shopify/DeliveryParticipant/9101',
+                  fixedFee: { amount: '0.00', currencyCode: 'USD' },
+                  percentageOfRateFee: 0,
+                },
+                methodConditions: [],
+              },
+            ],
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -488,6 +578,54 @@ function makeShopForCountry(myshopifyDomain: string, countryCode: string, countr
       formattedArea: `${baseShop.shopAddress.city}, ${country}`,
     },
   });
+}
+
+function makeSellingPlanGroup(): SellingPlanGroupRecord {
+  return {
+    id: 'gid://shopify/SellingPlanGroup/9100',
+    appId: null,
+    name: 'Relay selling plan group',
+    merchantCode: 'relay-selling-plan-group',
+    description: 'Relay subscription group',
+    options: ['Delivery cadence'],
+    position: 1,
+    summary: '1 delivery cadence',
+    createdAt: '2026-04-01T00:00:00Z',
+    productIds: [],
+    productVariantIds: [],
+    sellingPlans: [
+      {
+        id: 'gid://shopify/SellingPlan/9100',
+        data: {
+          __typename: 'SellingPlan',
+          id: 'gid://shopify/SellingPlan/9100',
+          name: 'Monthly relay',
+          description: 'Ships every month',
+          options: ['Monthly'],
+          position: 1,
+          category: 'SUBSCRIPTION',
+          createdAt: '2026-04-01T00:00:00Z',
+          billingPolicy: {
+            __typename: 'SellingPlanRecurringBillingPolicy',
+            interval: 'MONTH',
+            intervalCount: 1,
+            minCycles: null,
+            maxCycles: null,
+          },
+          deliveryPolicy: {
+            __typename: 'SellingPlanRecurringDeliveryPolicy',
+            interval: 'MONTH',
+            intervalCount: 1,
+            cutoff: null,
+            intent: 'FULFILLMENT_BEGIN',
+            preAnchorBehavior: 'ASAP',
+          },
+          inventoryPolicy: { reserve: 'ON_FULFILLMENT' },
+          pricingPolicies: [],
+        },
+      },
+    ],
+  };
 }
 
 describe('admin platform utility query shapes', () => {
@@ -1540,7 +1678,21 @@ describe('admin platform utility query shapes', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('direct admin platform node serializers should resolve locally in snapshot mode');
     });
-    store.upsertBaseShop(makeShop());
+    store.upsertBaseShop(
+      makeShop({
+        shopPolicies: [
+          {
+            id: 'gid://shopify/ShopPolicy/9100',
+            title: 'Contact',
+            body: '<p>Relay contact policy</p>',
+            type: 'CONTACT_INFORMATION',
+            url: 'https://node-test-shop.myshopify.com/policies/contact-information',
+            createdAt: '2026-04-01T00:00:00Z',
+            updatedAt: '2026-04-01T00:00:00Z',
+          },
+        ],
+      }),
+    );
     store.upsertBaseCustomers([makeCustomer('gid://shopify/Customer/9100', 'relay-node-owner@example.com')]);
     store.upsertBaseCustomerPaymentMethods([
       makeCustomerPaymentMethod('gid://shopify/CustomerPaymentMethod/9100', 'gid://shopify/Customer/9100'),
@@ -1550,6 +1702,7 @@ describe('admin platform utility query shapes', () => {
       makeProductMetafield('gid://shopify/Metafield/9100', 'gid://shopify/Product/9100'),
     ]);
     store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
+    store.upsertBaseSellingPlanGroups([makeSellingPlanGroup()]);
     store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
     store.stageCreateFiles([
       makeFile('gid://shopify/GenericFile/9100', 'FILE', 'relay.pdf'),
@@ -1596,8 +1749,37 @@ describe('admin platform utility query shapes', () => {
               name
               myshopifyDomain
             }
+            ... on ShopAddress {
+              address1
+              city
+              countryCodeV2
+              formatted
+            }
+            ... on ShopPolicy {
+              title
+              body
+              type
+              url
+            }
             ... on CustomerPaymentMethod {
               revokedAt
+            }
+            ... on SellingPlan {
+              name
+              description
+              options
+              position
+              category
+              createdAt
+              billingPolicy {
+                __typename
+                ... on SellingPlanRecurringBillingPolicy {
+                  interval
+                  intervalCount
+                  minCycles
+                  maxCycles
+                }
+              }
             }
             ... on SavedSearch {
               name
@@ -1644,7 +1826,10 @@ describe('admin platform utility query shapes', () => {
         variables: {
           ids: [
             'gid://shopify/Shop/400',
+            'gid://shopify/ShopAddress/400',
+            'gid://shopify/ShopPolicy/9100',
             'gid://shopify/CustomerPaymentMethod/9100',
+            'gid://shopify/SellingPlan/9100',
             'gid://shopify/SavedSearch/9100',
             'gid://shopify/Metafield/9100',
             'gid://shopify/PaymentTermsTemplate/14',
@@ -1667,9 +1852,42 @@ describe('admin platform utility query shapes', () => {
             myshopifyDomain: 'node-test-shop.myshopify.com',
           },
           {
+            __typename: 'ShopAddress',
+            nodeId: 'gid://shopify/ShopAddress/400',
+            address1: '1 Main Street',
+            city: 'New York',
+            countryCodeV2: 'US',
+            formatted: ['1 Main Street', 'New York NY 10001', 'United States'],
+          },
+          {
+            __typename: 'ShopPolicy',
+            nodeId: 'gid://shopify/ShopPolicy/9100',
+            title: 'Contact',
+            body: '<p>Relay contact policy</p>',
+            type: 'CONTACT_INFORMATION',
+            url: 'https://node-test-shop.myshopify.com/policies/contact-information',
+          },
+          {
             __typename: 'CustomerPaymentMethod',
             nodeId: 'gid://shopify/CustomerPaymentMethod/9100',
             revokedAt: null,
+          },
+          {
+            __typename: 'SellingPlan',
+            nodeId: 'gid://shopify/SellingPlan/9100',
+            name: 'Monthly relay',
+            description: 'Ships every month',
+            options: ['Monthly'],
+            position: 1,
+            category: 'SUBSCRIPTION',
+            createdAt: '2026-04-01T00:00:00Z',
+            billingPolicy: {
+              __typename: 'SellingPlanRecurringBillingPolicy',
+              interval: 'MONTH',
+              intervalCount: 1,
+              minCycles: null,
+              maxCycles: null,
+            },
           },
           {
             __typename: 'SavedSearch',
@@ -1725,6 +1943,236 @@ describe('admin platform utility query shapes', () => {
               height: 800,
             },
           },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('resolves delivery profile nested resource IDs through generic node roots', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('delivery profile nested node reads should resolve locally in snapshot mode');
+    });
+    store.upsertBaseLocations([{ id: 'gid://shopify/Location/9100', name: 'Shipping origin', isActive: true }]);
+    store.upsertBaseDeliveryProfiles([makeDeliveryProfile('gid://shopify/DeliveryProfile/9100')]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query DeliveryProfileNestedNodeResolution($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              nodeId: id
+            }
+            ... on DeliveryLocationGroup {
+              locations(first: 2) {
+                nodes {
+                  id
+                  name
+                }
+                pageInfo {
+                  hasNextPage
+                  hasPreviousPage
+                  startCursor
+                  endCursor
+                }
+              }
+              locationsCount {
+                count
+                precision
+              }
+            }
+            ... on DeliveryZone {
+              name
+              countries {
+                id
+                name
+              }
+            }
+            ... on DeliveryMethodDefinition {
+              name
+              active
+              description
+              rateProvider {
+                ... on DeliveryRateDefinition {
+                  id
+                  price {
+                    amount
+                    currencyCode
+                  }
+                }
+                ... on DeliveryParticipant {
+                  id
+                  fixedFee {
+                    amount
+                    currencyCode
+                  }
+                  percentageOfRateFee
+                }
+              }
+              methodConditions {
+                id
+                field
+                operator
+                conditionCriteria {
+                  __typename
+                  ... on MoneyV2 {
+                    amount
+                    currencyCode
+                  }
+                }
+              }
+            }
+            ... on DeliveryRateDefinition {
+              price {
+                amount
+                currencyCode
+              }
+            }
+            ... on DeliveryParticipant {
+              fixedFee {
+                amount
+                currencyCode
+              }
+              percentageOfRateFee
+            }
+            ... on DeliveryCondition {
+              field
+              operator
+              conditionCriteria {
+                __typename
+                ... on MoneyV2 {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            ... on DeliveryCountry {
+              name
+              translatedName
+              code {
+                countryCode
+                restOfWorld
+              }
+              provinces {
+                id
+                name
+                code
+              }
+            }
+            ... on DeliveryProvince {
+              name
+              code
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/DeliveryLocationGroup/9100',
+            'gid://shopify/DeliveryZone/9100',
+            'gid://shopify/DeliveryMethodDefinition/9100',
+            'gid://shopify/DeliveryRateDefinition/9100',
+            'gid://shopify/DeliveryCondition/9100?operator=greater_than_or_equal_to',
+            'gid://shopify/DeliveryCountry/9100',
+            'gid://shopify/DeliveryProvince/9100',
+            'gid://shopify/DeliveryMethodDefinition/9101',
+            'gid://shopify/DeliveryParticipant/9101',
+            'gid://shopify/DeliveryMethodDefinition/404',
+          ],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        nodes: [
+          {
+            __typename: 'DeliveryLocationGroup',
+            nodeId: 'gid://shopify/DeliveryLocationGroup/9100',
+            locations: {
+              nodes: [{ id: 'gid://shopify/Location/9100', name: 'Shipping origin' }],
+              pageInfo: {
+                hasNextPage: false,
+                hasPreviousPage: false,
+                startCursor: 'delivery-location-cursor',
+                endCursor: 'delivery-location-cursor',
+              },
+            },
+            locationsCount: { count: 1, precision: 'EXACT' },
+          },
+          {
+            __typename: 'DeliveryZone',
+            nodeId: 'gid://shopify/DeliveryZone/9100',
+            name: 'Domestic',
+            countries: [{ id: 'gid://shopify/DeliveryCountry/9100', name: 'United States' }],
+          },
+          {
+            __typename: 'DeliveryMethodDefinition',
+            nodeId: 'gid://shopify/DeliveryMethodDefinition/9100',
+            name: 'Standard',
+            active: true,
+            description: null,
+            rateProvider: {
+              id: 'gid://shopify/DeliveryRateDefinition/9100',
+              price: { amount: '5.00', currencyCode: 'USD' },
+            },
+            methodConditions: [
+              {
+                id: 'gid://shopify/DeliveryCondition/9100?operator=greater_than_or_equal_to',
+                field: 'TOTAL_PRICE',
+                operator: 'GREATER_THAN_OR_EQUAL_TO',
+                conditionCriteria: { __typename: 'MoneyV2', amount: '10.00', currencyCode: 'USD' },
+              },
+            ],
+          },
+          {
+            __typename: 'DeliveryRateDefinition',
+            nodeId: 'gid://shopify/DeliveryRateDefinition/9100',
+            price: { amount: '5.00', currencyCode: 'USD' },
+          },
+          {
+            __typename: 'DeliveryCondition',
+            nodeId: 'gid://shopify/DeliveryCondition/9100?operator=greater_than_or_equal_to',
+            field: 'TOTAL_PRICE',
+            operator: 'GREATER_THAN_OR_EQUAL_TO',
+            conditionCriteria: { __typename: 'MoneyV2', amount: '10.00', currencyCode: 'USD' },
+          },
+          {
+            __typename: 'DeliveryCountry',
+            nodeId: 'gid://shopify/DeliveryCountry/9100',
+            name: 'United States',
+            translatedName: 'United States',
+            code: { countryCode: 'US', restOfWorld: false },
+            provinces: [{ id: 'gid://shopify/DeliveryProvince/9100', name: 'New York', code: 'NY' }],
+          },
+          {
+            __typename: 'DeliveryProvince',
+            nodeId: 'gid://shopify/DeliveryProvince/9100',
+            name: 'New York',
+            code: 'NY',
+          },
+          {
+            __typename: 'DeliveryMethodDefinition',
+            nodeId: 'gid://shopify/DeliveryMethodDefinition/9101',
+            name: 'Carrier',
+            active: true,
+            description: 'carrier service',
+            rateProvider: {
+              id: 'gid://shopify/DeliveryParticipant/9101',
+              fixedFee: { amount: '0.00', currencyCode: 'USD' },
+              percentageOfRateFee: 0,
+            },
+            methodConditions: [],
+          },
+          {
+            __typename: 'DeliveryParticipant',
+            nodeId: 'gid://shopify/DeliveryParticipant/9101',
+            fixedFee: { amount: '0.00', currencyCode: 'USD' },
+            percentageOfRateFee: 0,
+          },
+          null,
         ],
       },
     });

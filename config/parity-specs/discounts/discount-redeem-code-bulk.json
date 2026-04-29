@@ -1,0 +1,102 @@
+{
+  "scenarioId": "discount-redeem-code-bulk",
+  "operationNames": ["discountRedeemCodeBulkAdd", "discountCodeRedeemCodeBulkDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "async-job-payload", "downstream-read-parity", "case-insensitive-code-lookup"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-add.graphql",
+    "variablesCapturePath": "$.requests.add.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "redeem-code-bulk-add-payload",
+        "capturePath": "$.add.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.failedCount",
+          "$.discountRedeemCodeBulkAdd.userErrors"
+        ]
+      },
+      {
+        "name": "redeem-code-read-after-add",
+        "capturePath": "$.readAfterAdd.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.codesCount",
+          "$.exactAdded.id",
+          "$.lowerAdded.id",
+          "$.removed.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.discountId"
+            },
+            "exactAddedCode": {
+              "fromCapturePath": "$.variables.addedCode"
+            },
+            "lowerAddedCode": {
+              "fromCapturePath": "$.variables.lowerAddedCode"
+            },
+            "removedCode": {
+              "fromCapturePath": "$.variables.seedCode"
+            }
+          }
+        }
+      },
+      {
+        "name": "redeem-code-bulk-delete-payload",
+        "capturePath": "$.deleteCodes.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountCodeRedeemCodeBulkDelete.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-delete.graphql",
+          "variablesCapturePath": "$.requests.delete.variables"
+        }
+      },
+      {
+        "name": "redeem-code-read-after-delete",
+        "capturePath": "$.readAfterDelete.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.codesCount",
+          "$.exactAdded.id",
+          "$.lowerAdded.id",
+          "$.removed"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.variables.discountId"
+            },
+            "exactAddedCode": {
+              "fromCapturePath": "$.variables.addedCode"
+            },
+            "lowerAddedCode": {
+              "fromCapturePath": "$.variables.lowerAddedCode"
+            },
+            "removedCode": {
+              "fromCapturePath": "$.variables.seedCode"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 evidence for redeem-code bulk add/delete on a disposable native DiscountCodeBasic. The capture creates a seed discount, records the initial detail node as parity seed state, bulk-adds two redeem codes, verifies exact and lowercase code lookup through codeDiscountNodeByCode, deletes the original redeem code by id, verifies removed-code lookup returns null, and deletes the disposable discount. The comparison avoids live-vs-local async job identifiers and immediate imported/done counters while preserving strict submitted counts, failed counts, userErrors, and downstream read-after-write lookup behavior."
+}

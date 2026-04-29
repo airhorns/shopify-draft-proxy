@@ -1,0 +1,76 @@
+query AdminPlatformStorePropertyNodeReads {
+  shopAddressNode: node(id: "gid://shopify/ShopAddress/63755419881") {
+    ... on ShopAddress {
+      id
+      address1
+      address2
+      city
+      company
+      coordinatesValidated
+      country
+      countryCodeV2
+      formatted
+      formattedArea
+      latitude
+      longitude
+      phone
+      province
+      provinceCode
+      zip
+    }
+  }
+  shopPolicyNode: node(id: "gid://shopify/ShopPolicy/42438689001") {
+    ... on ShopPolicy {
+      id
+      title
+      body
+      type
+      url
+      createdAt
+      updatedAt
+      translations(locale: "fr") {
+        key
+        locale
+        outdated
+        updatedAt
+        value
+      }
+    }
+  }
+  nodes(ids: ["gid://shopify/ShopAddress/63755419881", "gid://shopify/ShopPolicy/42438689001"]) {
+    ... on ShopAddress {
+      id
+      address1
+      address2
+      city
+      company
+      coordinatesValidated
+      country
+      countryCodeV2
+      formatted
+      formattedArea
+      latitude
+      longitude
+      phone
+      province
+      provinceCode
+      zip
+    }
+    ... on ShopPolicy {
+      id
+      title
+      body
+      type
+      url
+      createdAt
+      updatedAt
+      translations(locale: "fr") {
+        key
+        locale
+        outdated
+        updatedAt
+        value
+      }
+    }
+  }
+}

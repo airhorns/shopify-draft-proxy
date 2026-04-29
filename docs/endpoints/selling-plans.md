@@ -25,6 +25,8 @@ Admin operations: group-centric add/remove roots take a selling-plan-group ID pl
 while product-centric join/leave roots take a product or variant ID plus selling-plan-group IDs. The local model mirrors
 that bidirectional association surface with one normalized group record rather than response-only patching.
 
+Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves nested `SellingPlan` IDs by scanning effective selling-plan groups and projecting the stored selling-plan payload through the requested selection set. Missing selling-plan IDs return `null`, and adjacent product subscription Node families such as quantity price breaks remain unsupported until their own local lifecycle/read models have executable Node evidence.
+
 ## Current support and limitations
 
 ### Runtime behavior
@@ -59,5 +61,7 @@ Validation entry points:
 
 - `corepack pnpm conformance:capture -- --run selling-plan-groups`
 - `corepack pnpm vitest run tests/integration/selling-plan-group-flow.test.ts`
+- `corepack pnpm vitest run tests/integration/admin-platform-query-shapes.test.ts`
+- `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

@@ -113,8 +113,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["productResourceFeedback", "ProductResourceFeedback"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Returns null for absent local feedback. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so feedback mutation-created records are not claimed."
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Returns null for absent local feedback and exposes locally staged ProductResourceFeedback rows after bulkProductResourceFeedbackCreate. Live harry-test-heelo capture is access-denied without read_resource_feedbacks plus sales-channel configuration, so success-path feedback evidence is enforced by local-runtime parity."
   },
   {
     "name": "productFeed",
@@ -123,8 +126,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["productFeed", "ProductFeed"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns null for an absent productFeed id. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Snapshot-mode no-data reads match captured 2025-01 harry-test-heelo null behavior, and locally staged productFeedCreate/productFeedDelete updates productFeed(id:) read-after-write results. Live-hybrid feed reads continue to proxy upstream when no staged feed state exists because staged product writes do not currently affect feed membership."
   },
   {
     "name": "productFeeds",
@@ -133,8 +139,11 @@
     "execution": "overlay-read",
     "implemented": true,
     "matchNames": ["productFeeds", "ProductFeeds"],
-    "runtimeTests": ["tests/integration/product-query-shapes.test.ts"],
-    "supportNotes": "Snapshot-mode no-data read support only: captured 2025-01 harry-test-heelo evidence returns an empty ProductFeedConnection with empty nodes/edges and null cursors. Live-hybrid feed reads continue to proxy upstream because staged product writes do not currently affect feed membership."
+    "runtimeTests": [
+      "tests/integration/product-query-shapes.test.ts",
+      "tests/integration/product-merchandising-feedback-flow.test.ts"
+    ],
+    "supportNotes": "Snapshot-mode no-data reads match the captured empty ProductFeedConnection shape, and locally staged productFeedCreate/productFeedDelete updates productFeeds connection read-after-write results. Live-hybrid feed reads continue to proxy upstream when no staged feed state exists because staged product writes do not currently affect feed membership."
   },
   {
     "name": "sellingPlanGroup",
@@ -1889,7 +1898,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productPublish", "ProductPublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Deprecated product-specific publication root retained for existing apps and captured aggregate parity. Stages product publication target IDs locally, preserves raw mutation log order, and updates downstream product publication aggregate reads without runtime Shopify writes."
   },
   {
     "name": "productUnpublish",
@@ -1898,7 +1908,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["productUnpublish", "ProductUnpublish"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Deprecated product-specific publication root retained for existing apps and captured aggregate parity. Removes product publication target IDs locally, preserves raw mutation log order, and updates downstream product publication aggregate reads without runtime Shopify writes."
   },
   {
     "name": "locationAdd",
@@ -6549,7 +6560,7 @@
     "implemented": true,
     "matchNames": ["shopLocaleDisable", "ShopLocaleDisable"],
     "runtimeTests": ["tests/integration/localization-flow.test.ts"],
-    "supportNotes": "Stages non-primary locale removal locally and returns the disabled locale string."
+    "supportNotes": "Stages non-primary locale removal locally, removes translations for that locale, and returns the disabled locale string."
   },
   {
     "name": "translationsRegister",

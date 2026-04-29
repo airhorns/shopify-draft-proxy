@@ -64,6 +64,37 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: SavedSearch query storage separates grouped terms from top-level filters
+
+HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
+
+```text
+title:'<token> Alpha' OR (status:ACTIVE tag:'<token>-tag') -vendor:Archived
+```
+
+Shopify returned the mutation payload with the submitted `query` preserved, but derived `searchTerms` as:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag")
+```
+
+and extracted the top-level negated field term as:
+
+```json
+[{ "key": "vendor_not", "value": "Archived" }]
+```
+
+The downstream `productSavedSearches` read then exposed the stored `query` with double-quoted grouped values plus the
+negated filter suffix:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag") -vendor:Archived
+```
+
+Practical rule: do not treat every field-looking token in a saved-search query as a `filters` entry. Grouped/boolean
+field terms can remain `searchTerms`, while top-level negated field terms use Shopify's `<field>_not` filter key shape.
+The checked-in anchor is `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json`.
+
 ## Current: Hybrid mode needs normalization, not blind JSON patching
 
 For supported product reads, the proxy now normalizes a small upstream product shape into in-memory state before overlaying staged edits.
@@ -2155,11 +2186,24 @@ can read the B2B company roots on that store. The capture showed:
   leaves the company with no main contact; downstream `Company.mainContact`
   returns `null` rather than falling back to the first contact with
   `isMainContact: false`.
+- HAR-446's 2026-04 assignment capture showed that `companyCreate` with a main
+  contact and default location automatically creates a
+  `CompanyContactRoleAssignment` for the `Ordering only` role at that location.
+  A later explicit assignment for the same contact/location returns a
+  `LIMIT_REACHED` userError with `field: null`.
+- The same capture showed that role assignment reads are relationship reads, not
+  immutable snapshots: after updating the contact title and assignment location
+  name, downstream role assignment selections for the nested contact title and
+  location name reflected the updated contact/location records.
 - The same capture showed that contacts created from email-bearing
   `companyCreate(input.companyContact)` / `companyContactCreate` inputs expose
   `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
   a contact-local customer reference without inventing broader customer catalog
   rows.
+- `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
+  captured 2026-04 readback shape is nested under
+  `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;
+  flat tax fields on `CompanyLocation` failed schema validation in that capture.
 - `companies(first:, query:)` can be used for filtered empty-read evidence, but
   `companiesCount(query:)` is not accepted by Shopify 2026-04. Keep count
   behavior unfiltered unless a later schema version proves otherwise.

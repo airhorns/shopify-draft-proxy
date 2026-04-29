@@ -1,0 +1,22 @@
+query ProductFeedReadLocalRuntime($id: ID!) {
+  productFeed(id: $id) {
+    id
+    country
+    language
+    status
+  }
+  productFeeds(first: 10) {
+    nodes {
+      id
+      country
+      language
+      status
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

@@ -911,6 +911,12 @@ const INVENTORY_SHIPMENT_MUTATION_ROOTS = new Set([
   'inventoryShipmentDelete',
 ]);
 
+const ORDER_EDIT_SHIPPING_MUTATION_ROOTS = new Set([
+  'orderEditAddShippingLine',
+  'orderEditRemoveShippingLine',
+  'orderEditUpdateShippingLine',
+]);
+
 async function executeGraphQLAgainstLocalProxy(
   runtime: ProxyRuntimeContext,
   document: string,
@@ -1085,6 +1091,34 @@ async function executeGraphQLAgainstLocalProxy(
       status: 'staged',
       interpreted: interpretMutationLogEntry(parsed, capability),
       notes: 'Staged locally in the conformance parity proxy harness.',
+    });
+
+    return {
+      status: 200,
+      body,
+    };
+  }
+
+  if (
+    capability.execution === 'stage-locally' &&
+    capability.domain === 'shipping-fulfillments' &&
+    parsed.rootFields.some((rootField) => ORDER_EDIT_SHIPPING_MUTATION_ROOTS.has(rootField))
+  ) {
+    const body = handleOrderMutation(runtime, document, variables, 'snapshot');
+    if (!body) {
+      throw new Error(`Order-edit shipping parity request was not handled locally: ${capability.operationName}`);
+    }
+
+    runtime.store.recordMutationLogEntry({
+      id: runtime.syntheticIdentity.makeSyntheticGid('MutationLogEntry'),
+      receivedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
+      operationName: capability.operationName,
+      path: `/admin/api/${apiVersion}/graphql.json`,
+      query: document,
+      variables,
+      status: 'staged',
+      interpreted: interpretMutationLogEntry(parsed, capability),
+      notes: 'Staged locally in the conformance parity order-edit shipping proxy harness.',
     });
 
     return {

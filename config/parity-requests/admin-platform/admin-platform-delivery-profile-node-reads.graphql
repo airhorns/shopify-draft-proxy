@@ -1,0 +1,123 @@
+query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    id
+    ... on DeliveryLocationGroup {
+      locations(first: 2) {
+        nodes {
+          id
+          name
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      locationsCount {
+        count
+        precision
+      }
+    }
+    ... on DeliveryZone {
+      name
+      countries {
+        id
+        name
+        translatedName
+        code {
+          countryCode
+          restOfWorld
+        }
+        provinces {
+          id
+          name
+          code
+        }
+      }
+    }
+    ... on DeliveryMethodDefinition {
+      name
+      active
+      description
+      rateProvider {
+        ... on DeliveryRateDefinition {
+          id
+          price {
+            amount
+            currencyCode
+          }
+        }
+        ... on DeliveryParticipant {
+          id
+          fixedFee {
+            amount
+            currencyCode
+          }
+          percentageOfRateFee
+        }
+      }
+      methodConditions {
+        id
+        field
+        operator
+        conditionCriteria {
+          __typename
+          ... on MoneyV2 {
+            amount
+            currencyCode
+          }
+          ... on Weight {
+            unit
+            value
+          }
+        }
+      }
+    }
+    ... on DeliveryRateDefinition {
+      price {
+        amount
+        currencyCode
+      }
+    }
+    ... on DeliveryParticipant {
+      fixedFee {
+        amount
+        currencyCode
+      }
+      percentageOfRateFee
+    }
+    ... on DeliveryCondition {
+      field
+      operator
+      conditionCriteria {
+        __typename
+        ... on MoneyV2 {
+          amount
+          currencyCode
+        }
+        ... on Weight {
+          unit
+          value
+        }
+      }
+    }
+    ... on DeliveryCountry {
+      name
+      translatedName
+      code {
+        countryCode
+        restOfWorld
+      }
+      provinces {
+        id
+        name
+        code
+      }
+    }
+    ... on DeliveryProvince {
+      name
+      code
+    }
+  }
+}

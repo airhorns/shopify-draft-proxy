@@ -1,0 +1,16 @@
+mutation ShopFeedbackCreateLocalRuntime($input: ResourceFeedbackCreateInput!) {
+  shopResourceFeedbackCreate(input: $input) {
+    feedback {
+      state
+      feedbackGeneratedAt
+      messages {
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

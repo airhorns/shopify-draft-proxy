@@ -1,0 +1,27 @@
+query DiscountRedeemCodeBulkLiveRead(
+  $id: ID!
+  $exactAddedCode: String!
+  $lowerAddedCode: String!
+  $removedCode: String!
+) {
+  codeDiscountNode(id: $id) {
+    id
+    codeDiscount {
+      ... on DiscountCodeBasic {
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+  exactAdded: codeDiscountNodeByCode(code: $exactAddedCode) {
+    id
+  }
+  lowerAdded: codeDiscountNodeByCode(code: $lowerAddedCode) {
+    id
+  }
+  removed: codeDiscountNodeByCode(code: $removedCode) {
+    id
+  }
+}

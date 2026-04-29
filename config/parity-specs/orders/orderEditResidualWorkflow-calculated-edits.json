@@ -1,0 +1,172 @@
+{
+  "scenarioId": "order-edit-residual-workflow-calculated-edits",
+  "operationNames": [
+    "orderEditBegin",
+    "orderEditAddCustomItem",
+    "orderEditAddLineItemDiscount",
+    "orderEditRemoveDiscount",
+    "orderEditAddShippingLine",
+    "orderEditUpdateShippingLine",
+    "orderEditRemoveShippingLine"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "user-errors"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-residual-calculated-edits.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-begin.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured HAR-369 residual calculated-order edit session against a disposable order: begin, add custom item, add/remove line-item discount, and add/update/remove shipping line. Commit in this 2025-01 capture intentionally remains runtime-test-backed because the recorded commit selection requested a field absent from that API version; this spec covers the pre-commit calculated-order state machine with live payload evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-calculated-order",
+        "capturePath": "$.steps.begin.response.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin",
+        "excludedPaths": [
+          "$.calculatedOrder.id",
+          "$.calculatedOrder.lineItems.nodes[*].id",
+          "$.calculatedOrder.shippingLines[*].id"
+        ]
+      },
+      {
+        "name": "add-custom-item",
+        "capturePath": "$.steps.addCustomItem.response.data.orderEditAddCustomItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-addCustomItem.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "price": {
+              "amount": "3.00",
+              "currencyCode": "CAD"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddCustomItem",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedLineItem.id"]
+      },
+      {
+        "name": "add-line-item-discount",
+        "capturePath": "$.steps.addLineItemDiscount.response.data.orderEditAddLineItemDiscount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-addLineItemDiscount.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "lineItemId": {
+              "fromPreviousProxyPath": "$.data.orderEditAddCustomItem.calculatedLineItem.id"
+            },
+            "discount": {
+              "description": "HAR-369 line discount",
+              "fixedValue": {
+                "amount": "1.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddLineItemDiscount",
+        "excludedPaths": [
+          "$.addedDiscountStagedChange.id",
+          "$.calculatedOrder.id",
+          "$.calculatedLineItem.id",
+          "$.calculatedLineItem.calculatedDiscountAllocations[*].discountApplication.id"
+        ]
+      },
+      {
+        "name": "remove-discount",
+        "capturePath": "$.steps.removeDiscount.response.data.orderEditRemoveDiscount",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-removeDiscount.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "discountApplicationId": {
+              "fromPreviousProxyPath": "$.data.orderEditAddLineItemDiscount.calculatedLineItem.calculatedDiscountAllocations[0].discountApplication.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditRemoveDiscount",
+        "excludedPaths": ["$.calculatedOrder.id"]
+      },
+      {
+        "name": "add-shipping-line",
+        "capturePath": "$.steps.addShippingLine.response.data.orderEditAddShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-addShippingLine.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLine": {
+              "title": "HAR-369 Ground",
+              "price": {
+                "amount": "4.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditAddShippingLine",
+        "excludedPaths": [
+          "$.calculatedOrder.id",
+          "$.calculatedOrder.shippingLines[*].id",
+          "$.calculatedShippingLine.id"
+        ]
+      },
+      {
+        "name": "update-shipping-line",
+        "capturePath": "$.steps.updateShippingLine.response.data.orderEditUpdateShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-updateShippingLine.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLineId": {
+              "fromProxyResponse": "add-shipping-line",
+              "path": "$.data.orderEditAddShippingLine.calculatedShippingLine.id"
+            },
+            "shippingLine": {
+              "title": "HAR-369 Express",
+              "price": {
+                "amount": "6.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditUpdateShippingLine",
+        "excludedPaths": ["$.calculatedOrder.id", "$.calculatedOrder.shippingLines[*].id"]
+      },
+      {
+        "name": "remove-shipping-line",
+        "capturePath": "$.steps.removeShippingLine.response.data.orderEditRemoveShippingLine",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEditResidualWorkflow-removeShippingLine.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderEditBegin.calculatedOrder.id"
+            },
+            "shippingLineId": {
+              "fromProxyResponse": "add-shipping-line",
+              "path": "$.data.orderEditAddShippingLine.calculatedShippingLine.id"
+            }
+          }
+        },
+        "proxyPath": "$.data.orderEditRemoveShippingLine",
+        "excludedPaths": ["$.calculatedOrder.id"]
+      }
+    ]
+  }
+}
