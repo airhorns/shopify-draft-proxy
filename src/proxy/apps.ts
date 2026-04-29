@@ -1,6 +1,6 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
 import { createHash } from 'node:crypto';
-import type { FieldNode } from 'graphql';
+import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type {
@@ -152,6 +152,24 @@ function getAppRecord(runtime: ProxyRuntimeContext, appId: string): AppRecord | 
   return runtime.store.getEffectiveAppById(appId);
 }
 
+function nodeField(selectedFields: readonly FieldNode[]): FieldNode {
+  return {
+    kind: Kind.FIELD,
+    name: {
+      kind: Kind.NAME,
+      value: 'node',
+    },
+    selectionSet: {
+      kind: Kind.SELECTION_SET,
+      selections: [...selectedFields],
+    },
+  };
+}
+
+function objectOrNull(value: unknown): Record<string, unknown> | null {
+  return isPlainObject(value) ? value : null;
+}
+
 function serializeApp(app: AppRecord | null, field: FieldNode): unknown {
   if (!app) {
     return null;
@@ -172,6 +190,14 @@ function serializeApp(app: AppRecord | null, field: FieldNode): unknown {
     }
   }
   return result;
+}
+
+export function serializeAppNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  return objectOrNull(serializeApp(runtime.store.getEffectiveAppById(id), nodeField(selectedFields)));
 }
 
 function serializeAppSubscriptionLineItem(
@@ -235,6 +261,16 @@ function serializeAppSubscription(
   return result;
 }
 
+export function serializeAppSubscriptionNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  return objectOrNull(
+    serializeAppSubscription(runtime, runtime.store.getEffectiveAppSubscriptionById(id), nodeField(selectedFields)),
+  );
+}
+
 function serializeOneTimePurchase(purchase: AppOneTimePurchaseRecord | null, field: FieldNode): unknown {
   if (!purchase) {
     return null;
@@ -244,6 +280,16 @@ function serializeOneTimePurchase(purchase: AppOneTimePurchaseRecord | null, fie
     { __typename: 'AppPurchaseOneTime', ...purchase },
     field.selectionSet?.selections ?? [],
     getDocumentFragments('query X { __typename }'),
+  );
+}
+
+export function serializeAppOneTimePurchaseNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  return objectOrNull(
+    serializeOneTimePurchase(runtime.store.getEffectiveAppOneTimePurchaseById(id), nodeField(selectedFields)),
   );
 }
 
@@ -266,6 +312,16 @@ function serializeUsageRecord(runtime: ProxyRuntimeContext, record: AppUsageReco
         return { handled: false };
       },
     },
+  );
+}
+
+export function serializeAppUsageRecordNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  return objectOrNull(
+    serializeUsageRecord(runtime, runtime.store.getEffectiveAppUsageRecordById(id), nodeField(selectedFields)),
   );
 }
 
@@ -355,6 +411,16 @@ function serializeAppInstallation(
     }
   }
   return result;
+}
+
+export function serializeAppInstallationNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  return objectOrNull(
+    serializeAppInstallation(runtime, runtime.store.getEffectiveAppInstallationById(id), nodeField(selectedFields)),
+  );
 }
 
 function serializeAppInstallationConnection(
