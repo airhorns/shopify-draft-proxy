@@ -1,0 +1,31 @@
+{
+  "errors": [
+    {
+      "message": "Metafield definition of type 'id' is required when using custom ids.",
+      "locations": [
+        {
+          "line": 3,
+          "column": 5
+        }
+      ],
+      "extensions": {
+        "code": "NOT_FOUND"
+      },
+      "path": ["unknownCustomIdentifier"]
+    }
+  ],
+  "data": {
+    "unknownCustomIdentifier": null
+  },
+  "extensions": {
+    "cost": {
+      "requestedQueryCost": 1,
+      "actualQueryCost": 1,
+      "throttleStatus": {
+        "maximumAvailable": 2000,
+        "currentlyAvailable": 1945,
+        "restoreRate": 100
+      }
+    }
+  }
+}

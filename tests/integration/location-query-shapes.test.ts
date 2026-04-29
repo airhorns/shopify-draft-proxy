@@ -525,6 +525,16 @@ describe('location query shapes', () => {
         unknownIdentifier: null,
         unknownCustomIdentifier: null,
       },
+      errors: [
+        {
+          message: "Metafield definition of type 'id' is required when using custom ids.",
+          locations: [{ line: 16, column: 11 }],
+          path: ['unknownCustomIdentifier'],
+          extensions: {
+            code: 'NOT_FOUND',
+          },
+        },
+      ],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

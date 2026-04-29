@@ -1,0 +1,31 @@
+{
+  "scenarioId": "location-custom-id-miss-read",
+  "operationNames": ["locationByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["custom-id-no-data", "nullability", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-custom-id-miss.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/location-custom-id-miss-read.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers the observed `LocationIdentifierInput.customId` miss behavior for a location identifier namespace/key/value that is not backed by an id-typed location metafield definition. Shopify returned a null data field plus a top-level `NOT_FOUND` error, so the local Store properties overlay must not synthesize matches from arbitrary metafields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location custom-id miss data",
+        "capturePath": "$.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "location custom-id miss error",
+        "capturePath": "$.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      }
+    ]
+  }
+}
