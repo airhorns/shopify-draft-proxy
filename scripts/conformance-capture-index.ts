@@ -18,6 +18,7 @@ const domainSchema = z.enum([
   'gift-cards',
   'functions',
   'inventory',
+  'localization',
   'marketing',
   'markets',
   'metafields',
@@ -485,6 +486,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-conformance.mts',
+    purpose: 'Shop locale lifecycle and translation read-after-write cleanup behavior.',
+    requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-disable-clears-translations.json`,
+      'config/parity-specs/localization/localization-disable-clears-translations.json',
+    ],
+    cleanupBehavior:
+      'Enables the French shop locale, registers one product-title translation, disables the locale, and leaves the locale/translation state cleaned up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
