@@ -1,0 +1,27 @@
+query OnlineStorePageDefaultPublishRead($id: ID!, $publishedQuery: String!) {
+  page(id: $id) {
+    id
+    title
+    handle
+    body
+    bodySummary
+    isPublished
+    publishedAt
+    templateSuffix
+  }
+  pages(first: 5, query: $publishedQuery) {
+    nodes {
+      id
+      title
+      handle
+      isPublished
+      publishedAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

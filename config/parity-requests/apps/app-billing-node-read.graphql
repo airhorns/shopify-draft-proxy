@@ -1,0 +1,81 @@
+query AppBillingNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on App {
+      id
+      handle
+    }
+    ... on AppInstallation {
+      id
+      activeSubscriptions {
+        id
+      }
+      allSubscriptions(first: 5) {
+        nodes {
+          id
+          status
+          trialDays
+          lineItems {
+            id
+            usageRecords(first: 5) {
+              nodes {
+                description
+                price {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+      }
+      oneTimePurchases(first: 5) {
+        nodes {
+          name
+          status
+          price {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    ... on AppPurchaseOneTime {
+      id
+      name
+      status
+      test
+      price {
+        amount
+        currencyCode
+      }
+    }
+    ... on AppSubscription {
+      id
+      status
+      trialDays
+      lineItems {
+        id
+        usageRecords(first: 5) {
+          nodes {
+            description
+            price {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    ... on AppUsageRecord {
+      id
+      description
+      price {
+        amount
+        currencyCode
+      }
+      subscriptionLineItem {
+        id
+      }
+    }
+  }
+}

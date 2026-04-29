@@ -2255,6 +2255,7 @@ Live evidence refreshed on this host:
 - `location` accepts an optional `id`; omitting it returns the primary shop location
 - `locationByIdentifier(identifier: { id })` returns the same `Location` payload as `location(id:)` for a known location
 - unknown `location(id:)` and unknown `locationByIdentifier(identifier: { id })` return `null`
+- `locationByIdentifier(identifier: { customId })` without an id-typed location metafield definition returns `null` plus a top-level `NOT_FOUND` error saying that an id-type metafield definition is required
 - `locationByIdentifier(identifier: {})` fails before data resolution with `invalidOneOfInputObject`
 - the captured location detail shape includes address fields, activation/deactivation flags, fulfillment-service nullability, empty metafield/suggested-address structures, and nested `inventoryLevels` with `item`, `location`, and named quantities
 
@@ -2262,7 +2263,7 @@ Practical rule for the proxy:
 
 - keep `location`, `locationByIdentifier`, and top-level `locations` aligned on the same effective inventory-level graph until there is a real local location mutation model
 - keep baseline location metadata narrow and read-only: it can preserve captured address and lifecycle scalars, but nested inventory-level connections should still come from the effective inventory graph so staged inventory activation/deactivation behavior does not drift
-- model unknown IDs as `null` and invalid identifier objects as GraphQL-style errors, not generic empty objects
+- model unknown IDs as `null`, custom-id missing-definition branches as `null` plus the captured `NOT_FOUND` error, and invalid identifier objects as GraphQL-style errors, not generic empty objects
 - preserve empty metafield/suggested-address shapes when the local snapshot has no location-owned metadata rather than inventing fake metafields or address suggestions
 
 ### 47a. Generic Publishable roots must not become permanent passthrough
