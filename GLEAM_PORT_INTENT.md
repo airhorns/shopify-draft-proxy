@@ -1,8 +1,8 @@
 # GLEAM_PORT_INTENT.md
 
-This file is the source of truth for *why* the Gleam port exists, *what* it
-must preserve from the legacy TypeScript implementation, and *how we know it
-is succeeding*. It is read-first context for any agent (human or otherwise)
+This file is the source of truth for _why_ the Gleam port exists, _what_ it
+must preserve from the legacy TypeScript implementation, and _how we know it
+is succeeding_. It is read-first context for any agent (human or otherwise)
 joining the port mid-flight.
 
 It deliberately does not enumerate steps; the phase plan lives in conversation
@@ -36,7 +36,7 @@ without duplicating domain logic. Gleam is chosen because:
 
 ## What the port must preserve
 
-The port is a *re-implementation*, not a refactor. Everything in this list is
+The port is a _re-implementation_, not a refactor. Everything in this list is
 non-negotiable; if a Gleam design choice would break one of them, the design
 choice is wrong.
 
@@ -65,7 +65,7 @@ choice is wrong.
 
 ## Non-goals
 
-To keep the port tractable, these are *not* part of the port:
+To keep the port tractable, these are _not_ part of the port:
 
 - Rewriting the conformance capture scripts (`scripts/capture-*.mts`). They
   produce fixture JSON that both implementations consume; they do not run at
@@ -73,7 +73,7 @@ To keep the port tractable, these are *not* part of the port:
 - Rewriting `shopify-conformance-app/`.
 - Changing the GraphQL surface, error semantics, or `userErrors` shapes that
   the TypeScript proxy currently emits.
-- Maintaining feature parity between the two implementations *after* a domain
+- Maintaining feature parity between the two implementations _after_ a domain
   is fully ported. Once a domain reaches parity in Gleam, the TypeScript
   version is removed; the Gleam version is then the authority.
 - A reimplementation in Rust, Roc, or any other language. Gleam is the
@@ -81,7 +81,7 @@ To keep the port tractable, these are *not* part of the port:
 
 ## How we know we are succeeding
 
-The port has *two* dimensions of progress: **substrate** (the runtime that
+The port has _two_ dimensions of progress: **substrate** (the runtime that
 all domains share) and **domain coverage** (per-domain endpoint groups).
 Both have explicit acceptance bars.
 

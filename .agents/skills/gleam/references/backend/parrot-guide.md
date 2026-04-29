@@ -8,15 +8,15 @@ For PostgreSQL type mappings, connection config, and SQL patterns (pagination, u
 
 ## Key Difference from Squirrel
 
-| Feature | Parrot | Squirrel |
-|---------|--------|----------|
-| Queries per file | **Multiple** (annotated) | One |
-| Annotation format | `-- name: QueryName :cmd` | None (filename = query name) |
-| Output location | Single `sql.gleam` per `sql/` dir | One `sql.gleam` per module |
-| Enum support | Auto-generated types + decoders + `to_string` | Manual |
-| Nullable columns | Generates `Option(T)` natively | Non-optional params, optional RETURNING |
-| Engine | Downloads sqlc binary (v1.30.0) | Native Gleam |
-| Databases | PostgreSQL, MySQL, SQLite | PostgreSQL, MySQL, SQLite |
+| Feature           | Parrot                                        | Squirrel                                |
+| ----------------- | --------------------------------------------- | --------------------------------------- |
+| Queries per file  | **Multiple** (annotated)                      | One                                     |
+| Annotation format | `-- name: QueryName :cmd`                     | None (filename = query name)            |
+| Output location   | Single `sql.gleam` per `sql/` dir             | One `sql.gleam` per module              |
+| Enum support      | Auto-generated types + decoders + `to_string` | Manual                                  |
+| Nullable columns  | Generates `Option(T)` natively                | Non-optional params, optional RETURNING |
+| Engine            | Downloads sqlc binary (v1.30.0)               | Native Gleam                            |
+| Databases         | PostgreSQL, MySQL, SQLite                     | PostgreSQL, MySQL, SQLite               |
 
 ## Running Parrot
 
@@ -67,18 +67,19 @@ WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL;
 
 ## Query Command Annotations
 
-| Annotation | Tuple format | Use for |
-|------------|-------------|---------|
-| `:one` | `#(String, List(Param), Decoder(T))` | SELECT/RETURNING single row |
-| `:many` | `#(String, List(Param), Decoder(T))` | SELECT/RETURNING multiple rows |
-| `:exec` | `#(String, List(Param))` | UPDATE/DELETE without RETURNING |
-| `:execresult` | `#(String, List(Param))` | Same as `:exec` |
+| Annotation    | Tuple format                         | Use for                         |
+| ------------- | ------------------------------------ | ------------------------------- |
+| `:one`        | `#(String, List(Param), Decoder(T))` | SELECT/RETURNING single row     |
+| `:many`       | `#(String, List(Param), Decoder(T))` | SELECT/RETURNING multiple rows  |
+| `:exec`       | `#(String, List(Param))`             | UPDATE/DELETE without RETURNING |
+| `:execresult` | `#(String, List(Param))`             | Same as `:exec`                 |
 
 **Critical:** `:one` and `:many` generate 3-tuples (with decoder). `:exec` generates 2-tuples (no decoder). Use the matching `db.parrot_one`, `db.parrot_many`, or `db.parrot_exec_no_return` helper at the call site.
 
 ### Unsupported Annotations
 
 These will panic at codegen time — do not use:
+
 - `:execrows`, `:execlastid`, `:batchexec`, `:batchmany`, `:batchone`, `:copyfrom`
 
 ## Generated Code Structure
@@ -142,19 +143,19 @@ pub type Param {
 
 ## Type Mapping (SQL → Gleam)
 
-| SQL Type | Gleam Type | Param wrapper |
-|----------|-----------|---------------|
-| `uuid`, `bytea` | `BitArray` | `ParamBitArray` |
-| `text`, `varchar`, `char` | `String` | `ParamString` |
-| `integer`, `bigint`, `smallint` | `Int` | `ParamInt` |
-| `real`, `double`, `numeric` | `Float` | `ParamFloat` |
-| `boolean` | `Bool` | `ParamBool` |
-| `timestamp`, `timestamptz` | `Timestamp` | `ParamTimestamp` |
-| `date` | `Date` | `ParamDate` |
-| `array(T)` | `List(T)` | `ParamList` |
-| `enum` | Generated variant type | via `to_string` |
-| nullable column | `Option(T)` | `ParamNullable` |
-| unrecognized / computed | `Dynamic` | `ParamDynamic` |
+| SQL Type                        | Gleam Type             | Param wrapper    |
+| ------------------------------- | ---------------------- | ---------------- |
+| `uuid`, `bytea`                 | `BitArray`             | `ParamBitArray`  |
+| `text`, `varchar`, `char`       | `String`               | `ParamString`    |
+| `integer`, `bigint`, `smallint` | `Int`                  | `ParamInt`       |
+| `real`, `double`, `numeric`     | `Float`                | `ParamFloat`     |
+| `boolean`                       | `Bool`                 | `ParamBool`      |
+| `timestamp`, `timestamptz`      | `Timestamp`            | `ParamTimestamp` |
+| `date`                          | `Date`                 | `ParamDate`      |
+| `array(T)`                      | `List(T)`              | `ParamList`      |
+| `enum`                          | Generated variant type | via `to_string`  |
+| nullable column                 | `Option(T)`            | `ParamNullable`  |
+| unrecognized / computed         | `Dynamic`              | `ParamDynamic`   |
 
 ## Named Parameters with `sqlc.arg()`
 
@@ -204,6 +205,7 @@ RETURNING *;
 ```
 
 Generates:
+
 ```gleam
 pub fn update_author(
   name name: Option(String),    // None = keep existing
@@ -214,14 +216,15 @@ pub fn update_author(
 
 **When to use `sqlc.narg()` vs bare `$n`:**
 
-| Column constraint | SQL pattern | Without `sqlc.narg()` | With `sqlc.narg()` |
-|---|---|---|---|
-| `NOT NULL` | `COALESCE($n, column)` | `T` — COALESCE is dead code | `Option(T)` — partial update works |
-| nullable | `COALESCE($n, column)` | `Option(T)` — already works | `Option(T)` — same result, redundant |
+| Column constraint | SQL pattern            | Without `sqlc.narg()`       | With `sqlc.narg()`                   |
+| ----------------- | ---------------------- | --------------------------- | ------------------------------------ |
+| `NOT NULL`        | `COALESCE($n, column)` | `T` — COALESCE is dead code | `Option(T)` — partial update works   |
+| nullable          | `COALESCE($n, column)` | `Option(T)` — already works | `Option(T)` — same result, redundant |
 
 **Rule:** Use `sqlc.narg()` for every `COALESCE($n, column)` partial update on a `NOT NULL` column. For nullable columns, bare `$n` already generates `Option(T)`.
 
 **Enum casts with `sqlc.narg()`:** Combine with `::type` cast for enum parameters:
+
 ```sql
 status = COALESCE(sqlc.narg(new_status)::tenant.fulfillment_item_status, status)
 ```
@@ -387,11 +390,11 @@ Scalar subqueries and LEFT JOIN column references return NULL when no rows match
 
 **Choose based on semantics:**
 
-| Pattern | Generated type | When to use |
-|---------|---------------|-------------|
-| `COALESCE(subquery, '')` | `String` | Default value is semantically correct (e.g., carrier name → `""` is fine) |
+| Pattern                                        | Generated type    | When to use                                                                                     |
+| ---------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------- |
+| `COALESCE(subquery, '')`                       | `String`          | Default value is semantically correct (e.g., carrier name → `""` is fine)                       |
 | `CASE WHEN x IS NOT NULL THEN x ELSE NULL END` | `Option(Dynamic)` | NULL is meaningful and should be handled explicitly (e.g., missing CPF/CNPJ → validation error) |
-| Bare column from LEFT JOIN | `String` (WRONG) | **Never** — crashes at runtime when join has no match |
+| Bare column from LEFT JOIN                     | `String` (WRONG)  | **Never** — crashes at runtime when join has no match                                           |
 
 ```sql
 -- COALESCE: masks NULL with default, generates String

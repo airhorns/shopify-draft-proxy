@@ -97,6 +97,7 @@ reference, then load detailed docs.
     └─ Audit actors, supervision, concurrency   → Use /otp-review command
 
 **When to use /otp-review:**
+
 - After creating new actors
 - After modifying supervision trees
 - After changing actor state or message types

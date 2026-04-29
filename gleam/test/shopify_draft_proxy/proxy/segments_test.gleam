@@ -62,11 +62,7 @@ pub fn is_segment_mutation_root_test() {
 
 pub fn segment_by_id_returns_record_test() {
   let record =
-    segment(
-      "gid://shopify/Segment/1",
-      "VIPs",
-      "number_of_orders >= 5",
-    )
+    segment("gid://shopify/Segment/1", "VIPs", "number_of_orders >= 5")
   let s = seed(store.new(), record)
   let result =
     run(
@@ -129,8 +125,7 @@ pub fn segments_connection_returns_seeded_test() {
     store.new()
     |> seed(r1)
     |> seed(r2)
-  let result =
-    run(s, "{ segments(first: 5) { nodes { id name } } }")
+  let result = run(s, "{ segments(first: 5) { nodes { id name } } }")
   assert result
     == "{\"segments\":{\"nodes\":[{\"id\":\"gid://shopify/Segment/10\",\"name\":\"VIPs\"},{\"id\":\"gid://shopify/Segment/11\",\"name\":\"Tagged\"}]}}"
 }

@@ -133,11 +133,7 @@ pub fn segment_create_customer_tags_equals_emits_operator_error_test() {
 
 pub fn segment_update_happy_path_test() {
   let existing =
-    segment_record(
-      "gid://shopify/Segment/100",
-      "VIPs",
-      "number_of_orders >= 5",
-    )
+    segment_record("gid://shopify/Segment/100", "VIPs", "number_of_orders >= 5")
   let s = seed(store.new(), existing)
   let outcome =
     run_mutation_outcome(
@@ -153,11 +149,7 @@ pub fn segment_update_happy_path_test() {
 
 pub fn segment_update_name_only_preserves_query_test() {
   let existing =
-    segment_record(
-      "gid://shopify/Segment/101",
-      "Old",
-      "number_of_orders >= 1",
-    )
+    segment_record("gid://shopify/Segment/101", "Old", "number_of_orders >= 1")
   let s = seed(store.new(), existing)
   let body =
     run_mutation(
@@ -180,11 +172,7 @@ pub fn segment_update_missing_id_emits_user_error_test() {
 
 pub fn segment_update_blank_name_emits_user_error_test() {
   let existing =
-    segment_record(
-      "gid://shopify/Segment/102",
-      "Keep",
-      "number_of_orders >= 2",
-    )
+    segment_record("gid://shopify/Segment/102", "Keep", "number_of_orders >= 2")
   let s = seed(store.new(), existing)
   let body =
     run_mutation(
@@ -235,11 +223,7 @@ pub fn segment_delete_missing_id_emits_user_error_test() {
 
 pub fn segment_create_resolves_collision_with_suffix_test() {
   let existing =
-    segment_record(
-      "gid://shopify/Segment/300",
-      "VIPs",
-      "number_of_orders >= 5",
-    )
+    segment_record("gid://shopify/Segment/300", "VIPs", "number_of_orders >= 5")
   let s = seed(store.new(), existing)
   let body =
     run_mutation(
@@ -252,11 +236,7 @@ pub fn segment_create_resolves_collision_with_suffix_test() {
 
 pub fn segment_create_resolves_double_collision_test() {
   let existing1 =
-    segment_record(
-      "gid://shopify/Segment/301",
-      "VIPs",
-      "number_of_orders >= 5",
-    )
+    segment_record("gid://shopify/Segment/301", "VIPs", "number_of_orders >= 5")
   let existing2 =
     segment_record(
       "gid://shopify/Segment/302",
@@ -279,11 +259,7 @@ pub fn segment_create_resolves_double_collision_test() {
 pub fn segment_update_self_rename_does_not_collide_test() {
   // An update keeping its own existing name shouldn't suffix-bump itself.
   let existing =
-    segment_record(
-      "gid://shopify/Segment/400",
-      "Solo",
-      "number_of_orders >= 1",
-    )
+    segment_record("gid://shopify/Segment/400", "Solo", "number_of_orders >= 1")
   let s = seed(store.new(), existing)
   let body =
     run_mutation(

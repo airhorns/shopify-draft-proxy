@@ -36,9 +36,7 @@ pub fn is_metaobject_definitions_query_root_test() {
   assert !metaobject_definitions.is_metaobject_definitions_query_root(
     "metaobjectCreate",
   )
-  assert !metaobject_definitions.is_metaobject_definitions_query_root(
-    "shop",
-  )
+  assert !metaobject_definitions.is_metaobject_definitions_query_root("shop")
 }
 
 // ---------- singular root nulls ----------
@@ -65,8 +63,7 @@ pub fn metaobject_definition_returns_null_test() {
 }
 
 pub fn metaobject_definition_by_type_returns_null_test() {
-  let result =
-    run("{ metaobjectDefinitionByType(type: \"feature\") { id } }")
+  let result = run("{ metaobjectDefinitionByType(type: \"feature\") { id } }")
   assert result == "{\"metaobjectDefinitionByType\":null}"
 }
 
@@ -86,8 +83,7 @@ pub fn metaobject_definitions_returns_empty_connection_test() {
     run(
       "{ metaobjectDefinitions(first: 10) { nodes { id type } edges { cursor } } }",
     )
-  assert result
-    == "{\"metaobjectDefinitions\":{\"nodes\":[],\"edges\":[]}}"
+  assert result == "{\"metaobjectDefinitions\":{\"nodes\":[],\"edges\":[]}}"
 }
 
 // ---------- envelope ----------

@@ -19,8 +19,7 @@ pub fn order_saved_searches_first_two_test() {
 }
 
 pub fn order_saved_searches_returns_all_four_when_unwindowed_test() {
-  let result =
-    handle("{ orderSavedSearches { nodes { name } } }")
+  let result = handle("{ orderSavedSearches { nodes { name } } }")
   assert result
     == "{\"orderSavedSearches\":{\"nodes\":[{\"name\":\"Unfulfilled\"},{\"name\":\"Unpaid\"},{\"name\":\"Open\"},{\"name\":\"Archived\"}]}}"
 }
@@ -46,9 +45,7 @@ pub fn empty_saved_search_resource_returns_empty_connection_test() {
 
 pub fn order_saved_searches_query_filters_by_substring_test() {
   let result =
-    handle(
-      "{ orderSavedSearches(query: \"unfulfilled\") { nodes { name } } }",
-    )
+    handle("{ orderSavedSearches(query: \"unfulfilled\") { nodes { name } } }")
   assert result
     == "{\"orderSavedSearches\":{\"nodes\":[{\"name\":\"Unfulfilled\"}]}}"
 }
@@ -70,15 +67,12 @@ pub fn order_saved_searches_query_no_match_returns_empty_test() {
     handle(
       "{ orderSavedSearches(query: \"__no_saved_search_match__\") { nodes { name } } }",
     )
-  assert result
-    == "{\"orderSavedSearches\":{\"nodes\":[]}}"
+  assert result == "{\"orderSavedSearches\":{\"nodes\":[]}}"
 }
 
 pub fn order_saved_searches_reverse_test() {
   let result =
-    handle(
-      "{ orderSavedSearches(reverse: true) { nodes { name } } }",
-    )
+    handle("{ orderSavedSearches(reverse: true) { nodes { name } } }")
   assert result
     == "{\"orderSavedSearches\":{\"nodes\":[{\"name\":\"Archived\"},{\"name\":\"Open\"},{\"name\":\"Unpaid\"},{\"name\":\"Unfulfilled\"}]}}"
 }
@@ -94,9 +88,7 @@ pub fn order_saved_searches_after_cursor_test() {
 
 pub fn order_saved_searches_edges_cursor_format_test() {
   let result =
-    handle(
-      "{ orderSavedSearches(first: 1) { edges { cursor node { id } } } }",
-    )
+    handle("{ orderSavedSearches(first: 1) { edges { cursor node { id } } } }")
   assert result
     == "{\"orderSavedSearches\":{\"edges\":[{\"cursor\":\"cursor:gid://shopify/SavedSearch/3634391515442\",\"node\":{\"id\":\"gid://shopify/SavedSearch/3634391515442\"}}]}}"
 }
@@ -111,10 +103,7 @@ pub fn order_saved_searches_full_node_shape_test() {
 }
 
 pub fn aliased_root_test() {
-  let result =
-    handle(
-      "{ ord: orderSavedSearches(first: 1) { nodes { id } } }",
-    )
+  let result = handle("{ ord: orderSavedSearches(first: 1) { nodes { id } } }")
   assert result
     == "{\"ord\":{\"nodes\":[{\"id\":\"gid://shopify/SavedSearch/3634391515442\"}]}}"
 }

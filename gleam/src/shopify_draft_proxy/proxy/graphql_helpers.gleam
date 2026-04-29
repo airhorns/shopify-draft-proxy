@@ -21,7 +21,9 @@ import shopify_draft_proxy/graphql/ast.{
   InlineFragment, NamedType, SelectionSet,
 }
 import shopify_draft_proxy/graphql/parser
-import shopify_draft_proxy/graphql/root_field.{type ResolvedValue, IntVal, StringVal}
+import shopify_draft_proxy/graphql/root_field.{
+  type ResolvedValue, IntVal, StringVal,
+}
 import shopify_draft_proxy/graphql/source
 
 /// Whether `get_selected_child_fields` should also flatten field
@@ -299,8 +301,7 @@ fn flatten_object_entries(
             selection_set: SelectionSet(selections: inner, ..),
             ..,
           )) ->
-            case default_type_condition_applies(source, Some(cond_name.value))
-            {
+            case default_type_condition_applies(source, Some(cond_name.value)) {
               True -> flatten_object_entries(source, inner, fragments)
               False -> []
             }
@@ -359,7 +360,9 @@ fn lookup_or_synthesise(
   }
 }
 
-fn synthesise_nodes_from_edges(source: Dict(String, SourceValue)) -> SourceValue {
+fn synthesise_nodes_from_edges(
+  source: Dict(String, SourceValue),
+) -> SourceValue {
   case dict.get(source, "edges") {
     Ok(SrcList(edges)) ->
       SrcList(
@@ -418,11 +421,7 @@ pub fn src_object(entries: List(#(String, SourceValue))) -> SourceValue {
 /// `first/last/after/before`, and whether the caller should advertise
 /// next/previous pages on `pageInfo`. Mirrors `ConnectionWindow<T>`.
 pub type ConnectionWindow(a) {
-  ConnectionWindow(
-    items: List(a),
-    has_next_page: Bool,
-    has_previous_page: Bool,
-  )
+  ConnectionWindow(items: List(a), has_next_page: Bool, has_previous_page: Bool)
 }
 
 /// How `paginate_connection_items` should interpret the `after` /
@@ -507,7 +506,8 @@ pub fn paginate_connection_items(
   }
   let first = read_connection_size_argument(dict.get(args, "first"))
   let last = read_connection_size_argument(dict.get(args, "last"))
-  let after = read_cursor_argument(dict.get(args, "after"), options.parse_cursor)
+  let after =
+    read_cursor_argument(dict.get(args, "after"), options.parse_cursor)
   let before =
     read_cursor_argument(dict.get(args, "before"), options.parse_cursor)
   let total = list.length(items)
@@ -573,7 +573,9 @@ pub fn serialize_connection_page_info(
   options: ConnectionPageInfoOptions,
 ) -> Json {
   let selected_options =
-    SelectedFieldOptions(include_inline_fragments: options.include_inline_fragments)
+    SelectedFieldOptions(
+      include_inline_fragments: options.include_inline_fragments,
+    )
   let entries =
     list.map(get_selected_child_fields(selection, selected_options), fn(child) {
       let key = get_field_response_key(child)
@@ -582,8 +584,14 @@ pub fn serialize_connection_page_info(
           case name.value {
             "hasNextPage" -> #(key, json.bool(has_next_page))
             "hasPreviousPage" -> #(key, json.bool(has_previous_page))
-            "startCursor" -> #(key, page_info_start_cursor(items, get_cursor_value, options))
-            "endCursor" -> #(key, page_info_end_cursor(items, get_cursor_value, options))
+            "startCursor" -> #(
+              key,
+              page_info_start_cursor(items, get_cursor_value, options),
+            )
+            "endCursor" -> #(
+              key,
+              page_info_end_cursor(items, get_cursor_value, options),
+            )
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())
@@ -609,10 +617,9 @@ pub fn serialize_connection(
             case name.value {
               "nodes" -> #(
                 key,
-                json.array(
-                  enumerate(config.items),
-                  fn(pair) { config.serialize_node(pair.0, child, pair.1) },
-                ),
+                json.array(enumerate(config.items), fn(pair) {
+                  config.serialize_node(pair.0, child, pair.1)
+                }),
               )
               "edges" -> #(key, serialize_edges(child, config))
               "pageInfo" -> #(
@@ -659,7 +666,10 @@ fn serialize_edges(
                     config.page_info_options,
                   )),
                 )
-                "node" -> #(edge_key, config.serialize_node(item, edge_child, index))
+                "node" -> #(
+                  edge_key,
+                  config.serialize_node(item, edge_child, index),
+                )
                 _ -> #(edge_key, json.null())
               }
             _ -> #(edge_key, json.null())
@@ -680,7 +690,12 @@ fn page_info_start_cursor(
     True ->
       case items {
         [first, ..] ->
-          json.string(format_connection_cursor(first, 0, get_cursor_value, options))
+          json.string(format_connection_cursor(
+            first,
+            0,
+            get_cursor_value,
+            options,
+          ))
         [] ->
           case options.fallback_start_cursor {
             Some(s) -> json.string(s)

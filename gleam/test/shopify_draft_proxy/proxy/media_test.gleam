@@ -32,7 +32,6 @@ pub fn files_with_edges_returns_empty_test() {
 }
 
 pub fn process_wraps_in_data_envelope_test() {
-  let assert Ok(data) =
-    media.process("{ files(first: 10) { nodes { id } } }")
+  let assert Ok(data) = media.process("{ files(first: 10) { nodes { id } } }")
   assert json.to_string(data) == "{\"data\":{\"files\":{\"nodes\":[]}}}"
 }

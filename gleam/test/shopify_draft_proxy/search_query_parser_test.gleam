@@ -93,7 +93,8 @@ pub fn search_query_term_value_no_comparator_test() {
 
 pub fn normalize_value_strips_one_leading_or_trailing_quote_test() {
   // Normalize is one-quote-per-side, not balanced.
-  assert search_query_parser.normalize_search_query_value("\"hello\"") == "hello"
+  assert search_query_parser.normalize_search_query_value("\"hello\"")
+    == "hello"
   assert search_query_parser.normalize_search_query_value("'hi'") == "hi"
   assert search_query_parser.normalize_search_query_value("\"unbalanced")
     == "unbalanced"
@@ -263,8 +264,7 @@ pub fn matches_text_none_or_empty_test() {
 // ----------- Date matching -----------
 
 pub fn matches_date_lte_now_test() {
-  let term =
-    search_query_parser.parse_search_query_term("created_at:<=now")
+  let term = search_query_parser.parse_search_query_term("created_at:<=now")
   // Pretend `now` is some absolute timestamp; the candidate is older.
   let now_ms = 1_700_000_000_000
   assert search_query_parser.matches_search_query_date(
@@ -501,9 +501,7 @@ pub fn parse_query_not_keyword_enabled_test() {
 
 pub fn parse_query_quoted_value_after_field_test() {
   let opts = search_query_parser.default_parse_options()
-  case
-    search_query_parser.parse_search_query("title:\"hello world\"", opts)
-  {
+  case search_query_parser.parse_search_query("title:\"hello world\"", opts) {
     Some(TermNode(term: term)) -> {
       assert term.field == Some("title")
       assert term.value == "hello world"

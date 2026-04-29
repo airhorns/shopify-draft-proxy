@@ -59,9 +59,15 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
             "marketingActivity" -> json.null()
             "marketingEvent" -> json.null()
             "marketingActivities" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             "marketingEvents" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             _ -> json.null()
           }
         _ -> json.null()

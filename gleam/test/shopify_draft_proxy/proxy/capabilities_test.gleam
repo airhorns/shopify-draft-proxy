@@ -58,11 +58,7 @@ fn registry() -> List(RegistryEntry) {
 
 pub fn matches_root_field_for_query_test() {
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: None,
-      root_fields: ["product"],
-    )
+    ParsedOperation(type_: QueryOperation, name: None, root_fields: ["product"])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.domain == Products
   assert cap.execution == OverlayRead
@@ -88,11 +84,9 @@ pub fn prefers_root_field_over_operation_name_test() {
   // Both root field and operation name match, but a root-field hit
   // resolves first.
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: Some("Product"),
-      root_fields: ["product"],
-    )
+    ParsedOperation(type_: QueryOperation, name: Some("Product"), root_fields: [
+      "product",
+    ])
   let cap = capabilities.get_operation_capability(op, registry())
   // Both root_fields[0]="product" and name="Product" resolve to the
   // same registry entry ("product"), so the operation's declared name
@@ -104,11 +98,9 @@ pub fn prefers_root_field_over_operation_name_test() {
 pub fn falls_back_to_operation_name_when_root_field_misses_test() {
   // No root field matches, but the operation name "products" does.
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: Some("products"),
-      root_fields: ["__nope__"],
-    )
+    ParsedOperation(type_: QueryOperation, name: Some("products"), root_fields: [
+      "__nope__",
+    ])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.operation_name == Some("products")
   assert cap.domain == Products
@@ -118,11 +110,7 @@ pub fn ignores_unimplemented_entries_test() {
   // "shop" is unimplemented in the registry — should fall back to
   // unknown/passthrough.
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: None,
-      root_fields: ["shop"],
-    )
+    ParsedOperation(type_: QueryOperation, name: None, root_fields: ["shop"])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.domain == Unknown
   assert cap.execution == Passthrough
@@ -131,11 +119,9 @@ pub fn ignores_unimplemented_entries_test() {
 
 pub fn unknown_root_field_with_operation_name_falls_back_to_name_test() {
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: Some("Mystery"),
-      root_fields: ["__missing__"],
-    )
+    ParsedOperation(type_: QueryOperation, name: Some("Mystery"), root_fields: [
+      "__missing__",
+    ])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.domain == Unknown
   assert cap.execution == Passthrough
@@ -145,18 +131,15 @@ pub fn unknown_root_field_with_operation_name_falls_back_to_name_test() {
 
 pub fn unknown_with_no_operation_name_uses_first_root_field_test() {
   let op =
-    ParsedOperation(
-      type_: QueryOperation,
-      name: None,
-      root_fields: ["__missing__"],
-    )
+    ParsedOperation(type_: QueryOperation, name: None, root_fields: [
+      "__missing__",
+    ])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.operation_name == Some("__missing__")
 }
 
 pub fn unknown_with_no_operation_name_and_no_root_fields_yields_none_test() {
-  let op =
-    ParsedOperation(type_: QueryOperation, name: None, root_fields: [])
+  let op = ParsedOperation(type_: QueryOperation, name: None, root_fields: [])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.operation_name == None
 }
@@ -165,11 +148,9 @@ pub fn type_mismatched_match_falls_back_test() {
   // "product" is a query in the registry; running it as a mutation
   // should miss and fall back.
   let op =
-    ParsedOperation(
-      type_: MutationOperation,
-      name: None,
-      root_fields: ["product"],
-    )
+    ParsedOperation(type_: MutationOperation, name: None, root_fields: [
+      "product",
+    ])
   let cap = capabilities.get_operation_capability(op, registry())
   assert cap.domain == Unknown
   assert cap.execution == Passthrough

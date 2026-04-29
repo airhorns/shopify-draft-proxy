@@ -30,14 +30,12 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{type Order, Eq}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{
-  type Selection, Field, SelectionSet,
-}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
-  SerializeConnectionConfig, SelectedFieldOptions, SrcList, SrcNull, SrcString,
+  SelectedFieldOptions, SerializeConnectionConfig, SrcList, SrcNull, SrcString,
   default_connection_page_info_options, default_connection_window_options,
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
@@ -103,10 +101,7 @@ pub fn uri_from_endpoint(
     None -> None
     Some(WebhookHttpEndpoint(callback_url: u)) -> u
     Some(WebhookEventBridgeEndpoint(arn: a)) -> a
-    Some(WebhookPubSubEndpoint(
-      pub_sub_project: Some(p),
-      pub_sub_topic: Some(t),
-    )) ->
+    Some(WebhookPubSubEndpoint(pub_sub_project: Some(p), pub_sub_topic: Some(t))) ->
       case p, t {
         "", _ -> None
         _, "" -> None
@@ -273,8 +268,10 @@ pub fn sort_webhook_subscriptions_for_connection(
   let sorted =
     list.sort(records, fn(left, right) {
       let primary = case sort_key {
-        CreatedAtKey -> compare_optional_strings(left.created_at, right.created_at)
-        UpdatedAtKey -> compare_optional_strings(left.updated_at, right.updated_at)
+        CreatedAtKey ->
+          compare_optional_strings(left.created_at, right.created_at)
+        UpdatedAtKey ->
+          compare_optional_strings(left.updated_at, right.updated_at)
         TopicKey -> compare_optional_strings(left.topic, right.topic)
         IdKey -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
       }
@@ -292,7 +289,10 @@ pub fn sort_webhook_subscriptions_for_connection(
 /// Compare two `Option(String)` lexicographically with the TS
 /// `(left ?? '').localeCompare(right ?? '')` semantics: `None` is
 /// treated as the empty string, so it sorts before any non-empty.
-fn compare_optional_strings(left: Option(String), right: Option(String)) -> Order {
+fn compare_optional_strings(
+  left: Option(String),
+  right: Option(String),
+) -> Order {
   let l = option.unwrap(left, "")
   let r = option.unwrap(right, "")
   string.compare(l, r)
@@ -380,7 +380,12 @@ fn root_payload_for_field(
     Field(name: name, ..) ->
       case name.value {
         "webhookSubscription" ->
-          serialize_single_webhook_subscription(store, field, fragments, variables)
+          serialize_single_webhook_subscription(
+            store,
+            field,
+            fragments,
+            variables,
+          )
         "webhookSubscriptions" ->
           serialize_webhook_subscriptions_connection(
             store,
@@ -563,7 +568,10 @@ fn serialize_webhook_subscriptions_count(
   json.object(entries)
 }
 
-fn webhook_cursor_value(record: WebhookSubscriptionRecord, _index: Int) -> String {
+fn webhook_cursor_value(
+  record: WebhookSubscriptionRecord,
+  _index: Int,
+) -> String {
   record.id
 }
 
@@ -632,10 +640,7 @@ fn endpoint_to_source(
         #("__typename", SrcString("WebhookEventBridgeEndpoint")),
         #("arn", optional_string_to_source(a)),
       ])
-    Some(WebhookPubSubEndpoint(
-      pub_sub_project: p,
-      pub_sub_topic: t,
-    )) ->
+    Some(WebhookPubSubEndpoint(pub_sub_project: p, pub_sub_topic: t)) ->
       src_object([
         #("__typename", SrcString("WebhookPubSubEndpoint")),
         #("pubSubProject", optional_string_to_source(p)),
@@ -644,7 +649,9 @@ fn endpoint_to_source(
   }
 }
 
-fn optional_string_to_source(value: Option(String)) -> graphql_helpers.SourceValue {
+fn optional_string_to_source(
+  value: Option(String),
+) -> graphql_helpers.SourceValue {
   case value {
     Some(s) -> SrcString(s)
     None -> SrcNull
@@ -792,18 +799,13 @@ fn handle_mutation_fields(
           case dispatch {
             None -> acc
             Some(#(result, next_store, next_identity)) -> {
-              let next_errors =
-                list.append(errors, result.top_level_errors)
+              let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
                 [] -> list.append(entries, [#(result.key, result.payload)])
                 _ -> entries
               }
               let next_staged_ids = case result.top_level_errors {
-                [] ->
-                  list.append(
-                    staged_ids,
-                    result.staged_resource_ids,
-                  )
+                [] -> list.append(staged_ids, result.staged_resource_ids)
                 _ -> staged_ids
               }
               #(
@@ -857,7 +859,10 @@ fn handle_create(
       variables,
       "webhookSubscriptionCreate",
       [
-        RequiredArgument(name: "topic", expected_type: "WebhookSubscriptionTopic!"),
+        RequiredArgument(
+          name: "topic",
+          expected_type: "WebhookSubscriptionTopic!",
+        ),
         RequiredArgument(
           name: "webhookSubscription",
           expected_type: "WebhookSubscriptionInput!",
@@ -914,14 +919,12 @@ fn handle_create(
         _, _ -> #(None, store, identity, [])
       }
       let payload =
-        project_create_payload(
-          record_opt,
-          user_errors,
-          field,
-          fragments,
-        )
+        project_create_payload(record_opt, user_errors, field, fragments)
       let #(log_id, identity_after_log) =
-        synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
+        synthetic_identity.make_synthetic_gid(
+          identity_after,
+          "MutationLogEntry",
+        )
       let #(received_at, identity_final) =
         synthetic_identity.make_synthetic_timestamp(identity_after_log)
       let entry =
@@ -1027,7 +1030,10 @@ fn handle_update(
       let payload =
         project_update_payload(record_opt, user_errors, field, fragments)
       let #(log_id, identity_after_log) =
-        synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
+        synthetic_identity.make_synthetic_gid(
+          identity_after,
+          "MutationLogEntry",
+        )
       let #(received_at, identity_final) =
         synthetic_identity.make_synthetic_timestamp(identity_after_log)
       let entry =
@@ -1280,8 +1286,7 @@ fn project_create_payload(
     Some(r) -> webhook_subscription_to_source(r)
     None -> SrcNull
   }
-  let user_errors_source =
-    SrcList(list.map(user_errors, user_error_to_source))
+  let user_errors_source = SrcList(list.map(user_errors, user_error_to_source))
   let payload =
     src_object([
       #("webhookSubscription", webhook_source),
@@ -1313,8 +1318,7 @@ fn project_delete_payload(
     Some(s) -> SrcString(s)
     None -> SrcNull
   }
-  let user_errors_source =
-    SrcList(list.map(user_errors, user_error_to_source))
+  let user_errors_source = SrcList(list.map(user_errors, user_error_to_source))
   let payload =
     src_object([
       #("deletedWebhookSubscriptionId", id_source),
@@ -1330,10 +1334,7 @@ fn project_delete_payload(
 fn user_error_to_source(error: UserError) -> graphql_helpers.SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
-    #(
-      "field",
-      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
-    ),
+    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
   ])
 }
@@ -1369,8 +1370,6 @@ fn build_log_entry(
         execution: "stage-locally",
       ),
     ),
-    notes: Some(
-      "Locally staged " <> root_field <> " in shopify-draft-proxy.",
-    ),
+    notes: Some("Locally staged " <> root_field <> " in shopify-draft-proxy."),
   )
 }

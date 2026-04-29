@@ -76,11 +76,17 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
             "metaobject" -> json.null()
             "metaobjectByHandle" -> json.null()
             "metaobjects" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             "metaobjectDefinition" -> json.null()
             "metaobjectDefinitionByType" -> json.null()
             "metaobjectDefinitions" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             _ -> json.null()
           }
         _ -> json.null()
@@ -96,9 +102,7 @@ pub fn wrap_data(data: Json) -> Json {
 }
 
 /// Convenience: parse + handle + wrap, for the dispatcher.
-pub fn process(
-  document: String,
-) -> Result(Json, MetaobjectDefinitionsError) {
+pub fn process(document: String) -> Result(Json, MetaobjectDefinitionsError) {
   case handle_metaobject_definitions_query(document) {
     Ok(data) -> Ok(wrap_data(data))
     Error(e) -> Error(e)

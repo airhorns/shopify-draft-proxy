@@ -320,8 +320,7 @@ fn diff_arrays(
       ..acc
     ]
     [eh, ..et], [ah, ..at] -> {
-      let acc =
-        diff_at(eh, ah, path <> "[" <> int.to_string(idx) <> "]", acc)
+      let acc = diff_at(eh, ah, path <> "[" <> int.to_string(idx) <> "]", acc)
       diff_arrays(et, at, path, idx + 1, acc)
     }
   }
@@ -372,7 +371,12 @@ fn diff_objects(
 /// failed-test message.
 pub fn render_mismatches(mismatches: List(Mismatch)) -> String {
   list.map(mismatches, fn(m) {
-    "  at " <> m.path <> "\n    expected: " <> m.expected <> "\n    actual:   " <> m.actual
+    "  at "
+    <> m.path
+    <> "\n    expected: "
+    <> m.expected
+    <> "\n    actual:   "
+    <> m.actual
   })
   |> string.join("\n")
 }

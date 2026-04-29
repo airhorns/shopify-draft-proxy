@@ -140,11 +140,13 @@ pub fn decode_metadata_test() {
 ## Rule of Thumb
 
 ### Hardcode defaults ONLY when:
+
 - ✓ Field is truly absent from API response
 - ✓ Builder functions (request params)
 - ✓ Internal data structures (not from external APIs)
 
 ### NEVER hardcode defaults for:
+
 - ✗ Metadata fields (always decode)
 - ✗ Tags/labels (API provides them)
 - ✗ Nested lists (decode or use `optional_field`)

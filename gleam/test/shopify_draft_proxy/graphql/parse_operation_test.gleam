@@ -6,18 +6,18 @@ import shopify_draft_proxy/graphql/parse_operation.{
 
 pub fn shorthand_query_test() {
   let assert Ok(ParsedOperation(
-      type_: QueryOperation,
-      name: None,
-      root_fields: ["me"],
-    )) = parse_operation.parse_operation("{ me { id } }")
+    type_: QueryOperation,
+    name: None,
+    root_fields: ["me"],
+  )) = parse_operation.parse_operation("{ me { id } }")
 }
 
 pub fn named_query_test() {
   let assert Ok(ParsedOperation(
-      type_: QueryOperation,
-      name: Some("GetProducts"),
-      root_fields: ["products"],
-    )) =
+    type_: QueryOperation,
+    name: Some("GetProducts"),
+    root_fields: ["products"],
+  )) =
     parse_operation.parse_operation(
       "query GetProducts { products(first: 1) { edges { node { id } } } }",
     )
@@ -25,10 +25,10 @@ pub fn named_query_test() {
 
 pub fn mutation_test() {
   let assert Ok(ParsedOperation(
-      type_: MutationOperation,
-      name: Some("ProductCreate"),
-      root_fields: ["productCreate"],
-    )) =
+    type_: MutationOperation,
+    name: Some("ProductCreate"),
+    root_fields: ["productCreate"],
+  )) =
     parse_operation.parse_operation(
       "mutation ProductCreate($input: ProductInput!) { productCreate(input: $input) { product { id } } }",
     )
@@ -66,18 +66,17 @@ pub fn missing_operation_is_an_error_test() {
 }
 
 pub fn parse_failure_is_propagated_test() {
-  let assert Error(ParseFailed(_)) =
-    parse_operation.parse_operation("{ foo(")
+  let assert Error(ParseFailed(_)) = parse_operation.parse_operation("{ foo(")
 }
 
 pub fn first_operation_wins_when_multiple_definitions_test() {
   // graphql-js's `.find` returns the first OperationDefinition, even when
   // a fragment definition appears earlier in the document.
   let assert Ok(ParsedOperation(
-      type_: QueryOperation,
-      name: Some("First"),
-      root_fields: ["a"],
-    )) =
+    type_: QueryOperation,
+    name: Some("First"),
+    root_fields: ["a"],
+  )) =
     parse_operation.parse_operation(
       "fragment F on T { id } query First { a } query Second { b }",
     )

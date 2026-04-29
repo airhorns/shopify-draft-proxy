@@ -445,6 +445,7 @@ pub fn main() {
 ```
 
 `wisp_mist.handler` converts:
+
 - `fn(wisp.Request) -> wisp.Response`
 - into `fn(Request(mist.Connection)) -> Response(mist.ResponseData)`
 

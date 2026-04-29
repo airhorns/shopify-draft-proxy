@@ -56,7 +56,9 @@ pub fn new() -> SyntheticIdentityRegistry {
 }
 
 /// Reset both counters to their starting values. Mirrors `reset()`.
-pub fn reset(_registry: SyntheticIdentityRegistry) -> SyntheticIdentityRegistry {
+pub fn reset(
+  _registry: SyntheticIdentityRegistry,
+) -> SyntheticIdentityRegistry {
   new()
 }
 
@@ -68,8 +70,7 @@ pub fn make_synthetic_gid(
 ) -> #(String, SyntheticIdentityRegistry) {
   let id = registry.next_synthetic_id
   let gid = "gid://shopify/" <> resource_type <> "/" <> int.to_string(id)
-  let next =
-    SyntheticIdentityRegistry(..registry, next_synthetic_id: id + 1)
+  let next = SyntheticIdentityRegistry(..registry, next_synthetic_id: id + 1)
   #(gid, next)
 }
 
@@ -88,8 +89,7 @@ pub fn make_proxy_synthetic_gid(
     <> "/"
     <> int.to_string(id)
     <> "?shopify-draft-proxy=synthetic"
-  let next =
-    SyntheticIdentityRegistry(..registry, next_synthetic_id: id + 1)
+  let next = SyntheticIdentityRegistry(..registry, next_synthetic_id: id + 1)
   #(gid, next)
 }
 

@@ -129,10 +129,10 @@ accordion.root(state, [], [
 
 ### When to use structural opaques vs simple functions
 
-| Component type | Pattern | Example |
-|---|---|---|
-| **Stateless, flat** | Simple functions (Pattern 1-5 from Composable UI) | button, card, alert, badge |
-| **Stateful, structured** | Structural opaque types + Web Components | accordion, tabs, dialog, select |
+| Component type           | Pattern                                           | Example                         |
+| ------------------------ | ------------------------------------------------- | ------------------------------- |
+| **Stateless, flat**      | Simple functions (Pattern 1-5 from Composable UI) | button, card, alert, badge      |
+| **Stateful, structured** | Structural opaque types + Web Components          | accordion, tabs, dialog, select |
 
 ## View Functions
 

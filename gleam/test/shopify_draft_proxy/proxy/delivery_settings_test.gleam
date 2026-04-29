@@ -7,8 +7,7 @@ fn handle(query: String) -> String {
 }
 
 pub fn delivery_settings_minimal_selection_test() {
-  let result =
-    handle("{ deliverySettings { legacyModeProfiles } }")
+  let result = handle("{ deliverySettings { legacyModeProfiles } }")
   assert result == "{\"deliverySettings\":{\"legacyModeProfiles\":false}}"
 }
 

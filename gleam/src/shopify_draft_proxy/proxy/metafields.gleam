@@ -24,10 +24,10 @@ import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type SelectedFieldOptions, ConnectionPageInfoOptions, SerializeConnectionConfig,
-  default_connection_page_info_options, default_connection_window_options,
-  get_field_response_key, get_selected_child_fields, paginate_connection_items,
-  serialize_connection,
+  type SelectedFieldOptions, ConnectionPageInfoOptions,
+  SerializeConnectionConfig, default_connection_page_info_options,
+  default_connection_window_options, get_field_response_key,
+  get_selected_child_fields, paginate_connection_items, serialize_connection,
 }
 
 /// Mirrors `MetafieldRecordCore`. Optional fields are present when the
@@ -58,9 +58,7 @@ pub type MetafieldRecordCore {
 /// that exactly: build a JSON array with the same six elements, render
 /// it to a string, then base64url-encode the bytes (no padding —
 /// `Buffer.toString('base64url')` strips it).
-pub fn make_metafield_compare_digest(
-  metafield: MetafieldRecordCore,
-) -> String {
+pub fn make_metafield_compare_digest(metafield: MetafieldRecordCore) -> String {
   let payload =
     json.array(
       [

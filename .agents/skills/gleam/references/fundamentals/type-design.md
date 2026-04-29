@@ -384,7 +384,7 @@ Organize modules so the reader encounters the most important code first, with de
 
 ### Why types go at the bottom
 
-Types are definitions, not behavior. A reader opening a module wants to understand *what it does*, not *what shapes of data exist*. Place types at the bottom so the logic reads like a narrative from entry point to implementation detail.
+Types are definitions, not behavior. A reader opening a module wants to understand _what it does_, not _what shapes of data exist_. Place types at the bottom so the logic reads like a narrative from entry point to implementation detail.
 
 ### Example
 

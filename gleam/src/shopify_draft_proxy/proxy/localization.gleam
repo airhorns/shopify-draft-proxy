@@ -31,9 +31,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig,
   default_connection_page_info_options, default_connection_window_options,
-  default_selected_field_options, get_document_fragments,
-  get_field_response_key, paginate_connection_items, serialize_connection,
-  serialize_empty_connection,
+  default_selected_field_options, get_document_fragments, get_field_response_key,
+  paginate_connection_items, serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string_array}
 import shopify_draft_proxy/state/store.{type Store}
@@ -41,8 +40,8 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type LocaleRecord, type ShopLocaleRecord, type TranslationRecord,
-  LocaleRecord, ShopLocaleRecord, TranslationRecord,
+  type LocaleRecord, type ShopLocaleRecord, type TranslationRecord, LocaleRecord,
+  ShopLocaleRecord, TranslationRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +145,11 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, LocalizationError) {
-  use data <- result.try(handle_localization_query(store_in, document, variables))
+  use data <- result.try(handle_localization_query(
+    store_in,
+    document,
+    variables,
+  ))
   Ok(wrap_data(data))
 }
 
@@ -161,7 +164,13 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store_in, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store_in,
+        identity,
+        fields,
+        fragments,
+        variables,
+      ))
     }
   }
 }
@@ -230,7 +239,10 @@ fn list_shop_locales(
   }
 }
 
-fn get_shop_locale(store_in: Store, locale: String) -> Option(ShopLocaleRecord) {
+fn get_shop_locale(
+  store_in: Store,
+  locale: String,
+) -> Option(ShopLocaleRecord) {
   case store.get_effective_shop_locale(store_in, locale) {
     Some(record) -> Some(record)
     None ->
@@ -250,7 +262,10 @@ fn get_shop_locale(store_in: Store, locale: String) -> Option(ShopLocaleRecord) 
 /// during validation. Once the Products domain ports, this should
 /// derive a `TranslatableResource` from the matching `ProductRecord`
 /// (and `MetafieldRecord`) just like `findResource` in TS.
-fn find_resource(_store_in: Store, _resource_id: String) -> Option(TranslatableResource) {
+fn find_resource(
+  _store_in: Store,
+  _resource_id: String,
+) -> Option(TranslatableResource) {
   None
 }
 
@@ -277,7 +292,8 @@ fn serialize_root_fields(
   let entries =
     list.map(fields, fn(field) {
       let key = get_field_response_key(field)
-      let payload = root_payload_for_field(store_in, field, fragments, variables)
+      let payload =
+        root_payload_for_field(store_in, field, fragments, variables)
       #(key, payload)
     })
   json.object(entries)
@@ -409,10 +425,7 @@ fn serialize_shop_locale(locale: ShopLocaleRecord, field: Selection) -> Json {
             "primary" -> #(key, json.bool(locale.primary))
             "published" -> #(key, json.bool(locale.published))
             "__typename" -> #(key, json.string("ShopLocale"))
-            "marketWebPresences" -> #(
-              key,
-              json.preprocessed_array([]),
-            )
+            "marketWebPresences" -> #(key, json.preprocessed_array([]))
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())
@@ -453,21 +466,21 @@ fn find_resource_or_synthesize(
     Some(record) -> Some(record)
     None -> {
       let any_translation =
-        list.any(
-          dict.values(store_in.staged_state.translations),
-          fn(t) { t.resource_id == resource_id },
-        )
-        || list.any(
-          dict.values(store_in.base_state.translations),
-          fn(t) { t.resource_id == resource_id },
-        )
+        list.any(dict.values(store_in.staged_state.translations), fn(t) {
+          t.resource_id == resource_id
+        })
+        || list.any(dict.values(store_in.base_state.translations), fn(t) {
+          t.resource_id == resource_id
+        })
       case any_translation {
         True ->
-          Some(TranslatableResource(
-            resource_id: resource_id,
-            resource_type: synthetic_resource_type(resource_id),
-            content: [],
-          ))
+          Some(
+            TranslatableResource(
+              resource_id: resource_id,
+              resource_type: synthetic_resource_type(resource_id),
+              content: [],
+            ),
+          )
         False -> None
       }
     }
@@ -579,8 +592,7 @@ fn serialize_translations_for_resource(
     None -> []
   }
   let filtered = case outdated {
-    Some(target) ->
-      list.filter(translations, fn(t) { t.outdated == target })
+    Some(target) -> list.filter(translations, fn(t) { t.outdated == target })
     None -> translations
   }
   json.array(filtered, fn(t) {
@@ -629,7 +641,13 @@ fn serialize_translatable_resources_root(
     Some(True) -> list.reverse(resources)
     _ -> resources
   }
-  serialize_resource_connection(store_in, resources, field, fragments, variables)
+  serialize_resource_connection(
+    store_in,
+    resources,
+    field,
+    fragments,
+    variables,
+  )
 }
 
 fn serialize_translatable_resources_by_ids_root(
@@ -655,7 +673,13 @@ fn serialize_translatable_resources_by_ids_root(
     Some(True) -> list.reverse(resources)
     _ -> resources
   }
-  serialize_resource_connection(store_in, resources, field, fragments, variables)
+  serialize_resource_connection(
+    store_in,
+    resources,
+    field,
+    fragments,
+    variables,
+  )
 }
 
 fn serialize_resource_connection(
@@ -681,7 +705,8 @@ fn serialize_resource_connection(
     has_next_page: has_next,
     has_previous_page: has_prev,
   ) = window
-  let selected_field_options = SelectedFieldOptions(include_inline_fragments: True)
+  let selected_field_options =
+    SelectedFieldOptions(include_inline_fragments: True)
   let page_info_options =
     ConnectionPageInfoOptions(
       ..default_connection_page_info_options(),
@@ -858,11 +883,9 @@ fn handle_shop_locale_enable(
           "ShopLocaleEnablePayload",
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [shop_locale_staged_id(record)],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          shop_locale_staged_id(record),
+        ]),
         store_after,
         identity,
       )
@@ -919,11 +942,9 @@ fn handle_shop_locale_update(
           "ShopLocaleUpdatePayload",
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [shop_locale_staged_id(record)],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          shop_locale_staged_id(record),
+        ]),
         store_after,
         identity,
       )
@@ -983,11 +1004,7 @@ fn handle_shop_locale_disable(
           "ShopLocaleDisablePayload",
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_after,
         identity,
       )
@@ -1041,20 +1058,14 @@ fn project_shop_locale_payload(
       case selection {
         Field(name: name, ..) ->
           case name.value {
-            "shopLocale" -> #(
-              key,
-              case shop_locale {
-                Some(record) -> serialize_shop_locale(record, selection)
-                None -> json.null()
-              },
-            )
-            "locale" -> #(
-              key,
-              case locale {
-                Some(s) -> json.string(s)
-                None -> json.null()
-              },
-            )
+            "shopLocale" -> #(key, case shop_locale {
+              Some(record) -> serialize_shop_locale(record, selection)
+              None -> json.null()
+            })
+            "locale" -> #(key, case locale {
+              Some(s) -> json.string(s)
+              None -> json.null()
+            })
             "userErrors" -> #(key, serialize_user_errors(errors, selection))
             _ -> #(key, json.null())
           }
@@ -1152,7 +1163,12 @@ fn handle_translations_register(
         })
       let ids =
         list.map(translations, fn(t) {
-          store.translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+          store.translation_storage_key(
+            t.resource_id,
+            t.locale,
+            t.key,
+            t.market_id,
+          )
         })
       #(store_after, ids)
     }
@@ -1265,7 +1281,13 @@ fn handle_translations_remove(
   }
 
   let errors =
-    list.append(initial_errors, list.append(key_errors, list.append(locale_errors, list.append(market_errors, resource_errors))))
+    list.append(
+      initial_errors,
+      list.append(
+        key_errors,
+        list.append(locale_errors, list.append(market_errors, resource_errors)),
+      ),
+    )
 
   let #(removed, store_after) = case errors, resource {
     [], Some(record) -> {
@@ -1274,7 +1296,13 @@ fn handle_translations_remove(
           list.fold(keys, outer_acc, fn(inner_acc, k) {
             let #(removed_acc, store_step) = inner_acc
             let #(removed_record, store_next) =
-              store.remove_translation(store_step, record.resource_id, loc, k, None)
+              store.remove_translation(
+                store_step,
+                record.resource_id,
+                loc,
+                k,
+                None,
+              )
             case removed_record {
               Some(t) -> #(list.append(removed_acc, [t]), store_next)
               None -> #(removed_acc, store_next)
@@ -1299,11 +1327,7 @@ fn handle_translations_remove(
       fragments,
     )
   #(
-    MutationFieldResult(
-      key: key,
-      payload: payload,
-      staged_resource_ids: [],
-    ),
+    MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
     store_after,
     identity,
   )
@@ -1314,38 +1338,29 @@ fn validate_resource(
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(Option(TranslatableResource), List(AnyUserError)) {
   case read_arg_string(args, "resourceId") {
-    None -> #(
-      None,
-      [
-        TranslationError(
-          field: ["resourceId"],
-          message: "Resource does not exist",
-          code: "RESOURCE_NOT_FOUND",
-        ),
-      ],
-    )
-    Some("") -> #(
-      None,
-      [
-        TranslationError(
-          field: ["resourceId"],
-          message: "Resource does not exist",
-          code: "RESOURCE_NOT_FOUND",
-        ),
-      ],
-    )
+    None -> #(None, [
+      TranslationError(
+        field: ["resourceId"],
+        message: "Resource does not exist",
+        code: "RESOURCE_NOT_FOUND",
+      ),
+    ])
+    Some("") -> #(None, [
+      TranslationError(
+        field: ["resourceId"],
+        message: "Resource does not exist",
+        code: "RESOURCE_NOT_FOUND",
+      ),
+    ])
     Some(resource_id) ->
       case find_resource(store_in, resource_id) {
-        None -> #(
-          None,
-          [
-            TranslationError(
-              field: ["resourceId"],
-              message: "Resource " <> resource_id <> " does not exist",
-              code: "RESOURCE_NOT_FOUND",
-            ),
-          ],
-        )
+        None -> #(None, [
+          TranslationError(
+            field: ["resourceId"],
+            message: "Resource " <> resource_id <> " does not exist",
+            code: "RESOURCE_NOT_FOUND",
+          ),
+        ])
         Some(record) -> #(Some(record), [])
       }
   }
@@ -1395,156 +1410,141 @@ fn validate_and_build_translations(
   initial_errors: List(AnyUserError),
 ) -> #(List(TranslationRecord), List(AnyUserError), SyntheticIdentityRegistry) {
   let #(_, errors_after, translations_rev, identity_after) =
-    list.fold(
-      inputs,
-      #(0, initial_errors, [], identity),
-      fn(acc, input) {
-        let #(index, errors_acc, translations_acc, identity_acc) = acc
-        let prefix = ["translations", int.to_string(index)]
-        let locale_validation = case read_arg_string(input, "locale") {
-          Some(loc) ->
-            case get_shop_locale(store_in, loc) {
-              Some(_) -> #(Some(loc), [])
-              None -> #(
-                Some(loc),
-                [
-                  TranslationError(
-                    field: list.append(prefix, ["locale"]),
-                    message: "Locale is not enabled for this shop",
-                    code: "INVALID_LOCALE_FOR_SHOP",
-                  ),
-                ],
-              )
-            }
-          None -> #(
-            None,
-            [
+    list.fold(inputs, #(0, initial_errors, [], identity), fn(acc, input) {
+      let #(index, errors_acc, translations_acc, identity_acc) = acc
+      let prefix = ["translations", int.to_string(index)]
+      let locale_validation = case read_arg_string(input, "locale") {
+        Some(loc) ->
+          case get_shop_locale(store_in, loc) {
+            Some(_) -> #(Some(loc), [])
+            None -> #(Some(loc), [
               TranslationError(
                 field: list.append(prefix, ["locale"]),
                 message: "Locale is not enabled for this shop",
                 code: "INVALID_LOCALE_FOR_SHOP",
               ),
-            ],
-          )
-        }
-        let #(maybe_locale, locale_errs) = locale_validation
-        let key = case read_arg_string(input, "key") {
-          Some(k) -> k
-          None -> ""
-        }
-        let content = list.find(resource.content, fn(c) { c.key == key })
-        let key_errors = case content {
-          Ok(_) -> []
-          Error(_) -> [
-            TranslationError(
-              field: list.append(prefix, ["key"]),
-              message: "Key " <> key <> " is not translatable for this resource",
-              code: "INVALID_KEY_FOR_MODEL",
-            ),
-          ]
-        }
-        let value = read_arg_string(input, "value")
-        let value_errors = case value {
-          Some(v) ->
-            case v {
-              "" -> [
-                TranslationError(
-                  field: list.append(prefix, ["value"]),
-                  message: "Value can't be blank",
-                  code: "BLANK",
-                ),
-              ]
-              _ -> []
-            }
-          None -> [
-            TranslationError(
-              field: list.append(prefix, ["value"]),
-              message: "Value can't be blank",
-              code: "BLANK",
-            ),
-          ]
-        }
-        let supplied_digest = read_arg_string(input, "translatableContentDigest")
-        let digest_errors = case content, supplied_digest {
-          Ok(c), Some(supplied) ->
-            case c.digest {
-              Some(actual) ->
-                case actual == supplied {
-                  True -> []
-                  False -> [
-                    TranslationError(
-                      field: list.append(prefix, ["translatableContentDigest"]),
-                      message: "Translatable content digest does not match the resource content",
-                      code: "INVALID_TRANSLATABLE_CONTENT",
-                    ),
-                  ]
-                }
-              None -> []
-            }
-          _, _ -> []
-        }
-        let market_errors = case read_arg_string(input, "marketId") {
-          Some(_) -> [
-            TranslationError(
-              field: list.append(prefix, ["marketId"]),
-              message: "Market-specific translations are not supported for this local resource branch",
-              code: "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
-            ),
-          ]
-          None -> []
-        }
-        let row_errors =
-          list.append(
-            locale_errs,
-            list.append(
-              key_errors,
-              list.append(value_errors, list.append(digest_errors, market_errors)),
-            ),
-          )
-        let new_errors = list.append(errors_acc, row_errors)
-        let can_record = case
-          row_errors,
-          maybe_locale,
-          value,
-          content
-        {
-          [], Some(_), Some(_), Ok(_) -> True
-          _, _, _, _ -> False
-        }
-        case can_record, errors_acc, maybe_locale, value, content {
-          True, [], Some(loc), Some(v), Ok(c) -> {
-            let #(timestamp, identity_next) =
-              synthetic_identity.make_synthetic_timestamp(identity_acc)
-            let supplied_digest_value = case supplied_digest {
-              Some(d) -> d
-              None ->
-                case c.digest {
-                  Some(d) -> d
-                  None -> ""
-                }
-            }
-            let record =
-              TranslationRecord(
-                resource_id: resource.resource_id,
-                key: key,
-                locale: loc,
-                value: v,
-                translatable_content_digest: supplied_digest_value,
-                market_id: None,
-                updated_at: timestamp,
-                outdated: False,
-              )
-            #(index + 1, new_errors, [record, ..translations_acc], identity_next)
+            ])
           }
-          _, _, _, _, _ -> #(
-            index + 1,
-            new_errors,
-            translations_acc,
-            identity_acc,
-          )
+        None -> #(None, [
+          TranslationError(
+            field: list.append(prefix, ["locale"]),
+            message: "Locale is not enabled for this shop",
+            code: "INVALID_LOCALE_FOR_SHOP",
+          ),
+        ])
+      }
+      let #(maybe_locale, locale_errs) = locale_validation
+      let key = case read_arg_string(input, "key") {
+        Some(k) -> k
+        None -> ""
+      }
+      let content = list.find(resource.content, fn(c) { c.key == key })
+      let key_errors = case content {
+        Ok(_) -> []
+        Error(_) -> [
+          TranslationError(
+            field: list.append(prefix, ["key"]),
+            message: "Key " <> key <> " is not translatable for this resource",
+            code: "INVALID_KEY_FOR_MODEL",
+          ),
+        ]
+      }
+      let value = read_arg_string(input, "value")
+      let value_errors = case value {
+        Some(v) ->
+          case v {
+            "" -> [
+              TranslationError(
+                field: list.append(prefix, ["value"]),
+                message: "Value can't be blank",
+                code: "BLANK",
+              ),
+            ]
+            _ -> []
+          }
+        None -> [
+          TranslationError(
+            field: list.append(prefix, ["value"]),
+            message: "Value can't be blank",
+            code: "BLANK",
+          ),
+        ]
+      }
+      let supplied_digest = read_arg_string(input, "translatableContentDigest")
+      let digest_errors = case content, supplied_digest {
+        Ok(c), Some(supplied) ->
+          case c.digest {
+            Some(actual) ->
+              case actual == supplied {
+                True -> []
+                False -> [
+                  TranslationError(
+                    field: list.append(prefix, ["translatableContentDigest"]),
+                    message: "Translatable content digest does not match the resource content",
+                    code: "INVALID_TRANSLATABLE_CONTENT",
+                  ),
+                ]
+              }
+            None -> []
+          }
+        _, _ -> []
+      }
+      let market_errors = case read_arg_string(input, "marketId") {
+        Some(_) -> [
+          TranslationError(
+            field: list.append(prefix, ["marketId"]),
+            message: "Market-specific translations are not supported for this local resource branch",
+            code: "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
+          ),
+        ]
+        None -> []
+      }
+      let row_errors =
+        list.append(
+          locale_errs,
+          list.append(
+            key_errors,
+            list.append(value_errors, list.append(digest_errors, market_errors)),
+          ),
+        )
+      let new_errors = list.append(errors_acc, row_errors)
+      let can_record = case row_errors, maybe_locale, value, content {
+        [], Some(_), Some(_), Ok(_) -> True
+        _, _, _, _ -> False
+      }
+      case can_record, errors_acc, maybe_locale, value, content {
+        True, [], Some(loc), Some(v), Ok(c) -> {
+          let #(timestamp, identity_next) =
+            synthetic_identity.make_synthetic_timestamp(identity_acc)
+          let supplied_digest_value = case supplied_digest {
+            Some(d) -> d
+            None ->
+              case c.digest {
+                Some(d) -> d
+                None -> ""
+              }
+          }
+          let record =
+            TranslationRecord(
+              resource_id: resource.resource_id,
+              key: key,
+              locale: loc,
+              value: v,
+              translatable_content_digest: supplied_digest_value,
+              market_id: None,
+              updated_at: timestamp,
+              outdated: False,
+            )
+          #(index + 1, new_errors, [record, ..translations_acc], identity_next)
         }
-      },
-    )
+        _, _, _, _, _ -> #(
+          index + 1,
+          new_errors,
+          translations_acc,
+          identity_acc,
+        )
+      }
+    })
   #(list.reverse(translations_rev), errors_after, identity_after)
 }
 
@@ -1561,16 +1561,13 @@ fn project_translations_payload(
       case selection {
         Field(name: name, ..) ->
           case name.value {
-            "translations" -> #(
-              key,
-              case translations {
-                Some(records) ->
-                  json.array(records, fn(t) {
-                    serialize_translation(store_in, t, selection, fragments)
-                  })
-                None -> json.null()
-              },
-            )
+            "translations" -> #(key, case translations {
+              Some(records) ->
+                json.array(records, fn(t) {
+                  serialize_translation(store_in, t, selection, fragments)
+                })
+              None -> json.null()
+            })
             "userErrors" -> #(key, serialize_user_errors(errors, selection))
             _ -> #(key, json.null())
           }
@@ -1586,4 +1583,3 @@ fn optional_string_json(value: Option(String)) -> Json {
     None -> json.null()
   }
 }
-

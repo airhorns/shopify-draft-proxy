@@ -12,9 +12,10 @@ import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppRecord, type Money, AccessScopeRecord,
-  AppInstallationRecord, AppOneTimePurchaseRecord, AppRecord, AppRecurringPricing,
-  AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
-  AppSubscriptionRecord, AppUsagePricing, AppUsageRecord, Money,
+  AppInstallationRecord, AppOneTimePurchaseRecord, AppRecord,
+  AppRecurringPricing, AppSubscriptionLineItemPlan,
+  AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
+  AppUsageRecord, Money,
 }
 
 // ----------- Helpers -----------
@@ -44,7 +45,9 @@ fn installation(id: String, app_id: String) -> AppInstallationRecord {
     app_id: app_id,
     launch_url: Some("https://launch"),
     uninstall_url: None,
-    access_scopes: [AccessScopeRecord(handle: "read_products", description: None)],
+    access_scopes: [
+      AccessScopeRecord(handle: "read_products", description: None),
+    ],
     active_subscription_ids: [],
     all_subscription_ids: [],
     one_time_purchase_ids: [],
@@ -112,10 +115,7 @@ pub fn app_by_id_returns_record_test() {
 
 pub fn app_by_id_missing_returns_null_test() {
   let result =
-    run(
-      store.new(),
-      "{ app(id: \"gid://shopify/App/missing\") { id handle } }",
-    )
+    run(store.new(), "{ app(id: \"gid://shopify/App/missing\") { id handle } }")
   assert result == "{\"app\":null}"
 }
 
@@ -129,26 +129,20 @@ pub fn app_by_id_missing_argument_returns_null_test() {
 pub fn app_by_handle_returns_match_test() {
   let a = app("gid://shopify/App/3", "third", "key-3")
   let s = store.upsert_base_app(store.new(), a)
-  let result =
-    run(s, "{ appByHandle(handle: \"third\") { id handle } }")
+  let result = run(s, "{ appByHandle(handle: \"third\") { id handle } }")
   assert result
     == "{\"appByHandle\":{\"id\":\"gid://shopify/App/3\",\"handle\":\"third\"}}"
 }
 
 pub fn app_by_handle_no_match_test() {
-  let result =
-    run(
-      store.new(),
-      "{ appByHandle(handle: \"missing\") { id } }",
-    )
+  let result = run(store.new(), "{ appByHandle(handle: \"missing\") { id } }")
   assert result == "{\"appByHandle\":null}"
 }
 
 pub fn app_by_key_returns_match_test() {
   let a = app("gid://shopify/App/4", "fourth", "key-4")
   let s = store.upsert_base_app(store.new(), a)
-  let result =
-    run(s, "{ appByKey(apiKey: \"key-4\") { id apiKey } }")
+  let result = run(s, "{ appByKey(apiKey: \"key-4\") { id apiKey } }")
   assert result
     == "{\"appByKey\":{\"id\":\"gid://shopify/App/4\",\"apiKey\":\"key-4\"}}"
 }
@@ -158,8 +152,7 @@ pub fn app_by_key_returns_match_test() {
 pub fn app_installation_by_id_returns_record_test() {
   let a = app("gid://shopify/App/5", "fifth", "key-5")
   let i = installation("gid://shopify/AppInstallation/5", a.id)
-  let s =
-    store.upsert_base_app_installation(store.new(), i, a)
+  let s = store.upsert_base_app_installation(store.new(), i, a)
   let result =
     run(
       s,
@@ -170,11 +163,7 @@ pub fn app_installation_by_id_returns_record_test() {
 }
 
 pub fn app_installation_by_id_missing_test() {
-  let result =
-    run(
-      store.new(),
-      "{ appInstallation(id: \"missing\") { id } }",
-    )
+  let result = run(store.new(), "{ appInstallation(id: \"missing\") { id } }")
   assert result == "{\"appInstallation\":null}"
 }
 
@@ -182,10 +171,7 @@ pub fn app_installation_by_id_missing_test() {
 
 pub fn app_installations_connection_empty_test() {
   let result =
-    run(
-      store.new(),
-      "{ appInstallations(first: 5) { nodes { id } } }",
-    )
+    run(store.new(), "{ appInstallations(first: 5) { nodes { id } } }")
   assert result == "{\"appInstallations\":{\"nodes\":[]}}"
 }
 
@@ -193,8 +179,7 @@ pub fn app_installations_connection_returns_current_test() {
   let a = app("gid://shopify/App/6", "sixth", "key-6")
   let i = installation("gid://shopify/AppInstallation/6", a.id)
   let s = store.upsert_base_app_installation(store.new(), i, a)
-  let result =
-    run(s, "{ appInstallations(first: 5) { nodes { id } } }")
+  let result = run(s, "{ appInstallations(first: 5) { nodes { id } } }")
   assert result
     == "{\"appInstallations\":{\"nodes\":[{\"id\":\"gid://shopify/AppInstallation/6\"}]}}"
 }
@@ -212,10 +197,7 @@ pub fn current_installation_access_scopes_projection_test() {
       s
     }
   let result =
-    run(
-      s,
-      "{ currentAppInstallation { accessScopes { handle description } } }",
-    )
+    run(s, "{ currentAppInstallation { accessScopes { handle description } } }")
   assert result
     == "{\"currentAppInstallation\":{\"accessScopes\":[{\"handle\":\"read_products\",\"description\":null}]}}"
 }
@@ -230,13 +212,11 @@ pub fn subscription_recurring_pricing_typename_test() {
     AppSubscriptionLineItemRecord(
       id: li_id,
       subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(
-        pricing_details: AppRecurringPricing(
-          price: money("9.99", "USD"),
-          interval: "EVERY_30_DAYS",
-          plan_handle: Some("standard"),
-        ),
-      ),
+      plan: AppSubscriptionLineItemPlan(pricing_details: AppRecurringPricing(
+        price: money("9.99", "USD"),
+        interval: "EVERY_30_DAYS",
+        plan_handle: Some("standard"),
+      )),
     )
   let sub =
     AppSubscriptionRecord(
@@ -293,14 +273,12 @@ pub fn subscription_usage_pricing_typename_test() {
     AppSubscriptionLineItemRecord(
       id: li_id,
       subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(
-        pricing_details: AppUsagePricing(
-          capped_amount: money("100.00", "USD"),
-          balance_used: money("0.00", "USD"),
-          interval: "ANNUAL",
-          terms: Some("per ticket"),
-        ),
-      ),
+      plan: AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+        capped_amount: money("100.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: Some("per ticket"),
+      )),
     )
   let sub =
     AppSubscriptionRecord(
@@ -406,14 +384,12 @@ pub fn line_item_usage_records_connection_test() {
     AppSubscriptionLineItemRecord(
       id: li_id,
       subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(
-        pricing_details: AppUsagePricing(
-          capped_amount: money("50.00", "USD"),
-          balance_used: money("3.00", "USD"),
-          interval: "ANNUAL",
-          terms: None,
-        ),
-      ),
+      plan: AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+        capped_amount: money("50.00", "USD"),
+        balance_used: money("3.00", "USD"),
+        interval: "ANNUAL",
+        terms: None,
+      )),
     )
   let usage =
     AppUsageRecord(
@@ -481,11 +457,7 @@ pub fn process_wraps_data_envelope_test() {
   let a = app("gid://shopify/App/12", "twelfth", "key-12")
   let s = store.upsert_base_app(store.new(), a)
   let assert Ok(envelope) =
-    apps.process(
-      s,
-      "{ app(id: \"gid://shopify/App/12\") { id } }",
-      dict.new(),
-    )
+    apps.process(s, "{ app(id: \"gid://shopify/App/12\") { id } }", dict.new())
   assert json.to_string(envelope)
     == "{\"data\":{\"app\":{\"id\":\"gid://shopify/App/12\"}}}"
 }

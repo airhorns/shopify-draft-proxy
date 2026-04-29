@@ -111,7 +111,10 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
           case name.value {
             "metafieldDefinition" -> json.null()
             "metafieldDefinitions" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             _ -> json.null()
           }
         _ -> json.null()
@@ -146,7 +149,13 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store_in, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store_in,
+        identity,
+        fields,
+        fragments,
+        variables,
+      ))
     }
   }
 }

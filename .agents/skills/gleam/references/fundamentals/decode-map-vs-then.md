@@ -54,6 +54,7 @@ fn status_decoder() -> decode.Decoder(PaymentIntentStatus) {
 ## When to Use Each
 
 ### Use decode.map when:
+
 - Transformation is a pure function: `fn(a) -> b`
 - Cannot fail (use catch-all for unknown values)
 - Examples: parsing enums, converting types, formatting
@@ -70,6 +71,7 @@ decode.string |> decode.map(string.lowercase)
 ```
 
 ### Use decode.then when:
+
 - Transformation returns a `Decoder(b)`
 - Need to decode further based on intermediate value
 - Conditional decoding logic

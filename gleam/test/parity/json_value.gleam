@@ -76,7 +76,10 @@ fn from_dynamic_present(value: Dynamic) -> Result(JsonValue, String) {
                   |> result.map(JArray)
                 Error(_) ->
                   case
-                    decode.run(value, decode.dict(decode.string, decode.dynamic))
+                    decode.run(
+                      value,
+                      decode.dict(decode.string, decode.dynamic),
+                    )
                   {
                     Ok(d) -> object_from_dict(d)
                     Error(_) -> Error("unsupported JSON shape")
@@ -112,10 +115,7 @@ pub fn to_string(value: JsonValue) -> String {
     JInt(n) -> int.to_string(n)
     JFloat(f) -> float.to_string(f)
     JString(s) -> json.to_string(json.string(s))
-    JArray(items) ->
-      "["
-      <> string.join(list.map(items, to_string), ",")
-      <> "]"
+    JArray(items) -> "[" <> string.join(list.map(items, to_string), ",") <> "]"
     JObject(entries) ->
       "{"
       <> string.join(

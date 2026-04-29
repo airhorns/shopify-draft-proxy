@@ -19,7 +19,10 @@ fn id_cursor(item: String, _index: Int) -> String {
   item
 }
 
-fn paginate_with(items: List(String), document: String) -> ConnectionWindow(String) {
+fn paginate_with(
+  items: List(String),
+  document: String,
+) -> ConnectionWindow(String) {
   let field = first_root(document)
   paginate_connection_items(
     items,
@@ -38,7 +41,8 @@ pub fn paginate_no_args_returns_all_test() {
 }
 
 pub fn paginate_first_truncates_and_flags_next_test() {
-  let window = paginate_with(["a", "b", "c"], "{ stuff(first: 2) { nodes { id } } }")
+  let window =
+    paginate_with(["a", "b", "c"], "{ stuff(first: 2) { nodes { id } } }")
   assert window.items == ["a", "b"]
   assert window.has_next_page == True
   assert window.has_previous_page == False
@@ -85,10 +89,7 @@ pub fn paginate_after_first_combine_test() {
 
 pub fn paginate_last_keeps_tail_test() {
   let window =
-    paginate_with(
-      ["a", "b", "c", "d"],
-      "{ stuff(last: 2) { nodes { id } } }",
-    )
+    paginate_with(["a", "b", "c", "d"], "{ stuff(last: 2) { nodes { id } } }")
   assert window.items == ["c", "d"]
   assert window.has_previous_page == True
 }
@@ -107,10 +108,7 @@ pub fn paginate_unknown_after_falls_back_to_start_test() {
 pub fn paginate_raw_string_cursor_unwrapped_test() {
   // No `cursor:` prefix → use the raw value.
   let window =
-    paginate_with(
-      ["a", "b", "c"],
-      "{ stuff(after: \"a\") { nodes { id } } }",
-    )
+    paginate_with(["a", "b", "c"], "{ stuff(after: \"a\") { nodes { id } } }")
   assert window.items == ["b", "c"]
   assert window.has_previous_page == True
 }
@@ -193,26 +191,18 @@ pub fn serialize_page_info_empty_no_cursors_test() {
 }
 
 pub fn serialize_unknown_field_is_null_test() {
-  let result =
-    serialize_with("{ root { totalCount } }", ["a"], False, False)
+  let result = serialize_with("{ root { totalCount } }", ["a"], False, False)
   assert result == "{\"totalCount\":null}"
 }
 
 pub fn serialize_aliases_are_used_as_response_keys_test() {
   let result =
-    serialize_with(
-      "{ root { ns: nodes { id } } }",
-      ["a"],
-      False,
-      False,
-    )
+    serialize_with("{ root { ns: nodes { id } } }", ["a"], False, False)
   assert result == "{\"ns\":[{\"id\":\"a\"}]}"
 }
 
 pub fn serialize_page_info_no_cursors_when_disabled_test() {
-  let field = first_root(
-    "{ root { pageInfo { startCursor endCursor } } }",
-  )
+  let field = first_root("{ root { pageInfo { startCursor endCursor } } }")
   let opts =
     ConnectionPageInfoOptions(
       ..default_connection_page_info_options(),
@@ -235,9 +225,7 @@ pub fn serialize_page_info_no_cursors_when_disabled_test() {
 }
 
 pub fn serialize_page_info_falls_back_to_provided_cursors_test() {
-  let field = first_root(
-    "{ root { pageInfo { startCursor endCursor } } }",
-  )
+  let field = first_root("{ root { pageInfo { startCursor endCursor } } }")
   let opts =
     ConnectionPageInfoOptions(
       ..default_connection_page_info_options(),

@@ -188,7 +188,10 @@ pub fn validate_required_id_argument(
 
 /// Look up a named argument in a list. Public so domain handlers can
 /// inspect specific arguments after validation has passed.
-pub fn find_argument(arguments: List(Argument), name: String) -> Option(Argument) {
+pub fn find_argument(
+  arguments: List(Argument),
+  name: String,
+) -> Option(Argument) {
   case arguments {
     [] -> None
     [first, ..rest] ->
@@ -228,10 +231,7 @@ pub fn build_missing_required_argument_error(
   }
   json.object(
     list.append(with_locations, [
-      #(
-        "path",
-        json.array([operation_path, operation_name], json.string),
-      ),
+      #("path", json.array([operation_path, operation_name], json.string)),
       #(
         "extensions",
         json.object([
@@ -277,10 +277,7 @@ pub fn build_null_argument_error(
     list.append(with_locations, [
       #(
         "path",
-        json.array(
-          [operation_path, operation_name, argument_name],
-          json.string,
-        ),
+        json.array([operation_path, operation_name, argument_name], json.string),
       ),
       #(
         "extensions",
@@ -321,10 +318,7 @@ pub fn build_missing_variable_error(
           json.preprocessed_array([
             json.object([
               #("path", json.preprocessed_array([])),
-              #(
-                "explanation",
-                json.string("Expected value to not be null"),
-              ),
+              #("explanation", json.string("Expected value to not be null")),
             ]),
           ]),
         ),

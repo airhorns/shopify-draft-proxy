@@ -20,7 +20,7 @@ grep -c "^pub " gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam   # rou
   optionally hybrid hydration). See pass 11/12/13 for webhooks split, or
   pass 15/16/17 for apps split.
 - > 4K TS LOC: unusual; pre-plan multiple passes and add an entry to the
-  log marking "Pass A of N".
+  > log marking "Pass A of N".
 
 ## Step 1 — State types
 
@@ -44,11 +44,11 @@ the TS shapes in `src/state/types.ts`. Rules:
 
 Edit `gleam/src/shopify_draft_proxy/state/store.gleam`. Decide which shape:
 
-| Shape | When to use | Example |
-| --- | --- | --- |
-| Dict + order + deleted-ids | Collection that supports delete | `saved_searches`, `segments`, `validations`, `webhook_subscriptions` |
-| Dict + order (no deleted-ids) | Append-only collection | `gift_cards`, `apps`, `app_subscriptions`, `shopify_functions` |
-| `Option(Record)` (singleton) | One-per-shop config | `tax_app_configuration`, `gift_card_configuration`, `current_installation_id` (modeled as `Option(String)` pointer) |
+| Shape                         | When to use                     | Example                                                                                                             |
+| ----------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Dict + order + deleted-ids    | Collection that supports delete | `saved_searches`, `segments`, `validations`, `webhook_subscriptions`                                                |
+| Dict + order (no deleted-ids) | Append-only collection          | `gift_cards`, `apps`, `app_subscriptions`, `shopify_functions`                                                      |
+| `Option(Record)` (singleton)  | One-per-shop config             | `tax_app_configuration`, `gift_card_configuration`, `current_installation_id` (modeled as `Option(String)` pointer) |
 
 Add fields to **both** `BaseState` and `StagedState`. Existing record
 constructors will need to switch to `..base` / `..staged` spread for the
@@ -217,22 +217,27 @@ Append to `GLEAM_PORT_LOG.md` (newer entries go at the top):
 load-bearing decisions.>
 
 ### Module table
+
 | Module | Lines | Notes |
-| --- | --- | --- |
-| ... | ... | ... |
+| ------ | ----- | ----- |
+| ...    | ...   | ...   |
 
 **Test count: <before> → <after>** (+N). Both targets clean (Erlang OTP 28 + JS ESM).
 
 ### What landed
+
 <bullet list of substantive landings with code references>
 
 ### Findings
+
 <bullet list of patterns confirmed, surprises, decisions made>
 
 ### Risks / open items
+
 <bullet list of explicit deferrals and gaps the next pass should know about>
 
 ### Pass N+1 candidates
+
 <2–3 ranked candidates for the next pass>
 ```
 

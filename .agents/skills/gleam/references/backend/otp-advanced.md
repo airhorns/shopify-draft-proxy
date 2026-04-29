@@ -350,13 +350,13 @@ Default: 5000ms for workers. Supervisors get unlimited time.
 
 ### When to Consider ETS Over Actor Dict
 
-| Characteristic | Actor Dict | ETS |
-|---------------|-----------|-----|
-| Read concurrency | Sequential (one at a time) | Fully concurrent |
-| Write concurrency | Sequential | Concurrent (with caveats) |
-| Consistency | Strong (sequential mailbox) | Eventual (per-key atomic) |
-| Read-heavy workload (100k+/sec) | Bottleneck | Ideal |
-| This project's scale | Sufficient | Overkill |
+| Characteristic                  | Actor Dict                  | ETS                       |
+| ------------------------------- | --------------------------- | ------------------------- |
+| Read concurrency                | Sequential (one at a time)  | Fully concurrent          |
+| Write concurrency               | Sequential                  | Concurrent (with caveats) |
+| Consistency                     | Strong (sequential mailbox) | Eventual (per-key atomic) |
+| Read-heavy workload (100k+/sec) | Bottleneck                  | Ideal                     |
+| This project's scale            | Sufficient                  | Overkill                  |
 
 **For this project:** Actor Dict is fine. The store and rate_limiter handle moderate traffic. Consider ETS only if profiling shows actor mailbox backlog.
 

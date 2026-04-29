@@ -103,20 +103,24 @@ pub fn validate_product_id(opt: Option(String)) -> Result(Option(Uuid), LineItem
 ## Benefits
 
 ### 1. Each commit compiles
+
 - No broken intermediate states
 - Can pause migration at any phase
 - CI/CD stays green throughout
 
 ### 2. Reviewers understand changes
+
 - Phase 1: Focus on helper API design
 - Phase 2+: Focus on migration correctness
 - Smaller, atomic commits
 
 ### 3. Parallel migration possible
+
 - Different modules can be migrated by different PRs
 - No conflicts if helpers are stable
 
 ### 4. No circular dependencies
+
 - Helpers exist before usages
 - Old code unaffected until migrated
 

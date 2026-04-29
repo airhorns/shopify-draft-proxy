@@ -487,15 +487,14 @@ fn list_length(xs: List(a)) -> Int {
 pub fn is_webhook_subscription_query_root_test() {
   assert webhooks.is_webhook_subscription_query_root("webhookSubscription")
   assert webhooks.is_webhook_subscription_query_root("webhookSubscriptions")
-  assert webhooks.is_webhook_subscription_query_root("webhookSubscriptionsCount")
+  assert webhooks.is_webhook_subscription_query_root(
+    "webhookSubscriptionsCount",
+  )
   assert !webhooks.is_webhook_subscription_query_root("savedSearches")
   assert !webhooks.is_webhook_subscription_query_root("event")
 }
 
-fn handle(
-  store: store.Store,
-  query: String,
-) -> String {
+fn handle(store: store.Store, query: String) -> String {
   let assert Ok(data) =
     webhooks.handle_webhook_subscription_query(store, query, dict.new())
   json.to_string(data)
@@ -593,9 +592,11 @@ pub fn webhook_subscriptions_endpoint_typename_routes_test() {
       Some("JSON"),
       None,
       None,
-      Some(WebhookEventBridgeEndpoint(
-        arn: Some("arn:aws:events:us-east-1:1:event-bus/default"),
-      )),
+      Some(
+        WebhookEventBridgeEndpoint(arn: Some(
+          "arn:aws:events:us-east-1:1:event-bus/default",
+        )),
+      ),
     )
   let s = store.upsert_base_webhook_subscriptions(store.new(), [r])
   let result =
@@ -637,8 +638,7 @@ pub fn webhook_subscriptions_legacy_resource_id_test() {
       seed_basic_store(),
       "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/2\") { legacyResourceId } }",
     )
-  assert result
-    == "{\"webhookSubscription\":{\"legacyResourceId\":\"2\"}}"
+  assert result == "{\"webhookSubscription\":{\"legacyResourceId\":\"2\"}}"
 }
 
 // ---------------------------------------------------------------------------
@@ -655,9 +655,7 @@ pub fn is_webhook_subscription_mutation_root_test() {
   assert webhooks.is_webhook_subscription_mutation_root(
     "webhookSubscriptionDelete",
   )
-  assert !webhooks.is_webhook_subscription_mutation_root(
-    "webhookSubscription",
-  )
+  assert !webhooks.is_webhook_subscription_mutation_root("webhookSubscription")
   assert !webhooks.is_webhook_subscription_mutation_root("savedSearchCreate")
 }
 

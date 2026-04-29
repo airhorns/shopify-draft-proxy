@@ -3,9 +3,7 @@ import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection}
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/graphql_helpers.{
-  default_selected_field_options,
-}
+import shopify_draft_proxy/proxy/graphql_helpers.{default_selected_field_options}
 import shopify_draft_proxy/proxy/metafields.{
   type MetafieldRecordCore, MetafieldRecordCore,
 }
@@ -62,10 +60,7 @@ fn string_drop_first_6(s: String) -> String {
 }
 
 pub fn projects_id_namespace_key_test() {
-  let field =
-    first_root_field(
-      "{ root { id namespace key } }",
-    )
+  let field = first_root_field("{ root { id namespace key } }")
   let projection =
     metafields.serialize_metafield_selection(
       record(),
@@ -101,8 +96,7 @@ pub fn projects_value_and_type_with_nulls_test() {
 }
 
 pub fn projects_compare_digest_uses_provided_value_test() {
-  let r =
-    MetafieldRecordCore(..record(), compare_digest: Some("draft:cached"))
+  let r = MetafieldRecordCore(..record(), compare_digest: Some("draft:cached"))
   let field = first_root_field("{ root { compareDigest } }")
   let projection =
     metafields.serialize_metafield_selection(
@@ -134,13 +128,20 @@ pub fn unknown_field_returns_null_test() {
       field,
       default_selected_field_options(),
     )
-  assert json.to_string(projection) == "{\"definition\":null,\"jsonValue\":null}"
+  assert json.to_string(projection)
+    == "{\"definition\":null,\"jsonValue\":null}"
 }
 
 pub fn connection_serializes_first_two_test() {
-  let records = [record(), MetafieldRecordCore(..record(), id: "gid://shopify/Metafield/2", key: "color")]
-  let field =
-    first_root_field("{ ms(first: 2) { nodes { id key } } }")
+  let records = [
+    record(),
+    MetafieldRecordCore(
+      ..record(),
+      id: "gid://shopify/Metafield/2",
+      key: "color",
+    ),
+  ]
+  let field = first_root_field("{ ms(first: 2) { nodes { id key } } }")
   let envelope =
     metafields.serialize_metafields_connection(
       records,
@@ -153,9 +154,18 @@ pub fn connection_serializes_first_two_test() {
 }
 
 pub fn connection_paginates_test() {
-  let records = [record(), MetafieldRecordCore(..record(), id: "gid://shopify/Metafield/2", key: "color")]
+  let records = [
+    record(),
+    MetafieldRecordCore(
+      ..record(),
+      id: "gid://shopify/Metafield/2",
+      key: "color",
+    ),
+  ]
   let field =
-    first_root_field("{ ms(first: 1) { nodes { id } pageInfo { hasNextPage } } }")
+    first_root_field(
+      "{ ms(first: 1) { nodes { id } pageInfo { hasNextPage } } }",
+    )
   let envelope =
     metafields.serialize_metafields_connection(
       records,
@@ -166,4 +176,3 @@ pub fn connection_paginates_test() {
   assert json.to_string(envelope)
     == "{\"nodes\":[{\"id\":\"gid://shopify/Metafield/1\"}],\"pageInfo\":{\"hasNextPage\":true}}"
 }
-

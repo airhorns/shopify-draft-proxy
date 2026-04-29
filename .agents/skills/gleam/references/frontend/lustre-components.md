@@ -113,8 +113,12 @@ html.element("inner-component", [exportparts(["trigger", "content"])], [])
 CSS usage:
 
 ```css
-my-accordion::part(trigger) { font-weight: bold; }
-my-accordion::part(content) { padding: 1rem; }
+my-accordion::part(trigger) {
+  font-weight: bold;
+}
+my-accordion::part(content) {
+  padding: 1rem;
+}
 ```
 
 ## New Attributes (Lustre 5.x)

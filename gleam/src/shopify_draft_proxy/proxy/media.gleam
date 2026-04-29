@@ -53,7 +53,10 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
         Field(name: name, ..) ->
           case name.value {
             "files" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             _ -> json.null()
           }
         _ -> json.null()

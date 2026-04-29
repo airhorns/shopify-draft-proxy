@@ -30,7 +30,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  ConnectionWindow, SerializeConnectionConfig, SelectedFieldOptions, SrcBool,
+  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
   SrcInt, SrcList, SrcNull, SrcString, default_connection_page_info_options,
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
@@ -45,9 +45,8 @@ import shopify_draft_proxy/state/types.{
   type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemPlan, type AppSubscriptionLineItemRecord,
   type AppSubscriptionPricing, type AppSubscriptionRecord, type AppUsageRecord,
-  type Money, AccessScopeRecord,
-  AppInstallationRecord, AppOneTimePurchaseRecord, AppRecord,
-  AppRecurringPricing, AppSubscriptionLineItemPlan,
+  type Money, AccessScopeRecord, AppInstallationRecord, AppOneTimePurchaseRecord,
+  AppRecord, AppRecurringPricing, AppSubscriptionLineItemPlan,
   AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
   AppUsageRecord, DelegatedAccessTokenRecord, Money,
 }
@@ -158,8 +157,7 @@ fn root_payload_for_field(
         "app" -> serialize_app_by_id(store, field, fragments, variables)
         "appByHandle" ->
           serialize_app_by_handle(store, field, fragments, variables)
-        "appByKey" ->
-          serialize_app_by_key(store, field, fragments, variables)
+        "appByKey" -> serialize_app_by_key(store, field, fragments, variables)
         "appInstallations" ->
           serialize_app_installations_connection(store, field, fragments)
         _ -> json.null()
@@ -198,7 +196,8 @@ fn serialize_current_app_installation(
   fragments: FragmentMap,
 ) -> Json {
   case store.get_current_app_installation(store) {
-    Some(installation) -> project_app_installation(store, installation, field, fragments)
+    Some(installation) ->
+      project_app_installation(store, installation, field, fragments)
     None -> json.null()
   }
 }
@@ -213,7 +212,8 @@ fn serialize_app_installation_by_id(
   case read_arg_string(args, "id") {
     Some(id) ->
       case store.get_effective_app_installation_by_id(store, id) {
-        Some(installation) -> project_app_installation(store, installation, field, fragments)
+        Some(installation) ->
+          project_app_installation(store, installation, field, fragments)
         None -> json.null()
       }
     None -> json.null()
@@ -316,7 +316,10 @@ fn serialize_app_installations_connection(
   )
 }
 
-fn installation_cursor_value(record: AppInstallationRecord, _index: Int) -> String {
+fn installation_cursor_value(
+  record: AppInstallationRecord,
+  _index: Int,
+) -> String {
   record.id
 }
 
@@ -346,10 +349,7 @@ fn app_to_source(app: AppRecord) -> graphql_helpers.SourceValue {
     #("title", optional_string_to_source(app.title)),
     #("developerName", optional_string_to_source(app.developer_name)),
     #("embedded", optional_bool_to_source(app.embedded)),
-    #(
-      "previouslyInstalled",
-      optional_bool_to_source(app.previously_installed),
-    ),
+    #("previouslyInstalled", optional_bool_to_source(app.previously_installed)),
     #(
       "requestedAccessScopes",
       SrcList(list.map(app.requested_access_scopes, access_scope_to_source)),
@@ -432,9 +432,11 @@ fn app_installation_to_source(
     ),
     #(
       "activeSubscriptions",
-      SrcList(list.map(active_subscriptions, fn(s) {
-        subscription_to_source(store, s, fragments)
-      })),
+      SrcList(
+        list.map(active_subscriptions, fn(s) {
+          subscription_to_source(store, s, fragments)
+        }),
+      ),
     ),
     #(
       "allSubscriptions",
@@ -476,9 +478,11 @@ fn subscription_to_source(
     #("createdAt", SrcString(subscription.created_at)),
     #(
       "lineItems",
-      SrcList(list.map(line_items, fn(li) {
-        line_item_to_source(store, li, fragments)
-      })),
+      SrcList(
+        list.map(line_items, fn(li) {
+          line_item_to_source(store, li, fragments)
+        }),
+      ),
     ),
   ])
 }
@@ -494,10 +498,7 @@ fn line_item_to_source(
     #("__typename", SrcString("AppSubscriptionLineItem")),
     #("id", SrcString(line_item.id)),
     #("plan", line_item_plan_to_source(line_item.plan)),
-    #(
-      "usageRecords",
-      usage_record_connection_source(store, usage_records),
-    ),
+    #("usageRecords", usage_record_connection_source(store, usage_records)),
   ])
 }
 
@@ -506,10 +507,7 @@ fn line_item_plan_to_source(
 ) -> graphql_helpers.SourceValue {
   src_object([
     #("__typename", SrcString("AppPlan")),
-    #(
-      "pricingDetails",
-      pricing_to_source(plan.pricing_details),
-    ),
+    #("pricingDetails", pricing_to_source(plan.pricing_details)),
   ])
 }
 
@@ -608,17 +606,21 @@ fn subscription_connection_source(
   fragments: FragmentMap,
 ) -> graphql_helpers.SourceValue {
   let nodes =
-    SrcList(list.map(subscriptions, fn(s) {
-      subscription_to_source(store, s, fragments)
-    }))
+    SrcList(
+      list.map(subscriptions, fn(s) {
+        subscription_to_source(store, s, fragments)
+      }),
+    )
   let edges =
-    SrcList(list.map(subscriptions, fn(s) {
-      src_object([
-        #("__typename", SrcString("AppSubscriptionEdge")),
-        #("cursor", SrcString(s.id)),
-        #("node", subscription_to_source(store, s, fragments)),
-      ])
-    }))
+    SrcList(
+      list.map(subscriptions, fn(s) {
+        src_object([
+          #("__typename", SrcString("AppSubscriptionEdge")),
+          #("cursor", SrcString(s.id)),
+          #("node", subscription_to_source(store, s, fragments)),
+        ])
+      }),
+    )
   src_object([
     #("__typename", SrcString("AppSubscriptionConnection")),
     #("edges", edges),
@@ -633,13 +635,15 @@ fn one_time_purchase_connection_source(
 ) -> graphql_helpers.SourceValue {
   let nodes = SrcList(list.map(purchases, one_time_purchase_to_source))
   let edges =
-    SrcList(list.map(purchases, fn(p) {
-      src_object([
-        #("__typename", SrcString("AppPurchaseOneTimeEdge")),
-        #("cursor", SrcString(p.id)),
-        #("node", one_time_purchase_to_source(p)),
-      ])
-    }))
+    SrcList(
+      list.map(purchases, fn(p) {
+        src_object([
+          #("__typename", SrcString("AppPurchaseOneTimeEdge")),
+          #("cursor", SrcString(p.id)),
+          #("node", one_time_purchase_to_source(p)),
+        ])
+      }),
+    )
   src_object([
     #("__typename", SrcString("AppPurchaseOneTimeConnection")),
     #("edges", edges),
@@ -656,13 +660,15 @@ fn usage_record_connection_source(
   let nodes =
     SrcList(list.map(records, fn(r) { usage_record_to_source(store, r) }))
   let edges =
-    SrcList(list.map(records, fn(r) {
-      src_object([
-        #("__typename", SrcString("AppUsageRecordEdge")),
-        #("cursor", SrcString(r.id)),
-        #("node", usage_record_to_source(store, r)),
-      ])
-    }))
+    SrcList(
+      list.map(records, fn(r) {
+        src_object([
+          #("__typename", SrcString("AppUsageRecordEdge")),
+          #("cursor", SrcString(r.id)),
+          #("node", usage_record_to_source(store, r)),
+        ])
+      }),
+    )
   src_object([
     #("__typename", SrcString("AppUsageRecordConnection")),
     #("edges", edges),
@@ -697,7 +703,9 @@ fn page_info_source(
 // Small Option → SourceValue helpers
 // ---------------------------------------------------------------------------
 
-fn optional_string_to_source(value: Option(String)) -> graphql_helpers.SourceValue {
+fn optional_string_to_source(
+  value: Option(String),
+) -> graphql_helpers.SourceValue {
   case value {
     Some(s) -> SrcString(s)
     None -> SrcNull
@@ -948,8 +956,7 @@ fn handle_uninstall(
     AppInstallationRecord(..installation, uninstalled_at: Some(timestamp))
   let #(_, store_staged) =
     store.stage_app_installation(store_after_ensure, updated)
-  let payload =
-    project_uninstall_payload(app, [], field, fragments)
+  let payload = project_uninstall_payload(app, [], field, fragments)
   let #(store_logged, _, identity_final) =
     record_log(
       store_staged,
@@ -961,11 +968,9 @@ fn handle_uninstall(
       store.Staged,
     )
   #(
-    MutationFieldResult(
-      key: key,
-      payload: payload,
-      staged_resource_ids: [installation.id],
-    ),
+    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+      installation.id,
+    ]),
     store_logged,
     identity_final,
   )
@@ -995,8 +1000,7 @@ fn handle_revoke_access_scopes(
       })
     _ -> []
   }
-  let current_handles =
-    list.map(installation.access_scopes, fn(s) { s.handle })
+  let current_handles = list.map(installation.access_scopes, fn(s) { s.handle })
   let revoked =
     list.filter(installation.access_scopes, fn(scope) {
       list.contains(requested_scopes, scope.handle)
@@ -1021,8 +1025,7 @@ fn handle_revoke_access_scopes(
     )
   let #(_, store_staged) =
     store.stage_app_installation(store_after_ensure, updated)
-  let payload =
-    project_revoke_payload(revoked, errors, field, fragments)
+  let payload = project_revoke_payload(revoked, errors, field, fragments)
   let status = case errors {
     [] -> store.Staged
     _ -> store.Failed
@@ -1038,11 +1041,9 @@ fn handle_revoke_access_scopes(
       status,
     )
   #(
-    MutationFieldResult(
-      key: key,
-      payload: payload,
-      staged_resource_ids: [installation.id],
-    ),
+    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+      installation.id,
+    ]),
     store_logged,
     identity_final,
   )
@@ -1086,8 +1087,7 @@ fn handle_delegate_create(
     synthetic_identity.make_synthetic_gid(identity, "DelegateAccessToken")
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
-  let raw_token =
-    "shpat_delegate_proxy_" <> trailing_segment(token_gid)
+  let raw_token = "shpat_delegate_proxy_" <> trailing_segment(token_gid)
   let record =
     DelegatedAccessTokenRecord(
       id: token_gid,
@@ -1098,8 +1098,7 @@ fn handle_delegate_create(
       expires_in: expires_in,
       destroyed_at: None,
     )
-  let #(_, store_staged) =
-    store.stage_delegated_access_token(store, record)
+  let #(_, store_staged) = store.stage_delegated_access_token(store, record)
   let payload =
     project_delegate_create_payload(
       raw_token,
@@ -1121,11 +1120,9 @@ fn handle_delegate_create(
       store.Staged,
     )
   #(
-    MutationFieldResult(
-      key: key,
-      payload: payload,
-      staged_resource_ids: [token_gid],
-    ),
+    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+      token_gid,
+    ]),
     store_logged,
     identity_final,
   )
@@ -1174,11 +1171,7 @@ fn handle_delegate_destroy(
           store.Failed,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_logged,
         identity_final,
       )
@@ -1188,8 +1181,7 @@ fn handle_delegate_destroy(
         synthetic_identity.make_synthetic_timestamp(identity)
       let store_after =
         store.destroy_delegated_access_token(store, record.id, timestamp)
-      let payload =
-        project_delegate_destroy_payload(True, [], field, fragments)
+      let payload = project_delegate_destroy_payload(True, [], field, fragments)
       let #(store_logged, _, identity_final) =
         record_log(
           store_after,
@@ -1201,11 +1193,9 @@ fn handle_delegate_destroy(
           store.Staged,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          record.id,
+        ]),
         store_logged,
         identity_final,
       )
@@ -1273,11 +1263,9 @@ fn handle_purchase_create(
       store.Staged,
     )
   #(
-    MutationFieldResult(
-      key: key,
-      payload: payload,
-      staged_resource_ids: [purchase.id],
-    ),
+    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+      purchase.id,
+    ]),
     store_logged,
     identity_final,
   )
@@ -1319,12 +1307,7 @@ fn handle_subscription_create(
       fn(acc, input, index) {
         let #(records, current_store, current_identity) = acc
         let #(record, ident_next) =
-          read_line_item_plan(
-            current_identity,
-            input,
-            sub_gid,
-            index + 1,
-          )
+          read_line_item_plan(current_identity, input, sub_gid, index + 1)
         let #(_, store_next) =
           store.stage_app_subscription_line_item(current_store, record)
         #(list.append(records, [record]), store_next, ident_next)
@@ -1358,7 +1341,11 @@ fn handle_subscription_create(
     project_subscription_create_payload(
       store_staged,
       Some(subscription),
-      Some(confirmation_url(origin, "RecurringApplicationCharge", subscription.id)),
+      Some(confirmation_url(
+        origin,
+        "RecurringApplicationCharge",
+        subscription.id,
+      )),
       [],
       field,
       fragments,
@@ -1430,19 +1417,14 @@ fn handle_subscription_cancel(
           store.Failed,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_logged,
         identity_final,
       )
     }
     Some(sub) -> {
       let cancelled = AppSubscriptionRecord(..sub, status: "CANCELLED")
-      let #(_, store_after_sub) =
-        store.stage_app_subscription(store, cancelled)
+      let #(_, store_after_sub) = store.stage_app_subscription(store, cancelled)
       let store_after_install = case
         store.get_current_app_installation(store_after_sub)
       {
@@ -1481,11 +1463,9 @@ fn handle_subscription_cancel(
           store.Staged,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [cancelled.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          cancelled.id,
+        ]),
         store_logged,
         identity_final,
       )
@@ -1507,8 +1487,7 @@ fn handle_line_item_update(
   let args = field_args(field, variables)
   let line_item_id = read_arg_string(args, "id")
   let line_item = case line_item_id {
-    Some(id) ->
-      store.get_effective_app_subscription_line_item_by_id(store, id)
+    Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
     None -> None
   }
   let subscription = case line_item {
@@ -1567,11 +1546,9 @@ fn handle_line_item_update(
           store.Staged,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [updated_line_item.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          updated_line_item.id,
+        ]),
         store_logged,
         identity_final,
       )
@@ -1603,11 +1580,7 @@ fn handle_line_item_update(
           store.Failed,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_logged,
         identity_final,
       )
@@ -1660,11 +1633,7 @@ fn handle_trial_extend(
           store.Failed,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_logged,
         identity_final,
       )
@@ -1694,11 +1663,9 @@ fn handle_trial_extend(
           store.Staged,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [extended.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          extended.id,
+        ]),
         store_logged,
         identity_final,
       )
@@ -1719,8 +1686,7 @@ fn handle_usage_record_create(
   let args = field_args(field, variables)
   let line_item_id = read_arg_string(args, "subscriptionLineItemId")
   let line_item = case line_item_id {
-    Some(id) ->
-      store.get_effective_app_subscription_line_item_by_id(store, id)
+    Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
     None -> None
   }
   case line_item {
@@ -1750,11 +1716,7 @@ fn handle_usage_record_create(
           store.Failed,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store_logged,
         identity_final,
       )
@@ -1773,8 +1735,7 @@ fn handle_usage_record_create(
           created_at: timestamp,
           idempotency_key: read_arg_string(args, "idempotencyKey"),
         )
-      let #(_, store_after) =
-        store.stage_app_usage_record(store, record)
+      let #(_, store_after) = store.stage_app_usage_record(store, record)
       let payload =
         project_usage_record_payload(
           store_after,
@@ -1794,11 +1755,9 @@ fn handle_usage_record_create(
           store.Staged,
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          record.id,
+        ]),
         store_logged,
         identity_final,
       )
@@ -1996,20 +1955,14 @@ fn read_line_item_plan(
       let terms = read_arg_string(usage_dict, "terms")
       AppUsagePricing(
         capped_amount: capped,
-        balance_used: Money(
-          amount: "0.0",
-          currency_code: capped.currency_code,
-        ),
+        balance_used: Money(amount: "0.0", currency_code: capped.currency_code),
         interval: interval,
         terms: terms,
       )
     }
   }
   let #(base_gid, identity_after) =
-    synthetic_identity.make_synthetic_gid(
-      identity,
-      "AppSubscriptionLineItem",
-    )
+    synthetic_identity.make_synthetic_gid(identity, "AppSubscriptionLineItem")
   let id = base_gid <> "?v=1&index=" <> int.to_string(index)
   let _ = subscription_id
   // subscription_id is used by the schema marker; the line item carries
@@ -2036,15 +1989,16 @@ fn record_log(
     synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
   let #(received_at, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
-  let entry = build_log_entry(
-    root_field_name,
-    log_id,
-    received_at,
-    request_path,
-    document,
-    staged_ids,
-    status,
-  )
+  let entry =
+    build_log_entry(
+      root_field_name,
+      log_id,
+      received_at,
+      request_path,
+      document,
+      staged_ids,
+      status,
+    )
   let store_logged = store.record_mutation_log_entry(store, entry)
   #(store_logged, log_id, identity_after_ts)
 }
@@ -2078,7 +2032,9 @@ fn build_log_entry(
         execution: "stage-locally",
       ),
     ),
-    notes: Some("Locally staged " <> root_field_name <> " in shopify-draft-proxy."),
+    notes: Some(
+      "Locally staged " <> root_field_name <> " in shopify-draft-proxy.",
+    ),
   )
 }
 
@@ -2112,10 +2068,7 @@ fn project_revoke_payload(
 ) -> Json {
   let payload =
     src_object([
-      #(
-        "revoked",
-        SrcList(list.map(revoked, access_scope_to_source)),
-      ),
+      #("revoked", SrcList(list.map(revoked, access_scope_to_source))),
       #("userErrors", user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)
@@ -2262,10 +2215,7 @@ fn user_errors_source(errors: List(UserError)) -> SourceValue {
 fn user_error_to_source(error: UserError) -> SourceValue {
   let base = [
     #("__typename", SrcString("UserError")),
-    #(
-      "field",
-      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
-    ),
+    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
   ]
   let full = case error.code {

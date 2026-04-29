@@ -36,7 +36,10 @@ pub fn parse(path: String) -> Result(List(Step), ParseError) {
   }
 }
 
-fn parse_steps(rest: String, acc: List(Step)) -> Result(List(Step), ParseError) {
+fn parse_steps(
+  rest: String,
+  acc: List(Step),
+) -> Result(List(Step), ParseError) {
   case rest {
     "" -> Ok(list.reverse(acc))
     "." <> tail -> parse_field(tail, acc)
@@ -48,11 +51,13 @@ fn parse_steps(rest: String, acc: List(Step)) -> Result(List(Step), ParseError) 
   }
 }
 
-fn parse_field(rest: String, acc: List(Step)) -> Result(List(Step), ParseError) {
+fn parse_field(
+  rest: String,
+  acc: List(Step),
+) -> Result(List(Step), ParseError) {
   let #(name, tail) = take_field_name(rest, "")
   case name {
-    "" ->
-      Error(ParseError(message: "Empty field name in JSONPath"))
+    "" -> Error(ParseError(message: "Empty field name in JSONPath"))
     _ -> parse_steps(tail, [FieldStep(name: name), ..acc])
   }
 }
@@ -68,17 +73,18 @@ fn take_field_name(input: String, acc: String) -> #(String, String) {
   }
 }
 
-fn parse_index(rest: String, acc: List(Step)) -> Result(List(Step), ParseError) {
+fn parse_index(
+  rest: String,
+  acc: List(Step),
+) -> Result(List(Step), ParseError) {
   let #(digits, after_digits) = take_digits(rest, "")
   case digits, after_digits {
-    "", _ ->
-      Error(ParseError(message: "Empty index in JSONPath"))
+    "", _ -> Error(ParseError(message: "Empty index in JSONPath"))
     _, "]" <> tail -> {
       let assert Ok(n) = parse_int(digits)
       parse_steps(tail, [IndexStep(index: n), ..acc])
     }
-    _, _ ->
-      Error(ParseError(message: "Unterminated index in JSONPath"))
+    _, _ -> Error(ParseError(message: "Unterminated index in JSONPath"))
   }
 }
 

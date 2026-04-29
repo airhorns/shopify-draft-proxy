@@ -73,7 +73,14 @@ pub fn get_operation_capability(
 
   case matched_candidate, matched_entry {
     Some(candidate), Some(entry) -> {
-      let operation_name = pick_operation_name(operation, candidate, entry, implemented, registry_type)
+      let operation_name =
+        pick_operation_name(
+          operation,
+          candidate,
+          entry,
+          implemented,
+          registry_type,
+        )
       OperationCapability(
         type_: operation.type_,
         operation_name: Some(operation_name),

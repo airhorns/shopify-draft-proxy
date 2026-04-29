@@ -32,9 +32,9 @@ jobs:
       - name: Setup BEAM (Erlang + Elixir + Gleam)
         uses: erlef/setup-beam@v1
         with:
-          otp-version: "28"
-          elixir-version: "1.18"
-          gleam-version: "1.16.0"
+          otp-version: '28'
+          elixir-version: '1.18'
+          gleam-version: '1.16.0'
 
       - name: Resolve pnpm store path
         shell: bash

@@ -246,6 +246,9 @@ fn inject_decimal_before_exponent(raw: String) -> String {
 // Re-export so callers don't need to import parse_operation just for this.
 pub fn parse_operation_summary(
   document: String,
-) -> Result(parse_operation.ParsedOperation, parse_operation.ParseOperationError) {
+) -> Result(
+  parse_operation.ParsedOperation,
+  parse_operation.ParseOperationError,
+) {
   parse_operation.parse_operation(document)
 }

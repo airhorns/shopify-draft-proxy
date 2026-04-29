@@ -57,7 +57,10 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
             "bulkOperation" -> json.null()
             "currentBulkOperation" -> json.null()
             "bulkOperations" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             _ -> json.null()
           }
         _ -> json.null()

@@ -17,13 +17,13 @@ import gleam/option.{None, Some}
 import gleam/result
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Definition, type Directive, type Document, type Name,
-  type ObjectField, type Selection, type SelectionSet, type TypeRef,
-  type Value, type Variable, type VariableDefinition, Argument, BooleanValue,
-  Directive, Document, EnumValue, Field, FloatValue, FragmentDefinition,
-  FragmentSpread, InlineFragment, IntValue, ListType, ListValue, Location,
-  Mutation, Name, NamedType, NonNullType, NullValue, ObjectField, ObjectValue,
-  OperationDefinition, Query, SelectionSet, StringValue, Subscription,
-  Variable, VariableDefinition, VariableValue,
+  type ObjectField, type Selection, type SelectionSet, type TypeRef, type Value,
+  type Variable, type VariableDefinition, Argument, BooleanValue, Directive,
+  Document, EnumValue, Field, FloatValue, FragmentDefinition, FragmentSpread,
+  InlineFragment, IntValue, ListType, ListValue, Location, Mutation, Name,
+  NamedType, NonNullType, NullValue, ObjectField, ObjectValue,
+  OperationDefinition, Query, SelectionSet, StringValue, Subscription, Variable,
+  VariableDefinition, VariableValue,
 }
 import shopify_draft_proxy/graphql/lexer
 import shopify_draft_proxy/graphql/source.{type Source}
@@ -64,8 +64,7 @@ fn new_parser(source: Source) -> Result(Parser, ParseError) {
   let sof = token.punctuator(tk.Sof, 0, 0, 1, 1)
   case lexer.next_token(lex_state) {
     Error(e) -> Error(lex_to_parse(e))
-    Ok(#(t, after)) ->
-      Ok(Parser(lexer: after, token: t, last_token: sof))
+    Ok(#(t, after)) -> Ok(Parser(lexer: after, token: t, last_token: sof))
   }
 }
 
@@ -113,8 +112,7 @@ fn parse_operation_definition(
   case peek(parser, tk.BraceL) {
     True -> {
       use #(selection_set, parser) <- result.try(parse_selection_set(parser))
-      let loc =
-        Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = Some(Location(start: start.start, end: parser.last_token.end))
       Ok(#(
         OperationDefinition(
           operation: Query,
@@ -139,8 +137,7 @@ fn parse_operation_definition(
       use #(var_defs, parser) <- result.try(parse_variable_definitions(parser))
       use #(directives, parser) <- result.try(parse_directives(parser, False))
       use #(selection_set, parser) <- result.try(parse_selection_set(parser))
-      let loc =
-        Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = Some(Location(start: start.start, end: parser.last_token.end))
       Ok(#(
         OperationDefinition(
           operation: operation,
@@ -257,9 +254,7 @@ fn parse_selection_set(
   Ok(#(SelectionSet(selections: selections, loc: loc), parser))
 }
 
-fn parse_selection(
-  parser: Parser,
-) -> Result(#(Selection, Parser), ParseError) {
+fn parse_selection(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
   case peek(parser, tk.Spread) {
     True -> parse_fragment(parser)
     False -> parse_field(parser)
@@ -270,14 +265,13 @@ fn parse_field(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
   let start = parser.token
   use #(name_or_alias, parser) <- result.try(parse_name(parser))
   use #(was_colon, parser) <- result.try(expect_optional_token(parser, tk.Colon))
-  let alias_name =
-    case was_colon {
-      True -> {
-        use #(real_name, parser) <- result.try(parse_name(parser))
-        Ok(#(Some(name_or_alias), real_name, parser))
-      }
-      False -> Ok(#(None, name_or_alias, parser))
+  let alias_name = case was_colon {
+    True -> {
+      use #(real_name, parser) <- result.try(parse_name(parser))
+      Ok(#(Some(name_or_alias), real_name, parser))
     }
+    False -> Ok(#(None, name_or_alias, parser))
+  }
   use #(alias, name, parser) <- result.try(alias_name)
   use #(args, parser) <- result.try(parse_arguments(parser, False))
   use #(directives, parser) <- result.try(parse_directives(parser, False))
@@ -302,9 +296,7 @@ fn parse_field(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
   ))
 }
 
-fn parse_fragment(
-  parser: Parser,
-) -> Result(#(Selection, Parser), ParseError) {
+fn parse_fragment(parser: Parser) -> Result(#(Selection, Parser), ParseError) {
   let start = parser.token
   use #(_, parser) <- result.try(expect_token(parser, tk.Spread))
   use #(has_type_cond, parser) <- result.try(expect_optional_keyword(
@@ -534,8 +526,7 @@ fn parse_type_reference(
     True -> {
       use #(inner, parser) <- result.try(parse_type_reference(parser))
       use #(_, parser) <- result.try(expect_token(parser, tk.BracketR))
-      let loc =
-        Some(Location(start: start.start, end: parser.last_token.end))
+      let loc = Some(Location(start: start.start, end: parser.last_token.end))
       Ok(#(ListType(inner: inner, loc: loc), parser))
     }
     False -> parse_named_type(parser)
@@ -550,9 +541,7 @@ fn parse_type_reference(
   }
 }
 
-fn parse_named_type(
-  parser: Parser,
-) -> Result(#(TypeRef, Parser), ParseError) {
+fn parse_named_type(parser: Parser) -> Result(#(TypeRef, Parser), ParseError) {
   let start = parser.token
   use #(name, parser) <- result.try(parse_name(parser))
   let loc = Some(Location(start: start.start, end: parser.last_token.end))
@@ -726,10 +715,7 @@ fn any_loop(
 // ---------------------------------------------------------------------------
 
 fn unexpected(parser: Parser) -> ParseError {
-  token_error(
-    parser,
-    "Unexpected " <> token_desc(parser.token) <> ".",
-  )
+  token_error(parser, "Unexpected " <> token_desc(parser.token) <> ".")
 }
 
 fn unexpected_token(t: Token) -> ParseError {

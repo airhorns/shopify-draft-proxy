@@ -3,6 +3,7 @@
 ## Overview
 
 Midas 2.0 provides an algebraic effects system split into two modules:
+
 - `midas/effect` - Low-level effect types and constructors
 - `midas/task` - Higher-level API with `Result` wrapping and `snag` errors
 
@@ -49,16 +50,16 @@ t.fetch(request)      // Fetch returning Task (with Result)
 
 ## Critical: What Lives Where
 
-| Item | Module | Correct Usage |
-|------|--------|--------------|
-| `Effect(a, key)` | midas/effect | `e.Effect(a, key)` |
-| `Done(value)` | midas/effect | Pattern: `e.Done(x)` |
-| `Fetch(req, resume)` | midas/effect | Pattern: `e.Fetch(req, resume)` |
-| `FetchError` | midas/effect | `e.FetchError`, `e.NetworkError(...)` |
-| `do(eff, next)` | midas/task | `t.do(task, fn(x) { ... })` |
-| `done(value)` | midas/task | `t.done(data)` |
-| `abort(reason)` | midas/task | `t.abort(snag.new("error"))` |
-| `fetch(request)` | midas/task | `t.fetch(req)` |
+| Item                 | Module       | Correct Usage                         |
+| -------------------- | ------------ | ------------------------------------- |
+| `Effect(a, key)`     | midas/effect | `e.Effect(a, key)`                    |
+| `Done(value)`        | midas/effect | Pattern: `e.Done(x)`                  |
+| `Fetch(req, resume)` | midas/effect | Pattern: `e.Fetch(req, resume)`       |
+| `FetchError`         | midas/effect | `e.FetchError`, `e.NetworkError(...)` |
+| `do(eff, next)`      | midas/task   | `t.do(task, fn(x) { ... })`           |
+| `done(value)`        | midas/task   | `t.done(data)`                        |
+| `abort(reason)`      | midas/task   | `t.abort(snag.new("error"))`          |
+| `fetch(request)`     | midas/task   | `t.fetch(req)`                        |
 
 ## Common Mistakes
 

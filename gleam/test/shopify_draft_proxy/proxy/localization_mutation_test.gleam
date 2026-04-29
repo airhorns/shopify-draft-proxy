@@ -79,8 +79,7 @@ pub fn shop_locale_enable_creates_record_test() {
     == "{\"data\":{\"shopLocaleEnable\":{\"shopLocale\":{\"locale\":\"ja\",\"name\":\"Japanese\",\"primary\":false,\"published\":false},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == ["ShopLocale/ja"]
   // The store now reflects the staged record.
-  let assert Some(record) =
-    store.get_effective_shop_locale(outcome.store, "ja")
+  let assert Some(record) = store.get_effective_shop_locale(outcome.store, "ja")
   assert record.locale == "ja"
 }
 
@@ -105,8 +104,7 @@ pub fn shop_locale_update_modifies_published_test() {
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"shopLocaleUpdate\":{\"shopLocale\":{\"locale\":\"fr\",\"published\":true},\"userErrors\":[]}}}"
-  let assert Some(record) =
-    store.get_effective_shop_locale(outcome.store, "fr")
+  let assert Some(record) = store.get_effective_shop_locale(outcome.store, "fr")
   assert record.published == True
 }
 

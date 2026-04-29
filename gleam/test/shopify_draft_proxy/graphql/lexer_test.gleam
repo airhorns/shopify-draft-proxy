@@ -24,22 +24,23 @@ pub fn whitespace_is_skipped_test() {
 }
 
 pub fn single_punctuators_test() {
-  assert lex_kinds("{}()[]:!@$&|=") == [
-    tk.BraceL,
-    tk.BraceR,
-    tk.ParenL,
-    tk.ParenR,
-    tk.BracketL,
-    tk.BracketR,
-    tk.Colon,
-    tk.Bang,
-    tk.At,
-    tk.Dollar,
-    tk.Amp,
-    tk.Pipe,
-    tk.Equals,
-    tk.Eof,
-  ]
+  assert lex_kinds("{}()[]:!@$&|=")
+    == [
+      tk.BraceL,
+      tk.BraceR,
+      tk.ParenL,
+      tk.ParenR,
+      tk.BracketL,
+      tk.BracketR,
+      tk.Colon,
+      tk.Bang,
+      tk.At,
+      tk.Dollar,
+      tk.Amp,
+      tk.Pipe,
+      tk.Equals,
+      tk.Eof,
+    ]
 }
 
 pub fn spread_token_test() {
@@ -162,30 +163,31 @@ pub fn block_string_currently_errors_test() {
 
 pub fn realistic_query_lexes_to_expected_kinds_test() {
   let kinds = lex_kinds("query Foo($id: ID!) { node(id: $id) { id } }")
-  assert kinds == [
-    tk.Name,
-    tk.Name,
-    tk.ParenL,
-    tk.Dollar,
-    tk.Name,
-    tk.Colon,
-    tk.Name,
-    tk.Bang,
-    tk.ParenR,
-    tk.BraceL,
-    tk.Name,
-    tk.ParenL,
-    tk.Name,
-    tk.Colon,
-    tk.Dollar,
-    tk.Name,
-    tk.ParenR,
-    tk.BraceL,
-    tk.Name,
-    tk.BraceR,
-    tk.BraceR,
-    tk.Eof,
-  ]
+  assert kinds
+    == [
+      tk.Name,
+      tk.Name,
+      tk.ParenL,
+      tk.Dollar,
+      tk.Name,
+      tk.Colon,
+      tk.Name,
+      tk.Bang,
+      tk.ParenR,
+      tk.BraceL,
+      tk.Name,
+      tk.ParenL,
+      tk.Name,
+      tk.Colon,
+      tk.Dollar,
+      tk.Name,
+      tk.ParenR,
+      tk.BraceL,
+      tk.Name,
+      tk.BraceR,
+      tk.BraceR,
+      tk.Eof,
+    ]
 }
 
 pub fn unused_punctuator_helper_test() {

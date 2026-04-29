@@ -41,12 +41,12 @@ let assert Ok(thumb) = ansel.create_thumbnail(img, width: 300, height: 450)
 
 ### Other Operations
 
-| Function | Description |
-|---|---|
-| `blur(Image, sigma: Float)` | Gaussian blur |
-| `rotate(Image, degrees: Float)` | Rotate by angle |
-| `composite(Image, overlay: Image, x: Int, y: Int)` | Overlay images |
-| `get_width(Image)` / `get_height(Image)` | Get dimensions |
+| Function                                           | Description     |
+| -------------------------------------------------- | --------------- |
+| `blur(Image, sigma: Float)`                        | Gaussian blur   |
+| `rotate(Image, degrees: Float)`                    | Rotate by angle |
+| `composite(Image, overlay: Image, x: Int, y: Int)` | Overlay images  |
+| `get_width(Image)` / `get_height(Image)`           | Get dimensions  |
 
 ## Output Formats
 

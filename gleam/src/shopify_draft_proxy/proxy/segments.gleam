@@ -28,7 +28,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  ConnectionWindow, SerializeConnectionConfig, SelectedFieldOptions, SrcInt,
+  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcInt,
   SrcList, SrcNull, SrcString, default_connection_page_info_options,
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
@@ -444,7 +444,10 @@ fn serialize_empty_member_connection(field: Selection) -> Json {
       case selection {
         Field(name: name, selection_set: ss, ..) ->
           case name.value {
-            "__typename" -> #(key, json.string("CustomerSegmentMembersConnection"))
+            "__typename" -> #(
+              key,
+              json.string("CustomerSegmentMembersConnection"),
+            )
             "totalCount" -> #(key, json.int(0))
             "statistics" -> #(key, serialize_segment_statistics_empty(ss))
             "edges" -> #(key, json.array([], fn(x) { x }))
@@ -565,10 +568,7 @@ fn serialize_customer_segment_membership(
       case selection {
         Field(name: name, selection_set: ss, ..) ->
           case name.value {
-            "memberships" -> #(
-              key,
-              serialize_membership_items(memberships, ss),
-            )
+            "memberships" -> #(key, serialize_membership_items(memberships, ss))
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())
@@ -756,11 +756,12 @@ fn handle_segment_create(
         synthetic_identity.make_synthetic_gid(identity, "Segment")
       let #(timestamp, identity_after_ts) =
         synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let unique_name = resolve_unique_segment_name(
-        store,
-        normalize_segment_name(name_value),
-        None,
-      )
+      let unique_name =
+        resolve_unique_segment_name(
+          store,
+          normalize_segment_name(name_value),
+          None,
+        )
       let record =
         SegmentRecord(
           id: gid,
@@ -1187,7 +1188,9 @@ fn member_query_payload_entries(
             }
           _ -> []
         }
-      Field(..) -> [member_query_payload_field_entry(payload, selection, fragments)]
+      Field(..) -> [
+        member_query_payload_field_entry(payload, selection, fragments),
+      ]
     }
   })
 }
@@ -1205,17 +1208,18 @@ fn member_query_payload_field_entry(
           key,
           json.string("CustomerSegmentMembersQueryCreatePayload"),
         )
-        "customerSegmentMembersQuery" -> #(
-          key,
-          case payload.query_record {
-            Some(record) ->
-              project_member_query_record(record, child_selections(ss))
-            None -> json.null()
-          },
-        )
+        "customerSegmentMembersQuery" -> #(key, case payload.query_record {
+          Some(record) ->
+            project_member_query_record(record, child_selections(ss))
+          None -> json.null()
+        })
         "userErrors" -> #(
           key,
-          serialize_user_errors(payload.user_errors, child_selections(ss), fragments),
+          serialize_user_errors(
+            payload.user_errors,
+            child_selections(ss),
+            fragments,
+          ),
         )
         _ -> #(key, json.null())
       }
@@ -1585,12 +1589,15 @@ fn payload_entries(
             ..,
           )) ->
             case cond_name.value == payload_typename {
-              True -> payload_entries(payload, payload_typename, inner, fragments)
+              True ->
+                payload_entries(payload, payload_typename, inner, fragments)
               False -> []
             }
           _ -> []
         }
-      Field(..) -> [payload_field_entry(payload, payload_typename, selection, fragments)]
+      Field(..) -> [
+        payload_field_entry(payload, payload_typename, selection, fragments),
+      ]
     }
   })
 }
@@ -1606,23 +1613,21 @@ fn payload_field_entry(
     Field(name: name, selection_set: ss, ..) ->
       case name.value {
         "__typename" -> #(key, json.string(payload_typename))
-        "segment" -> #(
-          key,
-          case payload.segment {
-            Some(s) -> project_segment(s, field, fragments)
-            None -> json.null()
-          },
-        )
-        "deletedSegmentId" -> #(
-          key,
-          case payload.deleted_segment_id {
-            Some(s) -> json.string(s)
-            None -> json.null()
-          },
-        )
+        "segment" -> #(key, case payload.segment {
+          Some(s) -> project_segment(s, field, fragments)
+          None -> json.null()
+        })
+        "deletedSegmentId" -> #(key, case payload.deleted_segment_id {
+          Some(s) -> json.string(s)
+          None -> json.null()
+        })
         "userErrors" -> #(
           key,
-          serialize_user_errors(payload.user_errors, child_selections(ss), fragments),
+          serialize_user_errors(
+            payload.user_errors,
+            child_selections(ss),
+            fragments,
+          ),
         )
         _ -> #(key, json.null())
       }
@@ -1651,10 +1656,7 @@ fn serialize_user_errors(
 fn user_error_to_source(error: UserError) -> SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
-    #(
-      "field",
-      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
-    ),
+    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
   ])
 }

@@ -64,15 +64,15 @@ case ywt.decode(
 
 Choose based on your security requirements:
 
-| Algorithm | Type | Use Case |
-|-----------|------|----------|
-| `algorithm.hs256` | HMAC | Simple apps with shared secret |
-| `algorithm.hs384` | HMAC | Higher security margin |
-| `algorithm.hs512` | HMAC | Maximum HMAC strength |
-| `algorithm.es256` | ECDSA | Modern standard, efficient |
-| `algorithm.es384` | ECDSA | **Recommended default** |
-| `algorithm.es512` | ECDSA | Maximum security |
-| `algorithm.rs256` | RSA | Traditional, wide compatibility |
+| Algorithm         | Type    | Use Case                        |
+| ----------------- | ------- | ------------------------------- |
+| `algorithm.hs256` | HMAC    | Simple apps with shared secret  |
+| `algorithm.hs384` | HMAC    | Higher security margin          |
+| `algorithm.hs512` | HMAC    | Maximum HMAC strength           |
+| `algorithm.es256` | ECDSA   | Modern standard, efficient      |
+| `algorithm.es384` | ECDSA   | **Recommended default**         |
+| `algorithm.es512` | ECDSA   | Maximum security                |
+| `algorithm.rs256` | RSA     | Traditional, wide compatibility |
 | `algorithm.ps256` | RSA-PSS | Modern RSA with stronger proofs |
 
 **Recommendation:** Use `es384` for new applications - it's secure, fast, and modern.
@@ -108,13 +108,13 @@ pub fn get_signing_key() -> Result(sign_key.SignKey, Nil) {
 
 ### Key Requirements
 
-| Algorithm | Minimum Key Size |
-|-----------|------------------|
-| HS256 | 32 bytes (256 bits) |
-| HS384 | 48 bytes (384 bits) |
-| HS512 | 64 bytes (512 bits) |
-| ES256/384/512 | Auto-generated |
-| RS256/384/512 | 4096-bit modulus |
+| Algorithm     | Minimum Key Size    |
+| ------------- | ------------------- |
+| HS256         | 32 bytes (256 bits) |
+| HS384         | 48 bytes (384 bits) |
+| HS512         | 64 bytes (512 bits) |
+| ES256/384/512 | Auto-generated      |
+| RS256/384/512 | 4096-bit modulus    |
 
 ### Store Keys as JWK
 

@@ -61,7 +61,7 @@ cycle.
 ## Decoding
 
 - **`decode.optional_field("k", default, inner)`** returns `default`
-  only when the key is *absent*. To accept `null` too, the inner
+  only when the key is _absent_. To accept `null` too, the inner
   decoder must be `decode.optional(...)`. The combination handles both
   shapes; using only `optional_field` will crash on explicit `null`.
 - **`decode.recursive` works.** Use it for self-referential decoders
@@ -97,7 +97,7 @@ cycle.
   connection roots use `paginate_connection_items` + `serialize_connection`
   directly. Connections nested inside a parent record's projection use
   a `SourceValue` shaped like a connection (`{__typename, edges, nodes,
-  pageInfo, totalCount}`) — the parent's `project_graphql_value` walk
+pageInfo, totalCount}`) — the parent's `project_graphql_value` walk
   will descend into it.
 - **Pagination on nested connections is not honored.** Most nested
   connection projections emit a fixed page (no `first` / `after`

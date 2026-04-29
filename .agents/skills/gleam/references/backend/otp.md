@@ -37,6 +37,7 @@ actor.new_with_initialiser(timeout_ms, fn(default_subject) {
 ```
 
 **Key types:**
+
 - `Started(pid: Pid, data: data)` — returned on successful start; `data` is typically `Subject(Message)`
 - `StartResult(data)` = `Result(Started(data), StartError)`
 - `StartError` = `InitTimeout` | `InitFailed(String)` | `InitExited(ExitReason)`
@@ -188,20 +189,21 @@ pub fn start() -> Result(Subject(Message), actor.StartError) {
 
 ## When to Use Actor vs Alternatives
 
-| Need | Use |
-|------|-----|
-| Mutable state + concurrent access | Actor |
-| High-read shared data (100k+ reads/sec) | ETS (see `otp-advanced.md`) |
-| Persistent cross-restart state | Database |
-| Stateless transformations | Plain functions |
-| One-off async work | process.spawn (see `otp-advanced.md`) |
-| Periodic background work | Actor with send_after (see `otp-advanced.md`) |
+| Need                                    | Use                                           |
+| --------------------------------------- | --------------------------------------------- |
+| Mutable state + concurrent access       | Actor                                         |
+| High-read shared data (100k+ reads/sec) | ETS (see `otp-advanced.md`)                   |
+| Persistent cross-restart state          | Database                                      |
+| Stateless transformations               | Plain functions                               |
+| One-off async work                      | process.spawn (see `otp-advanced.md`)         |
+| Periodic background work                | Actor with send_after (see `otp-advanced.md`) |
 
 ## Critical Rules
 
 1. **`actor.named()` for registration — NEVER `process.register()`**
 
 2. **`process.new_name()` once, reuse everywhere** — atoms never GC'd:
+
    ```gleam
    // WRONG — creates different atoms each call
    process.new_name("store")  // in two places = two atoms
@@ -215,6 +217,7 @@ pub fn start() -> Result(Subject(Message), actor.StartError) {
 4. **NO try_call** — causes memory leaks (removed from gleam_erlang). Let timeouts crash; handle via supervision.
 
 5. **Self-call deadlock** — actor can't receive while handling a message:
+
    ```gleam
    // DEADLOCK! Actor is busy handling, can't receive the call
    fn handle_message(state, msg) {
@@ -223,6 +226,7 @@ pub fn start() -> Result(Subject(Message), actor.StartError) {
    ```
 
 6. **Subject ownership** — only the process that created a Subject can receive on it:
+
    ```gleam
    // WRONG — subject created here, received in spawned process
    let subject = process.new_subject()

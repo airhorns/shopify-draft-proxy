@@ -183,9 +183,7 @@ pub fn normalize_search_query_value(value: String) -> String {
 }
 
 fn strip_one_leading_or_trailing_quote(s: String) -> String {
-  let s = case
-    string.starts_with(s, "\"") || string.starts_with(s, "'")
-  {
+  let s = case string.starts_with(s, "\"") || string.starts_with(s, "'") {
     True -> string.drop_start(s, 1)
     False -> s
   }
@@ -204,10 +202,7 @@ pub fn strip_search_query_value_quotes(value: String) -> String {
     True -> {
       let first = string.slice(trimmed, 0, 1)
       let last = string.slice(trimmed, string.length(trimmed) - 1, 1)
-      case
-        { first == "\"" || first == "'" }
-        && first == last
-      {
+      case { first == "\"" || first == "'" } && first == last {
         True -> string.slice(trimmed, 1, string.length(trimmed) - 2)
         False -> trimmed
       }
@@ -268,9 +263,7 @@ pub fn matches_search_query_string(
                     True ->
                       list.any(
                         split_alphanumeric_words(normalized_candidate),
-                        fn(part) {
-                          string.starts_with(part, normalized_value)
-                        },
+                        fn(part) { string.starts_with(part, normalized_value) },
                       )
                     False -> False
                   }
@@ -496,11 +489,10 @@ fn flush_term_list(state: TermListState) -> TermListState {
       case list.contains(state.ignored_upper, upper) {
         True -> TermListState(..state, current: "")
         False ->
-          TermListState(
-            ..state,
-            current: "",
-            terms: [parse_search_query_term(trimmed), ..state.terms],
-          )
+          TermListState(..state, current: "", terms: [
+            parse_search_query_term(trimmed),
+            ..state.terms
+          ])
       }
     }
   }

@@ -17,11 +17,9 @@ import shopify_draft_proxy/state/store
 // Test fixtures
 // ---------------------------------------------------------------------------
 
-const synthetic_one: String =
-  "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+const synthetic_one: String = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
 
-const synthetic_two: String =
-  "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"
+const synthetic_two: String = "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"
 
 const authoritative_one: String = "gid://shopify/SavedSearch/12345"
 
@@ -151,10 +149,7 @@ pub fn collect_authoritative_gids_groups_by_type_test() {
 }
 
 pub fn collect_authoritative_gids_skips_synthetics_test() {
-  let body =
-    commit.parse_json_value(
-      "{\"id\":\"" <> synthetic_one <> "\"}",
-    )
+  let body = commit.parse_json_value("{\"id\":\"" <> synthetic_one <> "\"}")
   let groups = commit.collect_authoritative_gids_by_type(body)
   assert dict.size(groups) == 0
 }
@@ -375,7 +370,12 @@ pub fn response_body_has_graphql_errors_ignores_data_only_test() {
 pub fn run_commit_empty_log_returns_ok_test() {
   let send = ok_send_factory(200, "{}")
   let #(_store, meta) =
-    commit.run_commit_sync(store.new(), "https://shop.example", dict.new(), send)
+    commit.run_commit_sync(
+      store.new(),
+      "https://shop.example",
+      dict.new(),
+      send,
+    )
   assert meta.ok == True
   assert meta.stop_index == None
   assert meta.attempts == []
@@ -454,8 +454,7 @@ pub fn run_commit_threads_synthetic_id_remap_to_subsequent_entry_test() {
 
   // Replay the second entry's body through a fake send that asserts the
   // synthetic GID has been substituted.
-  let recorded_bodies =
-    record_request_bodies(s, [response_one, response_two])
+  let recorded_bodies = record_request_bodies(s, [response_one, response_two])
   case recorded_bodies {
     [_first_body, second_body] -> {
       assert string.contains(second_body, authoritative_one)
@@ -500,10 +499,11 @@ fn collect_bodies_loop(
     [], _ -> acc
     _, [] -> acc
     [entry, ..rest_entries], [response, ..rest_responses] -> {
-      let body = commit.apply_id_map_to_body_string(
-        commit.build_replay_body(entry),
-        id_map,
-      )
+      let body =
+        commit.apply_id_map_to_body_string(
+          commit.build_replay_body(entry),
+          id_map,
+        )
       let parsed = commit.parse_json_value(response)
       let new_id_map = commit.record_commit_id_mappings(entry, parsed, id_map)
       collect_bodies_loop(rest_entries, new_id_map, rest_responses, [
@@ -604,8 +604,7 @@ pub fn run_commit_halts_on_transport_error_test() {
 // ---------------------------------------------------------------------------
 
 pub fn serialize_meta_response_emits_expected_top_level_keys_test() {
-  let meta =
-    commit.MetaCommitResponse(ok: True, stop_index: None, attempts: [])
+  let meta = commit.MetaCommitResponse(ok: True, stop_index: None, attempts: [])
   let serialized = json.to_string(commit.serialize_meta_response(meta))
   assert string.contains(serialized, "\"ok\":true")
   assert string.contains(serialized, "\"stopIndex\":null")
@@ -626,11 +625,7 @@ pub fn serialize_meta_response_serialises_attempt_test() {
       response_body: commit.parse_json_value("{\"hello\":\"world\"}"),
     )
   let meta =
-    commit.MetaCommitResponse(
-      ok: True,
-      stop_index: None,
-      attempts: [attempt],
-    )
+    commit.MetaCommitResponse(ok: True, stop_index: None, attempts: [attempt])
   let serialized = json.to_string(commit.serialize_meta_response(meta))
   assert string.contains(serialized, "\"logEntryId\":\"log-1\"")
   assert string.contains(serialized, "\"upstreamStatus\":200")

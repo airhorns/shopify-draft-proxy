@@ -24,13 +24,13 @@ Functions mutations now record a staged mutation-log entry after the
 domain response is built, matching the TS runtime's supported-mutation
 observability and preserving commit replay metadata.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/state/types.gleam` | Adds `ShopifyFunctionAppRecord` and threads optional owner app metadata through `ShopifyFunctionRecord`. |
-| `gleam/src/shopify_draft_proxy/proxy/functions.gleam` | Projects seeded Function owner app fields, preserves app metadata when reusing known Functions, and records staged Functions mutation-log entries. |
-| `gleam/test/parity/runner.gleam` | Adds capture seeding for `functions-owner-metadata-local-staging` from `seedShopifyFunctions`. |
-| `gleam/test/parity_test.gleam` | Enables the owner metadata parity scenario. |
-| `gleam/test/shopify_draft_proxy/proxy/functions_mutation_test.gleam` | Adds a direct mutation-log assertion for Functions mutations. |
+| Module                                                               | Change                                                                                                                                             |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                    | Adds `ShopifyFunctionAppRecord` and threads optional owner app metadata through `ShopifyFunctionRecord`.                                           |
+| `gleam/src/shopify_draft_proxy/proxy/functions.gleam`                | Projects seeded Function owner app fields, preserves app metadata when reusing known Functions, and records staged Functions mutation-log entries. |
+| `gleam/test/parity/runner.gleam`                                     | Adds capture seeding for `functions-owner-metadata-local-staging` from `seedShopifyFunctions`.                                                     |
+| `gleam/test/parity_test.gleam`                                       | Enables the owner metadata parity scenario.                                                                                                        |
+| `gleam/test/shopify_draft_proxy/proxy/functions_mutation_test.gleam` | Adds a direct mutation-log assertion for Functions mutations.                                                                                      |
 
 Validation: `gleam test --target javascript` is green at 643 tests.
 `gleam test --target erlang` is green at 636 tests via the
@@ -88,13 +88,13 @@ the captured filter scenario: `created_at`, `expires_on`,
 and the captured Shopify behavior for the scenario's future-date
 query.
 
-| Module | Change |
-| --- | --- |
-| `gleam/test/parity/runner.gleam` | Adds scenario precondition seeding for `gift-card-search-filters`, including capture-to-`GiftCardRecord` and configuration decoding helpers. |
-| `gleam/src/shopify_draft_proxy/state/types.gleam` | Adds `GiftCardRecord.source` so the local model can evaluate `source:` search terms. |
-| `gleam/src/shopify_draft_proxy/state/store.gleam` | Adds base upsert helpers for gift cards and gift-card configuration, mirroring the TS parity harness precondition path. |
-| `gleam/src/shopify_draft_proxy/proxy/gift_cards.gleam` | Ports the remaining captured search predicates and sets locally-created cards to `source: "api_client"`. |
-| `gleam/test/parity_test.gleam` | Enables `gift-card-search-filters` as a first-class parity test. |
+| Module                                                 | Change                                                                                                                                       |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/runner.gleam`                       | Adds scenario precondition seeding for `gift-card-search-filters`, including capture-to-`GiftCardRecord` and configuration decoding helpers. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`      | Adds `GiftCardRecord.source` so the local model can evaluate `source:` search terms.                                                         |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`      | Adds base upsert helpers for gift cards and gift-card configuration, mirroring the TS parity harness precondition path.                      |
+| `gleam/src/shopify_draft_proxy/proxy/gift_cards.gleam` | Ports the remaining captured search predicates and sets locally-created cards to `source: "api_client"`.                                     |
+| `gleam/test/parity_test.gleam`                         | Enables `gift-card-search-filters` as a first-class parity test.                                                                             |
 
 Validation: `gleam test --target javascript` is green at 641 tests.
 `gleam test --target erlang` is green at 634 tests via the `erlang:27`
@@ -147,11 +147,11 @@ in this pass; the next bulk-operations pass will port the state slice
 (`BulkOperationRecord`, the active/historical id pair, the
 `BulkOperationImportLogEntry` shape) and start filling in real reads.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam` | New module (~80 LOC). Public surface: `is_bulk_operations_query_root`, `handle_bulk_operations_query`, `wrap_data`, `process`, `BulkOperationsError`. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `BulkOperationsDomain` variant. `BulkOperations → BulkOperationsDomain` capability mapping (queries only). Legacy fallback adds the bulk-operations predicate after marketing. Query dispatcher arm calls `bulk_operations.process(query)`. |
-| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | +5 tests: predicate, two singular nulls (`bulkOperation`, `currentBulkOperation`), two empty connections (`bulkOperations` with both `nodes`/`pageInfo` and `edges` selection sets), envelope wrapping. |
+| Module                                                            | Change                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/bulk_operations.gleam`       | New module (~80 LOC). Public surface: `is_bulk_operations_query_root`, `handle_bulk_operations_query`, `wrap_data`, `process`, `BulkOperationsError`.                                                                                           |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | New `BulkOperationsDomain` variant. `BulkOperations → BulkOperationsDomain` capability mapping (queries only). Legacy fallback adds the bulk-operations predicate after marketing. Query dispatcher arm calls `bulk_operations.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/bulk_operations_test.gleam` | +5 tests: predicate, two singular nulls (`bulkOperation`, `currentBulkOperation`), two empty connections (`bulkOperations` with both `nodes`/`pageInfo` and `edges` selection sets), envelope wrapping.                                         |
 
 Both `--target erlang` and `--target javascript` are green at 629
 passing tests (the headline counter sweeps every test, including
@@ -193,11 +193,11 @@ pass will port the state slice (`MarketingRecord`,
 `MarketingEngagementRecord`, `EffectiveMarketingActivityRecord`) and
 start filling in real reads.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/marketing.gleam` | New module (~85 LOC). Public surface: `is_marketing_query_root`, `handle_marketing_query`, `wrap_data`, `process`, `MarketingError`. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MarketingDomain` variant. `Marketing → MarketingDomain` capability mapping (queries only). Legacy fallback adds the marketing predicate after metaobject-definitions. Query dispatcher arm calls `marketing.process(query)`. |
-| `gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam` | +6 tests: predicate, two singular nulls (`marketingActivity`, `marketingEvent`), two empty connections (`marketingActivities`, `marketingEvents`), envelope wrapping. |
+| Module                                                      | Change                                                                                                                                                                                                                            |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/marketing.gleam`       | New module (~85 LOC). Public surface: `is_marketing_query_root`, `handle_marketing_query`, `wrap_data`, `process`, `MarketingError`.                                                                                              |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`     | New `MarketingDomain` variant. `Marketing → MarketingDomain` capability mapping (queries only). Legacy fallback adds the marketing predicate after metaobject-definitions. Query dispatcher arm calls `marketing.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/marketing_test.gleam` | +6 tests: predicate, two singular nulls (`marketingActivity`, `marketingEvent`), two empty connections (`marketingActivities`, `marketingEvents`), envelope wrapping.                                                             |
 
 Test count: 584 → 590. Both `--target erlang` and `--target javascript`
 are green.
@@ -258,11 +258,11 @@ Mutation routes are intentionally not added: the
 `standardMetaobjectDefinitionEnable` mutations stay on the existing
 `No mutation dispatcher implemented` arm until the store slice lands.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam` | New module (~110 LOC). Public surface: `is_metaobject_definitions_query_root`, `handle_metaobject_definitions_query`, `wrap_data`, `process`, `MetaobjectDefinitionsError`. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MetaobjectDefinitionsDomain` variant. `Metaobjects → MetaobjectDefinitionsDomain` capability mapping (queries only). Legacy fallback adds the metaobject-definitions predicate after localization. Query dispatcher arm calls `metaobject_definitions.process(query)`. |
-| `gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam` | +8 tests: predicate, four singular nulls (`metaobject`, `metaobjectByHandle`, `metaobjectDefinition`, `metaobjectDefinitionByType`), two empty connections (`metaobjects`, `metaobjectDefinitions`), envelope wrapping. |
+| Module                                                                   | Change                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metaobject_definitions.gleam`       | New module (~110 LOC). Public surface: `is_metaobject_definitions_query_root`, `handle_metaobject_definitions_query`, `wrap_data`, `process`, `MetaobjectDefinitionsError`.                                                                                                 |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                  | New `MetaobjectDefinitionsDomain` variant. `Metaobjects → MetaobjectDefinitionsDomain` capability mapping (queries only). Legacy fallback adds the metaobject-definitions predicate after localization. Query dispatcher arm calls `metaobject_definitions.process(query)`. |
+| `gleam/test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam` | +8 tests: predicate, four singular nulls (`metaobject`, `metaobjectByHandle`, `metaobjectDefinition`, `metaobjectDefinitionByType`), two empty connections (`metaobjects`, `metaobjectDefinitions`), envelope wrapping.                                                     |
 
 Test count: 576 → 584. Both `--target erlang` and `--target javascript`
 are green.
@@ -321,14 +321,14 @@ deterministically returns `RESOURCE_NOT_FOUND`. That matches the TS
 contract for unknown resources; the success path will activate
 automatically once Products ports.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/state/types.gleam` | New `LocaleRecord`, `ShopLocaleRecord`, `TranslationRecord` resource types (~50 LOC). |
-| `gleam/src/shopify_draft_proxy/state/store.gleam` | Extends `BaseState`/`StagedState` with `available_locales`, `shop_locales`, `translations` (and matching `deleted_*` markers). 12 helpers: `replace_base_available_locales`, `list_effective_available_locales`, `upsert_base_shop_locales`, `stage_shop_locale`, `disable_shop_locale`, `get_effective_shop_locale`, `list_effective_shop_locales`, `translation_storage_key` (`<resource_id>::<locale>::<market_id?>::<key>`), `stage_translation`, `remove_translation`, `remove_translations_for_locale`, `list_effective_translations`, `has_localization_state`. ~350 LOC. |
-| `gleam/src/shopify_draft_proxy/proxy/localization.gleam` | New module (~1100 LOC). Public surface: `is_localization_query_root`, `is_localization_mutation_root`, `handle_localization_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`. Private `AnyUserError` sum (`TranslationError(field, message, code)` / `ShopLocaleError(field, message)`). `@internal pub` on `TranslatableContent`/`TranslatableResource` so the types stay reachable for the future Products port without unused-constructor warnings. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | `LocalizationDomain` added to the `Domain` sum. Capability-based (`Localization → LocalizationDomain`) and legacy-name fallback (the five query roots + five mutation roots) both routed. Query and mutation dispatch arms call `localization.process`/`process_mutation`. |
-| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam` | +11 read-path tests: predicates, default availableLocales catalog (all 8 codes), store override, default shopLocales (primary+published), staged-record shadowing, `published: false` filter, `translatableResource` null vs. synthesized, `translatableResourcesByIds` empty + synthesized. |
-| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | +11 mutation-path tests: data envelope, shopLocaleEnable success + invalid-locale userError, shopLocaleUpdate success + unknown-locale userError, shopLocaleDisable success + primary-locale userError, translationsRegister and translationsRemove resource-not-found + blank-input userError chains. |
+| Module                                                                  | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                       | New `LocaleRecord`, `ShopLocaleRecord`, `TranslationRecord` resource types (~50 LOC).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`                       | Extends `BaseState`/`StagedState` with `available_locales`, `shop_locales`, `translations` (and matching `deleted_*` markers). 12 helpers: `replace_base_available_locales`, `list_effective_available_locales`, `upsert_base_shop_locales`, `stage_shop_locale`, `disable_shop_locale`, `get_effective_shop_locale`, `list_effective_shop_locales`, `translation_storage_key` (`<resource_id>::<locale>::<market_id?>::<key>`), `stage_translation`, `remove_translation`, `remove_translations_for_locale`, `list_effective_translations`, `has_localization_state`. ~350 LOC. |
+| `gleam/src/shopify_draft_proxy/proxy/localization.gleam`                | New module (~1100 LOC). Public surface: `is_localization_query_root`, `is_localization_mutation_root`, `handle_localization_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`. Private `AnyUserError` sum (`TranslationError(field, message, code)` / `ShopLocaleError(field, message)`). `@internal pub` on `TranslatableContent`/`TranslatableResource` so the types stay reachable for the future Products port without unused-constructor warnings.                                                                                                      |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`                 | `LocalizationDomain` added to the `Domain` sum. Capability-based (`Localization → LocalizationDomain`) and legacy-name fallback (the five query roots + five mutation roots) both routed. Query and mutation dispatch arms call `localization.process`/`process_mutation`.                                                                                                                                                                                                                                                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/localization_test.gleam`          | +11 read-path tests: predicates, default availableLocales catalog (all 8 codes), store override, default shopLocales (primary+published), staged-record shadowing, `published: false` filter, `translatableResource` null vs. synthesized, `translatableResourcesByIds` empty + synthesized.                                                                                                                                                                                                                                                                                     |
+| `gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam` | +11 mutation-path tests: data envelope, shopLocaleEnable success + invalid-locale userError, shopLocaleUpdate success + unknown-locale userError, shopLocaleDisable success + primary-locale userError, translationsRegister and translationsRemove resource-not-found + blank-input userError chains.                                                                                                                                                                                                                                                                           |
 
 Test count: 554 → 576. Both `gleam test --target erlang` and
 `gleam test --target javascript` are green.
@@ -370,11 +370,11 @@ The user-error projection respects the request's `userErrors` selection
 set (`field`/`message`/`code`); `createdDefinition` is `SrcNull` so its
 sub-selection collapses to `null`.
 
-| Module | Change |
-| --- | --- |
+| Module                                                            | Change                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | New `UserError(field, message, code)` type, `MutationOutcome`, `is_metafield_definitions_mutation_root/1`, `process_mutation`, `handle_standard_metafield_definition_enable`, `find_standard_template_user_errors` (3 branches: missing args / id supplied / namespace+key supplied), `user_error_to_source`. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | Mutation dispatcher gains a `MetafieldDefinitionsDomain` case (capability-based via `Metafields → MetafieldDefinitionsDomain` and legacy fallback by mutation root name). |
-| `gleam/test/parity_test.gleam` | +`standard_metafield_definition_enable_validation_test`. |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | Mutation dispatcher gains a `MetafieldDefinitionsDomain` case (capability-based via `Metafields → MetafieldDefinitionsDomain` and legacy fallback by mutation root name).                                                                                                                                     |
+| `gleam/test/parity_test.gleam`                                    | +`standard_metafield_definition_enable_validation_test`.                                                                                                                                                                                                                                                      |
 
 Test count: 527 → 528. Both targets green.
 
@@ -407,11 +407,11 @@ definition lifecycle, validation, capability inspection, and seeded
 catalog reads. None of that is needed for the empty-read scenario —
 that's deferred until a parity spec actually exercises it.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | New file (~85 LOC). Selection-driven serializer using `serialize_empty_connection` for `metafieldDefinitions` and `json.null()` for everything else. |
-| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam` | New `MetafieldDefinitionsDomain` enum value with both capability-based dispatch (`Metafields → MetafieldDefinitionsDomain`) and legacy-fallback by root-field name. |
-| `gleam/test/parity_test.gleam` | +`metafield_definitions_product_empty_read_test`. |
+| Module                                                            | Change                                                                                                                                                              |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | New file (~85 LOC). Selection-driven serializer using `serialize_empty_connection` for `metafieldDefinitions` and `json.null()` for everything else.                |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`           | New `MetafieldDefinitionsDomain` enum value with both capability-based dispatch (`Metafields → MetafieldDefinitionsDomain`) and legacy-fallback by root-field name. |
+| `gleam/test/parity_test.gleam`                                    | +`metafield_definitions_product_empty_read_test`.                                                                                                                   |
 
 Test count: 526 → 527 (one new parity test exercising 2 targets).
 Both targets green.
@@ -441,13 +441,13 @@ membership root filters by segment existence (unknown segments are
 dropped, matching TS `flatMap` over `getEffectiveSegmentById`); the
 captured scenario uses unknown segment ids → empty array.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/state/types.gleam` | New `CustomerSegmentMembersQueryRecord(id, query, segment_id, current_count, done)`. |
-| `gleam/src/shopify_draft_proxy/state/store.gleam` | `BaseState`/`StagedState` gain `customer_segment_members_queries` + `customer_segment_members_query_order` slices. New `stage_customer_segment_members_query` + `get_effective_customer_segment_members_query_by_id`. |
-| `gleam/src/shopify_draft_proxy/proxy/segments.gleam` | `is_segment_query_root/1` now matches `customerSegmentMembers` / `customerSegmentMembersQuery` / `customerSegmentMembership`. Dispatcher routes each to a new serializer. `handle_customer_segment_members_query_create` now stages the record before returning the create-shape response. New helpers: `serialize_customer_segment_members_query`, `serialize_customer_segment_members_connection`, `serialize_customer_segment_membership`, plus selection-driven projections for statistics, pageInfo, and memberships. |
-| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | `is_segment_query_root_test` flipped to expect the three new roots. |
-| `gleam/test/parity_test.gleam` | +`customer_segment_members_query_lifecycle_test`. |
+| Module                                                     | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`          | New `CustomerSegmentMembersQueryRecord(id, query, segment_id, current_count, done)`.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`          | `BaseState`/`StagedState` gain `customer_segment_members_queries` + `customer_segment_members_query_order` slices. New `stage_customer_segment_members_query` + `get_effective_customer_segment_members_query_by_id`.                                                                                                                                                                                                                                                                                                      |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`       | `is_segment_query_root/1` now matches `customerSegmentMembers` / `customerSegmentMembersQuery` / `customerSegmentMembership`. Dispatcher routes each to a new serializer. `handle_customer_segment_members_query_create` now stages the record before returning the create-shape response. New helpers: `serialize_customer_segment_members_query`, `serialize_customer_segment_members_connection`, `serialize_customer_segment_membership`, plus selection-driven projections for statistics, pageInfo, and memberships. |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | `is_segment_query_root_test` flipped to expect the three new roots.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `gleam/test/parity_test.gleam`                             | +`customer_segment_members_query_lifecycle_test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Test count: 525 → 526 (one new parity test exercising 4 targets).
 Both targets green.
@@ -489,11 +489,11 @@ downstream `customerSegmentMembersQuery` lookup) still needs the
 store staging + member evaluator + `customerSegmentMembers` query
 ported.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/segments.gleam` | `is_segment_mutation_root/1` now matches `customerSegmentMembersQueryCreate`. New private types `CustomerSegmentMembersQueryPayload` + `CustomerSegmentMembersQueryResponse`. New `handle_customer_segment_members_query_create` reads `input.query` / `input.segmentId`, falls back to `segment.query` when only `segmentId` is provided (matching TS line 1006-1007), validates via new `validate_customer_segment_members_query` + `validate_member_query_string` (member-query-mode error format — no `Query ` prefix), mints a synthetic `CustomerSegmentMembersQuery` GID on success, and projects the standard mutation payload (`customerSegmentMembersQuery`/`userErrors`) with `currentCount: 0`/`done: false` / `userErrors: []`. |
-| `gleam/test/parity_test.gleam` | NOTE replaced with `segment_query_grammar_not_contains_test`. |
-| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | `is_segment_mutation_root_test` flipped to assert `customerSegmentMembersQueryCreate` IS now a mutation root. |
+| Module                                                     | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/segments.gleam`       | `is_segment_mutation_root/1` now matches `customerSegmentMembersQueryCreate`. New private types `CustomerSegmentMembersQueryPayload` + `CustomerSegmentMembersQueryResponse`. New `handle_customer_segment_members_query_create` reads `input.query` / `input.segmentId`, falls back to `segment.query` when only `segmentId` is provided (matching TS line 1006-1007), validates via new `validate_customer_segment_members_query` + `validate_member_query_string` (member-query-mode error format — no `Query ` prefix), mints a synthetic `CustomerSegmentMembersQuery` GID on success, and projects the standard mutation payload (`customerSegmentMembersQuery`/`userErrors`) with `currentCount: 0`/`done: false` / `userErrors: []`. |
+| `gleam/test/parity_test.gleam`                             | NOTE replaced with `segment_query_grammar_not_contains_test`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `gleam/test/shopify_draft_proxy/proxy/segments_test.gleam` | `is_segment_mutation_root_test` flipped to assert `customerSegmentMembersQueryCreate` IS now a mutation root.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 Test count: 524 → 525 (one new parity test exercising the full
 not-contains lifecycle). Both targets green.
@@ -536,10 +536,10 @@ parallel to the existing `PrimaryRefUnresolved`. The runner now
 substitutes both ref kinds during inline-template variable
 resolution.
 
-| Module | Change |
-| --- | --- |
+| Module                           | Change                                                                                                                                                                                                                  |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gleam/test/parity/runner.gleam` | `RunError` gains `CaptureRefUnresolved(path)`; `substitute/2` becomes `substitute/3` taking the capture JsonValue; new `as_capture_ref/1` recognises `{"fromCapturePath": "..."}` markers parallel to `as_primary_ref`. |
-| `gleam/test/parity_test.gleam` | +`webhook_subscription_conformance_test`. |
+| `gleam/test/parity_test.gleam`   | +`webhook_subscription_conformance_test`.                                                                                                                                                                               |
 
 Test count: 523 → 524 (one new parity test exercising 7 conformance
 targets across create / detail / update / delete / validation
@@ -575,8 +575,8 @@ connection, `eventsCount` → exact zero). Wiring is in place via
 `draft_proxy.gleam` `EventsDomain`. Adding the parity test was a
 single `check(...)` line — passes on first run.
 
-| Module | Change |
-| --- | --- |
+| Module                         | Change                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
 | `gleam/test/parity_test.gleam` | +`event_empty_read_test`. Also documented the segments and metafields gaps (see below). |
 
 Test count: 522 → 523. Both targets green.
@@ -600,7 +600,7 @@ red test.
 
 `config/parity-specs/metafields/metafield-definitions-product-empty-read.json`
 reads `metafieldDefinition`/`metafieldDefinitions`. The Gleam
-`proxy/metafields.gleam` is currently *only* a helper module —
+`proxy/metafields.gleam` is currently _only_ a helper module —
 serialises individual metafields nested under parent records. There
 is no top-level `MetafieldDefinitions` query domain dispatcher. The
 TS port has root-field handlers and a definitions store; porting that
@@ -633,11 +633,11 @@ list through `derive_default_saved_search_query_parts/1`, which
 calls `parse_saved_search_query/1` and rebuilds the record with the
 derived `query` (canonical), `search_terms`, and `filters` fields.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam` | `defaults_for_resource_type/1` now maps each static record through `derive_default_saved_search_query_parts/1`. New helper applies the parser and returns a `SavedSearchRecord(..record, query: parsed.canonical_query, search_terms: parsed.search_terms, filters: parsed.filters)`. |
-| `gleam/test/parity_test.gleam` | +`saved_search_query_grammar_test`, +`saved_search_resource_roots_test`. Both pass with no further code changes — the Pass 22d parser handles the OR/grouped/quote-normalization/negated-filter case correctly. |
-| `gleam/test/shopify_draft_proxy/proxy/saved_searches_test.gleam` | `order_saved_searches_full_node_shape_test` updated to expect parsed `filters: [{key:"status",value:"open"}, {key:"fulfillment_status",value:"unshipped,partial"}]` instead of the prior empty list. |
+| Module                                                           | Change                                                                                                                                                                                                                                                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam`       | `defaults_for_resource_type/1` now maps each static record through `derive_default_saved_search_query_parts/1`. New helper applies the parser and returns a `SavedSearchRecord(..record, query: parsed.canonical_query, search_terms: parsed.search_terms, filters: parsed.filters)`. |
+| `gleam/test/parity_test.gleam`                                   | +`saved_search_query_grammar_test`, +`saved_search_resource_roots_test`. Both pass with no further code changes — the Pass 22d parser handles the OR/grouped/quote-normalization/negated-filter case correctly.                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/saved_searches_test.gleam` | `order_saved_searches_full_node_shape_test` updated to expect parsed `filters: [{key:"status",value:"open"}, {key:"fulfillment_status",value:"unshipped,partial"}]` instead of the prior empty list.                                                                                  |
 
 Test count: 520 → 522 (two new parity tests, no new unit failures).
 Both targets green.
@@ -645,6 +645,7 @@ Both targets green.
 ### What this unlocks
 
 Three saved-search parity scenarios are now parity-clean:
+
 - `saved-search-local-staging` (Pass 22d landed).
 - `saved-search-query-grammar` — the OR-with-grouped-AND-with-negated-filter case from HAR-458.
 - `saved-search-resource-roots` — read-after-delete read against the static defaults; failed before because the static records had `filters: []`.
@@ -674,11 +675,11 @@ ported (parse_search_query_term / strip_search_query_value_quotes /
 search_query_term_value etc.); only the saved-search-domain glue
 needed adding.
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam` | +`ParsedSavedSearchQuery` ADT + `parse_saved_search_query/1` (public). Private helpers `split_saved_search_top_level_tokens` (depth-aware paren/quote tokenizer over `string.to_graphemes`), `is_grouped_token`, `is_boolean_token`, `is_filter_candidate`, `filter_value_for_term`, `render_saved_search_filter` (handles `_not` suffix unwinding for `-key:value`), `normalize_saved_search_term` + `escape_saved_search_term_for_stored_query` + `normalize_saved_search_quoted_values` (all mirror their TS counterparts byte-for-byte). `make_saved_search` now passes the result through to `query` / `search_terms` / `filters` instead of `query: raw, search_terms: raw, filters: []`. |
-| `gleam/test/parity_test.gleam` | +`saved_search_local_staging_test` (was a 9-line NOTE explaining the gap). |
-| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | `meta_state_reflects_staged_saved_search_test` updated to expect `searchTerms: ""` + `filters: [{key:"tag", value:"promo"}]` for input `query: "tag:promo"` (the prior assertion was the broken pre-port shape). |
+| Module                                                        | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam`    | +`ParsedSavedSearchQuery` ADT + `parse_saved_search_query/1` (public). Private helpers `split_saved_search_top_level_tokens` (depth-aware paren/quote tokenizer over `string.to_graphemes`), `is_grouped_token`, `is_boolean_token`, `is_filter_candidate`, `filter_value_for_term`, `render_saved_search_filter` (handles `_not` suffix unwinding for `-key:value`), `normalize_saved_search_term` + `escape_saved_search_term_for_stored_query` + `normalize_saved_search_quoted_values` (all mirror their TS counterparts byte-for-byte). `make_saved_search` now passes the result through to `query` / `search_terms` / `filters` instead of `query: raw, search_terms: raw, filters: []`. |
+| `gleam/test/parity_test.gleam`                                | +`saved_search_local_staging_test` (was a 9-line NOTE explaining the gap).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | `meta_state_reflects_staged_saved_search_test` updated to expect `searchTerms: ""` + `filters: [{key:"tag", value:"promo"}]` for input `query: "tag:promo"` (the prior assertion was the broken pre-port shape).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 Test count: 519 → 520 (saved-search local-staging parity test now
 green). Both targets green.
@@ -715,13 +716,13 @@ but had no `locations`, so the parity diff was loud.
 Fix threads the source `document` and field AST `Location` down into
 the error builders:
 
-| Module | Change |
-| --- | --- |
-| `gleam/src/shopify_draft_proxy/proxy/mutation_helpers.gleam` | +`field_loc: Option(Location)` and +`source_body: String` parameters on `validate_required_field_arguments`, `validate_required_id_argument`, `build_missing_required_argument_error`, `build_null_argument_error`. New private helpers `field_location/1` (extracts the AST loc once per field) and `locations_payload/2` (uses `graphql/location.get_location` to convert the start offset into `{line, column}` and renders the JSON shape). When `field_loc` is `None`, no `locations` key is emitted — keeps the no-source-body error path stable. |
-| `gleam/src/shopify_draft_proxy/proxy/webhooks.gleam` | Three callsites (`webhookSubscriptionCreate`, `webhookSubscriptionUpdate`, `webhookSubscriptionDelete`) now pass the parsed `document` string through. |
-| `gleam/test/shopify_draft_proxy/proxy/mutation_helpers_test.gleam` | Rewritten — every validator test threads a `document` through, and a new `build_missing_required_argument_error_with_location_test` asserts the full envelope shape including `locations:[{line:2,column:3}]` for a multi-line document. |
-| `gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam` | Existing `_top_level_error_test`s updated to expect `locations:[{line:1,column:12}]` (column 12 = the start of `webhookSubscription{Create,Update,Delete}` in `mutation { …`). |
-| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam` | `graphql_webhook_subscription_create_missing_topic_top_level_error_test` updated similarly. |
+| Module                                                             | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/mutation_helpers.gleam`       | +`field_loc: Option(Location)` and +`source_body: String` parameters on `validate_required_field_arguments`, `validate_required_id_argument`, `build_missing_required_argument_error`, `build_null_argument_error`. New private helpers `field_location/1` (extracts the AST loc once per field) and `locations_payload/2` (uses `graphql/location.get_location` to convert the start offset into `{line, column}` and renders the JSON shape). When `field_loc` is `None`, no `locations` key is emitted — keeps the no-source-body error path stable. |
+| `gleam/src/shopify_draft_proxy/proxy/webhooks.gleam`               | Three callsites (`webhookSubscriptionCreate`, `webhookSubscriptionUpdate`, `webhookSubscriptionDelete`) now pass the parsed `document` string through.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `gleam/test/shopify_draft_proxy/proxy/mutation_helpers_test.gleam` | Rewritten — every validator test threads a `document` through, and a new `build_missing_required_argument_error_with_location_test` asserts the full envelope shape including `locations:[{line:2,column:3}]` for a multi-line document.                                                                                                                                                                                                                                                                                                                |
+| `gleam/test/shopify_draft_proxy/proxy/webhooks_test.gleam`         | Existing `_top_level_error_test`s updated to expect `locations:[{line:1,column:12}]` (column 12 = the start of `webhookSubscription{Create,Update,Delete}` in `mutation { …`).                                                                                                                                                                                                                                                                                                                                                                          |
+| `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`      | `graphql_webhook_subscription_create_missing_topic_top_level_error_test` updated similarly.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 Result: `webhook-subscription-required-argument-validation.json`
 parity test now green; the spec's previously-disabled "TEMP DEBUG"
@@ -768,7 +769,7 @@ the green parity column.
 
 Extends the Pass 21 runner so it can drive multi-target lifecycle
 specs — i.e. specs whose `comparison.targets[*]` each fire their own
-proxy request, optionally with `variables` derived from the *primary*
+proxy request, optionally with `variables` derived from the _primary_
 proxy response via `{"fromPrimaryProxyPath": "$..."}` markers. This
 unblocks the lifecycle-shaped scenarios in `apps/`, `functions/`,
 `saved-searches/`, `webhooks/` etc. where the spec creates an entity,
@@ -776,10 +777,10 @@ then reads/updates/deletes it by the id the proxy just allocated.
 
 ### Module changes
 
-| Module | Change | Notes |
-| --- | --- | --- |
-| `gleam/test/parity/spec.gleam` | +`TargetRequest` ADT, +`VariablesInline`, +`rules_for/2` helper | `Target` now carries `request: TargetRequest` (`ReusePrimary` \| `OverrideRequest(ProxyRequest)`). `ParityVariables` gains `VariablesInline(template: JsonValue)` for inline literal/templated variables blocks. The decoder switch is `decode.optional_field("proxyRequest", ReusePrimary, decode.map(proxy_request_decoder(), OverrideRequest))`. |
-| `gleam/test/parity/runner.gleam` | +state-threading via `list.try_fold`, +`substitute/2`, +`as_primary_ref/1`, +`PrimaryRefUnresolved` error | `run_targets` now threads `#(DraftProxy, List(TargetReport))` forward so target N+1 sees the records target N created. `actual_response_for` dispatches `ReusePrimary` (no extra HTTP) vs `OverrideRequest` (load doc + resolve variables against the *primary* proxy response, then execute). `substitute` walks a template `JsonValue`, replacing leaf objects of the shape `{"fromPrimaryProxyPath": "$..."}` with the value at that path. |
+| Module                           | Change                                                                                                    | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/spec.gleam`   | +`TargetRequest` ADT, +`VariablesInline`, +`rules_for/2` helper                                           | `Target` now carries `request: TargetRequest` (`ReusePrimary` \| `OverrideRequest(ProxyRequest)`). `ParityVariables` gains `VariablesInline(template: JsonValue)` for inline literal/templated variables blocks. The decoder switch is `decode.optional_field("proxyRequest", ReusePrimary, decode.map(proxy_request_decoder(), OverrideRequest))`.                                                                                           |
+| `gleam/test/parity/runner.gleam` | +state-threading via `list.try_fold`, +`substitute/2`, +`as_primary_ref/1`, +`PrimaryRefUnresolved` error | `run_targets` now threads `#(DraftProxy, List(TargetReport))` forward so target N+1 sees the records target N created. `actual_response_for` dispatches `ReusePrimary` (no extra HTTP) vs `OverrideRequest` (load doc + resolve variables against the _primary_ proxy response, then execute). `substitute` walks a template `JsonValue`, replacing leaf objects of the shape `{"fromPrimaryProxyPath": "$..."}` with the value at that path. |
 
 Test count: 517 → 517 (machinery verified backwards-compatible — no
 new green tests added because every multi-target lifecycle scenario
@@ -818,7 +819,7 @@ of these is a Gleam-vs-TS-port domain gap that needs follow-up:
 - Inline `variables` blocks with `fromPrimaryProxyPath` substitution
   applied recursively: array elements, nested objects, and bare
   leaf-objects all participate. Resolution is JSONPath into the
-  *primary* proxy response (target requests don't see each other's
+  _primary_ proxy response (target requests don't see each other's
   responses, only the primary's — matches the TS engine).
 - A new `PrimaryRefUnresolved` error variant so a typoed JSONPath in
   an inline-variables block fails loud rather than silently producing
@@ -830,7 +831,7 @@ of these is a Gleam-vs-TS-port domain gap that needs follow-up:
   pre-existing state in the proxy store (segments-baseline-read, the
   live functions read, gift-card search) remains skipped. Pass 22b.
 - The runner doesn't model spec-level fixture overrides (e.g. specs
-  that point at a *different* capture per target). None of the
+  that point at a _different_ capture per target). None of the
   ported-domain specs use that today.
 - No equivalent of the TS engine's `setSyntheticIdentity` injection —
   the Gleam proxy generates its own ids deterministically per-store
@@ -859,25 +860,26 @@ process Admin GraphQL requests end to end against captured Shopify
 fixtures, without leaning on the TS engine.
 
 The legacy harness (`tests/unit/conformance-parity-scenarios.test.ts`
-+ `scripts/conformance-parity-lib.ts`) is left in place — it is too
-TS-coupled (it calls `runtime.store` / `handleAppMutation` /
-`handleApps*` directly, not over HTTP) to plug a Gleam target into.
-The Gleam runner replaces it incrementally: same parity-spec JSON
-shape, same captured fixtures, same expected-difference matchers, but
-drives `draft_proxy.process_request` over an HTTP-shaped envelope.
-Capture scripts and the spec library stay TS for now.
+
+- `scripts/conformance-parity-lib.ts`) is left in place — it is too
+  TS-coupled (it calls `runtime.store` / `handleAppMutation` /
+  `handleApps*` directly, not over HTTP) to plug a Gleam target into.
+  The Gleam runner replaces it incrementally: same parity-spec JSON
+  shape, same captured fixtures, same expected-difference matchers, but
+  drives `draft_proxy.process_request` over an HTTP-shaped envelope.
+  Capture scripts and the spec library stay TS for now.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `gleam/test/parity/json_value.gleam` | +144 | Self-describing JSON ADT (`JNull`, `JBool`, `JInt`, `JFloat`, `JString`, `JArray`, `JObject`) plus a recursive `from_dynamic` that round-trips `gleam/json`'s output, a deterministic `to_string` for diff-message rendering, and `field`/`index` helpers used by the JSONPath walker. |
-| `gleam/test/parity/jsonpath.gleam` | +137 | Minimal JSONPath: `$`, `$.foo`, `$.foo.bar`, `$[N]`, `$.foo[N].bar`. No filters, no recursive descent, no wildcards — that's the entire vocabulary the parity specs use today. `lookup/2` parses + evaluates in one shot for the runner's hot path. |
-| `gleam/test/parity/diff.gleam` | +271 | Structural JsonValue diff (`Mismatch{path, expected, actual}`) with two `expectedDifferences` rule kinds: `IgnoreDifference{path}` and `MatcherDifference{path, matcher}`. Implements four matchers: `non-empty-string`, `any-string`, `any-number`, `iso-timestamp` (permissive `T…Z`/offset shape check), `shopify-gid:<Type>` (with optional `?shopify-draft-proxy=synthetic` suffix). Anything else is exact-string match. Path tracking matches the JSONPath grammar so rules can be addressed surgically. |
-| `gleam/test/parity/spec.gleam` | +148 | Decoder for parity-spec JSON: `Spec{scenario_id, capture_file, proxy_request, targets, expected_differences}`, `ProxyRequest{document_path, variables: VariablesFromCapture/VariablesFromFile/NoVariables}`, `Target{name, capture_path, proxy_path, expected_differences}`. The optional `ignore: true` field on a difference flips the rule kind to `IgnoreDifference`. Per-target `proxyRequest` overrides and `fromPrimaryProxyPath` variable derivation are intentionally not modelled yet. |
-| `gleam/test/parity/runner.gleam` | +220 | Orchestration: load spec, load capture, read GraphQL document, resolve variables (capture-jsonpath or sibling-file), build `{"query":…,"variables":…}` envelope, drive `draft_proxy.process_request`, parse the response body back into `JsonValue`, compare each target's `capturePath` slice of the capture against the `proxyPath` slice of the response. Returns `Report{scenario_id, targets[*]: TargetReport{name, mismatches}}`. `RunnerConfig{repo_root}` defaults to `..` because tests run from `gleam/`. |
-| `gleam/test/parity_test.gleam` | +73 | Six gleeunit tests, one per supported scenario, plus a runner self-check that confirms `into_assert` actually surfaces non-empty mismatch lists as failures (so the green tests can't be silent no-ops). |
-| `gleam/gleam.toml` | +1 | Adds `simplifile = ">= 2.0.0 and < 3.0.0"` as a dev-only dependency. Filesystem reads are needed for the spec/capture/document files which sit outside the gleam project tree. Runtime deps stay at `gleam_stdlib` + `gleam_json`. |
+| Module                               | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/test/parity/json_value.gleam` | +144  | Self-describing JSON ADT (`JNull`, `JBool`, `JInt`, `JFloat`, `JString`, `JArray`, `JObject`) plus a recursive `from_dynamic` that round-trips `gleam/json`'s output, a deterministic `to_string` for diff-message rendering, and `field`/`index` helpers used by the JSONPath walker.                                                                                                                                                                                                                              |
+| `gleam/test/parity/jsonpath.gleam`   | +137  | Minimal JSONPath: `$`, `$.foo`, `$.foo.bar`, `$[N]`, `$.foo[N].bar`. No filters, no recursive descent, no wildcards — that's the entire vocabulary the parity specs use today. `lookup/2` parses + evaluates in one shot for the runner's hot path.                                                                                                                                                                                                                                                                 |
+| `gleam/test/parity/diff.gleam`       | +271  | Structural JsonValue diff (`Mismatch{path, expected, actual}`) with two `expectedDifferences` rule kinds: `IgnoreDifference{path}` and `MatcherDifference{path, matcher}`. Implements four matchers: `non-empty-string`, `any-string`, `any-number`, `iso-timestamp` (permissive `T…Z`/offset shape check), `shopify-gid:<Type>` (with optional `?shopify-draft-proxy=synthetic` suffix). Anything else is exact-string match. Path tracking matches the JSONPath grammar so rules can be addressed surgically.     |
+| `gleam/test/parity/spec.gleam`       | +148  | Decoder for parity-spec JSON: `Spec{scenario_id, capture_file, proxy_request, targets, expected_differences}`, `ProxyRequest{document_path, variables: VariablesFromCapture/VariablesFromFile/NoVariables}`, `Target{name, capture_path, proxy_path, expected_differences}`. The optional `ignore: true` field on a difference flips the rule kind to `IgnoreDifference`. Per-target `proxyRequest` overrides and `fromPrimaryProxyPath` variable derivation are intentionally not modelled yet.                    |
+| `gleam/test/parity/runner.gleam`     | +220  | Orchestration: load spec, load capture, read GraphQL document, resolve variables (capture-jsonpath or sibling-file), build `{"query":…,"variables":…}` envelope, drive `draft_proxy.process_request`, parse the response body back into `JsonValue`, compare each target's `capturePath` slice of the capture against the `proxyPath` slice of the response. Returns `Report{scenario_id, targets[*]: TargetReport{name, mismatches}}`. `RunnerConfig{repo_root}` defaults to `..` because tests run from `gleam/`. |
+| `gleam/test/parity_test.gleam`       | +73   | Six gleeunit tests, one per supported scenario, plus a runner self-check that confirms `into_assert` actually surfaces non-empty mismatch lists as failures (so the green tests can't be silent no-ops).                                                                                                                                                                                                                                                                                                            |
+| `gleam/gleam.toml`                   | +1    | Adds `simplifile = ">= 2.0.0 and < 3.0.0"` as a dev-only dependency. Filesystem reads are needed for the spec/capture/document files which sit outside the gleam project tree. Runtime deps stay at `gleam_stdlib` + `gleam_json`.                                                                                                                                                                                                                                                                                  |
 
 Test count: 511 → 517 (+6 — five parity scenarios + one runner
 self-check). Both targets green.
@@ -888,13 +890,13 @@ The MVP runner supports specs whose `comparison.targets[*]` reuse the
 spec's primary `proxyRequest` (no per-target overrides). That gives
 us, across the six ported domains:
 
-| Domain | Spec | Targets |
-| --- | --- | --- |
-| segments | `segment-create-invalid-query-validation` | 1 |
-| segments | `segment-update-unknown-id-validation` | 1 |
-| segments | `segment-delete-unknown-id-validation` | 1 |
-| webhooks | `webhook-subscription-catalog-read` | 1 |
-| apps | `delegate-access-token-current-input-local-staging` | 1 (uses `iso-timestamp` + `non-empty-string` matchers) |
+| Domain   | Spec                                                | Targets                                                |
+| -------- | --------------------------------------------------- | ------------------------------------------------------ |
+| segments | `segment-create-invalid-query-validation`           | 1                                                      |
+| segments | `segment-update-unknown-id-validation`              | 1                                                      |
+| segments | `segment-delete-unknown-id-validation`              | 1                                                      |
+| webhooks | `webhook-subscription-catalog-read`                 | 1                                                      |
+| apps     | `delegate-access-token-current-input-local-staging` | 1 (uses `iso-timestamp` + `non-empty-string` matchers) |
 
 `functions/functions-live-owner-metadata-read` was wired up but
 removed from the suite when the run surfaced a real seeding gap: the
@@ -937,7 +939,7 @@ read) are deferred until the runner gains seeding support.
 - **The proxy's user-error messages are byte-identical** to live
   Shopify for `Name can't be blank`, `Query can't be blank`,
   `Segment does not exist`, and the multi-error `'foo' filter cannot
-  be found.` shape. This is a non-trivial parity result — the
+be found.` shape. This is a non-trivial parity result — the
   segments port (Pass 20) caught the right error format on the first
   try, with no rework against the captured fixtures.
 - **GraphQL parse errors round-trip cleanly.** The webhook
@@ -1020,14 +1022,14 @@ matcher.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/state/types.gleam` | +9 | Adds `SegmentRecord` (`id: String`, `name/query/creation_date/last_edit_date: Option(String)`). Every field except `id` is nullable to match the Admin GraphQL schema. |
-| `src/shopify_draft_proxy/state/store.gleam` | +50 | Extends `BaseState` and `StagedState` with `segments: Dict(String, SegmentRecord)`, `segment_order: List(String)`, `deleted_segment_ids: Dict(String, Bool)`. Adds `upsert_staged_segment`, `delete_staged_segment`, `get_effective_segment_by_id`, `list_effective_segments` — modeled exactly on the saved-search slice (dict + order + deletion markers, where deletion markers suppress records in the effective getter). |
-| `src/shopify_draft_proxy/proxy/segments.gleam` | +1073 | New module. Public surface: `SegmentsError(ParseFailed)`, `is_segment_query_root`, `is_segment_mutation_root`, `handle_segments_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`, `normalize_segment_name`, `resolve_unique_segment_name`, `validate_segment_query`. Five hand-rolled string-shape matchers replace the TS regex set: `parse_supported_segment_query` (number_of_orders comparators + customer_tags CONTAINS), `customer_tags_contains_match`, `email_subscription_status_match`, `customer_tags_equals_match`, `email_equals_match`. |
-| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +25 | Wires `SegmentsDomain`: `Ok(SegmentsDomain) -> segments.process(…)` for queries, `segments.process_mutation(…)` for mutations, capability arms `Segments -> Ok(SegmentsDomain)` for both query/mutation, and the legacy fallback `segments.is_segment_query_root(name)` / `segments.is_segment_mutation_root(name)`. |
-| `test/shopify_draft_proxy/proxy/segments_test.gleam` | +153 | New file. 10 read-path tests covering the predicates, `segment(id:)` (record / missing / missing-arg / nullable fields), `segments(first:)` connection (empty / seeded), and `segmentsCount`. |
-| `test/shopify_draft_proxy/proxy/segments_mutation_test.gleam` | +220 | New file. 17 mutation tests covering all 3 mutation roots (success / blank-name / missing-id / blank-name-on-update / missing-query / invalid-query / customer_tags-equals-operator-error / name-only update preserves query), the `{"data": …}` envelope, the `resolveUniqueSegmentName` " (N)" suffix collision logic (single + double + self-rename-no-collision), and the `is_segment_mutation_root` predicate. |
+| Module                                                        | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/state/types.gleam`                   | +9    | Adds `SegmentRecord` (`id: String`, `name/query/creation_date/last_edit_date: Option(String)`). Every field except `id` is nullable to match the Admin GraphQL schema.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `src/shopify_draft_proxy/state/store.gleam`                   | +50   | Extends `BaseState` and `StagedState` with `segments: Dict(String, SegmentRecord)`, `segment_order: List(String)`, `deleted_segment_ids: Dict(String, Bool)`. Adds `upsert_staged_segment`, `delete_staged_segment`, `get_effective_segment_by_id`, `list_effective_segments` — modeled exactly on the saved-search slice (dict + order + deletion markers, where deletion markers suppress records in the effective getter).                                                                                                                                                           |
+| `src/shopify_draft_proxy/proxy/segments.gleam`                | +1073 | New module. Public surface: `SegmentsError(ParseFailed)`, `is_segment_query_root`, `is_segment_mutation_root`, `handle_segments_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`, `normalize_segment_name`, `resolve_unique_segment_name`, `validate_segment_query`. Five hand-rolled string-shape matchers replace the TS regex set: `parse_supported_segment_query` (number_of_orders comparators + customer_tags CONTAINS), `customer_tags_contains_match`, `email_subscription_status_match`, `customer_tags_equals_match`, `email_equals_match`. |
+| `src/shopify_draft_proxy/proxy/draft_proxy.gleam`             | +25   | Wires `SegmentsDomain`: `Ok(SegmentsDomain) -> segments.process(…)` for queries, `segments.process_mutation(…)` for mutations, capability arms `Segments -> Ok(SegmentsDomain)` for both query/mutation, and the legacy fallback `segments.is_segment_query_root(name)` / `segments.is_segment_mutation_root(name)`.                                                                                                                                                                                                                                                                    |
+| `test/shopify_draft_proxy/proxy/segments_test.gleam`          | +153  | New file. 10 read-path tests covering the predicates, `segment(id:)` (record / missing / missing-arg / nullable fields), `segments(first:)` connection (empty / seeded), and `segmentsCount`.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `test/shopify_draft_proxy/proxy/segments_mutation_test.gleam` | +220  | New file. 17 mutation tests covering all 3 mutation roots (success / blank-name / missing-id / blank-name-on-update / missing-query / invalid-query / customer_tags-equals-operator-error / name-only update preserves query), the `{"data": …}` envelope, the `resolveUniqueSegmentName` " (N)" suffix collision logic (single + double + self-rename-no-collision), and the `is_segment_mutation_root` predicate.                                                                                                                                                                     |
 
 **Test count: 484 → 511** (+27). Both targets clean (Erlang OTP 28 +
 JS ESM).
@@ -1138,9 +1140,9 @@ field, not nested under `segment` (the segment field projects to
   singleton slices that several other domains assume in their
   fallbacks. Could be a quick "infrastructure" pass.
 - **`customers`** (substrate only) — a `CustomerRecord` store slice
-  + the `customer(id:)` / `customers(...)` query roots, no mutations.
-  Would unblock the deferred Pass 20 surfaces (customer-segment
-  membership) and the deferred Pass 19 recipient-resolution path.
+  - the `customer(id:)` / `customers(...)` query roots, no mutations.
+    Would unblock the deferred Pass 20 surfaces (customer-segment
+    membership) and the deferred Pass 19 recipient-resolution path.
 
 Pass 21 should likely be **localization** — smallest delta, real
 consumer surface, and re-routes the Pass 19 currency fallback.
@@ -1167,14 +1169,14 @@ chain.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/state/types.gleam` | +59 | Adds `GiftCardTransactionRecord`, `GiftCardRecipientAttributesRecord`, `GiftCardRecord`, `GiftCardConfigurationRecord`. `GiftCardRecord` carries unsigned `Money` for both `initial_value` and `balance`; transaction signing for debits is the handler's responsibility. `recipient_attributes: Option(GiftCardRecipientAttributesRecord)` is `None` for cards minted without recipient input — the serializer falls back to a constructed attributes record built from `recipient_id`. |
-| `src/shopify_draft_proxy/state/store.gleam` | +130 | Extends `BaseState` and `StagedState` with three new fields: `gift_cards: Dict(String, GiftCardRecord)`, `gift_card_order: List(String)`, `gift_card_configuration: Option(GiftCardConfigurationRecord)`. Adds `stage_create_gift_card`, `stage_update_gift_card` (delegates to create — gift cards never delete), `get_effective_gift_card_by_id`, `list_effective_gift_cards`, `set_staged_gift_card_configuration`, `get_effective_gift_card_configuration` (falls back to `default_gift_card_configuration` — `0.0 CAD` for both limits, matching TS `getEffectiveGiftCardConfiguration` line 2618-2632 of `state/store.ts`). |
-| `src/shopify_draft_proxy/proxy/gift_cards.gleam` | +2185 | New module. Public surface: `GiftCardsError(ParseFailed)`, `is_gift_card_query_root`, `is_gift_card_mutation_root`, `handle_gift_card_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`. Inline serialization for `GiftCard` and `GiftCardTransaction` with manual `InlineFragment` + `FragmentSpread` handling against named-type conditions. Decimal helpers mirror TS `formatDecimalAmount` (round to 2dp, trim a single trailing zero, but never below `<int>.0`). Code helpers mirror TS `normalizeGiftCardCode` — when the caller omits `code`, mint `proxy<8-digit-zero-padded-id>`; `lastCharactersFromCode` returns the trailing 4 chars; `maskedCode` is `•••• •••• •••• <last4>` (Unicode bullet U+2022). |
-| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +20 | Wires the new dispatch arm: `Ok(GiftCardsDomain) -> gift_cards.process(…)` for queries and `gift_cards.process_mutation(…)` for mutations (signature: `store, identity, request_path, document, variables` — same shape as functions), the capability arms `GiftCards -> Ok(GiftCardsDomain)` for both query/mutation, and the legacy fallback `gift_cards.is_gift_card_query_root(name)` / `gift_cards.is_gift_card_mutation_root(name)`. |
-| `test/shopify_draft_proxy/proxy/gift_cards_test.gleam` | +250 | New file. 13 read-path tests covering `is_gift_card_query_root` / `is_gift_card_mutation_root`, `giftCard(id:)` (record / missing / missing-arg / balance / `disabledAt` <-> `deactivatedAt` aliasing), `giftCards(first:)` connection (empty / seeded), `giftCardsCount`, `giftCardConfiguration` default fallback, and the inline `transactions` connection projection. |
-| `test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam` | +260 | New file. 10 mutation tests covering all 7 mutation roots (success path), the `giftCardCreate { initialValue: 0 }` user-error path, the `{"data": …}` envelope, and the `is_gift_card_mutation_root` predicate. |
+| Module                                                          | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/state/types.gleam`                     | +59   | Adds `GiftCardTransactionRecord`, `GiftCardRecipientAttributesRecord`, `GiftCardRecord`, `GiftCardConfigurationRecord`. `GiftCardRecord` carries unsigned `Money` for both `initial_value` and `balance`; transaction signing for debits is the handler's responsibility. `recipient_attributes: Option(GiftCardRecipientAttributesRecord)` is `None` for cards minted without recipient input — the serializer falls back to a constructed attributes record built from `recipient_id`.                                                                                                                                                                                                                                                              |
+| `src/shopify_draft_proxy/state/store.gleam`                     | +130  | Extends `BaseState` and `StagedState` with three new fields: `gift_cards: Dict(String, GiftCardRecord)`, `gift_card_order: List(String)`, `gift_card_configuration: Option(GiftCardConfigurationRecord)`. Adds `stage_create_gift_card`, `stage_update_gift_card` (delegates to create — gift cards never delete), `get_effective_gift_card_by_id`, `list_effective_gift_cards`, `set_staged_gift_card_configuration`, `get_effective_gift_card_configuration` (falls back to `default_gift_card_configuration` — `0.0 CAD` for both limits, matching TS `getEffectiveGiftCardConfiguration` line 2618-2632 of `state/store.ts`).                                                                                                                     |
+| `src/shopify_draft_proxy/proxy/gift_cards.gleam`                | +2185 | New module. Public surface: `GiftCardsError(ParseFailed)`, `is_gift_card_query_root`, `is_gift_card_mutation_root`, `handle_gift_card_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`. Inline serialization for `GiftCard` and `GiftCardTransaction` with manual `InlineFragment` + `FragmentSpread` handling against named-type conditions. Decimal helpers mirror TS `formatDecimalAmount` (round to 2dp, trim a single trailing zero, but never below `<int>.0`). Code helpers mirror TS `normalizeGiftCardCode` — when the caller omits `code`, mint `proxy<8-digit-zero-padded-id>`; `lastCharactersFromCode` returns the trailing 4 chars; `maskedCode` is `•••• •••• •••• <last4>` (Unicode bullet U+2022). |
+| `src/shopify_draft_proxy/proxy/draft_proxy.gleam`               | +20   | Wires the new dispatch arm: `Ok(GiftCardsDomain) -> gift_cards.process(…)` for queries and `gift_cards.process_mutation(…)` for mutations (signature: `store, identity, request_path, document, variables` — same shape as functions), the capability arms `GiftCards -> Ok(GiftCardsDomain)` for both query/mutation, and the legacy fallback `gift_cards.is_gift_card_query_root(name)` / `gift_cards.is_gift_card_mutation_root(name)`.                                                                                                                                                                                                                                                                                                            |
+| `test/shopify_draft_proxy/proxy/gift_cards_test.gleam`          | +250  | New file. 13 read-path tests covering `is_gift_card_query_root` / `is_gift_card_mutation_root`, `giftCard(id:)` (record / missing / missing-arg / balance / `disabledAt` <-> `deactivatedAt` aliasing), `giftCards(first:)` connection (empty / seeded), `giftCardsCount`, `giftCardConfiguration` default fallback, and the inline `transactions` connection projection.                                                                                                                                                                                                                                                                                                                                                                             |
+| `test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam` | +260  | New file. 10 mutation tests covering all 7 mutation roots (success path), the `giftCardCreate { initialValue: 0 }` user-error path, the `{"data": …}` envelope, and the `is_gift_card_mutation_root` predicate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 **Test count: 461 → 484** (+23). Both targets clean (Erlang OTP 28 +
 JS ESM).
@@ -1249,7 +1251,7 @@ the first test pass and required adjusting expected output.
   `?shopify-draft-proxy=synthetic` suffix is part of the canonical
   id and round-trips through the store. Transactions mint via
   `makeSyntheticGid('GiftCardCreditTransaction' /
-  'GiftCardDebitTransaction')` — no suffix. Test fixtures must use
+'GiftCardDebitTransaction')` — no suffix. Test fixtures must use
   the right form or look-by-id misses.
 
 ### Risks / open items
@@ -1304,19 +1306,20 @@ mutation roots (`validationCreate` / `validationUpdate` /
 `ValidationRecord`, `CartTransformRecord`, and
 `TaxAppConfigurationRecord` shapes plus the per-record store slices,
 and threads the `FunctionsDomain` through the dispatcher (capability
-+ legacy fallback). The `MutationOutcome` shape carries through
-unchanged from apps/webhooks/saved-search.
+
+- legacy fallback). The `MutationOutcome` shape carries through
+  unchanged from apps/webhooks/saved-search.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/state/types.gleam` | +73 | Adds `ShopifyFunctionRecord`, `ValidationRecord`, `CartTransformRecord`, `TaxAppConfigurationRecord`. Comment on `ShopifyFunctionRecord` documents the deliberate omission of an `app: jsonObjectSchema.optional()` field — the proxy never mints app metadata locally so `app` projects to `null` until upstream hydration lands. |
-| `src/shopify_draft_proxy/state/store.gleam` | +334 | Extends `BaseState` and `StagedState` with 11 new fields: `shopify_functions` + order, `validations` + order + deletion markers, `cart_transforms` + order + deletion markers, `tax_app_configuration: Option(...)` (singleton — no order/deletion-markers). Adds `upsert_staged_shopify_function`, `get_effective_shopify_function_by_id`, `list_effective_shopify_functions` (no deletion markers; functions can't be deleted), `upsert_staged_validation`, `delete_staged_validation`, `get_effective_validation_by_id`, `list_effective_validations`, the cart_transform parallels, and `set_staged_tax_app_configuration` / `get_effective_tax_app_configuration`. |
-| `src/shopify_draft_proxy/proxy/functions.gleam` | +900 | New module. Public surface: `FunctionsError(ParseFailed)`, `is_function_query_root`, `is_function_mutation_root`, `handle_function_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`, `normalize_function_handle`, `shopify_function_id_from_handle`, `title_from_handle`. Mutation pipeline includes `ensure_shopify_function` (4-step lookup-or-mint: by id / by handle / by normalized handle / handle-derived-id, then mint), `FunctionReference` for capturing input function references, and the 6 per-root handlers. Read path serializes connections via the existing `paginate_connection_items` + `serialize_connection` infrastructure. |
-| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +6 | Wires the new dispatch arm: `Ok(FunctionsDomain) -> functions.process(…)` for queries and `functions.process_mutation(…)` for mutations (note: takes `request_path` only, NOT origin), the capability arms `Functions -> Ok(FunctionsDomain)`, and the legacy fallback `functions.is_function_query_root(name)` / `functions.is_function_mutation_root(name)`. |
-| `test/shopify_draft_proxy/proxy/functions_test.gleam` | +330 | New file. 19 read-path tests covering `is_function_query_root`, all 5 query roots, the `enable`/`enabled` aliasing on Validation, `functionId`-falls-back-to-`shopifyFunctionId`, the embedded `shopifyFunction` projection, the `apiType` filter on `shopifyFunctions`, and the `normalize_function_handle` / `shopify_function_id_from_handle` / `title_from_handle` helpers. |
-| `test/shopify_draft_proxy/proxy/functions_mutation_test.gleam` | +280 | New file. 18 mutation tests covering `is_function_mutation_root`, the `{"data": …}` envelope, all 6 mutation roots (success + user-error variants), the `ensure_shopify_function` reuse-existing path, the `validationCreate` enable/blockOnFailure defaults, and the `cartTransformCreate` top-level-args fallback (TS quirk). |
+| Module                                                         | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/state/types.gleam`                    | +73   | Adds `ShopifyFunctionRecord`, `ValidationRecord`, `CartTransformRecord`, `TaxAppConfigurationRecord`. Comment on `ShopifyFunctionRecord` documents the deliberate omission of an `app: jsonObjectSchema.optional()` field — the proxy never mints app metadata locally so `app` projects to `null` until upstream hydration lands.                                                                                                                                                                                                                                                                                                                                                  |
+| `src/shopify_draft_proxy/state/store.gleam`                    | +334  | Extends `BaseState` and `StagedState` with 11 new fields: `shopify_functions` + order, `validations` + order + deletion markers, `cart_transforms` + order + deletion markers, `tax_app_configuration: Option(...)` (singleton — no order/deletion-markers). Adds `upsert_staged_shopify_function`, `get_effective_shopify_function_by_id`, `list_effective_shopify_functions` (no deletion markers; functions can't be deleted), `upsert_staged_validation`, `delete_staged_validation`, `get_effective_validation_by_id`, `list_effective_validations`, the cart_transform parallels, and `set_staged_tax_app_configuration` / `get_effective_tax_app_configuration`.             |
+| `src/shopify_draft_proxy/proxy/functions.gleam`                | +900  | New module. Public surface: `FunctionsError(ParseFailed)`, `is_function_query_root`, `is_function_mutation_root`, `handle_function_query`, `wrap_data`, `process`, `process_mutation`, `MutationOutcome`, `UserError`, `normalize_function_handle`, `shopify_function_id_from_handle`, `title_from_handle`. Mutation pipeline includes `ensure_shopify_function` (4-step lookup-or-mint: by id / by handle / by normalized handle / handle-derived-id, then mint), `FunctionReference` for capturing input function references, and the 6 per-root handlers. Read path serializes connections via the existing `paginate_connection_items` + `serialize_connection` infrastructure. |
+| `src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | +6    | Wires the new dispatch arm: `Ok(FunctionsDomain) -> functions.process(…)` for queries and `functions.process_mutation(…)` for mutations (note: takes `request_path` only, NOT origin), the capability arms `Functions -> Ok(FunctionsDomain)`, and the legacy fallback `functions.is_function_query_root(name)` / `functions.is_function_mutation_root(name)`.                                                                                                                                                                                                                                                                                                                      |
+| `test/shopify_draft_proxy/proxy/functions_test.gleam`          | +330  | New file. 19 read-path tests covering `is_function_query_root`, all 5 query roots, the `enable`/`enabled` aliasing on Validation, `functionId`-falls-back-to-`shopifyFunctionId`, the embedded `shopifyFunction` projection, the `apiType` filter on `shopifyFunctions`, and the `normalize_function_handle` / `shopify_function_id_from_handle` / `title_from_handle` helpers.                                                                                                                                                                                                                                                                                                     |
+| `test/shopify_draft_proxy/proxy/functions_mutation_test.gleam` | +280  | New file. 18 mutation tests covering `is_function_mutation_root`, the `{"data": …}` envelope, all 6 mutation roots (success + user-error variants), the `ensure_shopify_function` reuse-existing path, the `validationCreate` enable/blockOnFailure defaults, and the `cartTransformCreate` top-level-args fallback (TS quirk).                                                                                                                                                                                                                                                                                                                                                     |
 
 **Test count: 424 → 461** (+37). Both targets clean (Erlang OTP 28 +
 JS ESM).
@@ -1374,7 +1377,7 @@ wrapper that prefixes with `gid://shopify/ShopifyFunction/`.
   (`webhooks`, `saved_searches`, `apps`, `functions`) now use the
   same shape. The boilerplate in each handler is identical: take
   store + identity, return `#(MutationFieldResult, Store,
-  SyntheticIdentityRegistry)`. Once the registry threading is in
+SyntheticIdentityRegistry)`. Once the registry threading is in
   muscle memory, mutation porting is mechanical.
 - **Singletons fit `Option` on the state slice.** Tax-app
   configuration is the first singleton resource in the port. No
@@ -1409,7 +1412,7 @@ wrapper that prefixes with `gid://shopify/ShopifyFunction/`.
 - **No metafield projection.** `Validation` and `CartTransform` both
   have `metafield`/`metafields` selections in TS that route through
   the metafields infrastructure. The Gleam port projects `metafield:
-  null` and `metafields: <empty connection>` — sufficient for the
+null` and `metafields: <empty connection>` — sufficient for the
   proxy's local-staging story but a real metafield hookup will need
   an additional pass.
 - **Pagination on connection roots ignores `first`/`after`.** Same
@@ -1481,14 +1484,14 @@ predicate `apps.is_app_mutation_root`.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/proxy/apps.gleam` | +1100 | Adds `MutationOutcome`, `UserError`, `is_app_mutation_root`, `process_mutation`, the 10 per-root handlers, `ensure_current_installation` (threading `(store, identity, origin) -> #(installation, store, identity)`), `default_app`, `confirmation_url`, `token_hash`, `token_preview`, `trailing_segment` (strips `?v=1&index=N` suffix from line item GIDs), `read_arg_bool`/`read_arg_int`/`read_money_input`/`read_line_item_plan`, `record_log` / `build_log_entry` (capability `domain: "apps"`, `execution: "stage-locally"`), 7 projection functions (`project_uninstall_payload`, `project_revoke_payload`, `project_delegate_create_payload`, `project_delegate_destroy_payload`, `project_purchase_create_payload`, `project_subscription_create_payload`, `project_subscription_payload` (alias), `project_usage_record_payload`), and `user_errors_source` / `user_error_to_source` (with optional `code` field for `UNKNOWN_SCOPES` / `ACCESS_TOKEN_NOT_FOUND`). |
-| `src/shopify_draft_proxy/crypto.gleam` | +18 | New cross-target hashing module. Single export: `sha256_hex(input: String) -> String`. |
-| `src/shopify_draft_proxy/crypto_ffi.erl` | +6 | Erlang shim: `crypto:hash(sha256, …)` + `binary:encode_hex(_, lowercase)`. |
-| `src/shopify_draft_proxy/crypto_ffi.mjs` | +5 | Node ESM shim: `createHash('sha256').update(s).digest('hex')`. Byte-identical to the Erlang side. |
-| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +5 | Wires the new dispatch arm: `Ok(AppsDomain) -> apps.process_mutation(…, origin, …)`, the capability arm `Apps -> Ok(AppsDomain)`, and the legacy fallback `apps.is_app_mutation_root(name)`. |
-| `test/shopify_draft_proxy/proxy/apps_mutation_test.gleam` | +476 | New test file. 19 tests covering `is_app_mutation_root`, the `{"data": …}` envelope, all 10 mutation roots (success + user-error variants), the default-app/installation auto-bootstrap, the sha256 round-trip via the same FFI shim the handler uses (declared with a relative path `../../shopify_draft_proxy/crypto_ffi.mjs` for the JS target). |
+| Module                                                    | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/shopify_draft_proxy/proxy/apps.gleam`                | +1100 | Adds `MutationOutcome`, `UserError`, `is_app_mutation_root`, `process_mutation`, the 10 per-root handlers, `ensure_current_installation` (threading `(store, identity, origin) -> #(installation, store, identity)`), `default_app`, `confirmation_url`, `token_hash`, `token_preview`, `trailing_segment` (strips `?v=1&index=N` suffix from line item GIDs), `read_arg_bool`/`read_arg_int`/`read_money_input`/`read_line_item_plan`, `record_log` / `build_log_entry` (capability `domain: "apps"`, `execution: "stage-locally"`), 7 projection functions (`project_uninstall_payload`, `project_revoke_payload`, `project_delegate_create_payload`, `project_delegate_destroy_payload`, `project_purchase_create_payload`, `project_subscription_create_payload`, `project_subscription_payload` (alias), `project_usage_record_payload`), and `user_errors_source` / `user_error_to_source` (with optional `code` field for `UNKNOWN_SCOPES` / `ACCESS_TOKEN_NOT_FOUND`). |
+| `src/shopify_draft_proxy/crypto.gleam`                    | +18   | New cross-target hashing module. Single export: `sha256_hex(input: String) -> String`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `src/shopify_draft_proxy/crypto_ffi.erl`                  | +6    | Erlang shim: `crypto:hash(sha256, …)` + `binary:encode_hex(_, lowercase)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `src/shopify_draft_proxy/crypto_ffi.mjs`                  | +5    | Node ESM shim: `createHash('sha256').update(s).digest('hex')`. Byte-identical to the Erlang side.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/shopify_draft_proxy/proxy/draft_proxy.gleam`         | +5    | Wires the new dispatch arm: `Ok(AppsDomain) -> apps.process_mutation(…, origin, …)`, the capability arm `Apps -> Ok(AppsDomain)`, and the legacy fallback `apps.is_app_mutation_root(name)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `test/shopify_draft_proxy/proxy/apps_mutation_test.gleam` | +476  | New test file. 19 tests covering `is_app_mutation_root`, the `{"data": …}` envelope, all 10 mutation roots (success + user-error variants), the default-app/installation auto-bootstrap, the sha256 round-trip via the same FFI shim the handler uses (declared with a relative path `../../shopify_draft_proxy/crypto_ffi.mjs` for the JS target).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 **Test count: 405 → 424** (+19). Both targets clean (Erlang OTP 28 +
 JS ESM).
@@ -1539,7 +1542,7 @@ URL, so it splits on `/` then on `?`.
 - **The MutationOutcome shape is the right abstraction.** Three
   domains now use it (`webhooks`, `saved_searches`, `apps`) with
   the same fields: `data: Json`, `store: Store`, `identity:
-  SyntheticIdentityRegistry`, `staged_resource_ids: List(String)`.
+SyntheticIdentityRegistry`, `staged_resource_ids: List(String)`.
   Threading `identity` through every handler is non-trivial — each
   GID mint or timestamp advances the registry — but the pattern is
   now muscle memory.
@@ -1609,11 +1612,11 @@ tests.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/proxy/apps.gleam` | +560 | New module. Surfaces: `AppsError`, `is_app_query_root`, `handle_app_query`, `wrap_data`, `process`. Internal: `serialize_root_fields` / `root_payload_for_field` dispatch, six per-root serializers, `app_to_source` / `app_installation_to_source` / `subscription_to_source` / `line_item_to_source` / `usage_record_to_source` / `one_time_purchase_to_source` / `access_scope_to_source` / `money_to_source` / `pricing_to_source` (the sum-type discriminator), three connection-source builders (`subscription_connection_source`, `one_time_purchase_connection_source`, `usage_record_connection_source`) plus a tiny shared `page_info_source`. |
-| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +18 | Wires `AppsDomain` into both the capability-driven dispatch (added `Apps -> Ok(AppsDomain)` to `capability_to_query_domain`) and the legacy fallback (`apps.is_app_query_root`). New `AppsDomain` variant on `Domain`. Added `import shopify_draft_proxy/proxy/apps`. |
-| `test/shopify_draft_proxy/proxy/apps_test.gleam` | +330 | 19 new tests: `is_app_query_root` predicate, all six query roots (happy path + missing/null), inline-fragment-based `__typename` split for `AppRecurringPricing` vs `AppUsagePricing`, child connections (active subscriptions array, oneTimePurchases connection, usageRecords connection), access-scope projection, and the `process` envelope wrap. Standard `run(store, query)` helper using `apps.handle_app_query`. |
+| Module                                            | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/proxy/apps.gleam`        | +560  | New module. Surfaces: `AppsError`, `is_app_query_root`, `handle_app_query`, `wrap_data`, `process`. Internal: `serialize_root_fields` / `root_payload_for_field` dispatch, six per-root serializers, `app_to_source` / `app_installation_to_source` / `subscription_to_source` / `line_item_to_source` / `usage_record_to_source` / `one_time_purchase_to_source` / `access_scope_to_source` / `money_to_source` / `pricing_to_source` (the sum-type discriminator), three connection-source builders (`subscription_connection_source`, `one_time_purchase_connection_source`, `usage_record_connection_source`) plus a tiny shared `page_info_source`. |
+| `src/shopify_draft_proxy/proxy/draft_proxy.gleam` | +18   | Wires `AppsDomain` into both the capability-driven dispatch (added `Apps -> Ok(AppsDomain)` to `capability_to_query_domain`) and the legacy fallback (`apps.is_app_query_root`). New `AppsDomain` variant on `Domain`. Added `import shopify_draft_proxy/proxy/apps`.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `test/shopify_draft_proxy/proxy/apps_test.gleam`  | +330  | 19 new tests: `is_app_query_root` predicate, all six query roots (happy path + missing/null), inline-fragment-based `__typename` split for `AppRecurringPricing` vs `AppUsagePricing`, child connections (active subscriptions array, oneTimePurchases connection, usageRecords connection), access-scope projection, and the `process` envelope wrap. Standard `run(store, query)` helper using `apps.handle_app_query`.                                                                                                                                                                                                                                |
 
 **Test count: 386 → 405** (+19). Both targets clean (Erlang OTP 28 +
 JS ESM).
@@ -1685,7 +1688,7 @@ record is built explicitly by name in the source builder.
   subscriptionCreate/Cancel/LineItemUpdate/TrialExtend,
   usageRecordCreate, revokeAccessScopes, uninstall,
   delegateAccessTokenCreate/Destroy. Each touches synthetic identity
-  + store + identity registry. Significant code volume.
+  - store + identity registry. Significant code volume.
 - **`ensureCurrentInstallation` deferred.** The lazy-bootstrap helper
   is used by 4 of the 10 mutations; it's not in this pass because
   the read path doesn't need it. The mutation pass will need to
@@ -1747,11 +1750,11 @@ ports are deferred to Pass 16+.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/state/types.gleam` | +130 | New types: `Money`, `AccessScopeRecord`, `AppRecord`, `AppSubscriptionPricing` (sum: `AppRecurringPricing` / `AppUsagePricing`), `AppSubscriptionLineItemPlan`, `AppSubscriptionLineItemRecord`, `AppSubscriptionRecord`, `AppOneTimePurchaseRecord`, `AppUsageRecord`, `DelegatedAccessTokenRecord`, `AppInstallationRecord`. |
-| `src/shopify_draft_proxy/state/store.gleam` | +400 | Seven new entity tables on `BaseState` / `StagedState` plus `current_installation_id` (Option). Helpers: `upsert_base_app`, `stage_app`, `get_effective_app_by_id`, `find_effective_app_by_handle`, `find_effective_app_by_api_key`, `list_effective_apps`, `upsert_base_app_installation` (atomic install + app), `stage_app_installation`, `get_effective_app_installation_by_id`, `get_current_app_installation`, `stage_app_subscription`, `get_effective_app_subscription_by_id`, `stage_app_subscription_line_item`, `get_effective_app_subscription_line_item_by_id`, `stage_app_one_time_purchase`, `get_effective_app_one_time_purchase_by_id`, `stage_app_usage_record`, `get_effective_app_usage_record_by_id`, `list_effective_app_usage_records_for_line_item`, `stage_delegated_access_token`, `find_delegated_access_token_by_hash`, `destroy_delegated_access_token`. |
-| `test/shopify_draft_proxy/state/store_test.gleam` | +180 | 11 new tests covering each entity table: upsert/stage/get, the two app lookups (by handle, by api_key), installation singleton bootstrap, the per-line-item usage-records filter, and the destroy-then-find round trip on delegated tokens. |
+| Module                                            | Lines | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/state/types.gleam`       | +130  | New types: `Money`, `AccessScopeRecord`, `AppRecord`, `AppSubscriptionPricing` (sum: `AppRecurringPricing` / `AppUsagePricing`), `AppSubscriptionLineItemPlan`, `AppSubscriptionLineItemRecord`, `AppSubscriptionRecord`, `AppOneTimePurchaseRecord`, `AppUsageRecord`, `DelegatedAccessTokenRecord`, `AppInstallationRecord`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/shopify_draft_proxy/state/store.gleam`       | +400  | Seven new entity tables on `BaseState` / `StagedState` plus `current_installation_id` (Option). Helpers: `upsert_base_app`, `stage_app`, `get_effective_app_by_id`, `find_effective_app_by_handle`, `find_effective_app_by_api_key`, `list_effective_apps`, `upsert_base_app_installation` (atomic install + app), `stage_app_installation`, `get_effective_app_installation_by_id`, `get_current_app_installation`, `stage_app_subscription`, `get_effective_app_subscription_by_id`, `stage_app_subscription_line_item`, `get_effective_app_subscription_line_item_by_id`, `stage_app_one_time_purchase`, `get_effective_app_one_time_purchase_by_id`, `stage_app_usage_record`, `get_effective_app_usage_record_by_id`, `list_effective_app_usage_records_for_line_item`, `stage_delegated_access_token`, `find_delegated_access_token_by_hash`, `destroy_delegated_access_token`. |
+| `test/shopify_draft_proxy/state/store_test.gleam` | +180  | 11 new tests covering each entity table: upsert/stage/get, the two app lookups (by handle, by api_key), installation singleton bootstrap, the per-line-item usage-records filter, and the destroy-then-find round trip on delegated tokens.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Tests: 386 / 386 on Erlang OTP 28 and JavaScript ESM. Net +11 tests
 (375 → 386); all new tests are in the existing `state/store_test`
@@ -1884,12 +1887,12 @@ goal is to lock in the shape before domain #3 has to copy it.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `src/shopify_draft_proxy/proxy/mutation_helpers.gleam` | +334 | New. Public surface: `RequiredArgument`, `validate_required_field_arguments`, `validate_required_id_argument`, `find_argument`, `build_missing_required_argument_error`, `build_null_argument_error`, `build_missing_variable_error`, `read_optional_string`, `read_optional_string_array`. |
-| `src/shopify_draft_proxy/proxy/webhooks.gleam` | −260 | Removed local copies of the validator + error builders + readers; `handle_delete` now calls `validate_required_id_argument` and destructures `#(resolved_id, errors)` instead of the local `DeleteIdValidation` record. |
-| `src/shopify_draft_proxy/proxy/saved_searches.gleam` | −10 | Removed local `read_optional_string`; imports the shared one. |
-| `test/shopify_draft_proxy/proxy/mutation_helpers_test.gleam` | +260 | New. 22 unit tests covering the validator (happy / missing / multi-missing-joined / null literal / unbound variable / null variable / bound variable), the id validator (literal / missing / null / bound variable / unbound variable), the three error-builder JSON shapes, and the readers (present / absent / wrong-type / list filter). |
+| Module                                                       | Lines | Notes                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/proxy/mutation_helpers.gleam`       | +334  | New. Public surface: `RequiredArgument`, `validate_required_field_arguments`, `validate_required_id_argument`, `find_argument`, `build_missing_required_argument_error`, `build_null_argument_error`, `build_missing_variable_error`, `read_optional_string`, `read_optional_string_array`.                                                 |
+| `src/shopify_draft_proxy/proxy/webhooks.gleam`               | −260  | Removed local copies of the validator + error builders + readers; `handle_delete` now calls `validate_required_id_argument` and destructures `#(resolved_id, errors)` instead of the local `DeleteIdValidation` record.                                                                                                                     |
+| `src/shopify_draft_proxy/proxy/saved_searches.gleam`         | −10   | Removed local `read_optional_string`; imports the shared one.                                                                                                                                                                                                                                                                               |
+| `test/shopify_draft_proxy/proxy/mutation_helpers_test.gleam` | +260  | New. 22 unit tests covering the validator (happy / missing / multi-missing-joined / null literal / unbound variable / null variable / bound variable), the id validator (literal / missing / null / bound variable / unbound variable), the three error-builder JSON shapes, and the readers (present / absent / wrong-type / list filter). |
 
 Tests: 375 / 375 on Erlang OTP 28 and JavaScript ESM. Net +22
 (353 → 375); all new tests are in the new module-level suite.
@@ -1935,7 +1938,7 @@ them now blocks the third copy.
 - **Parallel saved-searches / webhooks envelopes preserved on
   purpose.** Saved-searches still uses semantic `userErrors` for its
   validation failures; webhooks uses the structured top-level error
-  envelope. The two are *not* unified because the TS source
+  envelope. The two are _not_ unified because the TS source
   differentiates them — `saved-searches.ts` runs validation through
   a domain-specific `validate*` function that emits user errors,
   while `webhooks.ts` runs `validateRequiredFieldArguments` and emits
@@ -2001,12 +2004,12 @@ fallback paths.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `proxy/webhooks.gleam` | +600 | `process_mutation`, three handlers, validator, input readers, projection, log recording |
-| `proxy/draft_proxy.gleam` | +30 | `WebhooksDomain` mutation arm + `is_webhook_subscription_mutation_root` legacy fallback |
-| `test/proxy/webhooks_test.gleam` | +200 | 11 mutation tests (success, top-level errors, user errors, update/delete) |
-| `test/proxy/draft_proxy_test.gleam` | +50 | 3 end-to-end dispatcher tests for create/missing-topic/blank-uri |
+| Module                              | Lines | Notes                                                                                   |
+| ----------------------------------- | ----- | --------------------------------------------------------------------------------------- |
+| `proxy/webhooks.gleam`              | +600  | `process_mutation`, three handlers, validator, input readers, projection, log recording |
+| `proxy/draft_proxy.gleam`           | +30   | `WebhooksDomain` mutation arm + `is_webhook_subscription_mutation_root` legacy fallback |
+| `test/proxy/webhooks_test.gleam`    | +200  | 11 mutation tests (success, top-level errors, user errors, update/delete)               |
+| `test/proxy/draft_proxy_test.gleam` | +50   | 3 end-to-end dispatcher tests for create/missing-topic/blank-uri                        |
 
 353 tests on Erlang OTP 28 + JS ESM (was 339 prior to this pass). +14 net.
 
@@ -2016,7 +2019,7 @@ fallback paths.
 
 Mirrors the TS `handleWebhookSubscriptionMutation` entry point.
 Returns `Result(MutationOutcome, WebhooksError)`, where
-`MutationOutcome` carries `data: Json` (the *complete envelope*),
+`MutationOutcome` carries `data: Json` (the _complete envelope_),
 the updated `Store`, the threaded `SyntheticIdentityRegistry`, and
 `staged_resource_ids: List(String)`. Multiple mutation root fields
 in one document are folded across; per-field
@@ -2052,7 +2055,7 @@ identity registry and returns a `MutationFieldResult`. Shapes:
 
 **AST-level validator** (`validate_required_field_arguments`)
 
-The TS helper inspects `field.arguments` (the AST) — *not* the
+The TS helper inspects `field.arguments` (the AST) — _not_ the
 resolved value dict — to distinguish three cases that all manifest
 as "missing" downstream:
 
@@ -2183,13 +2186,13 @@ Pass 13.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `state/store.gleam` | +130 | Webhook fields on Base/Staged + 5 accessors mirroring saved-search slice |
-| `proxy/webhooks.gleam` | +280 | `handle_webhook_subscription_query`, `process`, root-field dispatch, projection helpers |
-| `proxy/draft_proxy.gleam` | +12 | New `WebhooksDomain` variant; capability + legacy fallback dispatch |
-| `test/state/store_test.gleam` | +90 | 6 tests for the new webhook slice (upsert / staged-overrides / delete / list ordering / reset) |
-| `test/proxy/webhooks_test.gleam` | +135 | 8 query-handler tests (single, connection, count, topic filter, endpoint typename projection, uri fallback, legacyResourceId, root predicate) |
+| Module                           | Lines | Notes                                                                                                                                         |
+| -------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state/store.gleam`              | +130  | Webhook fields on Base/Staged + 5 accessors mirroring saved-search slice                                                                      |
+| `proxy/webhooks.gleam`           | +280  | `handle_webhook_subscription_query`, `process`, root-field dispatch, projection helpers                                                       |
+| `proxy/draft_proxy.gleam`        | +12   | New `WebhooksDomain` variant; capability + legacy fallback dispatch                                                                           |
+| `test/state/store_test.gleam`    | +90   | 6 tests for the new webhook slice (upsert / staged-overrides / delete / list ordering / reset)                                                |
+| `test/proxy/webhooks_test.gleam` | +135  | 8 query-handler tests (single, connection, count, topic filter, endpoint typename projection, uri fallback, legacyResourceId, root predicate) |
 
 339 tests on Erlang OTP 28 + JS ESM (was 329 prior to this pass). +10 net.
 
@@ -2348,11 +2351,11 @@ testable and verifiable in isolation.
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `state/types.gleam` | +35 | `WebhookSubscriptionEndpoint` sum type (3 variants) + `WebhookSubscriptionRecord` |
-| `proxy/webhooks.gleam` | ~225 | URI marshaling, term matcher, filter+sort |
-| `test/proxy/webhooks_test.gleam` | ~370 | 32 tests covering URI round-trip, filters, sorting |
+| Module                           | Lines | Notes                                                                             |
+| -------------------------------- | ----- | --------------------------------------------------------------------------------- |
+| `state/types.gleam`              | +35   | `WebhookSubscriptionEndpoint` sum type (3 variants) + `WebhookSubscriptionRecord` |
+| `proxy/webhooks.gleam`           | ~225  | URI marshaling, term matcher, filter+sort                                         |
+| `test/proxy/webhooks_test.gleam` | ~370  | 32 tests covering URI round-trip, filters, sorting                                |
 
 323 tests on Erlang OTP 28 + JS ESM (was 291 after Pass 10). +32 net.
 
@@ -2384,7 +2387,7 @@ State types in `state/types.gleam`:
   (`gid://shopify/WebhookSubscription/123` → `"123"`).
 - `matches_webhook_term(record, term) -> Bool` — positive-term matcher
   for `apply_search_query_terms`, with case-folded field dispatch
-  covering `id` (exact match against full GID *or* legacy id),
+  covering `id` (exact match against full GID _or_ legacy id),
   `topic`, `format`, `uri` / `callbackurl` / `callback_url` /
   `endpoint`, `created_at` / `createdat`, `updated_at` / `updatedat`,
   and a no-field fallback that text-searches id+topic+format.
@@ -2394,7 +2397,7 @@ State types in `state/types.gleam`:
   composable optional filters; when all three are `None` / `[]` the
   list is returned unchanged.
 - `WebhookSubscriptionSortKey` enum (`CreatedAtKey | UpdatedAtKey |
-  TopicKey | IdKey`) plus `parse_sort_key` (case-insensitive, unknown
+TopicKey | IdKey`) plus `parse_sort_key` (case-insensitive, unknown
   values fall through to `IdKey`) and
   `sort_webhook_subscriptions_for_connection(records, key, reverse)`
   with stable tiebreak on the GID's numeric tail via
@@ -2451,6 +2454,7 @@ State types in `state/types.gleam`:
 ### Recommendation
 
 Pass 12 should land the remaining webhooks pieces:
+
 1. Add `Webhooks` to `CapabilityDomain` in `operation_registry`.
 2. Extend `Store` with `list_effective_webhook_subscriptions` and
    `get_effective_webhook_subscription_by_id`.
@@ -2478,12 +2482,12 @@ customers — every domain that takes a `query`).
 
 ### Module table
 
-| Module | Lines | Notes |
-| --- | --- | --- |
-| `shopify_draft_proxy/search_query_parser.gleam` | ~750 | Tokenizer + recursive-descent parser, generic match/apply helpers |
-| `shopify_draft_proxy/shopify/resource_ids.gleam` | ~50 | GID numeric ordering + nullable string compare |
-| `test/search_query_parser_test.gleam` | ~520 | 52 tests across term parsing, matching, term lists, parser, generics |
-| `test/shopify/resource_ids_test.gleam` | ~85 | 8 tests covering numeric/lexicographic/nullable ordering |
+| Module                                           | Lines | Notes                                                                |
+| ------------------------------------------------ | ----- | -------------------------------------------------------------------- |
+| `shopify_draft_proxy/search_query_parser.gleam`  | ~750  | Tokenizer + recursive-descent parser, generic match/apply helpers    |
+| `shopify_draft_proxy/shopify/resource_ids.gleam` | ~50   | GID numeric ordering + nullable string compare                       |
+| `test/search_query_parser_test.gleam`            | ~520  | 52 tests across term parsing, matching, term lists, parser, generics |
+| `test/shopify/resource_ids_test.gleam`           | ~85   | 8 tests covering numeric/lexicographic/nullable ordering             |
 
 291 tests on Erlang OTP 28 + JS ESM (was 239 after Pass 9). +52 net.
 
@@ -2602,10 +2606,10 @@ existing tests keep passing while new code can opt in.
 
 ### Module table
 
-| Module | Change |
-| --- | --- |
-| `proxy/draft_proxy.gleam` | +`registry` field + `with_registry` setter; `query_domain_for` / `mutation_domain_for` try capability first, fall back to legacy predicates |
-| `test/proxy/draft_proxy_test.gleam` | +3 tests covering capability-driven dispatch with a synthetic 3-entry registry |
+| Module                              | Change                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy/draft_proxy.gleam`           | +`registry` field + `with_registry` setter; `query_domain_for` / `mutation_domain_for` try capability first, fall back to legacy predicates |
+| `test/proxy/draft_proxy_test.gleam` | +3 tests covering capability-driven dispatch with a synthetic 3-entry registry                                                              |
 
 231 tests on Erlang OTP 28 + JS ESM (was 228).
 
@@ -2614,10 +2618,10 @@ existing tests keep passing while new code can opt in.
 - `DraftProxy.registry: List(RegistryEntry)` — defaults to `[]` so
   `proxy.new()` keeps the Pass 1–8 behavior; `proxy.with_registry(r)`
   attaches a parsed registry.
-- Capability resolution is the *first* check in dispatch. When the
+- Capability resolution is the _first_ check in dispatch. When the
   registry is non-empty and `get_operation_capability` returns a
   recognised domain (`Events`, `SavedSearches`, `ShippingFulfillments`),
-  routing keys off it. When the registry is empty *or* the capability
+  routing keys off it. When the registry is empty _or_ the capability
   is `Unknown`, the dispatcher falls through to
   `legacy_query_domain_for` / `legacy_mutation_domain_for` (the old
   predicate-based code).
@@ -2661,6 +2665,7 @@ existing tests keep passing while new code can opt in.
 ### Recommendation
 
 Pass 10 candidates:
+
 1. Add a JS/Erlang FFI loader so `from_config(path) -> DraftProxy`
    reads the registry and attaches it in one call. Wires the proxy
    for "real" use without leaving registry plumbing on the consumer.
@@ -2695,12 +2700,12 @@ pass replace those with a single registry walk.
 
 ### Module table
 
-| Module | LOC | Status |
-| --- | --- | --- |
-| `proxy/operation_registry.gleam` | 220 | New: parser + lookup helpers |
-| `proxy/capabilities.gleam` | 165 | New: `get_operation_capability` |
-| `test/proxy/operation_registry_test.gleam` | 120 | 9 tests |
-| `test/proxy/capabilities_test.gleam` | 165 | 10 tests |
+| Module                                     | LOC | Status                          |
+| ------------------------------------------ | --- | ------------------------------- |
+| `proxy/operation_registry.gleam`           | 220 | New: parser + lookup helpers    |
+| `proxy/capabilities.gleam`                 | 165 | New: `get_operation_capability` |
+| `test/proxy/operation_registry_test.gleam` | 120 | 9 tests                         |
+| `test/proxy/capabilities_test.gleam`       | 165 | 10 tests                        |
 
 228 gleeunit tests passing on Erlang OTP 28 and JS ESM (was 209). The
 production registry JSON (666 entries) decodes cleanly through the
@@ -2780,7 +2785,7 @@ compiled module.
   `parse_domain` is caught by the decoder, not at runtime).
 - **`decode.optional_field` semantics differ from `decode.field`.**
   `optional_field("k", default, inner)` returns `default` only when the
-  key is *absent*. To also accept explicit `null`, the inner decoder
+  key is _absent_. To also accept explicit `null`, the inner decoder
   must be `decode.optional(...)`, which itself returns `None` for
   null. The combination handles both shapes.
 - **Operation-name resolution is delicate.** The `operationNameEntry`
@@ -2854,10 +2859,10 @@ normalization + JSON shape coercion) which is its own port.
 
 ### Module table
 
-| Module | LOC | Status |
-| --- | --- | --- |
-| `proxy/metafields.gleam` | 188 | New: `MetafieldRecordCore`, compare-digest builder, projection + connection helpers |
-| `test/proxy/metafields_test.gleam` | 130 | 11 unit tests |
+| Module                             | LOC | Status                                                                              |
+| ---------------------------------- | --- | ----------------------------------------------------------------------------------- |
+| `proxy/metafields.gleam`           | 188 | New: `MetafieldRecordCore`, compare-digest builder, projection + connection helpers |
+| `test/proxy/metafields_test.gleam` | 130 | 11 unit tests                                                                       |
 
 209 gleeunit tests passing on Erlang OTP 28 and JS ESM (was 198).
 
@@ -2870,7 +2875,7 @@ normalization + JSON shape coercion) which is its own port.
   upstream record holds.
 - `make_metafield_compare_digest` — `draft:` prefix + base64url of a
   6-element JSON array `[namespace, key, type, value, jsonValue,
-  updatedAt]`. Mirrors `Buffer.toString('base64url')` semantics
+updatedAt]`. Mirrors `Buffer.toString('base64url')` semantics
   (no padding) using `bit_array.base64_url_encode(_, False)`.
 - `serialize_metafield_selection_set` — projects a metafield record
   onto a list of selection nodes. All 12 fields the TS handler
@@ -2922,11 +2927,11 @@ normalization + JSON shape coercion) which is its own port.
   AST builder/literal syntax. Acceptable — every test is one line of
   `first_root_field("{ root { ... } }")` plumbing.
 - **The connection helper is genuinely reusable.** `paginate_connection_items`
-  + `serialize_connection` did not need any modification to support
-  the new metafields shape. This is the same helper saved-searches
-  uses, and it slotted in for metafields with no friction. Strong
-  evidence that the substrate's connection abstraction is correctly
-  factored.
+  - `serialize_connection` did not need any modification to support
+    the new metafields shape. This is the same helper saved-searches
+    uses, and it slotted in for metafields with no friction. Strong
+    evidence that the substrate's connection abstraction is correctly
+    factored.
 
 ### Risks unchanged / new
 
@@ -2987,12 +2992,12 @@ into `root_field.get_field_arguments` were missing.
 
 ### Module table
 
-| Module | LOC delta | Status |
-| --- | --- | --- |
-| `proxy/draft_proxy.gleam` | +25 | Variables decoder + threading |
-| `proxy/saved_searches.gleam` | +14 | Variables on every public + private handler |
-| `test/proxy/saved_searches_test.gleam` | +3 | Updated 3 call sites with `dict.new()` |
-| `test/proxy/draft_proxy_test.gleam` | +37 | 3 new tests covering create-with-vars, query-with-vars, omitted-vars |
+| Module                                 | LOC delta | Status                                                               |
+| -------------------------------------- | --------- | -------------------------------------------------------------------- |
+| `proxy/draft_proxy.gleam`              | +25       | Variables decoder + threading                                        |
+| `proxy/saved_searches.gleam`           | +14       | Variables on every public + private handler                          |
+| `test/proxy/saved_searches_test.gleam` | +3        | Updated 3 call sites with `dict.new()`                               |
+| `test/proxy/draft_proxy_test.gleam`    | +37       | 3 new tests covering create-with-vars, query-with-vars, omitted-vars |
 
 198 gleeunit tests passing on Erlang OTP 28 and JS ESM.
 
@@ -3111,10 +3116,10 @@ integration tests).
 
 ### What is additionally ported and working
 
-| Module                              | LOC   | TS counterpart                              |
-| ----------------------------------- | ----- | ------------------------------------------- |
-| `proxy/saved_searches` (extended)   | ~1110 | `proxy/saved-searches` (CRUD, ~75%)         |
-| `test/.../draft_proxy_test`         | ~585  | parity tests (CRUD coverage)                |
+| Module                            | LOC   | TS counterpart                      |
+| --------------------------------- | ----- | ----------------------------------- |
+| `proxy/saved_searches` (extended) | ~1110 | `proxy/saved-searches` (CRUD, ~75%) |
+| `test/.../draft_proxy_test`       | ~585  | parity tests (CRUD coverage)        |
 
 Update flow: read input, resolve `input.id` via
 `store.get_effective_saved_search_by_id` (staged-wins-over-base);
@@ -3166,7 +3171,7 @@ match-arm change plus the handlers themselves.
   `MutationOutcome` record absorbed the new staged/failed mix without
   new fields.
 - **`Option(SavedSearchRecord)` + `case existing { Some(...) -> ...
-  None -> ... }` reads better than the TS `??` fallback chain.**
+None -> ... }` reads better than the TS `??` fallback chain.**
   Each field of the merged record has its own explicit fallback
   expression instead of a chained `?? existing?.field ?? ''`. The
   handful of extra lines is worth the readability.
@@ -3199,7 +3204,7 @@ match-arm change plus the handlers themselves.
 - **`state/store.ts` still has ~5450 LOC unported.** Each subsequent
   domain pass eats into this; the saved-search slice is now load-
   bearing under a CRUD workload, which validates the dict-of-records
-  + parallel order-list pattern for other domains.
+  - parallel order-list pattern for other domains.
 
 ### Recommendation
 
@@ -3219,8 +3224,9 @@ After variables: pick a write-capable domain that touches enough of
 the store to force a second store slice. `customers` is a good
 candidate (write surface includes `customerCreate`, `customerUpdate`,
 `customerDelete`, with rich nested input shapes that need variables
-+ store coverage; the read path also pages, so the pagination
-substrate gets re-exercised).
+
+- store coverage; the read path also pages, so the pagination
+  substrate gets re-exercised).
 
 ---
 
@@ -3239,12 +3245,12 @@ record. 189 gleeunit tests pass on both `--target erlang` and
 
 ### What is additionally ported and working
 
-| Module                              | LOC  | TS counterpart                              |
-| ----------------------------------- | ---- | ------------------------------------------- |
-| `state/types`                       | ~35  | `state/types` (saved-search slice)          |
-| `state/store`                       | ~350 | `state/store` (saved-search slice + log)    |
-| `proxy/saved_searches` (extended)   | ~860 | `proxy/saved-searches` (read + create, ~60%)|
-| `proxy/draft_proxy` (extended)      | ~590 | dispatcher: store-threaded, mutation route  |
+| Module                            | LOC  | TS counterpart                               |
+| --------------------------------- | ---- | -------------------------------------------- |
+| `state/types`                     | ~35  | `state/types` (saved-search slice)           |
+| `state/store`                     | ~350 | `state/store` (saved-search slice + log)     |
+| `proxy/saved_searches` (extended) | ~860 | `proxy/saved-searches` (read + create, ~60%) |
+| `proxy/draft_proxy` (extended)    | ~590 | dispatcher: store-threaded, mutation route   |
 
 `state/store` ports the saved-search slice of `BaseState` /
 `StagedState` (the maps, the order arrays, and the
@@ -3320,7 +3326,7 @@ empty-state placeholders Pass 2 shipped.
   `store.list_effective_saved_searches(store)` parses as field access
   on the value. Resolved by importing the function directly:
   `import shopify_draft_proxy/state/store.{type Store,
-  list_effective_saved_searches}`. Worth keeping in mind for every
+list_effective_saved_searches}`. Worth keeping in mind for every
   module whose name overlaps with the natural parameter name.
 - **Extracting `state/types.gleam` for `SavedSearchRecord` /
   `SavedSearchFilter` was necessary** to break a cycle between
@@ -3329,8 +3335,8 @@ empty-state placeholders Pass 2 shipped.
   suit.
 - **Synthetic identity threading exposes counter-coupling between
   identity-using functions.** Every gid mint advances the
-  `next_synthetic_id` counter, so mutations that mint *both* a
-  resource gid *and* a log-entry gid produce predictable id pairs
+  `next_synthetic_id` counter, so mutations that mint _both_ a
+  resource gid _and_ a log-entry gid produce predictable id pairs
   (`SavedSearch/1`, `MutationLogEntry/2`). Tests can lean on this
   determinism, but any reordering of mints inside a handler will
   shift downstream ids. The TS version has the same property; the
@@ -3388,11 +3394,11 @@ search-query parser are deferred. 171 gleeunit tests pass on both
 
 ### What is additionally ported and working
 
-| Module                              | LOC  | TS counterpart                              |
-| ----------------------------------- | ---- | ------------------------------------------- |
-| `proxy/graphql_helpers` (extended)  | ~700 | `proxy/graphql-helpers` (~70%)              |
-| `proxy/saved_searches`              | ~310 | `proxy/saved-searches` (read path, ~30%)    |
-| `proxy/draft_proxy` (extended)      | ~360 | dispatcher branch added                     |
+| Module                             | LOC  | TS counterpart                           |
+| ---------------------------------- | ---- | ---------------------------------------- |
+| `proxy/graphql_helpers` (extended) | ~700 | `proxy/graphql-helpers` (~70%)           |
+| `proxy/saved_searches`             | ~310 | `proxy/saved-searches` (read path, ~30%) |
+| `proxy/draft_proxy` (extended)     | ~360 | dispatcher branch added                  |
 
 `proxy/graphql_helpers` now has the full pagination pipeline:
 `paginate_connection_items`, `serialize_connection`,
@@ -3436,7 +3442,7 @@ records. `proxy/saved_searches` ports the static `ORDER` and
   for argument reading. `paginate_connection_items` accepts
   `Dict(String, ResolvedValue)` (matching the TS variables shape) and
   re-uses `root_field.get_field_arguments` to pull `first/last/after/
-  before/query/reverse` out of the field. No duplicate decoder.
+before/query/reverse` out of the field. No duplicate decoder.
 - **Adding a domain stays a 5-minute, two-file change** even now that
   the dispatcher has a connection-shaped domain in it. The
   `domain_for` lookup composes cleanly with
@@ -3452,7 +3458,7 @@ records. `proxy/saved_searches` ports the static `ORDER` and
 ### Risks unchanged / new
 
 - **Store remains the long pole** and is now blocking saved-search
-  *mutations* and *staged reads*. The next bottleneck-driven domain
+  _mutations_ and _staged reads_. The next bottleneck-driven domain
   port should be one whose read path also exercises the store, so we
   can stop kicking the can on `state/store.ts`.
 - **The search-query parser is a self-contained 480-LOC port** that
@@ -3465,7 +3471,7 @@ records. `proxy/saved_searches` ports the static `ORDER` and
 
 The substrate now covers: routing, parsing, projection, pagination,
 connection serialisation, fragment inlining, and synthetic identity.
-That is enough to port any *read-only* domain with non-trivial
+That is enough to port any _read-only_ domain with non-trivial
 defaults. The next pass should either (a) port `state/store.ts`
 slice-by-slice, starting with the saved-search slice so this domain
 can reach full parity, or (b) port `search-query-parser.ts` so the
@@ -3484,11 +3490,11 @@ read-only domain to validate the dispatcher extension pattern.
 
 ### What is additionally ported and working
 
-| Module                            | LOC  | TS counterpart                  |
-| --------------------------------- | ---- | ------------------------------- |
-| `proxy/graphql_helpers` (extended)| ~340 | `proxy/graphql-helpers` (~40%)  |
-| `proxy/draft_proxy` (extended)    | ~340 | `proxy-instance` + `proxy/routes` (meta + dispatcher) |
-| `proxy/delivery_settings`         | ~90  | `proxy/delivery-settings`       |
+| Module                             | LOC  | TS counterpart                                        |
+| ---------------------------------- | ---- | ----------------------------------------------------- |
+| `proxy/graphql_helpers` (extended) | ~340 | `proxy/graphql-helpers` (~40%)                        |
+| `proxy/draft_proxy` (extended)     | ~340 | `proxy-instance` + `proxy/routes` (meta + dispatcher) |
+| `proxy/delivery_settings`          | ~90  | `proxy/delivery-settings`                             |
 
 `proxy/graphql_helpers` now has `project_graphql_object`,
 `project_graphql_value`, and `get_document_fragments` — the recursive
@@ -3506,7 +3512,7 @@ extension point per new domain (`Domain` sum type +
   projection, `nodes`-from-`edges` synthesis, and aliases all
   translated without surprises. The `SourceValue` sum type
   (`SrcNull | SrcString | SrcBool | SrcInt | SrcFloat | SrcList |
-  SrcObject`) is the Gleam analogue of TypeScript's
+SrcObject`) is the Gleam analogue of TypeScript's
   `Record<string, unknown>` and reads cleanly in handler code.
 - **Adding a new domain is now a 5-minute, two-file change.** Port
   the TS handler to Gleam (typically a thin wrapper around
@@ -3542,20 +3548,20 @@ strengths and risks rather than speculate.
 
 ### What is ported and working
 
-| Module                            | LOC  | TS counterpart                  |
-| --------------------------------- | ---- | ------------------------------- |
-| `graphql/source` + `location`     | ~80  | `language/source`, `location`   |
-| `graphql/token_kind` + `token`    | ~70  | `language/tokenKind`, `tokenKind`|
-| `graphql/character_classes`       | ~60  | `language/characterClasses`     |
-| `graphql/lexer`                   | ~530 | `language/lexer`                |
-| `graphql/ast`                     | ~140 | `language/ast` (executable subset) |
-| `graphql/parser`                  | ~720 | `language/parser`               |
-| `graphql/parse_operation`         | ~100 | `graphql/parse-operation`       |
-| `graphql/root_field`              | ~200 | `graphql/root-field`            |
-| `state/synthetic_identity` + FFI  | ~180 | `state/synthetic-identity`      |
-| `proxy/graphql_helpers` (slice)   | ~110 | `proxy/graphql-helpers` (15%)   |
-| `proxy/events`                    | ~80  | `proxy/events`                  |
-| `proxy/draft_proxy` (skeleton)    | ~190 | `proxy-instance` + `proxy/routes` (skeleton) |
+| Module                           | LOC  | TS counterpart                               |
+| -------------------------------- | ---- | -------------------------------------------- |
+| `graphql/source` + `location`    | ~80  | `language/source`, `location`                |
+| `graphql/token_kind` + `token`   | ~70  | `language/tokenKind`, `tokenKind`            |
+| `graphql/character_classes`      | ~60  | `language/characterClasses`                  |
+| `graphql/lexer`                  | ~530 | `language/lexer`                             |
+| `graphql/ast`                    | ~140 | `language/ast` (executable subset)           |
+| `graphql/parser`                 | ~720 | `language/parser`                            |
+| `graphql/parse_operation`        | ~100 | `graphql/parse-operation`                    |
+| `graphql/root_field`             | ~200 | `graphql/root-field`                         |
+| `state/synthetic_identity` + FFI | ~180 | `state/synthetic-identity`                   |
+| `proxy/graphql_helpers` (slice)  | ~110 | `proxy/graphql-helpers` (15%)                |
+| `proxy/events`                   | ~80  | `proxy/events`                               |
+| `proxy/draft_proxy` (skeleton)   | ~190 | `proxy-instance` + `proxy/routes` (skeleton) |
 
 Roughly **2.5K LOC of Gleam** replacing roughly the same TS surface,
 with FFI proven on both targets via the ISO timestamp helpers.
@@ -3575,7 +3581,7 @@ with FFI proven on both targets via the ISO timestamp helpers.
   JS, including FFI-bound timestamp formatting. The platform-specific
   cost was small (one `.erl` + one `.mjs` file, ~10 lines each).
 - **Public API translates 1:1.** `process_request(request) ->
-  (response, proxy)` mirrors the TS `processRequest`, with the
+(response, proxy)` mirrors the TS `processRequest`, with the
   registry threaded explicitly to preserve immutability — no design
   compromise required.
 

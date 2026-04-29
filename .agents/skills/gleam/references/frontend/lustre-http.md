@@ -1,6 +1,6 @@
 # HTTP Requests with rsvp
 
-rsvp separates *making* HTTP requests from *handling* their responses. You define a `Handler(msg)` that describes how to process the response, then combine it with a request function to get an `effect.Effect(msg)`.
+rsvp separates _making_ HTTP requests from _handling_ their responses. You define a `Handler(msg)` that describes how to process the response, then combine it with a request function to get an `effect.Effect(msg)`.
 
 ## Handler Constructors
 

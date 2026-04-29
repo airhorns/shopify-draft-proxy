@@ -59,6 +59,7 @@ DROP TABLE IF EXISTS tenant.example;
 ```
 
 **Rules:**
+
 - `--- migration:up` — everything after this line runs on `all`
 - `--- migration:down` — everything after this line runs on `down`
 - `--- migration:end` — marks end of file (required)

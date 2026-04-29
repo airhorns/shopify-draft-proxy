@@ -5,6 +5,7 @@
 **NEVER silently discard errors.** Silent error discards make debugging impossible.
 
 - **NEVER write `Error(_) ->`** — always bind the error and log it:
+
   ```gleam
   // WRONG
   Error(_) -> default_value
@@ -17,6 +18,7 @@
   ```
 
 - **NEVER write `fn(_err) {`** in error handlers — bind and log:
+
   ```gleam
   // WRONG
   result.map_error(fn(_) { ServerError("parse failed") })

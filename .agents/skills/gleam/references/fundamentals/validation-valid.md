@@ -75,6 +75,7 @@ pub fn validate(
 ```
 
 Runs a validator and converts the result tuple into a standard `Result`:
+
 - Empty error list -> `Ok(output)`
 - Non-empty error list -> `Error(errors)`
 

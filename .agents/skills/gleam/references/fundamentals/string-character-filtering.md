@@ -60,14 +60,14 @@ pub fn sanitize_display_string(raw: String) -> String {
 
 Gleam does NOT support these common escape sequences:
 
-| Sequence | Meaning | How to Use in Gleam |
-|----------|---------|---------------------|
-| `\0` | Null byte | `string.utf_codepoint(0)` |
-| `\n` | Newline | Use actual newline in multiline string, or `string.utf_codepoint(10)` |
-| `\t` | Tab | Use actual tab, or `string.utf_codepoint(9)` |
-| `\r` | Carriage return | `string.utf_codepoint(13)` |
-| `\\` | Backslash | Works! Gleam supports `\\` for literal backslash |
-| `\"` | Quote | Works! Gleam supports `\"` for quotes in strings |
+| Sequence | Meaning         | How to Use in Gleam                                                   |
+| -------- | --------------- | --------------------------------------------------------------------- |
+| `\0`     | Null byte       | `string.utf_codepoint(0)`                                             |
+| `\n`     | Newline         | Use actual newline in multiline string, or `string.utf_codepoint(10)` |
+| `\t`     | Tab             | Use actual tab, or `string.utf_codepoint(9)`                          |
+| `\r`     | Carriage return | `string.utf_codepoint(13)`                                            |
+| `\\`     | Backslash       | Works! Gleam supports `\\` for literal backslash                      |
+| `\"`     | Quote           | Works! Gleam supports `\"` for quotes in strings                      |
 
 ## Pattern: Codepoint Filtering Pipeline
 

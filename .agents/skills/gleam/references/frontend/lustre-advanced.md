@@ -120,18 +120,18 @@ Most Lustre work requires zero FFI. The framework provides pure Gleam APIs backe
 
 ### Framework-Provided (Pure Gleam, No FFI Needed)
 
-| Gleam function | What it does behind the scenes |
-|---|---|
-| `lustre.register(app, tag)` | `customElements.define()` |
-| `lustre.start(app, selector, flags)` | Mounts SPA to DOM |
-| `lustre.is_browser()` / `lustre.is_registered(name)` | Runtime target detection |
-| `effect.before_paint(fn(dispatch, root))` | Schedule before browser paint (receives shadow root as `Dynamic`) |
-| `effect.after_paint(fn(dispatch, root))` | Schedule after browser paint |
-| `effect.provide(key, json)` | Set context on custom element |
-| `component.set_pseudo_state(value)` / `remove_pseudo_state(value)` | CSS custom states via `ElementInternals` |
-| `component.set_form_value(value)` / `clear_form_value()` | Form-associated element values |
-| `event.emit(name, data)` | `CustomEvent` dispatch |
-| `event.advanced(name, decoder)` | Event handler with `prevent_default`/`stop_propagation` |
+| Gleam function                                                     | What it does behind the scenes                                    |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `lustre.register(app, tag)`                                        | `customElements.define()`                                         |
+| `lustre.start(app, selector, flags)`                               | Mounts SPA to DOM                                                 |
+| `lustre.is_browser()` / `lustre.is_registered(name)`               | Runtime target detection                                          |
+| `effect.before_paint(fn(dispatch, root))`                          | Schedule before browser paint (receives shadow root as `Dynamic`) |
+| `effect.after_paint(fn(dispatch, root))`                           | Schedule after browser paint                                      |
+| `effect.provide(key, json)`                                        | Set context on custom element                                     |
+| `component.set_pseudo_state(value)` / `remove_pseudo_state(value)` | CSS custom states via `ElementInternals`                          |
+| `component.set_form_value(value)` / `clear_form_value()`           | Form-associated element values                                    |
+| `event.emit(name, data)`                                           | `CustomEvent` dispatch                                            |
+| `event.advanced(name, decoder)`                                    | Event handler with `prevent_default`/`stop_propagation`           |
 
 ### When FFI IS Appropriate
 
@@ -158,6 +158,7 @@ my_component/
 ```
 
 Rules:
+
 - Wrap all DOM operations in a Gleam module with typed functions
 - Use opaque types (e.g., `HtmlElement`) to prevent raw DOM manipulation
 - Return `Result` for operations that can fail (querySelector, attribute access)

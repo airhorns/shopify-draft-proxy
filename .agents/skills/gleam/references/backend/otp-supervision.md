@@ -82,11 +82,11 @@ type Strategy {
 }
 ```
 
-| Strategy | Use When | Example |
-|----------|----------|---------|
-| `OneForOne` | Children are independent | Cache + rate limiter (default) |
-| `OneForAll` | Children share state that must be consistent | Actor pair sharing a protocol |
-| `RestForOne` | Later children depend on earlier ones | DB pool → cache → HTTP server |
+| Strategy     | Use When                                     | Example                        |
+| ------------ | -------------------------------------------- | ------------------------------ |
+| `OneForOne`  | Children are independent                     | Cache + rate limiter (default) |
+| `OneForAll`  | Children share state that must be consistent | Actor pair sharing a protocol  |
+| `RestForOne` | Later children depend on earlier ones        | DB pool → cache → HTTP server  |
 
 **Default to `OneForOne`** unless you have a specific reason for the others.
 
@@ -121,11 +121,11 @@ type Restart {
 }
 ```
 
-| Restart | When Child Exits Normally | When Child Crashes |
-|---------|--------------------------|-------------------|
-| `Permanent` | Restart | Restart |
-| `Transient` | Don't restart | Restart |
-| `Temporary` | Don't restart | Don't restart |
+| Restart     | When Child Exits Normally | When Child Crashes |
+| ----------- | ------------------------- | ------------------ |
+| `Permanent` | Restart                   | Restart            |
+| `Transient` | Don't restart             | Restart            |
+| `Temporary` | Don't restart             | Don't restart      |
 
 ## Making Actors Supervisable
 

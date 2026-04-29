@@ -1,4 +1,4 @@
-import { Ok, Error } from "../../gleam.mjs";
+import { Ok, Error } from '../../gleam.mjs';
 
 export function format_iso(ms) {
   return new Date(ms).toISOString();

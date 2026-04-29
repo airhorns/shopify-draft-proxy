@@ -130,8 +130,7 @@ pub fn app_uninstall_creates_default_when_no_installation_test() {
   assert body
     == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/1\",\"handle\":\"shopify-draft-proxy\"},\"userErrors\":[]}}}"
   // Default app + installation should now be in the store.
-  let assert Some(_) =
-    store.get_current_app_installation(outcome.store)
+  let assert Some(_) = store.get_current_app_installation(outcome.store)
 }
 
 pub fn app_uninstall_marks_installation_uninstalled_test() {
@@ -347,14 +346,12 @@ pub fn line_item_update_caps_usage_amount_test() {
     AppSubscriptionLineItemRecord(
       id: li_id,
       subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(
-        pricing_details: AppUsagePricing(
-          capped_amount: money("50.00", "USD"),
-          balance_used: money("0.00", "USD"),
-          interval: "ANNUAL",
-          terms: Some("per row"),
-        ),
-      ),
+      plan: AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+        capped_amount: money("50.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: Some("per row"),
+      )),
     )
   let sub =
     AppSubscriptionRecord(
@@ -433,14 +430,12 @@ pub fn usage_record_create_attaches_to_line_item_test() {
     AppSubscriptionLineItemRecord(
       id: li_id,
       subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(
-        pricing_details: AppUsagePricing(
-          capped_amount: money("100.00", "USD"),
-          balance_used: money("0.00", "USD"),
-          interval: "ANNUAL",
-          terms: None,
-        ),
-      ),
+      plan: AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+        capped_amount: money("100.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: None,
+      )),
     )
   let #(_, s) = store.stage_app_subscription_line_item(s, li)
   let document =

@@ -166,7 +166,7 @@ birdie = ">= 1.0.0 and < 2.0.0"
 
 Use `////` for module-level documentation at the top of each public module:
 
-```gleam
+````gleam
 //// This module provides HTTP client functionality.
 ////
 //// ## Overview
@@ -193,13 +193,13 @@ Use `////` for module-level documentation at the top of each public module:
 
 import gleam/result
 // ... rest of module
-```
+````
 
 ### Function Documentation
 
 Use `///` for function documentation with examples:
 
-```gleam
+````gleam
 /// Creates a new client with default configuration.
 ///
 /// ## Example
@@ -229,11 +229,11 @@ pub fn new() -> Client {
 pub fn get(client: Client, path: String) -> Result(Response, Error) {
   // implementation
 }
-```
+````
 
 ### README Structure
 
-```markdown
+````markdown
 # my_library
 
 Brief one-line description of what the library does.
@@ -246,6 +246,7 @@ Brief one-line description of what the library does.
 ```sh
 gleam add my_library
 ```
+````
 
 ## Quick Start
 
@@ -260,6 +261,7 @@ pub fn main() {
 ## Philosophy
 
 Explain the design decisions and constraints:
+
 - Why effects are returned as data
 - Why configuration is explicit
 - Any other design principles
@@ -267,6 +269,7 @@ Explain the design decisions and constraints:
 ## Examples
 
 See the `examples/` directory for complete working examples:
+
 - `01_hello_world/` - Minimal setup
 - `02_basic_usage/` - Common use cases
 - `03_advanced_patterns/` - Complex scenarios
@@ -274,6 +277,7 @@ See the `examples/` directory for complete working examples:
 ## Documentation
 
 Full API documentation: https://hexdocs.pm/my_library/
+
 ```
 
 ### Examples Folder
@@ -281,23 +285,25 @@ Full API documentation: https://hexdocs.pm/my_library/
 Number examples by complexity, each should be standalone:
 
 ```
+
 examples/
 ├── 01_hello_world/
-│   ├── gleam.toml           # Points to parent library
-│   ├── README.md            # What this example demonstrates
-│   └── src/
-│       └── hello.gleam
+│ ├── gleam.toml # Points to parent library
+│ ├── README.md # What this example demonstrates
+│ └── src/
+│ └── hello.gleam
 ├── 02_json_parsing/
-│   ├── gleam.toml
-│   ├── README.md
-│   └── src/
-│       └── parsing.gleam
+│ ├── gleam.toml
+│ ├── README.md
+│ └── src/
+│ └── parsing.gleam
 └── 03_error_handling/
-    ├── gleam.toml
-    ├── README.md
-    └── src/
-        └── errors.gleam
-```
+├── gleam.toml
+├── README.md
+└── src/
+└── errors.gleam
+
+````
 
 Each example's `gleam.toml`:
 
@@ -307,7 +313,7 @@ version = "0.0.0"
 
 [dependencies]
 my_library = { path = "../.." }
-```
+````
 
 ## Testing Patterns
 
@@ -395,6 +401,7 @@ When wrapping external APIs (REST, GraphQL, etc.), follow these additional guide
 ### CRITICAL: Request Schema from User
 
 **Before writing any API wrapper code, ask the user for:**
+
 - OpenAPI/Swagger specification
 - JSON Schema for request/response types
 - API documentation URL

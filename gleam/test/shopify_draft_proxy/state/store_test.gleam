@@ -128,7 +128,11 @@ pub fn reset_clears_state_test() {
 // Webhook subscription slice
 // ---------------------------------------------------------------------------
 
-fn webhook(id: String, topic: String, url: String) -> WebhookSubscriptionRecord {
+fn webhook(
+  id: String,
+  topic: String,
+  url: String,
+) -> WebhookSubscriptionRecord {
   WebhookSubscriptionRecord(
     id: id,
     topic: Some(topic),
@@ -147,8 +151,16 @@ fn webhook(id: String, topic: String, url: String) -> WebhookSubscriptionRecord 
 pub fn upsert_base_webhooks_orders_inserts_test() {
   let s =
     store.upsert_base_webhook_subscriptions(store.new(), [
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://a"),
-      webhook("gid://shopify/WebhookSubscription/2", "ORDERS_UPDATE", "https://b"),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_CREATE",
+        "https://a",
+      ),
+      webhook(
+        "gid://shopify/WebhookSubscription/2",
+        "ORDERS_UPDATE",
+        "https://b",
+      ),
     ])
   let topics =
     store.list_effective_webhook_subscriptions(s)
@@ -157,12 +169,25 @@ pub fn upsert_base_webhooks_orders_inserts_test() {
 }
 
 pub fn webhook_staged_overrides_base_test() {
-  let base = webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://base")
-  let staged = webhook("gid://shopify/WebhookSubscription/1", "ORDERS_UPDATE", "https://staged")
+  let base =
+    webhook(
+      "gid://shopify/WebhookSubscription/1",
+      "ORDERS_CREATE",
+      "https://base",
+    )
+  let staged =
+    webhook(
+      "gid://shopify/WebhookSubscription/1",
+      "ORDERS_UPDATE",
+      "https://staged",
+    )
   let s = store.upsert_base_webhook_subscriptions(store.new(), [base])
   let #(_, s) = store.upsert_staged_webhook_subscription(s, staged)
   let assert Some(found) =
-    store.get_effective_webhook_subscription_by_id(s, "gid://shopify/WebhookSubscription/1")
+    store.get_effective_webhook_subscription_by_id(
+      s,
+      "gid://shopify/WebhookSubscription/1",
+    )
   assert found.topic == Some("ORDERS_UPDATE")
 }
 
@@ -170,10 +195,21 @@ pub fn delete_staged_webhook_hides_record_test() {
   let s =
     store.new()
     |> store.upsert_base_webhook_subscriptions([
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://a"),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_CREATE",
+        "https://a",
+      ),
     ])
-  let s = store.delete_staged_webhook_subscription(s, "gid://shopify/WebhookSubscription/1")
-  assert store.get_effective_webhook_subscription_by_id(s, "gid://shopify/WebhookSubscription/1")
+  let s =
+    store.delete_staged_webhook_subscription(
+      s,
+      "gid://shopify/WebhookSubscription/1",
+    )
+  assert store.get_effective_webhook_subscription_by_id(
+      s,
+      "gid://shopify/WebhookSubscription/1",
+    )
     == None
   assert store.list_effective_webhook_subscriptions(s) == []
 }
@@ -182,15 +218,28 @@ pub fn upsert_base_webhook_clears_deleted_marker_test() {
   let s =
     store.new()
     |> store.upsert_base_webhook_subscriptions([
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://a"),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_CREATE",
+        "https://a",
+      ),
     ])
-    |> store.delete_staged_webhook_subscription("gid://shopify/WebhookSubscription/1")
+    |> store.delete_staged_webhook_subscription(
+      "gid://shopify/WebhookSubscription/1",
+    )
   let s =
     store.upsert_base_webhook_subscriptions(s, [
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://a2"),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_CREATE",
+        "https://a2",
+      ),
     ])
   let assert Some(found) =
-    store.get_effective_webhook_subscription_by_id(s, "gid://shopify/WebhookSubscription/1")
+    store.get_effective_webhook_subscription_by_id(
+      s,
+      "gid://shopify/WebhookSubscription/1",
+    )
   assert found.uri == Some("https://a2")
 }
 
@@ -198,8 +247,16 @@ pub fn webhook_list_orders_then_unordered_test() {
   let s =
     store.new()
     |> store.upsert_base_webhook_subscriptions([
-      webhook("gid://shopify/WebhookSubscription/9", "ORDERS_CREATE", "https://9"),
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_UPDATE", "https://1"),
+      webhook(
+        "gid://shopify/WebhookSubscription/9",
+        "ORDERS_CREATE",
+        "https://9",
+      ),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_UPDATE",
+        "https://1",
+      ),
     ])
   let topics =
     store.list_effective_webhook_subscriptions(s)
@@ -211,7 +268,11 @@ pub fn reset_clears_webhook_state_test() {
   let s =
     store.new()
     |> store.upsert_base_webhook_subscriptions([
-      webhook("gid://shopify/WebhookSubscription/1", "ORDERS_CREATE", "https://a"),
+      webhook(
+        "gid://shopify/WebhookSubscription/1",
+        "ORDERS_CREATE",
+        "https://a",
+      ),
     ])
   assert list.length(store.list_effective_webhook_subscriptions(s)) == 1
   let s = store.reset(s)
@@ -254,22 +315,27 @@ fn installation(id: String, app_id: String) -> AppInstallationRecord {
 }
 
 pub fn upsert_base_app_records_test() {
-  let s = store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
+  let s =
+    store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
   assert store.get_effective_app_by_id(s, "gid://shopify/App/1")
     == Some(app("gid://shopify/App/1", "h1", "k1"))
   assert list.length(store.list_effective_apps(s)) == 1
 }
 
 pub fn stage_app_overrides_base_test() {
-  let s = store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
-  let updated = AppRecord(..app("gid://shopify/App/1", "h1", "k1"), title: Some("renamed"))
+  let s =
+    store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
+  let updated =
+    AppRecord(..app("gid://shopify/App/1", "h1", "k1"), title: Some("renamed"))
   let #(_, s) = store.stage_app(s, updated)
-  let assert Some(record) = store.get_effective_app_by_id(s, "gid://shopify/App/1")
+  let assert Some(record) =
+    store.get_effective_app_by_id(s, "gid://shopify/App/1")
   assert record.title == Some("renamed")
 }
 
 pub fn find_app_by_handle_test() {
-  let s = store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
+  let s =
+    store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
   let s = store.upsert_base_app(s, app("gid://shopify/App/2", "h2", "k2"))
   let assert Some(record) = store.find_effective_app_by_handle(s, "h2")
   assert record.id == "gid://shopify/App/2"
@@ -277,7 +343,8 @@ pub fn find_app_by_handle_test() {
 }
 
 pub fn find_app_by_api_key_test() {
-  let s = store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
+  let s =
+    store.upsert_base_app(store.new(), app("gid://shopify/App/1", "h1", "k1"))
   let assert Some(record) = store.find_effective_app_by_api_key(s, "k1")
   assert record.id == "gid://shopify/App/1"
   assert store.find_effective_app_by_api_key(s, "kx") == None
@@ -336,7 +403,8 @@ pub fn line_item_lifecycle_test() {
       plan: plan,
     )
   let #(_, s) = store.stage_app_subscription_line_item(store.new(), li)
-  assert store.get_effective_app_subscription_line_item_by_id(s, li.id) == Some(li)
+  assert store.get_effective_app_subscription_line_item_by_id(s, li.id)
+    == Some(li)
 }
 
 pub fn one_time_purchase_lifecycle_test() {
@@ -399,7 +467,12 @@ pub fn delegated_token_lifecycle_test() {
   let assert Some(found) = store.find_delegated_access_token_by_hash(s, "abcd")
   assert found.id == token.id
   // Destroying populates destroyed_at and keeps the record findable.
-  let s = store.destroy_delegated_access_token(s, token.id, "2026-04-30T00:00:00.000Z")
+  let s =
+    store.destroy_delegated_access_token(
+      s,
+      token.id,
+      "2026-04-30T00:00:00.000Z",
+    )
   let assert Some(after) = store.find_delegated_access_token_by_hash(s, "abcd")
   assert after.destroyed_at == Some("2026-04-30T00:00:00.000Z")
 }

@@ -184,9 +184,7 @@ pub fn list_entries(registry: List(RegistryEntry)) -> List(RegistryEntry) {
 }
 
 /// Mirrors `listImplementedOperationRegistryEntries`.
-pub fn list_implemented(
-  registry: List(RegistryEntry),
-) -> List(RegistryEntry) {
+pub fn list_implemented(registry: List(RegistryEntry)) -> List(RegistryEntry) {
   list.filter(registry, fn(entry) { entry.implemented })
 }
 

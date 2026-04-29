@@ -50,13 +50,7 @@ pub fn new(source: Source) -> Lexer {
     source.body
     |> string.to_utf_codepoints
     |> list.map(string.utf_codepoint_to_int)
-  Lexer(
-    source: source,
-    remaining: codes,
-    position: 0,
-    line: 1,
-    line_start: 0,
-  )
+  Lexer(source: source, remaining: codes, position: 0, line: 1, line_start: 0)
 }
 
 /// Return the full sequence of tokens from a `Source`, terminated by an
@@ -272,10 +266,10 @@ fn read_number(lexer: Lexer) -> Result(#(Token, Lexer), LexError) {
       let lexer = advance_one(lexer)
       let buf = [c, ..buf]
       let #(lexer, buf) = case lexer.remaining {
-        [s, ..] if s == 0x002b || s == 0x002d -> #(
-          advance_one(lexer),
-          [s, ..buf],
-        )
+        [s, ..] if s == 0x002b || s == 0x002d -> #(advance_one(lexer), [
+          s,
+          ..buf
+        ])
         _ -> #(lexer, buf)
       }
       use #(lexer, buf) <- result.try(read_digits_required(lexer, buf))
@@ -353,8 +347,7 @@ fn read_integer_part(
               <> ".",
           )
       }
-    [] ->
-      err(lexer, "Invalid number, expected digit but got: <EOF>.")
+    [] -> err(lexer, "Invalid number, expected digit but got: <EOF>.")
   }
 }
 
@@ -458,8 +451,7 @@ fn read_escape(lexer: Lexer) -> Result(#(Lexer, List(Int)), LexError) {
     [0x005c, 0x0075, 0x007b, ..] -> read_escaped_unicode_variable(lexer)
     [0x005c, 0x0075, ..] -> read_escaped_unicode_fixed(lexer)
     [0x005c, c, ..rest] -> {
-      let after =
-        Lexer(..lexer, remaining: rest, position: lexer.position + 2)
+      let after = Lexer(..lexer, remaining: rest, position: lexer.position + 2)
       case c {
         0x0022 -> Ok(#(after, [0x0022]))
         0x005c -> Ok(#(after, [0x005c]))
@@ -490,10 +482,11 @@ fn read_escaped_unicode_fixed(
       let code = read_16bit_hex(c1, c2, c3, c4)
       case code >= 0 && cc.is_unicode_scalar_value(code) {
         True ->
-          Ok(#(
-            Lexer(..lexer, remaining: rest, position: lexer.position + 6),
-            [code],
-          ))
+          Ok(
+            #(Lexer(..lexer, remaining: rest, position: lexer.position + 6), [
+              code,
+            ]),
+          )
         False -> err(lexer, "Invalid Unicode escape sequence.")
       }
     }
@@ -533,11 +526,7 @@ fn read_var_unicode_loop(
               case digit {
                 -1 -> err(lexer, "Invalid Unicode escape sequence.")
                 _ ->
-                  read_var_unicode_loop(
-                    lexer,
-                    size + 1,
-                    { point * 16 } + digit,
-                  )
+                  read_var_unicode_loop(lexer, size + 1, { point * 16 } + digit)
               }
             }
           }
@@ -582,8 +571,7 @@ fn skip_whitespace(lexer: Lexer) -> Lexer {
 
 fn advance_one(lexer: Lexer) -> Lexer {
   case lexer.remaining {
-    [_, ..rest] ->
-      Lexer(..lexer, remaining: rest, position: lexer.position + 1)
+    [_, ..rest] -> Lexer(..lexer, remaining: rest, position: lexer.position + 1)
     [] -> lexer
   }
 }

@@ -143,12 +143,12 @@ fn update(model, msg) {
 
 ### Context vs Events vs Attributes
 
-| Mechanism | Direction | Data flow | Use for |
-|---|---|---|---|
-| **Context** (`effect.provide`) | Parent -> Children | Broadcast to all descendants | Shared state (theme, accordion value, form state) |
-| **Events** (`event.emit`) | Child -> Parent | Bubble up to listeners | User interactions (selected, toggled, submitted) |
-| **Attributes** (`on_attribute_change`) | Parent -> Child | Direct parent to child | Configuration (value, disabled, variant) |
-| **Properties** (`on_property_change`) | Parent -> Child | Direct, any JSON value | Complex data (lists, objects) |
+| Mechanism                              | Direction          | Data flow                    | Use for                                           |
+| -------------------------------------- | ------------------ | ---------------------------- | ------------------------------------------------- |
+| **Context** (`effect.provide`)         | Parent -> Children | Broadcast to all descendants | Shared state (theme, accordion value, form state) |
+| **Events** (`event.emit`)              | Child -> Parent    | Bubble up to listeners       | User interactions (selected, toggled, submitted)  |
+| **Attributes** (`on_attribute_change`) | Parent -> Child    | Direct parent to child       | Configuration (value, disabled, variant)          |
+| **Properties** (`on_property_change`)  | Parent -> Child    | Direct, any JSON value       | Complex data (lists, objects)                     |
 
 ## Polling Pattern
 

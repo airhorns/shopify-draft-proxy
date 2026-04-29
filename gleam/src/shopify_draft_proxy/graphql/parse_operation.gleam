@@ -63,12 +63,7 @@ fn summarise(doc: Document) -> Result(ParsedOperation, ParseOperationError) {
     None -> Error(NoOperationFound)
     Some(OperationDefinition(operation: Subscription, ..)) ->
       Error(UnsupportedOperation("subscription"))
-    Some(OperationDefinition(
-      operation: op,
-      name: name,
-      selection_set: ss,
-      ..,
-    )) -> {
+    Some(OperationDefinition(operation: op, name: name, selection_set: ss, ..)) -> {
       let SelectionSet(selections: selections, ..) = ss
       Ok(ParsedOperation(
         type_: operation_type(op),

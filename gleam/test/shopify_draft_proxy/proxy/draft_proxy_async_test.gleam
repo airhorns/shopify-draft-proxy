@@ -43,8 +43,7 @@ import shopify_draft_proxy/proxy/draft_proxy.{Request, Response}
 import shopify_draft_proxy/state/store
 
 @target(javascript)
-const synthetic_one: String =
-  "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
+const synthetic_one: String = "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
 
 @target(javascript)
 const authoritative_one: String = "gid://shopify/SavedSearch/12345"
@@ -114,7 +113,12 @@ fn ok_async_send(
 pub fn process_request_async_health_resolves_test() -> Promise(Nil) {
   let proxy = draft_proxy.new()
   let request =
-    Request(method: "GET", path: "/__meta/health", headers: dict.new(), body: "")
+    Request(
+      method: "GET",
+      path: "/__meta/health",
+      headers: dict.new(),
+      body: "",
+    )
   draft_proxy.process_request_async(proxy, request)
   |> promise.map(fn(pair) {
     let #(Response(status: status, body: body, ..), _) = pair
@@ -172,12 +176,7 @@ pub fn process_request_sync_commit_returns_501_on_js_test() {
 pub fn run_commit_async_empty_log_resolves_test() -> Promise(Nil) {
   let proxy = draft_proxy.new()
   let send = ok_async_send(200, "{}")
-  commit.run_commit_async(
-    proxy.store,
-    "https://shop.example",
-    dict.new(),
-    send,
-  )
+  commit.run_commit_async(proxy.store, "https://shop.example", dict.new(), send)
   |> promise.map(fn(pair) {
     let #(_after, meta) = pair
     assert meta.ok == True
@@ -202,12 +201,7 @@ pub fn run_commit_async_succeeds_for_staged_entry_test() -> Promise(Nil) {
     <> "\"},\"userErrors\":[]}}}"
   let send = ok_async_send(200, response_body)
 
-  commit.run_commit_async(
-    proxy.store,
-    "https://shop.example",
-    dict.new(),
-    send,
-  )
+  commit.run_commit_async(proxy.store, "https://shop.example", dict.new(), send)
   |> promise.map(fn(pair) {
     let #(after, meta) = pair
     assert meta.ok == True
@@ -234,12 +228,7 @@ pub fn run_commit_async_propagates_failure_test() -> Promise(Nil) {
   let proxy = proxy_with_log([entry])
   let send = ok_async_send(500, "{\"errors\":[{\"message\":\"boom\"}]}")
 
-  commit.run_commit_async(
-    proxy.store,
-    "https://shop.example",
-    dict.new(),
-    send,
-  )
+  commit.run_commit_async(proxy.store, "https://shop.example", dict.new(), send)
   |> promise.map(fn(pair) {
     let #(after, meta) = pair
     assert meta.ok == False
@@ -265,17 +254,10 @@ pub fn run_commit_async_transport_error_halts_test() -> Promise(Nil) {
     )
   let proxy = proxy_with_log([entry])
   let send = fn(_req) {
-    promise.resolve(
-      Error(commit.CommitTransportError(message: "fetch failed")),
-    )
+    promise.resolve(Error(commit.CommitTransportError(message: "fetch failed")))
   }
 
-  commit.run_commit_async(
-    proxy.store,
-    "https://shop.example",
-    dict.new(),
-    send,
-  )
+  commit.run_commit_async(proxy.store, "https://shop.example", dict.new(), send)
   |> promise.map(fn(pair) {
     let #(_after, meta) = pair
     assert meta.ok == False

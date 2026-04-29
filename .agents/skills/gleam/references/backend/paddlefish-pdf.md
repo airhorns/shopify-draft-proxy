@@ -18,16 +18,16 @@ gleam add simplifile  # for writing PDF to disk
 
 ## Types
 
-| Type | Description |
-|---|---|
-| `Document` | Opaque — the full PDF being built |
-| `Page` | Opaque — a single page with content |
-| `Text` | Opaque — positioned text element |
-| `Rectangle` | Opaque — rectangle with optional fill/stroke |
-| `Path` | Opaque — open path made of line segments |
-| `Shape` | Opaque — closed path that can be filled |
-| `Image` | Opaque — JPEG image to draw on page |
-| `PageSize` | Record — `width: Float, height: Float` in points |
+| Type         | Description                                              |
+| ------------ | -------------------------------------------------------- |
+| `Document`   | Opaque — the full PDF being built                        |
+| `Page`       | Opaque — a single page with content                      |
+| `Text`       | Opaque — positioned text element                         |
+| `Rectangle`  | Opaque — rectangle with optional fill/stroke             |
+| `Path`       | Opaque — open path made of line segments                 |
+| `Shape`      | Opaque — closed path that can be filled                  |
+| `Image`      | Opaque — JPEG image to draw on page                      |
+| `PageSize`   | Record — `width: Float, height: Float` in points         |
 | `ImageError` | `UnsupportedImageFormat(String)` or `UnknownImageFormat` |
 
 ## Quick Start

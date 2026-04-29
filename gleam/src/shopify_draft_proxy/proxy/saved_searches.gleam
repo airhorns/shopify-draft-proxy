@@ -28,19 +28,18 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/graphql_helpers.{
+  type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
+  SerializeConnectionConfig, SrcList, SrcNull, SrcString, build_synthetic_cursor,
+  default_connection_page_info_options, default_connection_window_options,
+  default_selected_field_options, get_document_fragments, get_field_response_key,
+  paginate_connection_items, project_graphql_value, serialize_connection,
+  serialize_empty_connection, src_object,
+}
 import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string}
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
   strip_search_query_value_quotes,
-}
-import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
-  SerializeConnectionConfig, SrcList, SrcNull, SrcString,
-  build_synthetic_cursor, default_connection_page_info_options,
-  default_connection_window_options, default_selected_field_options,
-  get_document_fragments, get_field_response_key, paginate_connection_items,
-  project_graphql_value, serialize_connection, serialize_empty_connection,
-  src_object,
 }
 import shopify_draft_proxy/state/store.{
   type Store, list_effective_saved_searches,
@@ -179,7 +178,9 @@ pub fn draft_order_saved_searches() -> List(SavedSearchRecord) {
   ]
 }
 
-fn defaults_for_resource_type(resource_type: String) -> List(SavedSearchRecord) {
+fn defaults_for_resource_type(
+  resource_type: String,
+) -> List(SavedSearchRecord) {
   let raw = case resource_type {
     "ORDER" -> order_saved_searches()
     "DRAFT_ORDER" -> draft_order_saved_searches()
@@ -243,7 +244,10 @@ fn serialize_root_fields(
               // proxy is dispatched once per domain so anything else
               // here is unreachable under the current dispatcher. Be
               // safe and emit an empty connection.
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
           }
         _ -> json.null()
       }
@@ -327,10 +331,7 @@ fn list_saved_searches(
   }
 }
 
-fn matches_query(
-  record: SavedSearchRecord,
-  query: Option(String),
-) -> Bool {
+fn matches_query(record: SavedSearchRecord, query: Option(String)) -> Bool {
   case query {
     None -> True
     Some(raw) -> {
@@ -372,7 +373,9 @@ fn project_saved_search(
   }
 }
 
-fn saved_search_to_source(record: SavedSearchRecord) -> graphql_helpers.SourceValue {
+fn saved_search_to_source(
+  record: SavedSearchRecord,
+) -> graphql_helpers.SourceValue {
   src_object([
     #("__typename", SrcString("SavedSearch")),
     #("id", SrcString(record.id)),
@@ -381,15 +384,18 @@ fn saved_search_to_source(record: SavedSearchRecord) -> graphql_helpers.SourceVa
     #("query", SrcString(record.query)),
     #("resourceType", SrcString(record.resource_type)),
     #("searchTerms", SrcString(record.search_terms)),
-    #("filters", SrcList(
-      list.map(record.filters, fn(f) {
-        src_object([
-          #("__typename", SrcString("SavedSearchFilter")),
-          #("key", SrcString(f.key)),
-          #("value", SrcString(f.value)),
-        ])
-      }),
-    )),
+    #(
+      "filters",
+      SrcList(
+        list.map(record.filters, fn(f) {
+          src_object([
+            #("__typename", SrcString("SavedSearchFilter")),
+            #("key", SrcString(f.key)),
+            #("value", SrcString(f.value)),
+          ])
+        }),
+      ),
+    ),
     #("cursor", case record.cursor {
       Some(c) -> SrcString(c)
       None -> SrcNull
@@ -571,8 +577,7 @@ fn handle_create(
     Error(_) -> dict.new()
   }
   let input = read_input(args)
-  let errors =
-    validate_saved_search_input(input, RequireResourceType(True))
+  let errors = validate_saved_search_input(input, RequireResourceType(True))
   let #(record_opt, store_after, identity_after, staged_ids) = case
     input,
     errors
@@ -591,18 +596,19 @@ fn handle_create(
     synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
   let #(received_at, identity_final) =
     synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry = build_log_entry(
-    "savedSearchCreate",
-    log_id,
-    received_at,
-    request_path,
-    document,
-    staged_ids,
-    case errors {
-      [] -> store.Staged
-      _ -> store.Failed
-    },
-  )
+  let entry =
+    build_log_entry(
+      "savedSearchCreate",
+      log_id,
+      received_at,
+      request_path,
+      document,
+      staged_ids,
+      case errors {
+        [] -> store.Staged
+        _ -> store.Failed
+      },
+    )
   let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
@@ -682,18 +688,19 @@ fn handle_update(
     synthetic_identity.make_synthetic_gid(identity_after, "MutationLogEntry")
   let #(received_at, identity_final) =
     synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry = build_log_entry(
-    "savedSearchUpdate",
-    log_id,
-    received_at,
-    request_path,
-    document,
-    staged_ids,
-    case errors {
-      [] -> store.Staged
-      _ -> store.Failed
-    },
-  )
+  let entry =
+    build_log_entry(
+      "savedSearchUpdate",
+      log_id,
+      received_at,
+      request_path,
+      document,
+      staged_ids,
+      case errors {
+        [] -> store.Staged
+        _ -> store.Failed
+      },
+    )
   let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
@@ -745,24 +752,24 @@ fn handle_delete(
     [] -> id_from_input
     _ -> None
   }
-  let payload =
-    project_delete_payload(deleted_id, errors, field, fragments)
+  let payload = project_delete_payload(deleted_id, errors, field, fragments)
   let #(log_id, identity_after_log) =
     synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
   let #(received_at, identity_final) =
     synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry = build_log_entry(
-    "savedSearchDelete",
-    log_id,
-    received_at,
-    request_path,
-    document,
-    [],
-    case errors {
-      [] -> store.Staged
-      _ -> store.Failed
-    },
-  )
+  let entry =
+    build_log_entry(
+      "savedSearchDelete",
+      log_id,
+      received_at,
+      request_path,
+      document,
+      [],
+      case errors {
+        [] -> store.Staged
+        _ -> store.Failed
+      },
+    )
   let store_logged = store.record_mutation_log_entry(store_after, entry)
   let outcome =
     MutationOutcome(
@@ -926,15 +933,12 @@ fn validate_resource_type(
         True -> errors
         False ->
           list.append(errors, [
-            UserError(
-              field: Some(["input", "resourceType"]),
-              message: case rt {
-                "URL_REDIRECT" ->
-                  "URL redirect saved searches require online-store navigation conformance before local support"
-                _ ->
-                  "Resource type is not supported by the local saved search model"
-              },
-            ),
+            UserError(field: Some(["input", "resourceType"]), message: case rt {
+              "URL_REDIRECT" ->
+                "URL redirect saved searches require online-store navigation conformance before local support"
+              _ ->
+                "Resource type is not supported by the local saved search model"
+            }),
           ])
       }
   }
@@ -1085,39 +1089,63 @@ pub fn parse_saved_search_query(raw_query: String) -> ParsedSavedSearchQuery {
 fn split_saved_search_top_level_tokens(raw_query: String) -> List(String) {
   let chars = string.to_graphemes(string.trim(raw_query))
   let final_state =
-    list.fold(chars, TokenizerState(current: "", quote: None, depth: 0, tokens: []), fn(state, ch) {
-      case is_quote(ch) {
-        True ->
-          case state.quote {
-            None -> TokenizerState(..state, current: state.current <> ch, quote: Some(ch))
-            Some(open) ->
-              case open == ch {
-                True -> TokenizerState(..state, current: state.current <> ch, quote: None)
-                False -> TokenizerState(..state, current: state.current <> ch)
-              }
-          }
-        False ->
-          case state.quote {
-            Some(_) -> TokenizerState(..state, current: state.current <> ch)
-            None ->
-              case ch {
-                "(" ->
-                  TokenizerState(..state, current: state.current <> ch, depth: state.depth + 1)
-                ")" ->
-                  case state.depth > 0 {
-                    True ->
-                      TokenizerState(..state, current: state.current <> ch, depth: state.depth - 1)
-                    False -> TokenizerState(..state, current: state.current <> ch)
-                  }
-                _ ->
-                  case state.depth == 0 && is_whitespace(ch) {
-                    True -> flush_current_token(state)
-                    False -> TokenizerState(..state, current: state.current <> ch)
-                  }
-              }
-          }
-      }
-    })
+    list.fold(
+      chars,
+      TokenizerState(current: "", quote: None, depth: 0, tokens: []),
+      fn(state, ch) {
+        case is_quote(ch) {
+          True ->
+            case state.quote {
+              None ->
+                TokenizerState(
+                  ..state,
+                  current: state.current <> ch,
+                  quote: Some(ch),
+                )
+              Some(open) ->
+                case open == ch {
+                  True ->
+                    TokenizerState(
+                      ..state,
+                      current: state.current <> ch,
+                      quote: None,
+                    )
+                  False -> TokenizerState(..state, current: state.current <> ch)
+                }
+            }
+          False ->
+            case state.quote {
+              Some(_) -> TokenizerState(..state, current: state.current <> ch)
+              None ->
+                case ch {
+                  "(" ->
+                    TokenizerState(
+                      ..state,
+                      current: state.current <> ch,
+                      depth: state.depth + 1,
+                    )
+                  ")" ->
+                    case state.depth > 0 {
+                      True ->
+                        TokenizerState(
+                          ..state,
+                          current: state.current <> ch,
+                          depth: state.depth - 1,
+                        )
+                      False ->
+                        TokenizerState(..state, current: state.current <> ch)
+                    }
+                  _ ->
+                    case state.depth == 0 && is_whitespace(ch) {
+                      True -> flush_current_token(state)
+                      False ->
+                        TokenizerState(..state, current: state.current <> ch)
+                    }
+                }
+            }
+        }
+      },
+    )
   let flushed = flush_current_token(final_state)
   list.reverse(flushed.tokens)
 }
@@ -1135,8 +1163,7 @@ fn flush_current_token(state: TokenizerState) -> TokenizerState {
   let value = string.trim(state.current)
   case value {
     "" -> TokenizerState(..state, current: "")
-    _ ->
-      TokenizerState(..state, current: "", tokens: [value, ..state.tokens])
+    _ -> TokenizerState(..state, current: "", tokens: [value, ..state.tokens])
   }
 }
 
@@ -1213,10 +1240,12 @@ fn normalize_saved_search_quoted_values(value: String) -> String {
       case is_quote(ch) {
         True ->
           case state.quote {
-            None -> NormalizeQuotesState(out: state.out <> "\"", quote: Some(ch))
+            None ->
+              NormalizeQuotesState(out: state.out <> "\"", quote: Some(ch))
             Some(open) ->
               case open == ch {
-                True -> NormalizeQuotesState(out: state.out <> "\"", quote: None)
+                True ->
+                  NormalizeQuotesState(out: state.out <> "\"", quote: None)
                 False -> NormalizeQuotesState(..state, out: state.out <> ch)
               }
           }
@@ -1241,8 +1270,7 @@ fn project_create_payload(
     Some(r) -> mutation_record_source(r, input)
     None -> SrcNull
   }
-  let user_errors_source =
-    SrcList(list.map(errors, user_error_to_source))
+  let user_errors_source = SrcList(list.map(errors, user_error_to_source))
   let payload =
     src_object([
       #("savedSearch", saved_search_source),
@@ -1257,8 +1285,7 @@ fn project_create_payload(
 
 fn user_error_to_source(error: UserError) -> graphql_helpers.SourceValue {
   let field_value = case error.field {
-    Some(parts) ->
-      SrcList(list.map(parts, fn(part) { SrcString(part) }))
+    Some(parts) -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
     None -> SrcNull
   }
   src_object([
@@ -1337,8 +1364,6 @@ fn build_log_entry(
         execution: "stage-locally",
       ),
     ),
-    notes: Some(
-      "Locally staged " <> root_field <> " in shopify-draft-proxy.",
-    ),
+    notes: Some("Locally staged " <> root_field <> " in shopify-draft-proxy."),
   )
 }

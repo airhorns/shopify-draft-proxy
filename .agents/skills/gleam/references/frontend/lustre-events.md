@@ -53,6 +53,7 @@ event.advanced("keydown", {
 ```
 
 Key rules:
+
 - `prevent_default` and `stop_propagation` are `Bool`, so they can be conditional on the decoded event value.
 - Set `stop_propagation: False` unless a competing ancestor handler must be suppressed. Prefer `False` to preserve global shortcut handlers (Cmd+S, Esc) and bubbling accessibility contracts.
 - Use `event.on` for simple cases where neither flag is needed. Use `event.advanced` only when you need `preventDefault` or `stopPropagation`.

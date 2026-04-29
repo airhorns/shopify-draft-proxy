@@ -17,8 +17,7 @@ pub fn is_digit(code: Int) -> Bool {
 
 /// `Letter :: A..Z | a..z`
 pub fn is_letter(code: Int) -> Bool {
-  { code >= 0x0061 && code <= 0x007a }
-  || { code >= 0x0041 && code <= 0x005a }
+  { code >= 0x0061 && code <= 0x007a } || { code >= 0x0041 && code <= 0x005a }
 }
 
 /// `NameStart :: Letter | "_"`
@@ -45,6 +44,5 @@ pub fn read_hex_digit(code: Int) -> Int {
 /// Whether a code point is a valid Unicode scalar value (anything except
 /// surrogate code points). graphql-js `isUnicodeScalarValue`.
 pub fn is_unicode_scalar_value(code: Int) -> Bool {
-  { code >= 0x0000 && code <= 0xd7ff }
-  || { code >= 0xe000 && code <= 0x10ffff }
+  { code >= 0x0000 && code <= 0xd7ff } || { code >= 0xe000 && code <= 0x10ffff }
 }

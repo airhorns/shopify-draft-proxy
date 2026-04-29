@@ -1,4 +1,5 @@
 # gleam — Comprehensive Gleam skill
+
 > Last updated: 2026-04-25
 
 The largest skill in the repo. Covers language fundamentals, backend
@@ -9,6 +10,7 @@ files contain the detailed patterns.
 Inherits: `skills/CONTEXT.md`.
 
 ## Layout
+
 ```
 gleam/
 ├── SKILL.md                         # Main prompt with decision trees
@@ -70,12 +72,13 @@ gleam/
 ```
 
 ## Reference counts
-| Category      | Files | Key topics                                      |
-|---------------|-------|-------------------------------------------------|
-| fundamentals  | 19    | Syntax, patterns, conventions, decoding, tooling |
-| backend       | 18    | Wisp, OTP, SQL codegen, auth, storage            |
-| frontend      | 11    | Lustre MVU, routing, HTTP, components, testing   |
-| library       | 2     | Library design, FFI                              |
+
+| Category     | Files | Key topics                                       |
+| ------------ | ----- | ------------------------------------------------ |
+| fundamentals | 19    | Syntax, patterns, conventions, decoding, tooling |
+| backend      | 18    | Wisp, OTP, SQL codegen, auth, storage            |
+| frontend     | 11    | Lustre MVU, routing, HTTP, components, testing   |
+| library      | 2     | Library design, FFI                              |
 
 ## Common Gleam/framework gotchas
 
@@ -83,31 +86,37 @@ These are general language and framework traps the skills cover to
 varying degrees. When updating references, ensure these stay documented:
 
 ### Decoding
+
 - **`decode.optional_field` crashes on `null`** — it only handles
-  *missing* fields. If JSON sends `null`, use `Option(String)`
+  _missing_ fields. If JSON sends `null`, use `Option(String)`
 
 ### SQL codegen (Parrot/Squirrel)
+
 - **SQL is the contract, Gleam bends to it.** Never edit generated
   `sql.gleam` files. Fix the `.sql` source, regenerate, then update
   handlers to match the new types
 
 ### Testing with pog
+
 - **No `pog.transaction` inside a rollback test context** — inner
   `COMMIT` commits the outer transaction, killing rollback. Execute
   queries directly on the connection
 
 ### Wisp HTTP
+
 - **`wisp.path_segments(req)` returns the FULL path**, not relative
   to mount point
 - **There is no `get_header`.** Use `list.key_find(req.headers, name)`.
   Header names are lowercase
 
 ### Frontend state (Lustre)
+
 - **Prefer sum types over `Bool` fields in model state.** Aligns with
   convention P4 (Replace Bools with Custom Types). Especially important
   for async states: `Idle | Loading | Loaded(data) | Failed(err)`
 
 ## Editing guidance
+
 - `SKILL.md` decision trees must stay in sync with the reference file list
 - Reference files are loaded on demand — keep each self-contained
 - Follow `references/token-efficiency.md` (shared) for budget strategy

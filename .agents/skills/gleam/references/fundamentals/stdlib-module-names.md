@@ -67,13 +67,13 @@ let req = request.set_header(req, "authorization", "Bearer token")
 
 ## Quick Reference
 
-| Wrong | Correct | Notes |
-|-------|---------|-------|
-| `gleam/regex` | `gleam/regexp` | Regular expressions |
-| `result.then` | `result.try` | Monadic bind for Results |
-| `wisp/testing` | `wisp/simulate` | Test request builders |
-| `simulate.set_header` | `simulate.header` | Add headers to test requests |
-| `option.then` | `option.map` or `option.then` | `then` exists but `map` is for simple transforms |
+| Wrong                 | Correct                       | Notes                                            |
+| --------------------- | ----------------------------- | ------------------------------------------------ |
+| `gleam/regex`         | `gleam/regexp`                | Regular expressions                              |
+| `result.then`         | `result.try`                  | Monadic bind for Results                         |
+| `wisp/testing`        | `wisp/simulate`               | Test request builders                            |
+| `simulate.set_header` | `simulate.header`             | Add headers to test requests                     |
+| `option.then`         | `option.map` or `option.then` | `then` exists but `map` is for simple transforms |
 
 ## Why This Matters
 

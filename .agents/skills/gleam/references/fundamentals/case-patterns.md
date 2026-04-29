@@ -204,6 +204,7 @@ fn process_with_checks(user: User, parsed: Input) -> Result(Output, String) {
 ```
 
 **Benefits:**
+
 - Flattens deeply nested structure into linear flow
 - Each guard represents a clear precondition
 - Function name documents the purpose of grouped checks
@@ -211,6 +212,7 @@ fn process_with_checks(user: User, parsed: Input) -> Result(Output, String) {
 - Follows "parse, don't validate" principle when used with opaque types
 
 **When to keep `case` instead:**
+
 - Only one boolean check (extraction adds unnecessary indirection)
 - Boolean checks have side effects that must execute in specific order
 - Matching on specific values, not True/False (see section above)

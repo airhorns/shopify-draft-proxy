@@ -46,18 +46,9 @@ fn scan(
         True ->
           case index + 1 >= position {
             True ->
-              SourceLocation(
-                line: line,
-                column: position + 1 - last_line_start,
-              )
+              SourceLocation(line: line, column: position + 1 - last_line_start)
             False ->
-              scan(
-                list.drop(rest, 1),
-                index + 2,
-                index + 2,
-                line + 1,
-                position,
-              )
+              scan(list.drop(rest, 1), index + 2, index + 2, line + 1, position)
           }
         False ->
           case value == cr || value == lf {
@@ -68,8 +59,7 @@ fn scan(
                     line: line,
                     column: position + 1 - last_line_start,
                   )
-                False ->
-                  scan(rest, index + 1, index + 1, line + 1, position)
+                False -> scan(rest, index + 1, index + 1, line + 1, position)
               }
             False -> scan(rest, index + 1, last_line_start, line, position)
           }

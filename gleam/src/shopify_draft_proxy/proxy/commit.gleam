@@ -146,7 +146,8 @@ pub fn gid_resource_type(value: String) -> Option(String) {
   case string.starts_with(value, synthetic_marker_prefix) {
     False -> None
     True -> {
-      let rest = string.drop_start(value, string.length(synthetic_marker_prefix))
+      let rest =
+        string.drop_start(value, string.length(synthetic_marker_prefix))
       case string.split_once(rest, "/") {
         Ok(#(resource_type, _)) ->
           case resource_type {
@@ -349,8 +350,7 @@ pub fn proxy_user_agent(incoming: Option(String)) -> String {
     Some(value) ->
       case string.trim(value) {
         "" -> proxy_user_agent_marker
-        trimmed ->
-          proxy_user_agent_marker <> " (wrapping " <> trimmed <> ")"
+        trimmed -> proxy_user_agent_marker <> " (wrapping " <> trimmed <> ")"
       }
   }
 }
@@ -360,14 +360,11 @@ pub fn proxy_user_agent(incoming: Option(String)) -> String {
 // per-entry success/failure branching in `commitMetaState`.
 // ---------------------------------------------------------------------------
 
-const commit_succeeded_notes: String =
-  "Committed to upstream Shopify via __meta/commit replay."
+const commit_succeeded_notes: String = "Committed to upstream Shopify via __meta/commit replay."
 
-const commit_failed_notes: String =
-  "Commit replay failed against upstream Shopify."
+const commit_failed_notes: String = "Commit replay failed against upstream Shopify."
 
-const commit_threw_notes_prefix: String =
-  "Commit replay failed before an upstream response was received: "
+const commit_threw_notes_prefix: String = "Commit replay failed before an upstream response was received: "
 
 /// `True` when `body` contains a non-empty top-level `errors` array, the
 /// GraphQL convention for a failed operation. Mirrors the TS helper.
@@ -521,13 +518,10 @@ fn apply_headers(
 pub fn serialize_meta_response(meta: MetaCommitResponse) -> Json {
   json.object([
     #("ok", json.bool(meta.ok)),
-    #(
-      "stopIndex",
-      case meta.stop_index {
-        None -> json.null()
-        Some(i) -> json.int(i)
-      },
-    ),
+    #("stopIndex", case meta.stop_index {
+      None -> json.null()
+      Some(i) -> json.int(i)
+    }),
     #("attempts", json.array(meta.attempts, serialize_attempt)),
   ])
 }
@@ -539,27 +533,18 @@ fn serialize_attempt(attempt: CommitAttempt) -> Json {
     #("path", json.string(attempt.path)),
     #("success", json.bool(attempt.success)),
     #("status", json.string(entry_status_to_string(attempt.status))),
-    #(
-      "upstreamStatus",
-      case attempt.upstream_status {
-        None -> json.null()
-        Some(i) -> json.int(i)
-      },
-    ),
-    #(
-      "upstreamBody",
-      case attempt.upstream_body {
-        None -> json.null()
-        Some(v) -> json_value_to_json(v)
-      },
-    ),
-    #(
-      "upstreamError",
-      case attempt.upstream_error {
-        None -> json.null()
-        Some(msg) -> json.object([#("message", json.string(msg))])
-      },
-    ),
+    #("upstreamStatus", case attempt.upstream_status {
+      None -> json.null()
+      Some(i) -> json.int(i)
+    }),
+    #("upstreamBody", case attempt.upstream_body {
+      None -> json.null()
+      Some(v) -> json_value_to_json(v)
+    }),
+    #("upstreamError", case attempt.upstream_error {
+      None -> json.null()
+      Some(msg) -> json.object([#("message", json.string(msg))])
+    }),
     #("responseBody", json_value_to_json(attempt.response_body)),
   ])
 }
@@ -614,7 +599,9 @@ pub fn run_commit_sync(
             build_replay_request(origin, entry, id_map, inbound_headers)
           {
             Error(Nil) ->
-              Error(CommitTransportError(message: "invalid upstream url: " <> origin <> entry.path))
+              Error(CommitTransportError(
+                message: "invalid upstream url: " <> origin <> entry.path,
+              ))
             Ok(req) -> send(req)
           }
           let #(s2, id_map2, attempt, halted2) =
@@ -659,21 +646,13 @@ pub fn run_commit_async(
     Promise(Result(HttpOutcome, CommitTransportError)),
 ) -> Promise(#(Store, MetaCommitResponse)) {
   let pending = list.filter(store.get_log(proxy_store), entry_requires_commit)
-  let initial =
-    promise.resolve(#(proxy_store, dict.new(), [], None, 0, False))
+  let initial = promise.resolve(#(proxy_store, dict.new(), [], None, 0, False))
   list.fold(pending, initial, fn(acc, entry) {
     promise.await(acc, fn(state) {
       let #(s, id_map, attempts_rev, stop_index, index, halted) = state
       case halted {
         True ->
-          promise.resolve(#(
-            s,
-            id_map,
-            attempts_rev,
-            stop_index,
-            index,
-            halted,
-          ))
+          promise.resolve(#(s, id_map, attempts_rev, stop_index, index, halted))
         False -> {
           let send_promise = case
             build_replay_request(origin, entry, id_map, inbound_headers)

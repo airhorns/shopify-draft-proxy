@@ -70,10 +70,7 @@ pub fn available_locales_overridden_by_store_test() {
 
 pub fn shop_locales_default_test() {
   let result =
-    run(
-      store.new(),
-      "{ shopLocales { locale name primary published } }",
-    )
+    run(store.new(), "{ shopLocales { locale name primary published } }")
   assert result
     == "{\"shopLocales\":[{\"locale\":\"en\",\"name\":\"English\",\"primary\":true,\"published\":true}]}"
 }
@@ -91,8 +88,7 @@ pub fn shop_locales_with_staged_record_test() {
         market_web_presence_ids: [],
       ),
     )
-  let result =
-    run(s, "{ shopLocales { locale name primary published } }")
+  let result = run(s, "{ shopLocales { locale name primary published } }")
   // The staged "fr" record shadows the default "en" — the store
   // returns it directly without merging the default.
   assert result
@@ -100,11 +96,7 @@ pub fn shop_locales_with_staged_record_test() {
 }
 
 pub fn shop_locales_published_filter_test() {
-  let result =
-    run(
-      store.new(),
-      "{ shopLocales(published: false) { locale } }",
-    )
+  let result = run(store.new(), "{ shopLocales(published: false) { locale } }")
   // Default catalog has only one ShopLocale (en, published=true).
   assert result == "{\"shopLocales\":[]}"
 }

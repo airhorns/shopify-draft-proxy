@@ -23,7 +23,8 @@ pub fn health_endpoint_test() {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, request)
   assert status == 200
-  assert json.to_string(body) == "{\"ok\":true,\"message\":\"shopify-draft-proxy is running\"}"
+  assert json.to_string(body)
+    == "{\"ok\":true,\"message\":\"shopify-draft-proxy is running\"}"
 }
 
 pub fn health_endpoint_method_not_allowed_test() {
@@ -501,15 +502,27 @@ pub fn meta_log_reflects_staged_mutation_test() {
     draft_proxy.process_request(proxy, meta_get("/__meta/log"))
   assert status == 200
   let serialized = json.to_string(body)
-  assert string.contains(serialized, "\"id\":\"gid://shopify/MutationLogEntry/2\"")
-  assert string.contains(serialized, "\"receivedAt\":\"2024-01-01T00:00:00.000Z\"")
-  assert string.contains(serialized, "\"path\":\"/admin/api/2025-01/graphql.json\"")
+  assert string.contains(
+    serialized,
+    "\"id\":\"gid://shopify/MutationLogEntry/2\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"receivedAt\":\"2024-01-01T00:00:00.000Z\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"path\":\"/admin/api/2025-01/graphql.json\"",
+  )
   assert string.contains(serialized, "\"status\":\"staged\"")
   assert string.contains(
     serialized,
     "\"stagedResourceIds\":[\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\"]",
   )
-  assert string.contains(serialized, "\"primaryRootField\":\"savedSearchCreate\"")
+  assert string.contains(
+    serialized,
+    "\"primaryRootField\":\"savedSearchCreate\"",
+  )
   assert string.contains(serialized, "\"domain\":\"saved-searches\"")
   assert string.contains(serialized, "\"execution\":\"stage-locally\"")
   assert string.contains(
@@ -573,7 +586,10 @@ pub fn graphql_saved_search_create_visible_in_subsequent_query_test() {
 pub fn graphql_saved_search_update_renames_record_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let update_body =
     "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", name: \\\"Renamed promo\\\" }) { savedSearch { id name query resourceType } userErrors { field message } } }\"}"
   let #(Response(status: status, body: body, ..), proxy) =
@@ -584,7 +600,10 @@ pub fn graphql_saved_search_update_renames_record_test() {
   // Subsequent state read shows the renamed record.
   let #(Response(body: state_body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
-  assert string.contains(json.to_string(state_body), "\"name\":\"Renamed promo\"")
+  assert string.contains(
+    json.to_string(state_body),
+    "\"name\":\"Renamed promo\"",
+  )
 }
 
 pub fn graphql_saved_search_update_unknown_id_test() {
@@ -601,7 +620,10 @@ pub fn graphql_saved_search_update_unknown_id_test() {
 pub fn graphql_saved_search_update_blank_name_returns_existing_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let update_body =
     "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\", name: \\\"\\\" }) { savedSearch { id name query } userErrors { field message } } }\"}"
   let #(Response(status: status, body: body, ..), _) =
@@ -610,17 +632,17 @@ pub fn graphql_saved_search_update_blank_name_returns_existing_test() {
   // Validation surfaces the blank-name error; the response echoes the
   // existing record (no record_opt because sanitized input was rejected).
   let serialized = json.to_string(body)
-  assert string.contains(
-    serialized,
-    "\"message\":\"Name can't be blank\"",
-  )
+  assert string.contains(serialized, "\"message\":\"Name can't be blank\"")
   assert string.contains(serialized, "\"name\":\"Promo orders\"")
 }
 
 pub fn graphql_saved_search_delete_removes_record_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let delete_body =
     "{\"query\":\"mutation { savedSearchDelete(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\" }) { deletedSavedSearchId userErrors { field message } } }\"}"
   let #(Response(status: status, body: body, ..), proxy) =
@@ -696,8 +718,7 @@ pub fn graphql_omitted_variables_object_still_parses_test() {
   // Body without a `variables` key should still succeed (defaults to
   // empty dict) — covers the optional_field path.
   let proxy = draft_proxy.new()
-  let body =
-    "{\"query\":\"{ orderSavedSearches(first: 1) { nodes { id } } }\"}"
+  let body = "{\"query\":\"{ orderSavedSearches(first: 1) { nodes { id } } }\"}"
   let #(Response(status: status, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(body))
   assert status == 200
@@ -790,7 +811,10 @@ pub fn get_log_snapshot_empty_test() {
 pub fn get_log_snapshot_matches_meta_route_body_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let standalone = json.to_string(draft_proxy.get_log_snapshot(proxy))
   let #(Response(body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/log"))
@@ -800,7 +824,10 @@ pub fn get_log_snapshot_matches_meta_route_body_test() {
 pub fn get_state_snapshot_matches_meta_route_body_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let standalone = json.to_string(draft_proxy.get_state_snapshot(proxy))
   let #(Response(body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
@@ -810,7 +837,10 @@ pub fn get_state_snapshot_matches_meta_route_body_test() {
 pub fn reset_method_clears_state_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   // Sanity: the create staged something.
   assert json.to_string(draft_proxy.get_log_snapshot(proxy))
     != "{\"entries\":[]}"
@@ -826,10 +856,16 @@ pub fn reset_method_resets_synthetic_identity_counter_test() {
   // would on a new proxy — confirms the registry was rewound.
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let proxy = draft_proxy.reset(proxy)
   let #(Response(body: body, ..), _) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   assert string.contains(
     json.to_string(body),
     "\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\"",
@@ -846,7 +882,8 @@ pub fn process_graphql_request_uses_default_path_test() {
       draft_proxy.default_graphql_request_options(),
     )
   assert status == 200
-  assert json.to_string(response_body) == "{\"data\":{\"events\":{\"nodes\":[]}}}"
+  assert json.to_string(response_body)
+    == "{\"data\":{\"events\":{\"nodes\":[]}}}"
 }
 
 pub fn process_graphql_request_honors_explicit_api_version_test() {
@@ -958,7 +995,10 @@ pub fn dump_state_default_proxy_test() {
 pub fn dump_state_after_mutation_includes_log_and_advances_identity_test() {
   let proxy = draft_proxy.new()
   let #(_, proxy) =
-    draft_proxy.process_request(proxy, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
   let dumped = json.to_string(draft_proxy.dump_state(proxy, fixed_created_at))
   // savedSearchCreate mints SavedSearch/1 + MutationLogEntry/2, advancing
   // the counter to 3.
@@ -977,7 +1017,10 @@ pub fn dump_state_now_returns_envelope_with_wallclock_created_at_test() {
   let dumped = json.to_string(draft_proxy.dump_state_now(proxy))
   // We can't assert the exact timestamp without injecting a clock; just
   // confirm the envelope has the right schema and a non-empty createdAt.
-  assert string.contains(dumped, "\"schema\":\"shopify-draft-proxy/state-dump\"")
+  assert string.contains(
+    dumped,
+    "\"schema\":\"shopify-draft-proxy/state-dump\"",
+  )
   assert string.contains(dumped, "\"createdAt\":\"")
   assert !string.contains(dumped, "\"createdAt\":\"\"")
 }
@@ -985,13 +1028,20 @@ pub fn dump_state_now_returns_envelope_with_wallclock_created_at_test() {
 pub fn restore_state_round_trips_synthetic_identity_test() {
   let original = draft_proxy.new()
   let #(_, original) =
-    draft_proxy.process_request(original, graphql_request(saved_search_create_body))
-  let dumped = json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+    draft_proxy.process_request(
+      original,
+      graphql_request(saved_search_create_body),
+    )
+  let dumped =
+    json.to_string(draft_proxy.dump_state(original, fixed_created_at))
   let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
   // After restore, the next mint reuses the dump's counter, so a new
   // savedSearchCreate gets SavedSearch/3, not SavedSearch/1.
   let #(Response(body: body, ..), _) =
-    draft_proxy.process_request(restored, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      restored,
+      graphql_request(saved_search_create_body),
+    )
   assert string.contains(
     json.to_string(body),
     "\"id\":\"gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic\"",
@@ -1001,9 +1051,13 @@ pub fn restore_state_round_trips_synthetic_identity_test() {
 pub fn restore_state_round_trips_mutation_log_test() {
   let original = draft_proxy.new()
   let #(_, original) =
-    draft_proxy.process_request(original, graphql_request(saved_search_create_body))
+    draft_proxy.process_request(
+      original,
+      graphql_request(saved_search_create_body),
+    )
   let original_log = json.to_string(draft_proxy.get_log_snapshot(original))
-  let dumped = json.to_string(draft_proxy.dump_state(original, fixed_created_at))
+  let dumped =
+    json.to_string(draft_proxy.dump_state(original, fixed_created_at))
   let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
   assert json.to_string(draft_proxy.get_log_snapshot(restored)) == original_log
 }
@@ -1023,7 +1077,8 @@ pub fn restore_state_rejects_unsupported_version_test() {
   let proxy = draft_proxy.new()
   let dump_with_bad_version =
     "{\"schema\":\"shopify-draft-proxy/state-dump\",\"version\":99,\"createdAt\":\"2026-04-29T12:00:00.000Z\",\"store\":{\"version\":1,\"fields\":{\"mutationLog\":[]}},\"syntheticIdentity\":{\"nextSyntheticId\":1,\"nextSyntheticTimestamp\":\"2024-01-01T00:00:00.000Z\"},\"extensions\":{}}"
-  let assert Error(err) = draft_proxy.restore_state(proxy, dump_with_bad_version)
+  let assert Error(err) =
+    draft_proxy.restore_state(proxy, dump_with_bad_version)
   case err {
     draft_proxy.UnsupportedVersion(found: 99) -> Nil
     _ -> panic as "expected UnsupportedVersion error"
@@ -1080,4 +1135,3 @@ pub fn dump_state_constants_are_stable_test() {
   assert draft_proxy.state_dump_schema == "shopify-draft-proxy/state-dump"
   assert draft_proxy.state_dump_version == 1
 }
-

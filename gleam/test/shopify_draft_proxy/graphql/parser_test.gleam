@@ -1,11 +1,11 @@
 import gleam/list
 import gleam/option.{None, Some}
 import shopify_draft_proxy/graphql/ast.{
-  type Definition, type Document, type Selection, BooleanValue, EnumValue,
-  Field, FloatValue, FragmentDefinition, FragmentSpread, InlineFragment,
-  IntValue, ListType, ListValue, Mutation, NamedType, NonNullType, NullValue,
-  ObjectValue, OperationDefinition, Query, SelectionSet, StringValue,
-  Subscription, VariableValue,
+  type Definition, type Document, type Selection, BooleanValue, EnumValue, Field,
+  FloatValue, FragmentDefinition, FragmentSpread, InlineFragment, IntValue,
+  ListType, ListValue, Mutation, NamedType, NonNullType, NullValue, ObjectValue,
+  OperationDefinition, Query, SelectionSet, StringValue, Subscription,
+  VariableValue,
 }
 import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/source
@@ -43,11 +43,11 @@ pub fn named_query_with_variables_test() {
     )
   let def = first_definition(doc)
   let assert OperationDefinition(
-      operation: op,
-      name: Some(name),
-      variable_definitions: vars,
-      ..,
-    ) = def
+    operation: op,
+    name: Some(name),
+    variable_definitions: vars,
+    ..,
+  ) = def
   assert op == Query
   assert name.value == "Foo"
   assert list.length(vars) == 2
@@ -82,10 +82,8 @@ pub fn mutation_with_object_argument_test() {
   let assert StringValue(value: "x", block: False, ..) = title_field.value
   assert tags_field.name.value == "tags"
   let assert ListValue(values: tag_values, ..) = tags_field.value
-  let assert [
-    StringValue(value: "a", ..),
-    StringValue(value: "b", ..),
-  ] = tag_values
+  let assert [StringValue(value: "a", ..), StringValue(value: "b", ..)] =
+    tag_values
 }
 
 pub fn subscription_test() {
@@ -101,10 +99,10 @@ pub fn fragment_definition_test() {
     )
   let assert [frag, op] = doc.definitions
   let assert FragmentDefinition(
-      name: name,
-      type_condition: NamedType(name: tc_name, ..),
-      ..,
-    ) = frag
+    name: name,
+    type_condition: NamedType(name: tc_name, ..),
+    ..,
+  ) = frag
   assert name.value == "ProductFields"
   assert tc_name.value == "Product"
 
@@ -131,8 +129,10 @@ pub fn fragment_spread_test() {
   let doc = parse_or_panic("{ me { ...Fields @include(if: true) } }")
   let assert Field(selection_set: Some(ss), ..) =
     first_selection(first_definition(doc))
-  let assert SelectionSet(selections: [FragmentSpread(name: n, directives: ds, ..)], ..) =
-    ss
+  let assert SelectionSet(
+    selections: [FragmentSpread(name: n, directives: ds, ..)],
+    ..,
+  ) = ss
   assert n.value == "Fields"
   let assert [d] = ds
   assert d.name.value == "include"
@@ -160,9 +160,9 @@ pub fn list_type_test() {
   let assert OperationDefinition(variable_definitions: [vd], ..) =
     first_definition(doc)
   let assert NonNullType(
-      inner: ListType(inner: NonNullType(inner: NamedType(name: nm, ..), ..), ..),
-      ..,
-    ) = vd.type_ref
+    inner: ListType(inner: NonNullType(inner: NamedType(name: nm, ..), ..), ..),
+    ..,
+  ) = vd.type_ref
   assert nm.value == "Int"
 }
 
@@ -194,8 +194,7 @@ pub fn directive_on_operation_test() {
 
 pub fn empty_argument_object_test() {
   let doc = parse_or_panic("{ foo(input: {}) }")
-  let assert Field(arguments: [a], ..) =
-    first_selection(first_definition(doc))
+  let assert Field(arguments: [a], ..) = first_selection(first_definition(doc))
   let assert ObjectValue(fields: [], ..) = a.value
 }
 

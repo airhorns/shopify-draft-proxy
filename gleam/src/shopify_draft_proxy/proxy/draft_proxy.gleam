@@ -34,12 +34,12 @@ import shopify_draft_proxy/graphql/parse_operation.{
   type ParsedOperation, MutationOperation, QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
-import shopify_draft_proxy/proxy/capabilities
-import shopify_draft_proxy/proxy/delivery_settings
-import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/bulk_operations
+import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/delivery_settings
+import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/localization
@@ -267,17 +267,26 @@ pub fn get_config_snapshot(proxy: DraftProxy) -> Json {
     None -> json.null()
   }
   json.object([
-    #("runtime", json.object([
-      #("readMode", json.string(read_mode_to_string(proxy.config.read_mode))),
-    ])),
-    #("proxy", json.object([
-      #("port", json.int(proxy.config.port)),
-      #("shopifyAdminOrigin", json.string(proxy.config.shopify_admin_origin)),
-    ])),
-    #("snapshot", json.object([
-      #("enabled", json.bool(snapshot_enabled)),
-      #("path", snapshot_path),
-    ])),
+    #(
+      "runtime",
+      json.object([
+        #("readMode", json.string(read_mode_to_string(proxy.config.read_mode))),
+      ]),
+    ),
+    #(
+      "proxy",
+      json.object([
+        #("port", json.int(proxy.config.port)),
+        #("shopifyAdminOrigin", json.string(proxy.config.shopify_admin_origin)),
+      ]),
+    ),
+    #(
+      "snapshot",
+      json.object([
+        #("enabled", json.bool(snapshot_enabled)),
+        #("path", snapshot_path),
+      ]),
+    ),
   ])
 }
 
@@ -334,17 +343,12 @@ fn serialize_mutation_log_entry(entry: store.MutationLogEntry) -> Json {
     ),
     #("stagedResourceIds", json.array(entry.staged_resource_ids, json.string)),
     #("status", json.string(entry_status_to_string(entry.status))),
-    #(
-      "interpreted",
-      serialize_interpreted_metadata(entry.interpreted),
-    ),
+    #("interpreted", serialize_interpreted_metadata(entry.interpreted)),
     #("notes", optional_string(entry.notes)),
   ])
 }
 
-fn serialize_interpreted_metadata(
-  meta: store.InterpretedMetadata,
-) -> Json {
+fn serialize_interpreted_metadata(meta: store.InterpretedMetadata) -> Json {
   json.object([
     #(
       "operationType",
@@ -356,10 +360,7 @@ fn serialize_interpreted_metadata(
     #(
       "capability",
       json.object([
-        #(
-          "operationName",
-          optional_string(meta.capability.operation_name),
-        ),
+        #("operationName", optional_string(meta.capability.operation_name)),
         #("domain", json.string(meta.capability.domain)),
         #("execution", json.string(meta.capability.execution)),
       ]),
@@ -413,10 +414,7 @@ fn serialize_staged_state(state: store.StagedState) -> Json {
       list.append(entries, [
         #(
           "deletedSavedSearchIds",
-          json.array(
-            dict.keys(state.deleted_saved_search_ids),
-            json.string,
-          ),
+          json.array(dict.keys(state.deleted_saved_search_ids), json.string),
         ),
       ])
   }
@@ -471,10 +469,13 @@ fn not_found_response() -> Response {
   Response(
     status: 404,
     body: json.object([
-      #("errors", json.array(
-        [json.object([#("message", json.string("Not found"))])],
-        fn(x) { x },
-      )),
+      #(
+        "errors",
+        json.array(
+          [json.object([#("message", json.string("Not found"))])],
+          fn(x) { x },
+        ),
+      ),
     ]),
     headers: [],
   )
@@ -484,10 +485,13 @@ fn method_not_allowed_response() -> Response {
   Response(
     status: 405,
     body: json.object([
-      #("errors", json.array(
-        [json.object([#("message", json.string("Method not allowed"))])],
-        fn(x) { x },
-      )),
+      #(
+        "errors",
+        json.array(
+          [json.object([#("message", json.string("Method not allowed"))])],
+          fn(x) { x },
+        ),
+      ),
     ]),
     headers: [],
   )
@@ -571,10 +575,7 @@ fn route_mutation(
             synthetic_identity: outcome.identity,
           ),
         )
-        Error(_) -> #(
-          bad_request("Failed to handle webhooks mutation"),
-          proxy,
-        )
+        Error(_) -> #(bad_request("Failed to handle webhooks mutation"), proxy)
       }
     Ok(AppsDomain) ->
       case
@@ -595,10 +596,7 @@ fn route_mutation(
             synthetic_identity: outcome.identity,
           ),
         )
-        Error(_) -> #(
-          bad_request("Failed to handle apps mutation"),
-          proxy,
-        )
+        Error(_) -> #(bad_request("Failed to handle apps mutation"), proxy)
       }
     Ok(FunctionsDomain) ->
       case
@@ -618,10 +616,7 @@ fn route_mutation(
             synthetic_identity: outcome.identity,
           ),
         )
-        Error(_) -> #(
-          bad_request("Failed to handle functions mutation"),
-          proxy,
-        )
+        Error(_) -> #(bad_request("Failed to handle functions mutation"), proxy)
       }
     Ok(GiftCardsDomain) ->
       case
@@ -664,10 +659,7 @@ fn route_mutation(
             synthetic_identity: outcome.identity,
           ),
         )
-        Error(_) -> #(
-          bad_request("Failed to handle segments mutation"),
-          proxy,
-        )
+        Error(_) -> #(bad_request("Failed to handle segments mutation"), proxy)
       }
     Ok(MetafieldDefinitionsDomain) ->
       case
@@ -917,8 +909,7 @@ fn capability_to_mutation_domain(
 fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
-    "deliverySettings" | "deliveryPromiseSettings" ->
-      Ok(DeliverySettingsDomain)
+    "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
     _ ->
       case saved_searches.is_saved_search_query_root(name) {
         True -> Ok(SavedSearchesDomain)
@@ -957,23 +948,27 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                           name,
                                         )
                                       {
-                                        True ->
-                                          Ok(MetaobjectDefinitionsDomain)
+                                        True -> Ok(MetaobjectDefinitionsDomain)
                                         False ->
-                                          case marketing.is_marketing_query_root(
-                                            name,
-                                          ) {
+                                          case
+                                            marketing.is_marketing_query_root(
+                                              name,
+                                            )
+                                          {
                                             True -> Ok(MarketingDomain)
                                             False ->
-                                              case bulk_operations.is_bulk_operations_query_root(
-                                                name,
-                                              ) {
-                                                True ->
-                                                  Ok(BulkOperationsDomain)
+                                              case
+                                                bulk_operations.is_bulk_operations_query_root(
+                                                  name,
+                                                )
+                                              {
+                                                True -> Ok(BulkOperationsDomain)
                                                 False ->
-                                                  case media.is_media_query_root(
-                                                    name,
-                                                  ) {
+                                                  case
+                                                    media.is_media_query_root(
+                                                      name,
+                                                    )
+                                                  {
                                                     True -> Ok(MediaDomain)
                                                     False -> Error(Nil)
                                                   }
@@ -1018,9 +1013,7 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
                             True -> Ok(MetafieldDefinitionsDomain)
                             False ->
                               case
-                                localization.is_localization_mutation_root(
-                                  name,
-                                )
+                                localization.is_localization_mutation_root(name)
                               {
                                 True -> Ok(LocalizationDomain)
                                 False -> Error(Nil)
@@ -1040,10 +1033,7 @@ fn respond(
   error_message: String,
 ) -> #(Response, DraftProxy) {
   case result {
-    Ok(envelope) -> #(
-      Response(status: 200, body: envelope, headers: []),
-      proxy,
-    )
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
     Error(_) -> #(bad_request(error_message), proxy)
   }
 }
@@ -1094,10 +1084,12 @@ fn bad_request(message: String) -> Response {
   Response(
     status: 400,
     body: json.object([
-      #("errors", json.array(
-        [json.object([#("message", json.string(message))])],
-        fn(x) { x },
-      )),
+      #(
+        "errors",
+        json.array([json.object([#("message", json.string(message))])], fn(x) {
+          x
+        }),
+      ),
     ]),
     headers: [],
   )
@@ -1251,10 +1243,7 @@ fn dump_synthetic_identity(registry: SyntheticIdentityRegistry) -> Json {
   let dump = synthetic_identity.dump_state(registry)
   json.object([
     #("nextSyntheticId", json.int(dump.next_synthetic_id)),
-    #(
-      "nextSyntheticTimestamp",
-      json.string(dump.next_synthetic_timestamp),
-    ),
+    #("nextSyntheticTimestamp", json.string(dump.next_synthetic_timestamp)),
   ])
 }
 
@@ -1305,11 +1294,13 @@ pub fn restore_state(
     |> result.map_error(InvalidSyntheticIdentity),
   )
   let restored_store = restore_store_slice(proxy.store, log_entries)
-  Ok(DraftProxy(
-    ..proxy,
-    synthetic_identity: restored_identity,
-    store: restored_store,
-  ))
+  Ok(
+    DraftProxy(
+      ..proxy,
+      synthetic_identity: restored_identity,
+      store: restored_store,
+    ),
+  )
 }
 
 type StoreSliceDump {
@@ -1359,10 +1350,7 @@ fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
     decode.list(of: decode.string),
   )
   use status <- decode.field("status", decode.string)
-  use interpreted <- decode.field(
-    "interpreted",
-    interpreted_metadata_decoder(),
-  )
+  use interpreted <- decode.field("interpreted", interpreted_metadata_decoder())
   use notes <- decode.field("notes", decode.optional(decode.string))
   decode.success(store.MutationLogEntry(
     id: id,
@@ -1380,10 +1368,7 @@ fn mutation_log_entry_decoder() -> decode.Decoder(store.MutationLogEntry) {
 
 fn interpreted_metadata_decoder() -> decode.Decoder(store.InterpretedMetadata) {
   use op_type <- decode.field("operationType", decode.string)
-  use op_name <- decode.field(
-    "operationName",
-    decode.optional(decode.string),
-  )
+  use op_name <- decode.field("operationName", decode.optional(decode.string))
   use root_fields <- decode.field("rootFields", decode.list(of: decode.string))
   use primary <- decode.field(
     "primaryRootField",
@@ -1400,10 +1385,7 @@ fn interpreted_metadata_decoder() -> decode.Decoder(store.InterpretedMetadata) {
 }
 
 fn capability_decoder() -> decode.Decoder(store.Capability) {
-  use op_name <- decode.field(
-    "operationName",
-    decode.optional(decode.string),
-  )
+  use op_name <- decode.field("operationName", decode.optional(decode.string))
   use domain <- decode.field("domain", decode.string)
   use execution <- decode.field("execution", decode.string)
   decode.success(store.Capability(
@@ -1487,10 +1469,10 @@ fn commit_via_route(
   )
 }
 
+@target(erlang)
 /// Run the upstream commit replay synchronously. Erlang-only — gleam_httpc
 /// blocks until upstream answers, so this returns the response paired with
 /// the next proxy state directly.
-@target(erlang)
 pub fn commit(
   proxy: DraftProxy,
   inbound_headers: Dict(String, String),
@@ -1512,11 +1494,11 @@ pub fn commit(
   )
 }
 
+@target(javascript)
 /// Run the upstream commit replay asynchronously. JavaScript-only —
 /// `fetch` is Promise-based, so callers must `await` the result. Returns
 /// the same `#(Response, DraftProxy)` pair as the Erlang version once the
 /// Promise resolves.
-@target(javascript)
 pub fn commit(
   proxy: DraftProxy,
   inbound_headers: Dict(String, String),
@@ -1540,11 +1522,11 @@ pub fn commit(
   })
 }
 
+@target(javascript)
 /// Async dispatcher exposed only on JavaScript. Routes every request just
 /// like `process_request/2`, but the `MetaCommit` arm awaits the upstream
 /// fetch instead of returning a 501. Non-commit routes are wrapped in
 /// `promise.resolve` so callers can use a single async entry point.
-@target(javascript)
 pub fn process_request_async(
   proxy: DraftProxy,
   request: Request,

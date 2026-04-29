@@ -48,8 +48,7 @@ pub fn missing_field_becomes_null_test() {
 
 pub fn typename_falls_back_to_null_test() {
   let source = graphql_helpers.src_object([])
-  assert project(source, "{ root { __typename } }")
-    == "{\"__typename\":null}"
+  assert project(source, "{ root { __typename } }") == "{\"__typename\":null}"
 }
 
 pub fn typename_uses_source_when_present_test() {
@@ -61,8 +60,7 @@ pub fn typename_uses_source_when_present_test() {
 
 pub fn aliases_become_response_keys_test() {
   let source = graphql_helpers.src_object([#("id", SrcString("xyz"))])
-  assert project(source, "{ root { renamed: id } }")
-    == "{\"renamed\":\"xyz\"}"
+  assert project(source, "{ root { renamed: id } }") == "{\"renamed\":\"xyz\"}"
 }
 
 pub fn nested_object_is_projected_test() {
@@ -130,8 +128,7 @@ pub fn inline_fragment_with_mismatched_typename_skipped_test() {
       #("__typename", SrcString("Widget")),
       #("id", SrcString("w-1")),
     ])
-  assert project(source, "{ root { ... on Sprocket { id } } }")
-    == "{}"
+  assert project(source, "{ root { ... on Sprocket { id } } }") == "{}"
 }
 
 pub fn inline_fragment_without_typename_in_source_inlines_test() {
@@ -179,7 +176,6 @@ pub fn document_fragments_index_by_name_test() {
 }
 
 pub fn document_fragments_empty_when_no_fragments_test() {
-  let fragments =
-    graphql_helpers.get_document_fragments("{ root { id } }")
+  let fragments = graphql_helpers.get_document_fragments("{ root { id } }")
   assert dict.size(fragments) == 0
 }

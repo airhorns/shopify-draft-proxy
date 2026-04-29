@@ -41,7 +41,10 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
           case name.value {
             "event" -> json.null()
             "events" ->
-              serialize_empty_connection(field, default_selected_field_options())
+              serialize_empty_connection(
+                field,
+                default_selected_field_options(),
+              )
             "eventsCount" -> serialize_exact_zero_count(field)
             _ -> json.null()
           }
@@ -54,18 +57,21 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
 
 fn serialize_exact_zero_count(field: Selection) -> Json {
   let entries =
-    list.map(get_selected_child_fields(field, default_selected_field_options()), fn(child) {
-      let key = get_field_response_key(child)
-      case child {
-        Field(name: name, ..) ->
-          case name.value {
-            "count" -> #(key, json.int(0))
-            "precision" -> #(key, json.string("EXACT"))
-            _ -> #(key, json.null())
-          }
-        _ -> #(key, json.null())
-      }
-    })
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(child) {
+        let key = get_field_response_key(child)
+        case child {
+          Field(name: name, ..) ->
+            case name.value {
+              "count" -> #(key, json.int(0))
+              "precision" -> #(key, json.string("EXACT"))
+              _ -> #(key, json.null())
+            }
+          _ -> #(key, json.null())
+        }
+      },
+    )
   json.object(entries)
 }
 
