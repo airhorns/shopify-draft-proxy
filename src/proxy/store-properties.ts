@@ -16,6 +16,7 @@ import type {
   LocationFulfillmentServiceRecord,
   LocationRecord,
   LocationSuggestedAddressRecord,
+  OnlineStoreIntegrationRecord,
   PaymentSettingsRecord,
   ProductVariantRecord,
   ShopifyPaymentsAccountRecord,
@@ -1582,10 +1583,113 @@ function serializeShopPolicyUserError(
   return result;
 }
 
+function serializeAccessScope(scope: unknown, selections: readonly SelectionNode[]): Record<string, unknown> {
+  const scopeRecord = typeof scope === 'object' && scope !== null ? (scope as Record<string, unknown>) : {};
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'AccessScope') {
+        continue;
+      }
+      Object.assign(result, serializeAccessScope(scope, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'AccessScope';
+        break;
+      case 'handle':
+        result[key] = typeof scopeRecord['handle'] === 'string' ? scopeRecord['handle'] : null;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeStorefrontAccessToken(
+  token: OnlineStoreIntegrationRecord,
+  selections: readonly SelectionNode[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const selection of selections) {
+    if (selection.kind === Kind.INLINE_FRAGMENT) {
+      if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'StorefrontAccessToken') {
+        continue;
+      }
+      Object.assign(result, serializeStorefrontAccessToken(token, selection.selectionSet.selections));
+      continue;
+    }
+
+    if (selection.kind !== Kind.FIELD) {
+      continue;
+    }
+
+    const key = responseKey(selection);
+    switch (selection.name.value) {
+      case '__typename':
+        result[key] = 'StorefrontAccessToken';
+        break;
+      case 'id':
+        result[key] = token.id;
+        break;
+      case 'title':
+        result[key] = typeof token.data['title'] === 'string' ? token.data['title'] : '';
+        break;
+      case 'accessToken':
+        result[key] = 'shpat_redacted';
+        break;
+      case 'accessScopes': {
+        const scopes = Array.isArray(token.data['accessScopes']) ? token.data['accessScopes'] : [];
+        result[key] = scopes.map((scope) => serializeAccessScope(scope, selection.selectionSet?.selections ?? []));
+        break;
+      }
+      case 'createdAt':
+        result[key] = typeof token.data['createdAt'] === 'string' ? token.data['createdAt'] : token.createdAt;
+        break;
+      case 'updatedAt':
+        result[key] = typeof token.data['updatedAt'] === 'string' ? token.data['updatedAt'] : token.updatedAt;
+        break;
+      default:
+        result[key] = null;
+    }
+  }
+
+  return result;
+}
+
+function serializeStorefrontAccessTokensConnection(
+  runtime: ProxyRuntimeContext,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const tokens = runtime.store.listEffectiveOnlineStoreIntegrations('storefrontAccessToken');
+  const window = paginateConnectionItems(tokens, field, variables, (token) => token.id);
+  return serializeConnection(field, {
+    items: window.items,
+    hasNextPage: window.hasNextPage,
+    hasPreviousPage: window.hasPreviousPage,
+    getCursorValue: (token) => token.id,
+    serializeNode: (token, nodeField) =>
+      serializeStorefrontAccessToken(token, nodeField.selectionSet?.selections ?? []),
+  });
+}
+
 function serializeShop(
   runtime: ProxyRuntimeContext,
   shop: ShopRecord,
   selections: readonly SelectionNode[],
+  variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
@@ -1594,7 +1698,7 @@ function serializeShop(
       if (selection.typeCondition?.name.value && selection.typeCondition.name.value !== 'Shop') {
         continue;
       }
-      Object.assign(result, serializeShop(runtime, shop, selection.selectionSet.selections));
+      Object.assign(result, serializeShop(runtime, shop, selection.selectionSet.selections, variables));
       continue;
     }
 
@@ -1685,6 +1789,9 @@ function serializeShop(
           serializeShopPolicy(policy, selection.selectionSet?.selections ?? []),
         );
         break;
+      case 'storefrontAccessTokens':
+        result[key] = serializeStorefrontAccessTokensConnection(runtime, selection, variables);
+        break;
       default:
         result[key] = null;
     }
@@ -1699,7 +1806,7 @@ export function serializeShopNodeById(
   selections: readonly SelectionNode[],
 ): Record<string, unknown> | null {
   const shop = runtime.store.getEffectiveShop();
-  return shop?.id === id ? serializeShop(runtime, shop, selections) : null;
+  return shop?.id === id ? serializeShop(runtime, shop, selections, {}) : null;
 }
 
 function unsupportedShopifyPaymentsFieldError(fieldName: string, path: Array<string | number>): GraphQLResponseError {
@@ -4201,7 +4308,7 @@ export function handleStorePropertiesQuery(
       }
       case 'shop': {
         const shop = runtime.store.getEffectiveShop();
-        data[key] = shop ? serializeShop(runtime, shop, field.selectionSet?.selections ?? []) : null;
+        data[key] = shop ? serializeShop(runtime, shop, field.selectionSet?.selections ?? [], variables) : null;
         break;
       }
       case 'businessEntities':
