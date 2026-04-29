@@ -398,6 +398,133 @@ describe('inventory shipment lifecycle roots', () => {
     });
   });
 
+  it('keeps incoming inventory consistent when partially received shipments change or delete remaining quantities', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('partially received shipment mutations should not hit upstream fetch');
+    });
+    seedInventoryProduct();
+    const app = createApp(config).callback();
+
+    const createInTransit = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateInTransit($input: InventoryShipmentCreateInput!) {
+          inventoryShipmentCreateInTransit(input: $input) {
+            inventoryShipment { id lineItems(first: 1) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            movementId: 'gid://shopify/InventoryTransfer/7003',
+            lineItems: [{ inventoryItemId: 'gid://shopify/InventoryItem/94051', quantity: 5 }],
+          },
+        },
+      });
+
+    const shipmentId = createInTransit.body.data.inventoryShipmentCreateInTransit.inventoryShipment.id as string;
+    const lineItemId = createInTransit.body.data.inventoryShipmentCreateInTransit.inventoryShipment.lineItems.nodes[0]
+      .id as string;
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation Receive($id: ID!, $lineItems: [InventoryShipmentReceiveItemInput!]) {
+          inventoryShipmentReceive(id: $id, lineItems: $lineItems) {
+            inventoryShipment { id status }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: shipmentId,
+          lineItems: [{ shipmentLineItemId: lineItemId, quantity: 3, reason: 'ACCEPTED' }],
+        },
+      });
+
+    expect(await readInventory(app)).toMatchObject({
+      variant: { inventoryQuantity: 4 },
+      inventoryLevels: {
+        nodes: [
+          {
+            quantities: [
+              { name: 'available', quantity: 4 },
+              { name: 'on_hand', quantity: 4 },
+              { name: 'incoming', quantity: 2 },
+            ],
+          },
+        ],
+      },
+    });
+
+    const updateQuantities = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation UpdateQuantities($id: ID!, $items: [InventoryShipmentUpdateItemQuantitiesInput!]) {
+          inventoryShipmentUpdateItemQuantities(id: $id, items: $items) {
+            shipment { id status lineItemTotalQuantity }
+            updatedLineItems { id quantity unreceivedQuantity }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: shipmentId,
+          items: [{ shipmentLineItemId: lineItemId, quantity: 6 }],
+        },
+      });
+
+    expect(updateQuantities.body.data.inventoryShipmentUpdateItemQuantities).toEqual({
+      shipment: { id: shipmentId, status: 'PARTIALLY_RECEIVED', lineItemTotalQuantity: 6 },
+      updatedLineItems: [{ id: lineItemId, quantity: 6, unreceivedQuantity: 3 }],
+      userErrors: [],
+    });
+    expect(await readInventory(app)).toMatchObject({
+      variant: { inventoryQuantity: 4 },
+      inventoryLevels: {
+        nodes: [
+          {
+            quantities: [
+              { name: 'available', quantity: 4 },
+              { name: 'on_hand', quantity: 4 },
+              { name: 'incoming', quantity: 3 },
+            ],
+          },
+        ],
+      },
+    });
+
+    const deleteResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation DeleteShipment($id: ID!) {
+          inventoryShipmentDelete(id: $id) {
+            id
+            userErrors { field message code }
+          }
+        }`,
+        variables: { id: shipmentId },
+      });
+
+    expect(deleteResponse.body.data.inventoryShipmentDelete).toEqual({
+      id: shipmentId,
+      userErrors: [],
+    });
+    expect(await readInventory(app)).toMatchObject({
+      variant: { inventoryQuantity: 4 },
+      inventoryLevels: {
+        nodes: [
+          {
+            quantities: [
+              { name: 'available', quantity: 4 },
+              { name: 'on_hand', quantity: 4 },
+              { name: 'incoming', quantity: 0 },
+            ],
+          },
+        ],
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages add, quantity update, tracking, removal, and delete effects without upstream writes', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('inventory shipment lifecycle mutations should not hit upstream fetch');

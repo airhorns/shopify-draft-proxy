@@ -1,0 +1,31 @@
+mutation InventoryShipmentReceiveParity($id: ID!, $lineItems: [InventoryShipmentReceiveItemInput!]) {
+  inventoryShipmentReceive(id: $id, lineItems: $lineItems) {
+    inventoryShipment {
+      id
+      status
+      lineItemTotalQuantity
+      totalAcceptedQuantity
+      totalReceivedQuantity
+      totalRejectedQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          acceptedQuantity
+          rejectedQuantity
+          unreceivedQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

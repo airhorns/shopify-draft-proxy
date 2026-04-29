@@ -5890,6 +5890,89 @@ function applyInventoryTransferReservation(
   return [];
 }
 
+function transferHasReservedOriginInventory(status: InventoryTransferRecord['status']): boolean {
+  return status === 'READY_TO_SHIP' || status === 'IN_PROGRESS';
+}
+
+function applyInventoryTransferReservationDeltas(
+  runtime: ProxyRuntimeContext,
+  transfer: InventoryTransferRecord,
+  deltas: Array<{ lineItem: InventoryTransferLineItemRecord; deltaQuantity: number }>,
+): InventoryTransferUserError[] {
+  const errors: InventoryTransferUserError[] = [];
+  const nextLevelsByVariantId = new Map<string, InventoryLevelRecord[]>();
+
+  for (const { lineItem, deltaQuantity } of deltas) {
+    if (deltaQuantity === 0) {
+      continue;
+    }
+
+    const target = findInventoryTransferOriginLevel(runtime, transfer, lineItem);
+    if (!target) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
+      });
+      continue;
+    }
+
+    const levels = nextLevelsByVariantId.get(target.variant.id) ?? getEffectiveInventoryLevels(runtime, target.variant);
+    const levelIndex = levels.findIndex((level) => level.id === target.level.id);
+    const level = levels[levelIndex] ?? target.level;
+    const available = readInventoryQuantityAmount(level.quantities, 'available', 0);
+    const reserved = readInventoryQuantityAmount(level.quantities, 'reserved', 0);
+    if (deltaQuantity > 0 && available < deltaQuantity) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
+      });
+      continue;
+    }
+
+    const quantitiesWithAvailable = writeInventoryQuantityAmount(
+      runtime,
+      level.quantities,
+      'available',
+      available - deltaQuantity,
+    );
+    const nextQuantities = writeInventoryQuantityAmount(
+      runtime,
+      quantitiesWithAvailable,
+      'reserved',
+      reserved + deltaQuantity,
+    );
+    const nextLevel = { ...level, quantities: nextQuantities };
+    const nextLevels = levels.map((candidate, index) => (index === levelIndex ? nextLevel : candidate));
+    nextLevelsByVariantId.set(target.variant.id, nextLevels);
+  }
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  for (const [variantId, nextLevels] of nextLevelsByVariantId.entries()) {
+    const variant = runtime.store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    const nextVariant = stageVariantInventoryLevels(runtime, variant, nextLevels);
+    const inventoryQuantity = sumAvailableInventoryLevels(getEffectiveInventoryLevels(runtime, nextVariant));
+    runtime.store.replaceStagedVariantsForProduct(
+      nextVariant.productId,
+      runtime.store
+        .getEffectiveVariantsByProductId(nextVariant.productId)
+        .map((candidate) => (candidate.id === nextVariant.id ? { ...nextVariant, inventoryQuantity } : candidate)),
+    );
+  }
+
+  return [];
+}
+
 function serializeInventoryTransferUserErrors(
   field: FieldNode | null,
   errors: InventoryTransferUserError[],
@@ -13766,7 +13849,7 @@ export function handleProductMutation(
       }
 
       const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
-      const userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
+      let userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
       const priorByItemId = new Map(transfer.lineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
       const updatedLineItems = lineItemInputs
         .map((lineItemInput) => {
@@ -13783,7 +13866,20 @@ export function handleProductMutation(
           deltaQuantity: lineItem.totalQuantity - priorQuantity,
         };
       });
+      const updatedByItemId = new Map(updatedLineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
+      const reservationDeltas = [
+        ...updatedLineItems.map((lineItem) => ({
+          lineItem,
+          deltaQuantity: lineItem.totalQuantity - (priorByItemId.get(lineItem.inventoryItemId)?.totalQuantity ?? 0),
+        })),
+        ...transfer.lineItems
+          .filter((lineItem) => !updatedByItemId.has(lineItem.inventoryItemId))
+          .map((lineItem) => ({ lineItem, deltaQuantity: -lineItem.totalQuantity })),
+      ];
       const nextTransfer = { ...transfer, lineItems: updatedLineItems };
+      if (userErrors.length === 0 && transferHasReservedOriginInventory(transfer.status)) {
+        userErrors = applyInventoryTransferReservationDeltas(runtime, transfer, reservationDeltas);
+      }
       if (userErrors.length === 0) {
         runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       }
@@ -13817,6 +13913,16 @@ export function handleProductMutation(
       const removeIds = Array.isArray(input['transferLineItemIds'])
         ? input['transferLineItemIds'].filter((value): value is string => typeof value === 'string')
         : [];
+      const knownLineItemIds = new Set(transfer.lineItems.map((lineItem) => lineItem.id));
+      let userErrors: InventoryTransferUserError[] = removeIds.some((lineItemId) => !knownLineItemIds.has(lineItemId))
+        ? [
+            {
+              field: ['input', 'transferLineItemIds'],
+              message: "The inventory transfer line item can't be found.",
+              code: 'LINE_ITEM_NOT_FOUND',
+            },
+          ]
+        : [];
       const removedItems = transfer.lineItems.filter((lineItem) => removeIds.includes(lineItem.id));
       const nextTransfer = {
         ...transfer,
@@ -13827,21 +13933,30 @@ export function handleProductMutation(
         newQuantity: 0,
         deltaQuantity: -lineItem.totalQuantity,
       }));
-      runtime.store.upsertStagedInventoryTransfer(nextTransfer);
+      if (userErrors.length === 0 && transferHasReservedOriginInventory(transfer.status)) {
+        userErrors = applyInventoryTransferReservationDeltas(
+          runtime,
+          transfer,
+          removedItems.map((lineItem) => ({ lineItem, deltaQuantity: -lineItem.totalQuantity })),
+        );
+      }
+      if (userErrors.length === 0) {
+        runtime.store.upsertStagedInventoryTransfer(nextTransfer);
+      }
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
               runtime,
-              nextTransfer,
+              userErrors.length === 0 ? nextTransfer : transfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
             ),
             removedQuantities: serializeInventoryTransferLineItemUpdates(
               getChildField(field, 'removedQuantities'),
-              updates,
+              userErrors.length === 0 ? updates : null,
             ),
-            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), userErrors),
           },
         },
       };

@@ -1,0 +1,126 @@
+{
+  "scenarioId": "inventory-transfer-ready-item-adjustments-local-staging",
+  "operationNames": [
+    "inventoryTransferCreateAsReadyToShip",
+    "inventoryTransferSetItems",
+    "inventoryTransferRemoveItems"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "inventory-quantity-side-effect",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/inventory-transfer-ready-item-adjustments-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-transfer-create-ready.graphql",
+    "variablesCapturePath": "$.workflow.createReady.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-ready-transfer",
+        "capturePath": "$.workflow.createReady.response.payload.data.inventoryTransferCreateAsReadyToShip",
+        "proxyPath": "$.data.inventoryTransferCreateAsReadyToShip",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy generates stable session-local transfer IDs."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy generates stable session-local transfer line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "set-ready-transfer-items",
+        "capturePath": "$.workflow.setItems.response.payload.data.inventoryTransferSetItems",
+        "proxyPath": "$.data.inventoryTransferSetItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-set-items.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": "gid://shopify/InventoryItem/97011",
+                  "quantity": 3
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy keeps the synthetic transfer ID from the primary request."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy keeps the synthetic transfer line item ID from the primary request."
+          }
+        ]
+      },
+      {
+        "name": "after-set-inventory-read",
+        "capturePath": "$.workflow.afterSetInventoryRead.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterSetInventoryRead.variables"
+        }
+      },
+      {
+        "name": "remove-ready-transfer-items",
+        "capturePath": "$.workflow.removeItems.response.payload.data.inventoryTransferRemoveItems",
+        "proxyPath": "$.data.inventoryTransferRemoveItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-remove-items.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id"
+              },
+              "transferLineItemIds": [
+                {
+                  "fromPrimaryProxyPath": "$.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id"
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy keeps the synthetic transfer ID from the primary request."
+          }
+        ]
+      },
+      {
+        "name": "after-remove-inventory-read",
+        "capturePath": "$.workflow.afterRemoveInventoryRead.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterRemoveInventoryRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-434 adds executable local-runtime parity for ready-transfer line item quantity effects. The scenario covers create-as-ready, set-items reservation increase, remove-items reservation release, and downstream InventoryItem reserved/available reads without runtime Shopify writes."
+}

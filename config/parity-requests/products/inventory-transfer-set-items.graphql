@@ -1,0 +1,29 @@
+mutation InventoryTransferSetItemsParity($input: InventoryTransferSetItemsInput!) {
+  inventoryTransferSetItems(input: $input) {
+    inventoryTransfer {
+      id
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    updatedLineItems {
+      inventoryItemId
+      newQuantity
+      deltaQuantity
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
