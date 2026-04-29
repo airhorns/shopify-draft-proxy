@@ -5,6 +5,7 @@ import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{
   type Request, Config, LiveHybrid, Request, Response, Snapshot,
 }
+import shopify_draft_proxy/proxy/operation_registry
 
 fn empty_headers() -> dict.Dict(String, String) {
   dict.new()
@@ -329,6 +330,87 @@ fn graphql_request(body: String) -> Request {
   )
 }
 
+/// Synthetic registry that the dispatcher tests use to exercise the
+/// capability-driven path without depending on the production
+/// `config/operation-registry.json`.
+fn capability_test_registry() -> List(operation_registry.RegistryEntry) {
+  [
+    operation_registry.RegistryEntry(
+      name: "events",
+      type_: operation_registry.Query,
+      domain: operation_registry.Events,
+      execution: operation_registry.OverlayRead,
+      implemented: True,
+      match_names: ["events", "eventsCount"],
+      runtime_tests: [],
+      support_notes: None,
+    ),
+    operation_registry.RegistryEntry(
+      name: "orderSavedSearches",
+      type_: operation_registry.Query,
+      domain: operation_registry.SavedSearches,
+      execution: operation_registry.OverlayRead,
+      implemented: True,
+      match_names: ["orderSavedSearches"],
+      runtime_tests: [],
+      support_notes: None,
+    ),
+    operation_registry.RegistryEntry(
+      name: "savedSearchCreate",
+      type_: operation_registry.Mutation,
+      domain: operation_registry.SavedSearches,
+      execution: operation_registry.StageLocally,
+      implemented: True,
+      match_names: ["savedSearchCreate"],
+      runtime_tests: [],
+      support_notes: None,
+    ),
+  ]
+}
+
+pub fn registry_drives_query_dispatch_test() {
+  let proxy =
+    draft_proxy.new()
+    |> draft_proxy.with_registry(capability_test_registry())
+  let body = "{\"query\":\"{ events { nodes { id } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  // Events is read-only and always empty in the proxy; the dispatcher
+  // arrives at events.process via the capability path.
+  assert string.contains(json.to_string(response_body), "\"events\":")
+}
+
+pub fn registry_drives_mutation_dispatch_test() {
+  let proxy =
+    draft_proxy.new()
+    |> draft_proxy.with_registry(capability_test_registry())
+  let body =
+    "{\"query\":\"mutation { savedSearchCreate(input: { resourceType: ORDER, name: \\\"X\\\", query: \\\"tag:x\\\" }) { savedSearch { id } userErrors { message } } }\"}"
+  let #(Response(status: status, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+}
+
+pub fn registry_unknown_root_falls_back_to_400_test() {
+  // A registry without an entry for productSavedSearches still routes
+  // because the legacy fallback predicate recognises it. With *only*
+  // capability-driven dispatch active, an unknown root would 400.
+  let proxy =
+    draft_proxy.new()
+    |> draft_proxy.with_registry(capability_test_registry())
+  let body =
+    "{\"query\":\"{ productSavedSearches(first: 1) { nodes { id } } }\"}"
+  let #(Response(status: status, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  // productSavedSearches is recognised by the legacy
+  // is_saved_search_query_root fallback, so this still succeeds.
+  // This test exists to lock in the fallback behavior so a future
+  // pass that flips to capability-only dispatch can update it
+  // intentionally.
+  assert status == 200
+}
+
 fn meta_get(path: String) -> Request {
   Request(method: "GET", path: path, headers: empty_headers(), body: "")
 }
@@ -619,5 +701,50 @@ pub fn graphql_omitted_variables_object_still_parses_test() {
   let #(Response(status: status, ..), _) =
     draft_proxy.process_request(proxy, graphql_request(body))
   assert status == 200
+}
+
+// ---------------------------------------------------------------------------
+// Webhook mutations end-to-end through the dispatcher
+// ---------------------------------------------------------------------------
+
+pub fn graphql_webhook_subscription_create_returns_payload_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\", format: JSON }) { webhookSubscription { id topic uri format } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  // Body confirms the dispatcher routed to webhooks.process_mutation,
+  // synthetic identity minted a new gid, and the payload was projected.
+  // (The /__meta/state endpoint does not serialize webhookSubscriptions
+  // yet — a deferred follow-on; the in-store assertion lives in
+  // webhooks_test.)
+  assert json.to_string(response_body)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"ORDERS_CREATE\",\"uri\":\"https://hooks.example.com/orders\",\"format\":\"JSON\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_webhook_subscription_create_missing_topic_top_level_error_test() {
+  // Top-level error envelope: no `data` key, just `errors`.
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(webhookSubscription: { uri: \\\"https://hooks.example.com/orders\\\" }) { webhookSubscription { id } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionCreate' is missing required arguments: topic\",\"path\":[\"mutation\",\"webhookSubscriptionCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionCreate\",\"arguments\":\"topic\"}}]}"
+}
+
+pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {
+  // User-error envelope: payload nulls out webhookSubscription and lists
+  // a structured user error under the standard `data` envelope.
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \\\"\\\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
 }
 

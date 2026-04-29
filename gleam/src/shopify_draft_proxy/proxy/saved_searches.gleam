@@ -28,6 +28,7 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string}
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SerializeConnectionConfig, SrcList, SrcNull, SrcString,
@@ -808,15 +809,8 @@ fn read_input(
   }
 }
 
-fn read_optional_string(
-  input: dict.Dict(String, root_field.ResolvedValue),
-  key: String,
-) -> Option(String) {
-  case dict.get(input, key) {
-    Ok(root_field.StringVal(s)) -> Some(s)
-    _ -> None
-  }
-}
+// `read_optional_string` is now imported from `proxy/mutation_helpers`
+// (Pass 14 lift).
 
 fn validate_saved_search_input(
   input: Option(dict.Dict(String, root_field.ResolvedValue)),

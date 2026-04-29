@@ -24,12 +24,19 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/parse_operation.{
-  MutationOperation, QueryOperation,
+  type ParsedOperation, MutationOperation, QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
+import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/operation_registry.{
+  type RegistryEntry, Apps, Events, SavedSearches, ShippingFulfillments,
+  Webhooks,
+}
 import shopify_draft_proxy/proxy/saved_searches
+import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -82,6 +89,12 @@ pub type DraftProxy {
     config: Config,
     synthetic_identity: SyntheticIdentityRegistry,
     store: Store,
+    /// Registry-driven dispatch table. Empty by default — when empty,
+    /// the dispatcher falls back to the hardcoded `domain_for`
+    /// predicates (matches Pass 1–7 behavior so existing tests keep
+    /// working). Load via `with_registry` once a real config is
+    /// available.
+    registry: List(RegistryEntry),
   )
 }
 
@@ -107,7 +120,20 @@ pub fn with_config(config: Config) -> DraftProxy {
     config: config,
     synthetic_identity: synthetic_identity.new(),
     store: store.new(),
+    registry: [],
   )
+}
+
+/// Attach a parsed operation registry to the proxy. Once attached,
+/// query/mutation dispatch routes by capability instead of the
+/// hardcoded predicates. Mirrors the dispatcher transition the TS
+/// proxy made when `operation-registry.json` started driving
+/// `routes.ts`.
+pub fn with_registry(
+  proxy: DraftProxy,
+  registry: List(RegistryEntry),
+) -> DraftProxy {
+  DraftProxy(..proxy, registry: registry)
 }
 
 /// Process a request and return the response paired with the updated
@@ -444,10 +470,11 @@ fn dispatch_graphql(
         Ok(parsed) ->
           case parsed.type_, list.first(parsed.root_fields) {
             QueryOperation, Ok(field) ->
-              route_query(proxy, body.query, field, body.variables)
+              route_query(proxy, parsed, body.query, field, body.variables)
             MutationOperation, Ok(field) ->
               route_mutation(
                 proxy,
+                parsed,
                 request.path,
                 body.query,
                 field,
@@ -461,13 +488,14 @@ fn dispatch_graphql(
 
 fn route_mutation(
   proxy: DraftProxy,
+  parsed: ParsedOperation,
   request_path: String,
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case saved_searches.is_saved_search_mutation_root(primary_root_field) {
-    True ->
+  case mutation_domain_for(proxy, parsed, primary_root_field) {
+    Ok(SavedSearchesDomain) ->
       case
         saved_searches.process_mutation(
           proxy.store,
@@ -490,7 +518,30 @@ fn route_mutation(
           proxy,
         )
       }
-    False -> #(
+    Ok(WebhooksDomain) ->
+      case
+        webhooks.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle webhooks mutation"),
+          proxy,
+        )
+      }
+    Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
         <> primary_root_field,
@@ -502,11 +553,12 @@ fn route_mutation(
 
 fn route_query(
   proxy: DraftProxy,
+  parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case domain_for(primary_root_field) {
+  case query_domain_for(proxy, parsed, primary_root_field) {
     Ok(EventsDomain) ->
       respond(proxy, events.process(query), "Failed to handle events query")
     Ok(DeliverySettingsDomain) ->
@@ -520,6 +572,18 @@ fn route_query(
         proxy,
         saved_searches.process(proxy.store, query, variables),
         "Failed to handle saved searches query",
+      )
+    Ok(WebhooksDomain) ->
+      respond(
+        proxy,
+        webhooks.process(proxy.store, query, variables),
+        "Failed to handle webhooks query",
+      )
+    Ok(AppsDomain) ->
+      respond(
+        proxy,
+        apps.process(proxy.store, query, variables),
+        "Failed to handle apps query",
       )
     Error(_) -> #(
       bad_request(
@@ -535,9 +599,74 @@ type Domain {
   EventsDomain
   DeliverySettingsDomain
   SavedSearchesDomain
+  WebhooksDomain
+  AppsDomain
 }
 
-fn domain_for(name: String) -> Result(Domain, Nil) {
+/// Resolve a query operation's domain. With a registry loaded, the
+/// capability lookup decides; without one (or if it returns Unknown),
+/// fall back to the legacy hardcoded predicates so unmigrated tests
+/// keep working.
+fn query_domain_for(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  primary_root_field: String,
+) -> Result(Domain, Nil) {
+  case capability_to_query_domain(proxy, parsed) {
+    Ok(d) -> Ok(d)
+    Error(_) -> legacy_query_domain_for(primary_root_field)
+  }
+}
+
+fn mutation_domain_for(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  primary_root_field: String,
+) -> Result(Domain, Nil) {
+  case capability_to_mutation_domain(proxy, parsed) {
+    Ok(d) -> Ok(d)
+    Error(_) -> legacy_mutation_domain_for(primary_root_field)
+  }
+}
+
+fn capability_to_query_domain(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+) -> Result(Domain, Nil) {
+  case proxy.registry {
+    [] -> Error(Nil)
+    _ -> {
+      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+      case cap.domain {
+        Events -> Ok(EventsDomain)
+        SavedSearches -> Ok(SavedSearchesDomain)
+        ShippingFulfillments -> Ok(DeliverySettingsDomain)
+        Webhooks -> Ok(WebhooksDomain)
+        Apps -> Ok(AppsDomain)
+        _ -> Error(Nil)
+      }
+    }
+  }
+}
+
+fn capability_to_mutation_domain(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+) -> Result(Domain, Nil) {
+  case proxy.registry {
+    [] -> Error(Nil)
+    _ -> {
+      let cap = capabilities.get_operation_capability(parsed, proxy.registry)
+      case cap.domain {
+        SavedSearches -> Ok(SavedSearchesDomain)
+        Webhooks -> Ok(WebhooksDomain)
+        _ -> Error(Nil)
+      }
+    }
+  }
+}
+
+fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
   case name {
     "event" | "events" | "eventsCount" -> Ok(EventsDomain)
     "deliverySettings" | "deliveryPromiseSettings" ->
@@ -545,6 +674,25 @@ fn domain_for(name: String) -> Result(Domain, Nil) {
     _ ->
       case saved_searches.is_saved_search_query_root(name) {
         True -> Ok(SavedSearchesDomain)
+        False ->
+          case webhooks.is_webhook_subscription_query_root(name) {
+            True -> Ok(WebhooksDomain)
+            False ->
+              case apps.is_app_query_root(name) {
+                True -> Ok(AppsDomain)
+                False -> Error(Nil)
+              }
+          }
+      }
+  }
+}
+
+fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
+  case saved_searches.is_saved_search_mutation_root(name) {
+    True -> Ok(SavedSearchesDomain)
+    False ->
+      case webhooks.is_webhook_subscription_mutation_root(name) {
+        True -> Ok(WebhooksDomain)
         False -> Error(Nil)
       }
   }
