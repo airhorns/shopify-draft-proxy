@@ -1,0 +1,266 @@
+{
+  "fixtureKind": "local-runtime-shipping-package-default-lifecycle",
+  "apiVersion": "2025-01",
+  "seed": {
+    "shippingPackages": [
+      {
+        "id": "gid://shopify/ShippingPackage/1",
+        "name": "Starter box",
+        "type": "BOX",
+        "default": true,
+        "weight": {
+          "value": 1,
+          "unit": "KILOGRAMS"
+        },
+        "dimensions": {
+          "length": 10,
+          "width": 8,
+          "height": 4,
+          "unit": "CENTIMETERS"
+        },
+        "createdAt": "2026-04-27T00:00:00.000Z",
+        "updatedAt": "2026-04-27T00:00:00.000Z"
+      },
+      {
+        "id": "gid://shopify/ShippingPackage/2",
+        "name": "Backup mailer",
+        "type": "ENVELOPE",
+        "default": false,
+        "weight": {
+          "value": 0.5,
+          "unit": "KILOGRAMS"
+        },
+        "dimensions": {
+          "length": 8,
+          "width": 6,
+          "height": 1,
+          "unit": "CENTIMETERS"
+        },
+        "createdAt": "2026-04-27T00:00:00.000Z",
+        "updatedAt": "2026-04-27T00:00:00.000Z"
+      }
+    ]
+  },
+  "update": {
+    "variables": {
+      "id": "gid://shopify/ShippingPackage/1",
+      "shippingPackage": {
+        "name": "Updated box",
+        "type": "BOX",
+        "default": true,
+        "weight": {
+          "value": 2.5,
+          "unit": "POUNDS"
+        },
+        "dimensions": {
+          "length": 12,
+          "width": 9,
+          "height": 5,
+          "unit": "INCHES"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "shippingPackageUpdate": {
+          "userErrors": []
+        }
+      }
+    },
+    "state": {
+      "stagedState": {
+        "shippingPackages": {
+          "gid://shopify/ShippingPackage/1": {
+            "id": "gid://shopify/ShippingPackage/1",
+            "name": "Updated box",
+            "type": "BOX",
+            "default": true,
+            "weight": {
+              "value": 2.5,
+              "unit": "POUNDS"
+            },
+            "dimensions": {
+              "length": 12,
+              "width": 9,
+              "height": 5,
+              "unit": "INCHES"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:01.000Z"
+          }
+        }
+      }
+    }
+  },
+  "makeDefault": {
+    "variables": {
+      "id": "gid://shopify/ShippingPackage/2"
+    },
+    "response": {
+      "data": {
+        "shippingPackageMakeDefault": {
+          "userErrors": []
+        }
+      }
+    },
+    "state": {
+      "stagedState": {
+        "shippingPackages": {
+          "gid://shopify/ShippingPackage/1": {
+            "id": "gid://shopify/ShippingPackage/1",
+            "name": "Updated box",
+            "type": "BOX",
+            "default": false,
+            "weight": {
+              "value": 2.5,
+              "unit": "POUNDS"
+            },
+            "dimensions": {
+              "length": 12,
+              "width": 9,
+              "height": 5,
+              "unit": "INCHES"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:03.000Z"
+          },
+          "gid://shopify/ShippingPackage/2": {
+            "id": "gid://shopify/ShippingPackage/2",
+            "name": "Backup mailer",
+            "type": "ENVELOPE",
+            "default": true,
+            "weight": {
+              "value": 0.5,
+              "unit": "KILOGRAMS"
+            },
+            "dimensions": {
+              "length": 8,
+              "width": 6,
+              "height": 1,
+              "unit": "CENTIMETERS"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:03.000Z"
+          }
+        }
+      }
+    }
+  },
+  "restoreDefault": {
+    "variables": {
+      "id": "gid://shopify/ShippingPackage/1",
+      "shippingPackage": {
+        "default": true
+      }
+    },
+    "response": {
+      "data": {
+        "shippingPackageUpdate": {
+          "userErrors": []
+        }
+      }
+    },
+    "state": {
+      "stagedState": {
+        "shippingPackages": {
+          "gid://shopify/ShippingPackage/1": {
+            "id": "gid://shopify/ShippingPackage/1",
+            "name": "Updated box",
+            "type": "BOX",
+            "default": true,
+            "weight": {
+              "value": 2.5,
+              "unit": "POUNDS"
+            },
+            "dimensions": {
+              "length": 12,
+              "width": 9,
+              "height": 5,
+              "unit": "INCHES"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+          },
+          "gid://shopify/ShippingPackage/2": {
+            "id": "gid://shopify/ShippingPackage/2",
+            "name": "Backup mailer",
+            "type": "ENVELOPE",
+            "default": false,
+            "weight": {
+              "value": 0.5,
+              "unit": "KILOGRAMS"
+            },
+            "dimensions": {
+              "length": 8,
+              "width": 6,
+              "height": 1,
+              "unit": "CENTIMETERS"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "variables": {
+      "id": "gid://shopify/ShippingPackage/1"
+    },
+    "response": {
+      "data": {
+        "shippingPackageDelete": {
+          "deletedId": "gid://shopify/ShippingPackage/1",
+          "userErrors": []
+        }
+      }
+    },
+    "state": {
+      "stagedState": {
+        "shippingPackages": {
+          "gid://shopify/ShippingPackage/2": {
+            "id": "gid://shopify/ShippingPackage/2",
+            "name": "Backup mailer",
+            "type": "ENVELOPE",
+            "default": false,
+            "weight": {
+              "value": 0.5,
+              "unit": "KILOGRAMS"
+            },
+            "dimensions": {
+              "length": 8,
+              "width": 6,
+              "height": 1,
+              "unit": "CENTIMETERS"
+            },
+            "createdAt": "2026-04-27T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:05.000Z"
+          }
+        },
+        "deletedShippingPackageIds": {
+          "gid://shopify/ShippingPackage/1": true
+        }
+      }
+    },
+    "log": {
+      "entries": [
+        {
+          "operationName": "shippingPackageUpdate",
+          "status": "staged"
+        },
+        {
+          "operationName": "shippingPackageMakeDefault",
+          "status": "staged"
+        },
+        {
+          "operationName": "shippingPackageUpdate",
+          "status": "staged"
+        },
+        {
+          "operationName": "shippingPackageDelete",
+          "status": "staged"
+        }
+      ]
+    }
+  }
+}

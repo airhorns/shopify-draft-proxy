@@ -146,6 +146,7 @@ import type {
   ProductRecord,
   SellingPlanGroupRecord,
   ProductVariantRecord,
+  ShippingPackageRecord,
   ShopifyPaymentsAccountRecord,
   ShopifyFunctionRecord,
   SegmentRecord,
@@ -361,8 +362,11 @@ export function validateComparisonContract(comparison: unknown): string[] {
         if (typeof target['capturePath'] !== 'string' || target['capturePath'].length === 0) {
           errors.push(`${label} must declare a non-empty capturePath.`);
         }
-        if (typeof target['proxyPath'] !== 'string' || target['proxyPath'].length === 0) {
-          errors.push(`${label} must declare a non-empty proxyPath.`);
+        const outputPaths = ['proxyPath', 'proxyStatePath', 'proxyLogPath'].filter(
+          (pathKey) => typeof target[pathKey] === 'string' && (target[pathKey] as string).length > 0,
+        );
+        if (outputPaths.length !== 1) {
+          errors.push(`${label} must declare exactly one non-empty proxyPath, proxyStatePath, or proxyLogPath.`);
         }
         if ('selectedPaths' in target) {
           if (!Array.isArray(target['selectedPaths']) || target['selectedPaths'].length === 0) {
@@ -3542,6 +3546,50 @@ function readShippingSettingsCarrierServiceRecord(source: Record<string, unknown
   };
 }
 
+function readShippingPackageWeightRecord(source: Record<string, unknown> | null): ShippingPackageRecord['weight'] {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    value: readNumberField(source, 'value'),
+    unit: readNullableStringField(source, 'unit'),
+  };
+}
+
+function readShippingPackageDimensionsRecord(
+  source: Record<string, unknown> | null,
+): ShippingPackageRecord['dimensions'] {
+  if (!source) {
+    return null;
+  }
+
+  return {
+    length: readNumberField(source, 'length'),
+    width: readNumberField(source, 'width'),
+    height: readNumberField(source, 'height'),
+    unit: readNullableStringField(source, 'unit'),
+  };
+}
+
+function readShippingPackageRecord(source: Record<string, unknown> | null): ShippingPackageRecord | null {
+  const id = readStringField(source, 'id');
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    name: readNullableStringField(source, 'name'),
+    type: readNullableStringField(source, 'type'),
+    default: readBooleanField(source, 'default') ?? false,
+    weight: readShippingPackageWeightRecord(readRecordField(source, 'weight')),
+    dimensions: readShippingPackageDimensionsRecord(readRecordField(source, 'dimensions')),
+    createdAt: readStringField(source, 'createdAt') ?? '1970-01-01T00:00:00.000Z',
+    updatedAt: readStringField(source, 'updatedAt') ?? '1970-01-01T00:00:00.000Z',
+  };
+}
+
 function seedShippingSettingsPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const seed = readRecordField(capture as Record<string, unknown>, 'seed');
   const carrierServices = readArrayField(seed, 'carrierServices')
@@ -3552,8 +3600,12 @@ function seedShippingSettingsPreconditions(runtime: ProxyRuntimeContext, capture
     .filter(isPlainObject)
     .map((location) => readLocationRecord(location))
     .filter((location): location is LocationRecord => location !== null);
+  const shippingPackages = readArrayField(seed, 'shippingPackages')
+    .filter(isPlainObject)
+    .map((shippingPackage) => readShippingPackageRecord(shippingPackage))
+    .filter((shippingPackage): shippingPackage is ShippingPackageRecord => shippingPackage !== null);
 
-  if (carrierServices.length === 0 && locations.length === 0) {
+  if (carrierServices.length === 0 && locations.length === 0 && shippingPackages.length === 0) {
     return false;
   }
 
@@ -3562,6 +3614,9 @@ function seedShippingSettingsPreconditions(runtime: ProxyRuntimeContext, capture
   }
   if (locations.length > 0) {
     runtime.store.upsertBaseLocations(locations);
+  }
+  if (shippingPackages.length > 0) {
+    runtime.store.upsertBaseShippingPackages(shippingPackages);
   }
 
   return true;
@@ -8297,6 +8352,26 @@ function prepareComparisonValue(value: unknown, target: ComparisonTarget): unkno
   return excludeComparisonPaths(selectComparisonPaths(value, target.selectedPaths), target.excludedPaths);
 }
 
+function readProxyComparisonActual(
+  runtime: ProxyRuntimeContext,
+  proxyResponseBody: unknown,
+  target: ComparisonTarget,
+): unknown {
+  if (typeof target.proxyStatePath === 'string') {
+    return readJsonPath(runtime.store.getState(), target.proxyStatePath);
+  }
+
+  if (typeof target.proxyLogPath === 'string') {
+    return readJsonPath(runtime.store.getMetaLog(), target.proxyLogPath);
+  }
+
+  if (typeof target.proxyPath === 'string') {
+    return readJsonPath(proxyResponseBody, target.proxyPath);
+  }
+
+  throw new Error(`Comparison target ${target.name} does not define a proxy output path.`);
+}
+
 function readRequestVariables(
   repoRoot: string,
   request: ProxyRequestSpec,
@@ -8461,7 +8536,7 @@ async function executeParityScenarioInRuntime(
       proxyResponses[target.name] = proxyResponse.body;
     }
 
-    const actual = readJsonPath(proxyResponseBody, target.proxyPath);
+    const actual = readProxyComparisonActual(runtime, proxyResponseBody, target);
     const expectedDifferences = [
       ...(paritySpec.comparison.expectedDifferences ?? []),
       ...(target.expectedDifferences ?? []),

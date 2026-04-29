@@ -1,0 +1,108 @@
+{
+  "scenarioId": "shipping-package-default-lifecycle-local-runtime",
+  "operationNames": ["shippingPackageUpdate", "shippingPackageMakeDefault", "shippingPackageDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "local-state-parity",
+    "mutation-log-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2025-01/shipping-fulfillments/shipping-package-default-lifecycle-local-runtime.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/shipping-settings-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-update-local-runtime.graphql",
+    "variablesCapturePath": "$.update.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-443 rework parity evidence for shipping package lifecycle behavior where Admin GraphQL 2025-01 has no package read root. The generic parity runner seeds two local packages, stages update/default/delete mutations without upstream passthrough, strictly compares the mutation payloads, and compares meta-state/log targets to prove default reassignment clears the previous default and original staged mutation order is retained.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shipping-package-update-payload",
+        "capturePath": "$.update.response.data.shippingPackageUpdate",
+        "proxyPath": "$.data.shippingPackageUpdate"
+      },
+      {
+        "name": "shipping-package-update-staged-state",
+        "capturePath": "$.update.state",
+        "proxyStatePath": "$",
+        "selectedPaths": ["$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/1\"]"]
+      },
+      {
+        "name": "shipping-package-make-default-payload",
+        "capturePath": "$.makeDefault.response.data.shippingPackageMakeDefault",
+        "proxyPath": "$.data.shippingPackageMakeDefault",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-make-default-local-runtime.graphql",
+          "variablesCapturePath": "$.makeDefault.variables"
+        }
+      },
+      {
+        "name": "shipping-package-make-default-staged-state",
+        "capturePath": "$.makeDefault.state",
+        "proxyStatePath": "$",
+        "selectedPaths": [
+          "$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/1\"]",
+          "$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/2\"]"
+        ]
+      },
+      {
+        "name": "shipping-package-update-restores-default-payload",
+        "capturePath": "$.restoreDefault.response.data.shippingPackageUpdate",
+        "proxyPath": "$.data.shippingPackageUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-update-local-runtime.graphql",
+          "variablesCapturePath": "$.restoreDefault.variables"
+        }
+      },
+      {
+        "name": "shipping-package-update-restores-default-staged-state",
+        "capturePath": "$.restoreDefault.state",
+        "proxyStatePath": "$",
+        "selectedPaths": [
+          "$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/1\"]",
+          "$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/2\"]"
+        ]
+      },
+      {
+        "name": "shipping-package-delete-payload",
+        "capturePath": "$.delete.response.data.shippingPackageDelete",
+        "proxyPath": "$.data.shippingPackageDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-delete-local-runtime.graphql",
+          "variablesCapturePath": "$.delete.variables"
+        }
+      },
+      {
+        "name": "shipping-package-delete-staged-state",
+        "capturePath": "$.delete.state",
+        "proxyStatePath": "$",
+        "selectedPaths": [
+          "$.stagedState.shippingPackages[\"gid://shopify/ShippingPackage/2\"]",
+          "$.stagedState.deletedShippingPackageIds[\"gid://shopify/ShippingPackage/1\"]"
+        ]
+      },
+      {
+        "name": "shipping-package-staged-mutation-log",
+        "capturePath": "$.delete.log",
+        "proxyLogPath": "$",
+        "selectedPaths": [
+          "$.entries[0].operationName",
+          "$.entries[0].status",
+          "$.entries[1].operationName",
+          "$.entries[1].status",
+          "$.entries[2].operationName",
+          "$.entries[2].status",
+          "$.entries[3].operationName",
+          "$.entries[3].status"
+        ]
+      }
+    ]
+  }
+}
