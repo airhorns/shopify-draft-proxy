@@ -1945,6 +1945,34 @@ describe('BulkOperation conformance fixture and local model', () => {
     const resultResponse = await request(app).get(
       `/__meta/bulk-operations/${encodeURIComponent(operationId)}/result.jsonl`,
     );
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadUnsupportedBulkImportFailure($id: ID!) {
+          byId: bulkOperation(id: $id) {
+            id
+            status
+            type
+            objectCount
+            rootObjectCount
+            url
+            partialDataUrl
+          }
+          failedMutations: bulkOperations(first: 5, query: "status:FAILED operation_type:MUTATION") {
+            nodes {
+              id
+              status
+              type
+            }
+          }
+          currentMutation: currentBulkOperation(type: MUTATION) {
+            id
+            status
+            type
+          }
+        }`,
+        variables: { id: operationId },
+      });
 
     expect(response.status).toBe(200);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -1960,6 +1988,26 @@ describe('BulkOperation conformance fixture and local model', () => {
         message: 'Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.',
       },
     ]);
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      byId: {
+        id: operationId,
+        status: 'FAILED',
+        type: 'MUTATION',
+        objectCount: '0',
+        rootObjectCount: '0',
+        url: response.body.data.bulkOperationRunMutation.bulkOperation.url,
+        partialDataUrl: null,
+      },
+      failedMutations: {
+        nodes: [{ id: operationId, status: 'FAILED', type: 'MUTATION' }],
+      },
+      currentMutation: {
+        id: operationId,
+        status: 'FAILED',
+        type: 'MUTATION',
+      },
+    });
     expect(JSON.parse(resultResponse.text.trim())).toMatchObject({
       line: null,
       errors: [

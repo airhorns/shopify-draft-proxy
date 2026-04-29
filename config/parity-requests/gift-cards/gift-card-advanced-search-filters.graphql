@@ -1,0 +1,133 @@
+query GiftCardAdvancedSearchFilters(
+  $createdAfterQuery: String!
+  $createdFutureQuery: String!
+  $updatedAfterQuery: String!
+  $updatedFutureQuery: String!
+  $expiresAfterQuery: String!
+  $expiresBeforeQuery: String!
+  $customerQuery: String!
+  $recipientQuery: String!
+  $sourceQuery: String!
+  $sourceNoMatchQuery: String!
+  $initialValueQuery: String!
+) {
+  createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {
+    nodes {
+      id
+      createdAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {
+    count
+    precision
+  }
+  createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {
+    nodes {
+      id
+      createdAt
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {
+    nodes {
+      id
+      expiresOn
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {
+    nodes {
+      id
+      expiresOn
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {
+    nodes {
+      id
+      customer {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {
+    nodes {
+      id
+      recipientAttributes {
+        recipient {
+          id
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+  initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {
+    nodes {
+      id
+      initialValue {
+        amount
+        currencyCode
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

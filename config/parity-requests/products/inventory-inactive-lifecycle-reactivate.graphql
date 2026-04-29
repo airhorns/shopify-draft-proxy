@@ -1,0 +1,34 @@
+mutation InventoryInactiveLifecycleReactivate($inventoryItemId: ID!, $locationId: ID!, $idempotencyKey: String!) {
+  inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) @idempotent(key: $idempotencyKey) {
+    inventoryLevel {
+      id
+      isActive
+      location {
+        id
+        name
+      }
+      quantities(names: ["available", "on_hand", "incoming"]) {
+        name
+        quantity
+        updatedAt
+      }
+      item {
+        id
+        tracked
+        variant {
+          id
+          inventoryQuantity
+          product {
+            id
+            totalInventory
+            tracksInventory
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

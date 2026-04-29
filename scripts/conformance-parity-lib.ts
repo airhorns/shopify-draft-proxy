@@ -2136,6 +2136,7 @@ function makeSeedGiftCard(runtime: ProxyRuntimeContext, source: Record<string, u
     balance,
     customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
     recipientId,
+    source: readNullableStringField(source, 'source'),
     recipientAttributes: recipientAttributesSource
       ? {
           id: recipientId,
@@ -2172,18 +2173,25 @@ function makeSeedGiftCardConfiguration(
 
 function seedGiftCardLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const recordsById = new Map<string, GiftCardRecord>();
-  const addGiftCard = (source: unknown): void => {
+  const addGiftCard = (source: unknown, options: { source?: string | null } = {}): void => {
     if (!isPlainObject(source)) {
       return;
     }
     const record = makeSeedGiftCard(runtime, source);
     if (record) {
+      if (options.source !== undefined) {
+        record.source = options.source;
+      }
       recordsById.set(record.id, record);
     }
   };
 
-  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'));
-  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'));
+  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
+  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
 
   const emptyReadNodes = readJsonPath(capture, '$.operations.emptyRead.response.payload.data.giftCards.nodes');
   for (const node of (Array.isArray(emptyReadNodes) ? emptyReadNodes : []).filter(isPlainObject)) {
@@ -6367,6 +6375,7 @@ function readCapturedInventoryLevel(source: Record<string, unknown>): InventoryL
     id,
     cursor: readStringField(source, 'cursor'),
     location: locationId ? { id: locationId, name: readStringField(location, 'name') } : null,
+    isActive: readBooleanField(source, 'isActive') ?? true,
     quantities: readArrayField(source, 'quantities')
       .filter(isPlainObject)
       .map((quantity) => ({
@@ -6425,7 +6434,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
     !(
       'inventoryActivateNoOp' in captureObject ||
       'inventoryDeactivateOnlyLocationError' in captureObject ||
-      'inventoryBulkToggleActivateNoOp' in captureObject
+      'inventoryBulkToggleActivateNoOp' in captureObject ||
+      'inventoryInactiveLifecycleDeactivate' in captureObject
     )
   ) {
     return false;
@@ -6446,8 +6456,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
   runtime.store.upsertBaseProducts([
     makeSeedProduct(productId, {
       ...product,
-      totalInventory: firstVariant?.inventoryQuantity ?? null,
-      tracksInventory: firstVariant?.inventoryItem?.tracked ?? null,
+      totalInventory: readNumberField(product, 'totalInventory') ?? firstVariant?.inventoryQuantity ?? null,
+      tracksInventory: readBooleanField(product, 'tracksInventory') ?? firstVariant?.inventoryItem?.tracked ?? null,
     }),
   ]);
   if (variants.length > 0) {
