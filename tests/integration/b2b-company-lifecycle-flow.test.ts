@@ -68,11 +68,13 @@ describe('B2B company lifecycle mutations', () => {
     const contactId = company.mainContact.id as string;
     const locationId = company.locations.nodes[0].id as string;
     const roleId = company.contactRoles.nodes[0].id as string;
+    const defaultRole = company.contactRoles.nodes[1] as { id: string; name: string };
+    const assignedRole = company.contactRoles.nodes[0] as { id: string; name: string };
     const defaultAssignmentId = company.mainContact.roleAssignments.nodes[0].id as string;
     expect(company.mainContact.roleAssignments.nodes).toEqual([
       {
         id: defaultAssignmentId,
-        role: { id: company.contactRoles.nodes[1].id, name: 'Ordering only' },
+        role: { id: defaultRole.id, name: 'Ordering only' },
         companyLocation: { id: locationId, name: 'Acme HQ' },
       },
     ]);
@@ -337,6 +339,50 @@ describe('B2B company lifecycle mutations', () => {
       taxExempt: true,
       taxExemptions: ['CA_STATUS_CARD_EXEMPTION'],
     });
+
+    const nodeReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query B2BNestedNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on CompanyAddress {
+              id
+              city
+              countryCode
+            }
+            ... on CompanyContactRoleAssignment {
+              id
+              companyContact { id title }
+              role { id name }
+              companyLocation { id name }
+            }
+          }
+        }`,
+        variables: {
+          ids: [addressId, defaultAssignmentId, assignmentId, 'gid://shopify/CompanyAddress/missing'],
+        },
+      });
+
+    expect(nodeReadResponse.body.data.nodes).toEqual([
+      {
+        id: addressId,
+        city: 'Toronto',
+        countryCode: 'CA',
+      },
+      {
+        id: defaultAssignmentId,
+        companyContact: { id: contactId, title: 'Lead buyer' },
+        role: { id: defaultRole.id, name: defaultRole.name },
+        companyLocation: { id: locationId, name: 'Acme Fulfillment' },
+      },
+      {
+        id: assignmentId,
+        companyContact: { id: contactId, title: 'Lead buyer' },
+        role: { id: assignedRole.id, name: assignedRole.name },
+        companyLocation: { id: assignmentLocationId, name: 'Acme Role Site' },
+      },
+      null,
+    ]);
 
     const secondContactResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')

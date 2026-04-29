@@ -15,7 +15,8 @@
     "companyLocationRevokeRoles",
     "companyLocationTaxSettingsUpdate",
     "companyLocationUpdate",
-    "companyAddressDelete"
+    "companyAddressDelete",
+    "node"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -40,7 +41,7 @@
     "tests/integration/b2b-company-lifecycle-flow.test.ts",
     "tests/integration/b2b-company-query-shapes.test.ts"
   ],
-  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, records billing-address assignment/delete, tax settings, contact/location updates, and downstream relationship reads. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
+  "notes": "Executable parity coverage for HAR-446 high-risk B2B contact/location relationships. The live fixture creates a disposable company, records Shopify's automatic main-contact Ordering only role assignment, exercises explicit contact/location role assignment and revoke roots, records billing-address assignment/delete, tax settings, contact/location updates, downstream relationship reads, and generic Node reads for CompanyAddress and CompanyContactRoleAssignment rows already present in local B2B state. `staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains covered by runtime tests rather than live parity in this scenario.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -541,6 +542,63 @@
             "path": "$.locationBulkLocation.roleAssignments.nodes[*].companyLocation.id",
             "matcher": "shopify-gid:CompanyLocation",
             "reason": "Nested location IDs differ."
+          }
+        ]
+      },
+      {
+        "name": "company-address-node-read",
+        "capturePath": "$.readAfterAssignments.response.data.companyLocation.billingAddress",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "assign-address-payload",
+              "path": "$.data.companyLocationAssignAddress.addresses[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CompanyAddress",
+            "reason": "The proxy reads the locally staged company address through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "company-contact-role-assignment-node-read",
+        "capturePath": "$.readAfterAssignments.response.data.singleAssignmentLocation.roleAssignments.nodes[0]",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-location-assignments-tax-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "assign-single-role-payload",
+              "path": "$.data.companyContactAssignRole.companyContactRoleAssignment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "The proxy reads the locally staged role assignment through generic Node dispatch."
+          },
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The generic Node assignment points at the locally staged contact."
+          },
+          {
+            "path": "$.role.id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "The generic Node assignment points at the locally staged role."
+          },
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The generic Node assignment points at the locally staged location."
           }
         ]
       },

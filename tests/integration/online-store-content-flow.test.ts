@@ -331,6 +331,36 @@ describe('online-store content flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('defaults new pages to published when no publish date is supplied', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('page create defaults must not fetch upstream'));
+    const app = createApp(config).callback();
+
+    const pageCreate = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreatePage($page: PageCreateInput!) {
+          pageCreate(page: $page) {
+            page { id title isPublished publishedAt }
+            userErrors { field message }
+          }
+        }`,
+        variables: { page: { title: 'Default visible page', body: '<p>Visible by default</p>' } },
+      });
+
+    expect(pageCreate.body.data.pageCreate).toEqual({
+      page: {
+        id: expect.stringContaining('gid://shopify/Page/'),
+        title: 'Default visible page',
+        isPublished: true,
+        publishedAt: '2024-01-01T00:00:00.000Z',
+      },
+      userErrors: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages article image and article-owned metafields locally with downstream reads', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
@@ -527,6 +557,24 @@ describe('online-store content flow', () => {
       isPublished: false,
     });
 
+    const notSpam = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NotSpamComment($id: ID!) {
+          commentNotSpam(id: $id) { comment { id status isPublished publishedAt } userErrors { field message } }
+        }`,
+        variables: { id: 'gid://shopify/Comment/300' },
+      });
+    expect(notSpam.body.data.commentNotSpam).toEqual({
+      comment: {
+        id: 'gid://shopify/Comment/300',
+        status: 'PENDING',
+        isPublished: false,
+        publishedAt: null,
+      },
+      userErrors: [],
+    });
+
     const read = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
@@ -546,13 +594,13 @@ describe('online-store content flow', () => {
     expect(read.body.data).toMatchObject({
       comment: {
         id: 'gid://shopify/Comment/300',
-        status: 'SPAM',
+        status: 'PENDING',
         article: { id: 'gid://shopify/Article/200', title: 'Launch notes' },
       },
-      comments: { nodes: [{ id: 'gid://shopify/Comment/300', status: 'SPAM' }] },
+      comments: { nodes: [] },
       article: {
         comments: {
-          nodes: [{ id: 'gid://shopify/Comment/300', status: 'SPAM' }],
+          nodes: [{ id: 'gid://shopify/Comment/300', status: 'PENDING' }],
           pageInfo: { hasNextPage: false, hasPreviousPage: false },
         },
         commentsCount: { count: 1, precision: 'EXACT' },

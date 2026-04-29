@@ -583,7 +583,8 @@ describe('webhook subscription mutation flow', () => {
         {
           message:
             "Argument 'id' on Field 'webhookSubscriptionDelete' has an invalid value (null). Expected type 'ID!'.",
-          path: ['mutation', 'webhookSubscriptionDelete', 'id'],
+          locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+          path: ['mutation NullDeleteWebhook', 'webhookSubscriptionDelete', 'id'],
           extensions: {
             code: 'argumentLiteralsIncompatible',
             typeName: 'Field',
@@ -611,12 +612,80 @@ describe('webhook subscription mutation flow', () => {
       errors: [
         {
           message: "Field 'webhookSubscriptionDelete' is missing required arguments: id",
-          path: ['mutation', 'webhookSubscriptionDelete'],
+          locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+          path: ['mutation MissingDeleteWebhookArgument', 'webhookSubscriptionDelete'],
           extensions: {
             code: 'missingRequiredArguments',
             className: 'Field',
             name: 'webhookSubscriptionDelete',
             arguments: 'id',
+          },
+        },
+      ],
+    });
+
+    const missingCreateTopicResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation MissingCreateWebhookTopic {
+          webhookSubscriptionCreate(webhookSubscription: { uri: "https://example.com/no-topic" }) {
+            webhookSubscription {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+      });
+
+    expect(missingCreateTopicResponse.body).toEqual({
+      errors: [
+        {
+          message: "Field 'webhookSubscriptionCreate' is missing required arguments: topic",
+          locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+          path: ['mutation MissingCreateWebhookTopic', 'webhookSubscriptionCreate'],
+          extensions: {
+            code: 'missingRequiredArguments',
+            className: 'Field',
+            name: 'webhookSubscriptionCreate',
+            arguments: 'topic',
+          },
+        },
+      ],
+    });
+
+    const nullUpdateInputResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation NullUpdateWebhookInput($id: ID!) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: null) {
+            webhookSubscription {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          id: 'gid://shopify/WebhookSubscription/999999999999',
+        },
+      });
+
+    expect(nullUpdateInputResponse.body).toEqual({
+      errors: [
+        {
+          message:
+            "Argument 'webhookSubscription' on Field 'webhookSubscriptionUpdate' has an invalid value (null). Expected type 'WebhookSubscriptionInput!'.",
+          locations: [{ line: expect.any(Number), column: expect.any(Number) }],
+          path: ['mutation NullUpdateWebhookInput', 'webhookSubscriptionUpdate', 'webhookSubscription'],
+          extensions: {
+            code: 'argumentLiteralsIncompatible',
+            typeName: 'Field',
+            argumentName: 'webhookSubscription',
           },
         },
       ],
