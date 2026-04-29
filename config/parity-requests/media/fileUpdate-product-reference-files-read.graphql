@@ -1,0 +1,24 @@
+query FileReferenceFilesRead {
+  files(first: 10) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      filename
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
