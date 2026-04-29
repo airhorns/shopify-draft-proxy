@@ -1,0 +1,85 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10173064872242",
+    "title": "Hermes Product State Conformance 1777416213315",
+    "handle": "hermes-product-state-conformance-1777416213315",
+    "status": "DRAFT",
+    "tags": ["existing", "hermes-state-1777416213315"]
+  },
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Product/10173064872242",
+      "tags": ["hermes-sale-1777416213315", "missing"]
+    },
+    "response": {
+      "data": {
+        "tagsRemove": {
+          "node": {
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/10173064872242",
+    "remainingQuery": "tag:hermes-summer-1777416213315",
+    "removedQuery": "tag:hermes-sale-1777416213315"
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10173064872242",
+        "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+      },
+      "remaining": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+          }
+        ]
+      },
+      "removed": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": ["existing", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+          }
+        ]
+      },
+      "remainingCount": {
+        "count": 1,
+        "precision": "EXACT"
+      },
+      "removedCount": {
+        "count": 1,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 33,
+        "actualQueryCost": 27,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1973,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

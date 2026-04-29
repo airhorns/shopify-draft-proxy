@@ -1,0 +1,77 @@
+{
+  "scenarioId": "file-update-product-reference-local-staging",
+  "operationNames": ["fileCreate", "fileUpdate", "files", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/media/file-update-product-reference-local-runtime.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-update-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/fileUpdate-product-reference-create.graphql",
+    "variables": {
+      "files": [
+        {
+          "alt": "Reference source",
+          "contentType": "IMAGE",
+          "filename": "reference-source.jpg",
+          "originalSource": "https://cdn.example.com/reference-source.jpg"
+        }
+      ]
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-429 adds executable local parity for the Files API product-reference lifecycle: `fileCreate` stages a Files API MediaImage, `fileUpdate.referencesToAdd` attaches it to an existing product, and downstream `product.media` plus top-level `files` reads observe the same READY file. Live Files API create/update fixtures cover the payload family; this local-runtime scenario avoids inventing external upload-byte transfer behavior, which remains outside the proxy boundary.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "file-create",
+        "capturePath": "$.create.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "file-update-attach-product-reference",
+        "capturePath": "$.attach.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-attach.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "alt": "Attached file media",
+                "originalSource": "https://cdn.example.com/file-reference-ready.jpg",
+                "referencesToAdd": ["gid://shopify/Product/429001"]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "product-media-read-after-file-reference-attach",
+        "capturePath": "$.productReadAfterAttach.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-product-read.graphql",
+          "variables": {
+            "productId": "gid://shopify/Product/429001"
+          }
+        }
+      },
+      {
+        "name": "files-read-after-product-reference-attach",
+        "capturePath": "$.filesReadAfterAttach.response.data.files",
+        "proxyPath": "$.data.files",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileUpdate-product-reference-files-read.graphql"
+        }
+      }
+    ]
+  }
+}

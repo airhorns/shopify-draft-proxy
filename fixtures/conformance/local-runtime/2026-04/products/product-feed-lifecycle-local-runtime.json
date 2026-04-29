@@ -1,0 +1,89 @@
+{
+  "fixtureKind": "local-runtime-product-feed-lifecycle",
+  "apiVersion": "2026-04",
+  "create": {
+    "variables": {
+      "input": {
+        "country": "US",
+        "language": "EN"
+      }
+    },
+    "response": {
+      "data": {
+        "productFeedCreate": {
+          "productFeed": {
+            "id": "gid://shopify/ProductFeed/2",
+            "country": "US",
+            "language": "EN",
+            "status": "ACTIVE"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "sync": {
+    "response": {
+      "data": {
+        "productFullSync": {
+          "id": "gid://shopify/ProductFeed/2",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "read": {
+    "response": {
+      "data": {
+        "productFeed": {
+          "id": "gid://shopify/ProductFeed/2",
+          "country": "US",
+          "language": "EN",
+          "status": "ACTIVE"
+        },
+        "productFeeds": {
+          "nodes": [
+            {
+              "id": "gid://shopify/ProductFeed/2",
+              "country": "US",
+              "language": "EN",
+              "status": "ACTIVE"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/ProductFeed/2",
+            "endCursor": "cursor:gid://shopify/ProductFeed/2"
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "response": {
+      "data": {
+        "productFeedDelete": {
+          "deletedId": "gid://shopify/ProductFeed/2",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "afterDeleteRead": {
+    "response": {
+      "data": {
+        "productFeed": null,
+        "productFeeds": {
+          "nodes": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    }
+  }
+}

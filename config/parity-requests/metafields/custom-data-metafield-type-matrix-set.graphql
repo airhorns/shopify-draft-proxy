@@ -1,0 +1,22 @@
+mutation CustomDataMetafieldTypeMatrixSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+      jsonValue
+      compareDigest
+      createdAt
+      updatedAt
+      ownerType
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

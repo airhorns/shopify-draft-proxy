@@ -1,0 +1,10 @@
+mutation B2BContactLocationAssignmentsContactRevokeRoles($companyContactId: ID!, $roleAssignmentIds: [ID!]!) {
+  companyContactRevokeRoles(companyContactId: $companyContactId, roleAssignmentIds: $roleAssignmentIds) {
+    revokedRoleAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -57,7 +57,11 @@ import {
   transitionMediaToReady,
   updateMediaRecord,
 } from './products/media.js';
-import { makeMetafieldCompareDigest, parseMetafieldJsonValue } from './products/metafield-values.js';
+import {
+  makeMetafieldCompareDigest,
+  normalizeMetafieldValue,
+  parseMetafieldJsonValue,
+} from './products/metafield-values.js';
 import {
   buildProductSetOptionRecords,
   deleteOptionRecords,
@@ -350,7 +354,7 @@ interface CollectionProductMove {
   newPosition: number;
 }
 
-type CollectionReorderUserError = { field: string[]; message: string };
+type CollectionReorderUserError = { field: string[]; message: string; code?: string | null };
 type ProductReorderUserError = { field: string[]; message: string };
 
 interface ProductVariantPosition {
@@ -404,17 +408,17 @@ function readCollectionProductMoves(rawMoves: unknown): {
   if (rawMoveList.length === 0) {
     return {
       moves,
-      userErrors: [{ field: ['moves'], message: 'At least one move is required' }],
+      userErrors: [{ field: ['moves'], message: 'At least one move is required', code: 'INVALID_MOVE' }],
     };
   }
 
   if (rawMoveList.length > 250) {
-    userErrors.push({ field: ['moves'], message: 'Too many moves were provided' });
+    userErrors.push({ field: ['moves'], message: 'Too many moves were provided', code: 'INVALID_MOVE' });
   }
 
   for (const [index, rawMove] of rawMoveList.entries()) {
     if (!isObject(rawMove)) {
-      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid' });
+      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid', code: 'INVALID_MOVE' });
       continue;
     }
 
@@ -422,10 +426,14 @@ function readCollectionProductMoves(rawMoves: unknown): {
     const newPosition = readCollectionReorderPosition(rawMove['newPosition']);
 
     if (!productId) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required' });
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required', code: 'INVALID_MOVE' });
     }
     if (newPosition === null) {
-      userErrors.push({ field: ['moves', `${index}`, 'newPosition'], message: 'Position is invalid' });
+      userErrors.push({
+        field: ['moves', `${index}`, 'newPosition'],
+        message: 'Position is invalid',
+        code: 'INVALID_MOVE',
+      });
     }
     if (productId && newPosition !== null) {
       moves.push({ id: productId, newPosition });
@@ -472,6 +480,44 @@ function readProductVariantPositions(rawPositions: unknown): {
   return { positions, userErrors };
 }
 
+function serializeCollectionReorderUserErrors(
+  field: FieldNode | null,
+  errors: CollectionReorderUserError[],
+): Array<Record<string, unknown>> {
+  if (!field) {
+    return errors.map((error) => ({
+      field: error.field,
+      message: error.message,
+      code: error.code ?? null,
+    }));
+  }
+
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
 function applySequentialReorder<T>(
   items: T[],
   moves: Array<{ id: string; position: number }>,
@@ -506,7 +552,13 @@ function reorderCollectionProducts(
   ) {
     return {
       job: null,
-      userErrors: [{ field: ['id'], message: "Can't reorder products unless collection is manually sorted" }],
+      userErrors: [
+        {
+          field: ['id'],
+          message: "Can't reorder products unless collection is manually sorted",
+          code: 'MANUALLY_SORTED_COLLECTION',
+        },
+      ],
     };
   }
 
@@ -516,9 +568,13 @@ function reorderCollectionProducts(
 
   for (const [index, move] of moves.entries()) {
     if (!runtime.store.getEffectiveProductById(move.id)) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist' });
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist', code: 'INVALID_MOVE' });
     } else if (!productIdsInCollection.has(move.id)) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product is not in the collection' });
+      userErrors.push({
+        field: ['moves', `${index}`, 'id'],
+        message: 'Product is not in the collection',
+        code: 'INVALID_MOVE',
+      });
     }
   }
 
@@ -4589,7 +4645,10 @@ function buildProductSetMetafieldRecords(
   return inputs.map((input) => {
     const existing = findMetafieldById(runtime, typeof input['id'] === 'string' ? input['id'] : '');
     const type = typeof input['type'] === 'string' ? input['type'] : (existing?.type ?? null);
-    const value = typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null);
+    const value = normalizeMetafieldValue(
+      type,
+      typeof input['value'] === 'string' ? input['value'] : (existing?.value ?? null),
+    );
     const createdAt = existing?.createdAt ?? runtime.syntheticIdentity.makeSyntheticTimestamp();
     const updatedAt = existing
       ? value === existing.value && type === existing.type
@@ -6585,6 +6644,22 @@ function serializeSellingPlanRecord(plan: SellingPlanRecord, field: FieldNode | 
   }
 
   return projectGraphqlObject(plan.data, field.selectionSet?.selections ?? [], new Map());
+}
+
+export function serializeSellingPlanNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  for (const group of runtime.store.listEffectiveSellingPlanGroups()) {
+    const plan = group.sellingPlans.find((candidate) => candidate.id === id) ?? null;
+    const serialized = plan ? serializeSellingPlanRecord(plan, field) : null;
+    if (serialized && typeof serialized === 'object' && !Array.isArray(serialized)) {
+      return serialized as Record<string, unknown>;
+    }
+  }
+
+  return null;
 }
 
 function serializeSellingPlanConnection(
@@ -8883,16 +8958,11 @@ function matchesStringValue(candidate: string, rawValue: string, matchMode: 'inc
 }
 
 function getSearchableProductTags(runtime: ProxyRuntimeContext, product: ProductRecord): string[] {
-  if (!runtime.store.isTagSearchLagged(product.id)) {
-    return product.tags;
-  }
+  return runtime.store.getLaggedTagSearchTags(product.id) ?? product.tags;
+}
 
-  const baseProduct = runtime.store.getBaseProductById(product.id);
-  if (!baseProduct) {
-    return product.tags;
-  }
-
-  return product.tags.filter((tag) => baseProduct.tags.includes(tag));
+function getSearchableProductStatus(runtime: ProxyRuntimeContext, product: ProductRecord): string {
+  return runtime.store.getLaggedStatusSearchStatus(product.id) ?? product.status;
 }
 
 function getSearchableProductVariants(runtime: ProxyRuntimeContext, product: ProductRecord): ProductVariantRecord[] {
@@ -8944,7 +9014,7 @@ function matchesPositiveProductQueryTerm(
     case 'vendor':
       return typeof product.vendor === 'string' && matchesStringValue(product.vendor, value, 'exact');
     case 'status':
-      return matchesStringValue(product.status, value, 'exact');
+      return matchesStringValue(getSearchableProductStatus(runtime, product), value, 'exact');
     case 'created_at':
       return matchesProductTimestampTerm(product.createdAt, value);
     case 'published_at':
@@ -11643,11 +11713,12 @@ export function handleProductMutation(
         }
       }
 
+      const previousSearchableTags = getSearchableProductTags(runtime, existingProduct);
       runtime.store.stageUpdateProduct(
         makeProductRecord(runtime, { id: productId, tags: normalizeProductTags(nextTags) }, existingProduct),
       );
       if (runtime.store.getBaseProductById(productId)) {
-        runtime.store.markTagSearchLagged(productId);
+        runtime.store.markTagSearchLagged(productId, 10_000, previousSearchableTags);
       }
       const product = runtime.store.getEffectiveProductById(productId);
       return {
@@ -11697,10 +11768,11 @@ export function handleProductMutation(
         };
       }
 
+      const previousSearchableTags = getSearchableProductTags(runtime, existingProduct);
       const nextTags = normalizeProductTags(existingProduct.tags.filter((tag) => !tags.includes(tag)));
       runtime.store.stageUpdateProduct(makeProductRecord(runtime, { id: productId, tags: nextTags }, existingProduct));
       if (runtime.store.getBaseProductById(productId)) {
-        runtime.store.markTagSearchLagged(productId);
+        runtime.store.markTagSearchLagged(productId, 10_000, previousSearchableTags);
       }
       const product = runtime.store.getEffectiveProductById(productId);
       return {
@@ -12157,6 +12229,7 @@ export function handleProductMutation(
         };
       }
 
+      const previousSearchableStatus = getSearchableProductStatus(runtime, existing);
       runtime.store.stageUpdateProduct(
         makeProductRecord(
           runtime,
@@ -12167,6 +12240,9 @@ export function handleProductMutation(
           existing,
         ),
       );
+      if (runtime.store.getBaseProductById(productId)) {
+        runtime.store.markStatusSearchLagged(productId, previousSearchableStatus);
+      }
       const product = runtime.store.getEffectiveProductById(productId);
 
       return {
@@ -13143,7 +13219,9 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               job: null,
-              userErrors: [{ field: ['id'], message: 'Collection id is required' }],
+              userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), [
+                { field: ['id'], message: 'Collection id is required' },
+              ]),
             },
           },
         };
@@ -13155,7 +13233,9 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               job: null,
-              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+              userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), [
+                { field: ['id'], message: 'Collection not found', code: 'COLLECTION_NOT_FOUND' },
+              ]),
             },
           },
         };
@@ -13168,7 +13248,7 @@ export function handleProductMutation(
             job: result.job
               ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
               : null,
-            userErrors: result.userErrors,
+            userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), result.userErrors),
           },
         },
       };

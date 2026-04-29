@@ -1,0 +1,220 @@
+{
+  "data": {
+    "shop": {
+      "id": "gid://shopify/Shop/92891250994",
+      "name": "harry-test-heelo",
+      "myshopifyDomain": "harry-test-heelo.myshopify.com",
+      "url": "https://harry-test-heelo.myshopify.com",
+      "primaryDomain": {
+        "id": "gid://shopify/Domain/92891250994",
+        "host": "harry-test-heelo.myshopify.com",
+        "url": "https://harry-test-heelo.myshopify.com",
+        "sslEnabled": true
+      },
+      "contactEmail": "conformance@example.com",
+      "email": "conformance@example.com",
+      "currencyCode": "USD",
+      "enabledPresentmentCurrencies": ["USD"],
+      "ianaTimezone": "Etc/UTC",
+      "timezoneAbbreviation": "UTC",
+      "timezoneOffset": "+0000",
+      "timezoneOffsetMinutes": 0,
+      "taxesIncluded": false,
+      "taxShipping": false,
+      "unitSystem": "IMPERIAL_SYSTEM",
+      "weightUnit": "POUNDS",
+      "shopAddress": {
+        "id": "gid://shopify/MailingAddress/92891250994",
+        "address1": null,
+        "address2": null,
+        "city": null,
+        "company": null,
+        "coordinatesValidated": false,
+        "country": null,
+        "countryCodeV2": null,
+        "formatted": [],
+        "formattedArea": null,
+        "latitude": null,
+        "longitude": null,
+        "phone": null,
+        "province": null,
+        "provinceCode": null,
+        "zip": null
+      },
+      "plan": {
+        "partnerDevelopment": true,
+        "publicDisplayName": "Developer Preview",
+        "shopifyPlus": false
+      },
+      "resourceLimits": {
+        "locationLimit": 20,
+        "maxProductOptions": 3,
+        "maxProductVariants": 100,
+        "redirectLimitReached": false
+      },
+      "features": {
+        "avalaraAvatax": false,
+        "branding": "SHOPIFY",
+        "bundles": {
+          "eligibleForBundles": false,
+          "ineligibilityReason": null,
+          "sellsBundles": false
+        },
+        "captcha": false,
+        "cartTransform": {
+          "eligibleOperations": {
+            "expandOperation": false,
+            "mergeOperation": false,
+            "updateOperation": false
+          }
+        },
+        "dynamicRemarketing": false,
+        "eligibleForSubscriptionMigration": false,
+        "eligibleForSubscriptions": false,
+        "giftCards": false,
+        "harmonizedSystemCode": false,
+        "legacySubscriptionGatewayEnabled": false,
+        "liveView": false,
+        "paypalExpressSubscriptionGatewayStatus": "DISABLED",
+        "reports": false,
+        "sellsSubscriptions": false,
+        "showMetrics": false,
+        "storefront": true,
+        "unifiedMarkets": false
+      },
+      "paymentSettings": {
+        "supportedDigitalWallets": []
+      },
+      "shopPolicies": []
+    }
+  },
+  "primary": {
+    "variables": {
+      "input": {
+        "title": "Headless preview"
+      }
+    }
+  },
+  "expected": {
+    "create": {
+      "response": {
+        "data": {
+          "storefrontAccessTokenCreate": {
+            "storefrontAccessToken": {
+              "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+              "title": "Headless preview",
+              "accessToken": "shpat_redacted",
+              "accessScopes": []
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "readAfterCreate": {
+      "response": {
+        "data": {
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "storefrontAccessTokens": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+                  "title": "Headless preview",
+                  "accessToken": "shpat_redacted",
+                  "accessScopes": []
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic"
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "response": {
+        "data": {
+          "storefrontAccessTokenDelete": {
+            "deletedStorefrontAccessTokenId": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "readAfterDelete": {
+      "response": {
+        "data": {
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994",
+            "storefrontAccessTokens": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveSafeReadEvidence": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "request": {
+      "query": "query ReadTokens { shop { id storefrontAccessTokens(first: 20) { nodes { id title accessToken accessScopes { handle } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
+    },
+    "response": {
+      "data": {
+        "shop": {
+          "id": "gid://shopify/Shop/92891250994",
+          "storefrontAccessTokens": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "liveWriteScopeBlocker": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "operation": "storefrontAccessTokenCreate",
+    "response": {
+      "errors": [
+        {
+          "message": "Access denied for storefrontAccessTokenCreate field.",
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+          },
+          "path": ["storefrontAccessTokenCreate"]
+        }
+      ],
+      "data": {
+        "storefrontAccessTokenCreate": null
+      }
+    }
+  },
+  "evidence": {
+    "apiVersion": "2026-04",
+    "source": "local-runtime-with-live-safe-read",
+    "notes": [
+      "Live 2026-04 safe-read probe confirmed Shopify returns an empty shop.storefrontAccessTokens connection with empty nodes and null cursors when no storefront tokens are visible to the app.",
+      "The current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful create/delete cannot be captured without an additional write storefront access token scope.",
+      "The executable proxy parity request proves the local staged lifecycle exposed by HAR-452: create returns a redacted token, downstream shop.storefrontAccessTokens exposes the staged token with the same redacted value, delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
+    ]
+  }
+}

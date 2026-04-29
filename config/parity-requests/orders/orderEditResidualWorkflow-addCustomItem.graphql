@@ -1,0 +1,48 @@
+mutation OrderEditResidualWorkflowAddCustomItem($id: ID!, $price: MoneyInput!) {
+  orderEditAddCustomItem(
+    id: $id
+    title: "HAR-369 gift wrap"
+    quantity: 2
+    price: $price
+    taxable: false
+    requiresShipping: false
+  ) {
+    calculatedOrder {
+      id
+      subtotalLineItemsQuantity
+      subtotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      title
+      quantity
+      originalUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      discountedUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,148 @@
+{
+  "scenarioId": "custom-data-metafield-type-matrix",
+  "operationNames": ["metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["field-type-value-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql",
+    "variablesCapturePath": "$.metafieldBatches[0].mutation.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-294 captures product-owned metafieldsSet set/get parity for 96 custom-data field types across scalar, measurement, list, and product/variant/collection reference values. Product-owned id, metaobject/mixed references, and resource references that require separate definition/resource setup are documented in the fixture exclusions instead of added as placeholder scenarios.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafields[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The local proxy stages synthetic metafield IDs while Shopify returns live IDs."
+      },
+      {
+        "path": "$.metafields[*].compareDigest",
+        "matcher": "any-string",
+        "reason": "The local proxy computes deterministic compare digests instead of Shopify's opaque digest."
+      },
+      {
+        "path": "$.metafields[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields.nodes[*].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream local read returns staged synthetic metafield IDs."
+      },
+      {
+        "path": "$.metafields.nodes[*].compareDigest",
+        "matcher": "any-string",
+        "reason": "The downstream local read returns deterministic local compare digests."
+      },
+      {
+        "path": "$.metafields.nodes[*].createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields.nodes[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The downstream local read timestamps staged metafields at replay time."
+      },
+      {
+        "path": "$.metafields.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify cursors are opaque while local metafield cursors are stable synthetic values."
+      },
+      {
+        "path": "$.metafields.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify cursors are opaque while local metafield cursors are stable synthetic values."
+      }
+    ],
+    "targets": [
+      {
+        "name": "metafields-set-type-matrix-batch-1",
+        "capturePath": "$.metafieldBatches[0].mutation.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "metafields-read-type-matrix-batch-1",
+        "capturePath": "$.metafieldBatches[0].downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql",
+          "variablesCapturePath": "$.metafieldBatches[0].downstreamRead.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-set-type-matrix-batch-2",
+        "capturePath": "$.metafieldBatches[1].mutation.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql",
+          "variablesCapturePath": "$.metafieldBatches[1].mutation.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-read-type-matrix-batch-2",
+        "capturePath": "$.metafieldBatches[1].downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql",
+          "variablesCapturePath": "$.metafieldBatches[1].downstreamRead.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-set-type-matrix-batch-3",
+        "capturePath": "$.metafieldBatches[2].mutation.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql",
+          "variablesCapturePath": "$.metafieldBatches[2].mutation.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-read-type-matrix-batch-3",
+        "capturePath": "$.metafieldBatches[2].downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql",
+          "variablesCapturePath": "$.metafieldBatches[2].downstreamRead.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-set-type-matrix-batch-4",
+        "capturePath": "$.metafieldBatches[3].mutation.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-set.graphql",
+          "variablesCapturePath": "$.metafieldBatches[3].mutation.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metafields-read-type-matrix-batch-4",
+        "capturePath": "$.metafieldBatches[3].downstreamRead.response.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/custom-data-metafield-type-matrix-read.graphql",
+          "variablesCapturePath": "$.metafieldBatches[3].downstreamRead.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

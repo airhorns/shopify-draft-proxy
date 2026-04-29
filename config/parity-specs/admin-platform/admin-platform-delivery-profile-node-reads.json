@@ -1,0 +1,143 @@
+{
+  "scenarioId": "admin-platform-delivery-profile-node-reads",
+  "operationNames": ["deliveryProfile", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profiles-read.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-detail-read.graphql",
+    "variablesCapturePath": "$.queries.detail.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-462 executable parity for generic Relay Node reads of delivery-profile nested records. The primary deliveryProfile read seeds the normalized profile graph, then nodes(ids:) resolves captured DeliveryLocationGroup, DeliveryZone, DeliveryMethodDefinition, DeliveryRateDefinition, DeliveryParticipant, DeliveryCondition, DeliveryCountry, and DeliveryProvince GIDs through the same local delivery-profile serializers. DeliveryProfileItem remains unsupported because the modeled profile item row has no captured stable Node id.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delivery-location-group-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroup",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroup.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-zone-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-method-definition-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-rate-definition-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].rateProvider",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].rateProvider.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-participant-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[1].methodDefinitions.nodes[0].rateProvider",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[1].methodDefinitions.nodes[0].rateProvider.id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-condition-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].methodConditions[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].methodDefinitions.nodes[0].methodConditions[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-country-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.countries[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.countries[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delivery-province-node",
+        "capturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.countries[0].provinces[0]",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-delivery-profile-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.queries.detail.result.payload.data.deliveryProfile.profileLocationGroups[0].locationGroupZones.nodes[0].zone.countries[0].provinces[0].id"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -43,6 +43,14 @@ Local validation guardrails currently cover missing Function references plus unk
 - Live store authorization and app ownership checks are not reproduced locally. Tests should use this domain for draft proxy metadata behavior, not to validate app-extension deployment, released Function availability, Function API-type eligibility, or tax app installation authority.
 - Function execution outcomes remain out of scope. A future conformance-backed increment should capture checkout/cart/tax runtime side effects separately if the proxy ever needs to model them.
 
+### HAR-455 fidelity review notes
+
+Admin GraphQL 2026-04 Function metadata docs keep validation and cart-transform configuration centered on Function references plus metadata such as `blockOnFailure` and optional metafields. The proxy models those Admin metadata rows and downstream catalog/detail reads only; it does not validate extension release state, API-type eligibility, cross-app ownership, or Partner Dashboard deployment authority.
+
+`shopifyFunctions` remains metadata-only evidence. It can prove that Function identity, handle, API type, and app ownership fields are preserved from seeded/captured metadata, but it does not prove that the corresponding Function code can run in checkout, cart transforms, or tax callbacks.
+
+`taxAppConfigure` is intentionally stored as local readiness metadata. Shopify tax-app authority, tax calculation callbacks, and real tax-service readiness are external side effects that the current proxy cannot faithfully emulate without a suitably authorized disposable tax app.
+
 ## Historical and developer notes
 
 ### Shape evidence

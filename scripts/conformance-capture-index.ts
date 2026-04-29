@@ -8,6 +8,7 @@ import { z } from 'zod';
 const domainSchema = z.enum([
   'admin-platform',
   'apps',
+  'b2b',
   'bulk-operations',
   'collections',
   'customers',
@@ -17,6 +18,7 @@ const domainSchema = z.enum([
   'gift-cards',
   'functions',
   'inventory',
+  'localization',
   'marketing',
   'markets',
   'metafields',
@@ -68,6 +70,40 @@ function defineCaptureIndex(entries: Array<z.input<typeof captureIndexEntrySchem
 }
 
 export const conformanceCaptureIndex = defineCaptureIndex([
+  {
+    domain: 'b2b',
+    captureId: 'b2b-company-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
+    purpose:
+      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+    requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
+      'config/parity-specs/b2b/b2b-company-contact-main-delete.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable companies and a disposable customer; deletes companies during the scenario and deletes the customer in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
+    captureId: 'b2b-contact-location-assignments-tax',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
+    purpose:
+      'B2B contact/location role assignments, automatic main-contact role assignment, address assignment/delete, tax settings, and downstream relationship reads.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-location-assignments-tax.json`,
+      'config/parity-specs/b2b/b2b-contact-location-assignments-tax.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with additional disposable company locations; revokes explicit assignments, deletes the staged billing address, and deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      '`staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains runtime-test-backed rather than live-parity-backed.',
+  },
   {
     domain: 'products',
     captureId: 'products',
@@ -320,6 +356,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'saved-searches',
+    captureId: 'saved-search-query-grammar',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-query-grammar-conformance.ts',
+    purpose: 'SavedSearch grouped/boolean query normalization, quoted field values, searchTerms, and negated filters.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-query-grammar.json`,
+      'config/parity-specs/saved-searches/saved-search-query-grammar.json',
+      'config/parity-requests/saved-searches/saved-search-query-grammar-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-relationship-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -373,6 +424,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'custom-data-field-types',
+    scriptPath: 'scripts/capture-custom-data-field-type-conformance.ts',
+    purpose: 'Metafield and metaobject custom-data field type value/jsonValue set-and-read matrix.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}custom-data-field-type-matrix.json`,
+      'config/parity-specs/metafields/custom-data-metafield-type-matrix.json',
+      'config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, collection, metaobject definitions, and metaobjects, then deletes all created resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metaobjects',
     captureId: 'metaobjects',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -413,6 +479,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-conformance.ts',
+    purpose: 'Metaobject bulk delete by type plus downstream deleted-row and definition-count reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-type-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
@@ -438,6 +519,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-conformance.mts',
+    purpose: 'Shop locale lifecycle and translation read-after-write cleanup behavior.',
+    requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-disable-clears-translations.json`,
+      'config/parity-specs/localization/localization-disable-clears-translations.json',
+    ],
+    cleanupBehavior:
+      'Enables the French shop locale, registers one product-title translation, disables the locale, and leaves the locale/translation state cleaned up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -710,6 +806,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-redeem-code-bulk',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-redeem-code-bulk-conformance.ts',
+    purpose: 'Redeem-code bulk add/delete behavior and case-insensitive code lookup.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-redeem-code-bulk.json`,
+      'config/parity-specs/discounts/discount-redeem-code-bulk.json',
+    ],
+    cleanupBehavior: 'Creates a disposable code discount and deletes it after redeem-code bulk probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-validation',
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
     purpose: 'Discount validation guardrails without broad lifecycle side effects.',
@@ -784,7 +894,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
+      `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
     cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -912,6 +1024,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/customers/customerInputValidation-*.graphql',
     ],
     cleanupBehavior: 'Creates disposable customers; deletes remaining records after delete and merge probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-input-inline-consent',
+    scriptPath: 'scripts/capture-customer-input-consent-conformance.ts',
+    purpose: 'CustomerInput inline marketing consent create semantics and update rejection behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-inline-consent-parity.json`,
+      'config/parity-specs/customers/customerInputInlineConsent-parity.json',
+      'config/parity-requests/customers/customerInputInlineConsent-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable customer, records inline consent create/update behavior, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

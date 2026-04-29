@@ -1,0 +1,9 @@
+query DiscountAutomaticAppLifecycleReadAfterDelete($id: ID!) {
+  automaticDiscountNode(id: $id) {
+    id
+  }
+  discountNodesCount(query: "type:app") {
+    count
+    precision
+  }
+}

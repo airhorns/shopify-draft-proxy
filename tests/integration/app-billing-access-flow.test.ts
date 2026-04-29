@@ -330,7 +330,7 @@ describe('app billing, access, and delegated token local staging', () => {
       .send({
         query: `#graphql
           mutation Delegate {
-            delegateAccessTokenCreate(input: { accessScopes: ["read_products"], expiresIn: 3600 }) {
+            delegateAccessTokenCreate(input: { delegateAccessScope: "read_products", expiresIn: 3600 }) {
               delegateAccessToken {
                 accessToken
                 accessScopes
