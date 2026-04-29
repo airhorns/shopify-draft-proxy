@@ -1,0 +1,18 @@
+api_version = "2026-04"
+
+[[extensions]]
+name = "t:name"
+handle = "conformance-validation"
+type = "function"
+uid = "990bf3d2-0b0e-033d-e97f-e485e3a36f3916836276"
+description = "t:description"
+
+[[extensions.targeting]]
+target = "cart.validations.generate.run"
+input_query = "src/cart_validations_generate_run.graphql"
+export = "cart_validations_generate_run"
+
+[extensions.build]
+command = "cargo build --target=wasm32-unknown-unknown --release"
+path = "target/wasm32-unknown-unknown/release/conformance-validation.wasm"
+watch = ["src/**/*.rs"]

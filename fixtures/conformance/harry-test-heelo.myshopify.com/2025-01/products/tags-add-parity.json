@@ -1,0 +1,115 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10173064872242",
+    "title": "Hermes Product State Conformance 1777416213315",
+    "handle": "hermes-product-state-conformance-1777416213315",
+    "status": "DRAFT",
+    "tags": ["existing", "hermes-state-1777416213315"]
+  },
+  "mutation": {
+    "variables": {
+      "id": "gid://shopify/Product/10173064872242",
+      "tags": ["existing", "hermes-summer-1777416213315", "hermes-sale-1777416213315"]
+    },
+    "response": {
+      "data": {
+        "tagsAdd": {
+          "node": {
+            "id": "gid://shopify/Product/10173064872242",
+            "tags": [
+              "existing",
+              "hermes-sale-1777416213315",
+              "hermes-state-1777416213315",
+              "hermes-summer-1777416213315"
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/10173064872242",
+    "query": "tag:hermes-sale-1777416213315"
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10173064872242",
+        "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+      },
+      "products": {
+        "nodes": []
+      },
+      "productsCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "delayedDownstreamRead": {
+    "waitMs": 10000,
+    "variables": {
+      "id": "gid://shopify/Product/10173064872242",
+      "query": "tag:hermes-sale-1777416213315"
+    },
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10173064872242",
+          "tags": ["existing", "hermes-sale-1777416213315", "hermes-state-1777416213315", "hermes-summer-1777416213315"]
+        },
+        "products": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10173064872242",
+              "tags": [
+                "existing",
+                "hermes-sale-1777416213315",
+                "hermes-state-1777416213315",
+                "hermes-summer-1777416213315"
+              ]
+            }
+          ]
+        },
+        "productsCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

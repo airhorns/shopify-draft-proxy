@@ -1,0 +1,29 @@
+mutation B2BContactLocationAssignmentsTax(
+  $companyLocationId: ID!
+  $taxRegistrationId: String
+  $taxExempt: Boolean
+  $exemptionsToAssign: [TaxExemption!]
+  $exemptionsToRemove: [TaxExemption!]
+) {
+  companyLocationTaxSettingsUpdate(
+    companyLocationId: $companyLocationId
+    taxRegistrationId: $taxRegistrationId
+    taxExempt: $taxExempt
+    exemptionsToAssign: $exemptionsToAssign
+    exemptionsToRemove: $exemptionsToRemove
+  ) {
+    companyLocation {
+      id
+      taxSettings {
+        taxRegistrationId
+        taxExempt
+        taxExemptions
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

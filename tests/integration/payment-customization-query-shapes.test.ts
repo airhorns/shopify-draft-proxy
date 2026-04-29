@@ -74,7 +74,7 @@ describe('payment customization query shapes', () => {
           cashTrackingSessions(first: 1) {
             nodes { __typename }
             edges { node { __typename } }
-            pageInfo { hasNextPage hasPreviousPage }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
           pointOfSaleDevice(id: $posId) { __typename }
           dispute(id: $disputeId) { __typename }
@@ -82,13 +82,13 @@ describe('payment customization query shapes', () => {
           disputes(first: 1) {
             nodes { __typename }
             edges { node { __typename } }
-            pageInfo { hasNextPage hasPreviousPage }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
           shopPayPaymentRequestReceipt(token: $token) { __typename }
           shopPayPaymentRequestReceipts(first: 1) {
             nodes { __typename }
             edges { node { __typename } }
-            pageInfo { hasNextPage hasPreviousPage }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
           }
         }`,
         variables: {
@@ -106,6 +106,8 @@ describe('payment customization query shapes', () => {
       pageInfo: {
         hasNextPage: false,
         hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
       },
     };
 
@@ -120,6 +122,33 @@ describe('payment customization query shapes', () => {
         disputes: emptyConnection,
         shopPayPaymentRequestReceipt: null,
         shopPayPaymentRequestReceipts: emptyConnection,
+      },
+    });
+
+    const nodeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query FinanceRiskNodeNoData($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            ... on Node {
+              id
+            }
+          }
+        }`,
+        variables: {
+          ids: [
+            'gid://shopify/CashTrackingSession/0',
+            'gid://shopify/PointOfSaleDevice/0',
+            'gid://shopify/ShopifyPaymentsDispute/0',
+          ],
+        },
+      });
+
+    expect(nodeResponse.status).toBe(200);
+    expect(nodeResponse.body).toEqual({
+      data: {
+        nodes: [null, null, null],
       },
     });
     expect(fetchSpy).not.toHaveBeenCalled();

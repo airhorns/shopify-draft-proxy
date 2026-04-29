@@ -1,0 +1,32 @@
+{
+  "scenarioId": "admin-platform-selling-plan-node-reads",
+  "operationNames": ["node", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["selected-fields", "node-read-parity", "snapshot-read"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-selling-plan-node-reads.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "notes": "HAR-466 executable parity for generic Relay Node reads of SellingPlan records nested under captured SellingPlanGroup state. The fixture already seeds a live selling plan group with one selling plan; missing SellingPlan IDs remain null through generic nodes(ids:) dispatch.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "selling-plan-node",
+        "capturePath": "$.seedSellingPlanGroups[0].sellingPlans.nodes[0]",
+        "proxyPath": "$.data.sellingPlanNode"
+      },
+      {
+        "name": "selling-plan-nodes-entry",
+        "capturePath": "$.seedSellingPlanGroups[0].sellingPlans.nodes[0]",
+        "proxyPath": "$.data.nodes[0]"
+      }
+    ]
+  }
+}

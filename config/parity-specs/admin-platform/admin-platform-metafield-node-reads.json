@@ -1,0 +1,37 @@
+{
+  "scenarioId": "admin-platform-metafield-node-reads",
+  "operationNames": ["product", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity", "local-runtime-backed"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-metafields-read.graphql",
+    "variablesCapturePath": "$.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-424 rework executable parity for generic Relay Node reads of product-owned Metafield records. The primary request seeds the captured product metafield graph, then nodes(ids:) resolves the captured Metafield GID from normalized local metafield state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-primary-metafield-node",
+        "capturePath": "$.response.data.product.primarySpec",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-metafield-node-reads.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.response.data.product.primarySpec.id"
+              }
+            ]
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

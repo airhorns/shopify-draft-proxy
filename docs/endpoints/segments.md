@@ -59,7 +59,14 @@ Staged mutations:
   equality, and order-count membership is evaluated against local `numberOfOrders`. The proxy does not infer customer
   membership for filters that are accepted for segment storage but do not have a modeled customer-state dependency, such
   as `email_subscription_status = 'SUBSCRIBED'`. Broader Shopify segment grammar is not claimed.
+- `customerSegmentMembersQueryCreate(input: { segmentId })` resolves the staged or hydrated segment query at creation
+  time, returns Shopify's captured async creation shape, and stores an immediately readable local job. HAR-458
+  integration coverage verifies that direct `customerSegmentMembers(query:)` reads and `queryId` reads agree for the
+  supported grammar.
 - Segment search, sort, and uncaptured member-query grammar are not inferred beyond the captured request arguments.
+- Segment filter and value suggestion roots are captured metadata payloads, not a dynamic local suggestion engine. They
+  are useful for shape fidelity and empty/no-data behavior, but new suggestion search semantics should be backed by fresh
+  conformance evidence before being claimed.
 
 ## Historical and developer notes
 
@@ -77,3 +84,5 @@ Staged mutations:
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
+- HAR-458 review coverage: `tests/integration/customer-segment-member-flow.test.ts` covers segmentId-backed member query
+  jobs, direct query reads, and accepted-but-unmodeled filter storage boundaries.

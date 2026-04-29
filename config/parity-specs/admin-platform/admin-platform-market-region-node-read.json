@@ -1,0 +1,39 @@
+{
+  "scenarioId": "admin-platform-market-region-node-read",
+  "operationNames": ["backupRegion", "nodes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "selected-fields", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/admin-platform-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.graphql",
+    "variablesPath": "config/parity-requests/admin-platform/admin-platform-utility-reads.variables.json",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-424 rework executable parity for generic Relay Node reads of the modeled backupRegion MarketRegionCountry record. The local node resolver intentionally covers the captured/effective backup region only; broader taxonomy/market-region catalogs remain unsupported.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "backup-region-market-region-node",
+        "capturePath": "$.captures.backupRegion.result.payload.data.backupRegion",
+        "proxyPath": "$.data.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-market-region-node-read.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromCapturePath": "$.captures.backupRegion.result.payload.data.backupRegion.id"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

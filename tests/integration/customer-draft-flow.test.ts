@@ -4372,6 +4372,214 @@ describe('customer draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('matches captured CustomerInput inline consent create semantics and rejects inline consent updates', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('customer input inline consent should not hit upstream fetch');
+    });
+
+    const app = createApp(snapshotConfig).callback();
+    const createResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              defaultEmailAddress {
+                emailAddress
+                marketingState
+                marketingOptInLevel
+                marketingUpdatedAt
+              }
+              defaultPhoneNumber {
+                phoneNumber
+                marketingState
+                marketingOptInLevel
+                marketingUpdatedAt
+                marketingCollectedFrom
+              }
+              emailMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+              }
+              smsMarketingConsent {
+                marketingState
+                marketingOptInLevel
+                consentUpdatedAt
+                consentCollectedFrom
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'inline-consent@example.com',
+            phone: '+14155550125',
+            firstName: 'Inline',
+            lastName: 'Consent',
+            emailMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T01:00:00Z',
+            },
+            smsMarketingConsent: {
+              marketingState: 'SUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T01:05:00Z',
+            },
+          },
+        },
+      });
+
+    expect(createResponse.status).toBe(200);
+    const customerId = createResponse.body.data.customerCreate.customer.id;
+    expect(createResponse.body.data.customerCreate).toEqual({
+      customer: {
+        id: customerId,
+        email: 'inline-consent@example.com',
+        defaultEmailAddress: {
+          emailAddress: 'inline-consent@example.com',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        defaultPhoneNumber: {
+          phoneNumber: '+14155550125',
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          marketingUpdatedAt: '2026-04-25T01:05:00Z',
+          marketingCollectedFrom: 'OTHER',
+        },
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T01:05:00Z',
+          consentCollectedFrom: 'OTHER',
+        },
+      },
+      userErrors: [],
+    });
+
+    const updateEmailResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InlineEmailConsentUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: customerId,
+            emailMarketingConsent: {
+              marketingState: 'UNSUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T02:00:00Z',
+            },
+          },
+        },
+      });
+
+    expect(updateEmailResponse.status).toBe(200);
+    expect(updateEmailResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['emailMarketingConsent'],
+          message:
+            'To update emailMarketingConsent, please use the customerEmailMarketingConsentUpdate Mutation instead',
+        },
+      ],
+    });
+
+    const updateSmsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation InlineSmsConsentUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          input: {
+            id: customerId,
+            smsMarketingConsent: {
+              marketingState: 'UNSUBSCRIBED',
+              marketingOptInLevel: 'SINGLE_OPT_IN',
+              consentUpdatedAt: '2026-04-25T02:05:00Z',
+            },
+          },
+        },
+      });
+
+    expect(updateSmsResponse.status).toBe(200);
+    expect(updateSmsResponse.body.data.customerUpdate).toEqual({
+      customer: null,
+      userErrors: [
+        {
+          field: ['smsMarketingConsent'],
+          message: 'To update smsMarketingConsent, please use the customerSmsMarketingConsentUpdate Mutation instead',
+        },
+      ],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query InlineConsentRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) {
+            defaultEmailAddress { marketingState marketingUpdatedAt }
+            defaultPhoneNumber { marketingState marketingUpdatedAt marketingCollectedFrom }
+          }
+          customerByIdentifier(identifier: $identifier) {
+            emailMarketingConsent { marketingState consentUpdatedAt }
+            smsMarketingConsent { marketingState consentUpdatedAt consentCollectedFrom }
+          }
+        }`,
+        variables: {
+          id: customerId,
+          identifier: { id: customerId },
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      customer: {
+        defaultEmailAddress: {
+          marketingState: 'SUBSCRIBED',
+          marketingUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        defaultPhoneNumber: {
+          marketingState: 'SUBSCRIBED',
+          marketingUpdatedAt: '2026-04-25T01:05:00Z',
+          marketingCollectedFrom: 'OTHER',
+        },
+      },
+      customerByIdentifier: {
+        emailMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          consentUpdatedAt: '2026-04-25T01:00:00Z',
+        },
+        smsMarketingConsent: {
+          marketingState: 'SUBSCRIBED',
+          consentUpdatedAt: '2026-04-25T01:05:00Z',
+          consentCollectedFrom: 'OTHER',
+        },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('mirrors captured consent input variable validation without mutating customer state', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('invalid consent inputs should not hit upstream fetch');

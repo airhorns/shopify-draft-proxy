@@ -64,6 +64,37 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: SavedSearch query storage separates grouped terms from top-level filters
+
+HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
+
+```text
+title:'<token> Alpha' OR (status:ACTIVE tag:'<token>-tag') -vendor:Archived
+```
+
+Shopify returned the mutation payload with the submitted `query` preserved, but derived `searchTerms` as:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag")
+```
+
+and extracted the top-level negated field term as:
+
+```json
+[{ "key": "vendor_not", "value": "Archived" }]
+```
+
+The downstream `productSavedSearches` read then exposed the stored `query` with double-quoted grouped values plus the
+negated filter suffix:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag") -vendor:Archived
+```
+
+Practical rule: do not treat every field-looking token in a saved-search query as a `filters` entry. Grouped/boolean
+field terms can remain `searchTerms`, while top-level negated field terms use Shopify's `<field>_not` filter key shape.
+The checked-in anchor is `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json`.
+
 ## Current: Hybrid mode needs normalization, not blind JSON patching
 
 For supported product reads, the proxy now normalizes a small upstream product shape into in-memory state before overlaying staged edits.
@@ -2151,11 +2182,37 @@ can read the B2B company roots on that store. The capture showed:
 - Safe unknown-ID `companyUpdate`, `companyLocationUpdate`, and
   `companyContactUpdate` returned `RESOURCE_NOT_FOUND` userErrors. The field
   paths differ: `companyId`, `input`, and `companyContactId` respectively.
+- HAR-445's 2026-04 lifecycle capture showed that `companyRevokeMainContact`
+  leaves the company with no main contact; downstream `Company.mainContact`
+  returns `null` rather than falling back to the first contact with
+  `isMainContact: false`.
+- HAR-446's 2026-04 assignment capture showed that `companyCreate` with a main
+  contact and default location automatically creates a
+  `CompanyContactRoleAssignment` for the `Ordering only` role at that location.
+  A later explicit assignment for the same contact/location returns a
+  `LIMIT_REACHED` userError with `field: null`.
+- The same capture showed that role assignment reads are relationship reads, not
+  immutable snapshots: after updating the contact title and assignment location
+  name, downstream role assignment selections for the nested contact title and
+  location name reflected the updated contact/location records.
+- The same capture showed that contacts created from email-bearing
+  `companyCreate(input.companyContact)` / `companyContactCreate` inputs expose
+  `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
+  a contact-local customer reference without inventing broader customer catalog
+  rows.
+- `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
+  captured 2026-04 readback shape is nested under
+  `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;
+  flat tax fields on `CompanyLocation` failed schema validation in that capture.
+- `companies(first:, query:)` can be used for filtered empty-read evidence, but
+  `companiesCount(query:)` is not accepted by Shopify 2026-04. Keep count
+  behavior unfiltered unless a later schema version proves otherwise.
 
-The mutation roots are only inventoried as B2B blockers. Do not mark them
-supported from validation-only evidence; company/contact/location create,
-update, delete, assignment, revoke, address, tax, staff, and welcome-email
-behavior needs local lifecycle modeling before runtime support.
+Historical trap: the mutation roots were initially inventoried only as B2B
+blockers. Do not mark a B2B mutation supported from validation-only evidence;
+company/contact/location create, update, delete, assignment, revoke, address,
+tax, staff, and welcome-email behavior need local lifecycle modeling before
+runtime support.
 
 - `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
@@ -2594,6 +2651,7 @@ Capture prerequisites and safety constraints:
   - update/delete unknown `gid://shopify/PaymentCustomization/0` return `PAYMENT_CUSTOMIZATION_NOT_FOUND` under `['id']`; activation unknown ids return the same code under `['ids']` with an empty `ids` payload
   - activation with an empty `ids` list returns `ids: []` and no user errors
 - HAR-224 hardened the local runtime against the 2026-04 `PaymentCustomizationInput` docs: `functionHandle` is the current Function identifier, `functionId` remains deprecated but accepted for the captured parity branch, requests with both identifiers return `MULTIPLE_FUNCTION_IDENTIFIERS`, captured missing Function handles return `FUNCTION_NOT_FOUND`, malformed owner metafields return `INVALID_METAFIELDS`, and duplicate activation ids are handled idempotently
+- HAR-416 refreshed the repo-local conformance app release on 2026-04-28 (`HAR-416-rework-functions`) before live Function capture. `shopifyFunctions(first:)` then exposed raw Function string IDs for validation/cart-transform Functions, lowercase `apiType` values (`cart_checkout_validation`, `cart_transform`), and app ownership through `appKey` plus selected `app` fields. With the refreshed grant, validation/cart-transform mutations reached resolver userErrors for wrong Function API type, unknown/unowned handles, invalid metafields, and duplicate cart-transform registration. Shopify allowed multiple `validationCreate` calls for the same validation Function in this shop, so no duplicate-validation userError was observed; the capture script deletes all HAR-416 validation/cart-transform probe resources afterward. `taxAppConfigure` still returned top-level `ACCESS_DENIED` because the caller must be a tax calculations app.
 - HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - HAR-222 locally stages `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` against the order/draft-order graph using the captured template catalog and Shopify-documented standalone mutation input shapes. The 2026-04 disposable-draft live lifecycle capture confirms NET templates compute `dueAt` from `issuedAt` plus template due days, FIXED updates replace the `PaymentSchedule` id, `PaymentSchedule.completed` is not selectable on this API surface, and downstream `draftOrder(id:)` returns `paymentTerms: null` after delete. Rejected local guardrails cover unknown targets, missing/unknown template ids, NET schedules without `issuedAt`, FIXED schedules without `dueAt`, missing update ids, and duplicate deletes without appending staged-write log entries.
 - customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.

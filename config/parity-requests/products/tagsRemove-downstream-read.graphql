@@ -12,6 +12,7 @@ query TagsRemoveDownstreamRead($id: ID!, $remainingQuery: String!, $removedQuery
   removed: products(first: 10, query: $removedQuery) {
     nodes {
       id
+      tags
     }
   }
   remainingCount: productsCount(query: $remainingQuery) {

@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-change-status-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-change-status-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productChangeStatus-parity-plan.graphql",
@@ -12,7 +12,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `productChangeStatus`, including Shopify's one-second updatedAt skew between the mutation payload and immediate downstream product read. The staged runtime intentionally serializes the effective downstream-aligned product for both surfaces, so this scenario compares mutation data and immediate downstream status-filter reads with only that captured timestamp skew path-scoped.",
+  "notes": "HAR-427 refreshed live capture for `productChangeStatus` on harry-test-heelo.myshopify.com, including Shopify's one-second updatedAt skew between the mutation payload and immediate downstream product read. The staged runtime intentionally serializes the effective downstream-aligned product for both surfaces, so this scenario compares mutation data and immediate downstream status-filter reads with only that captured timestamp skew path-scoped.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -38,12 +38,7 @@
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productChangeStatus-downstream-read.graphql",
-          "variables": {
-            "id": {
-              "fromPrimaryProxyPath": "$.data.productChangeStatus.product.id"
-            },
-            "query": "status:archived"
-          }
+          "variablesCapturePath": "$.downstreamReadVariables"
         },
         "proxyPath": "$.data"
       }
