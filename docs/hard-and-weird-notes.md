@@ -64,6 +64,37 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: SavedSearch query storage separates grouped terms from top-level filters
+
+HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
+
+```text
+title:'<token> Alpha' OR (status:ACTIVE tag:'<token>-tag') -vendor:Archived
+```
+
+Shopify returned the mutation payload with the submitted `query` preserved, but derived `searchTerms` as:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag")
+```
+
+and extracted the top-level negated field term as:
+
+```json
+[{ "key": "vendor_not", "value": "Archived" }]
+```
+
+The downstream `productSavedSearches` read then exposed the stored `query` with double-quoted grouped values plus the
+negated filter suffix:
+
+```text
+title:"<token> Alpha" OR (status:ACTIVE tag:"<token>-tag") -vendor:Archived
+```
+
+Practical rule: do not treat every field-looking token in a saved-search query as a `filters` entry. Grouped/boolean
+field terms can remain `searchTerms`, while top-level negated field terms use Shopify's `<field>_not` filter key shape.
+The checked-in anchor is `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar.json`.
+
 ## Current: Hybrid mode needs normalization, not blind JSON patching
 
 For supported product reads, the proxy now normalizes a small upstream product shape into in-memory state before overlaying staged edits.
