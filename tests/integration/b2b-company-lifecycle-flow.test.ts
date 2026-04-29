@@ -35,7 +35,13 @@ describe('B2B company lifecycle mutations', () => {
               externalId
               contactsCount { count }
               locationsCount { count }
-              mainContact { id title isMainContact email }
+              mainContact {
+                id
+                title
+                isMainContact
+                email
+                roleAssignments(first: 5) { nodes { id role { id name } companyLocation { id name } } }
+              }
               locations(first: 5) { nodes { id name phone billingAddress { id city countryCode } } }
               contactRoles(first: 5) { nodes { id name note } }
             }
@@ -62,6 +68,14 @@ describe('B2B company lifecycle mutations', () => {
     const contactId = company.mainContact.id as string;
     const locationId = company.locations.nodes[0].id as string;
     const roleId = company.contactRoles.nodes[0].id as string;
+    const defaultAssignmentId = company.mainContact.roleAssignments.nodes[0].id as string;
+    expect(company.mainContact.roleAssignments.nodes).toEqual([
+      {
+        id: defaultAssignmentId,
+        role: { id: company.contactRoles.nodes[1].id, name: 'Ordering only' },
+        companyLocation: { id: locationId, name: 'Acme HQ' },
+      },
+    ]);
     expect(company).toMatchObject({
       name: 'Acme B2B',
       note: 'Draft account',
@@ -70,6 +84,20 @@ describe('B2B company lifecycle mutations', () => {
       locationsCount: { count: 1 },
       mainContact: { title: 'Buyer', isMainContact: true, email: 'ada@example.com' },
     });
+
+    const assignmentLocationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AssignmentLocation($companyId: ID!) {
+          companyLocationCreate(companyId: $companyId, input: { name: "Acme Role Site" }) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { companyId },
+      });
+    const assignmentLocationId = assignmentLocationResponse.body.data.companyLocationCreate.companyLocation
+      .id as string;
 
     const updateResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -120,7 +148,7 @@ describe('B2B company lifecycle mutations', () => {
             userErrors { field message code }
           }
         }`,
-        variables: { contactId, roleId, locationId },
+        variables: { contactId, roleId, locationId: assignmentLocationId },
       });
 
     const assignmentId = assignmentResponse.body.data.companyContactAssignRole.companyContactRoleAssignment
@@ -165,6 +193,31 @@ describe('B2B company lifecycle mutations', () => {
       taxExemptions: ['CA_STATUS_CARD_EXEMPTION'],
     });
 
+    const postAssignmentUpdateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation UpdateAfterAssignments($contactId: ID!, $locationId: ID!) {
+          companyContactUpdate(companyContactId: $contactId, input: { title: "Lead buyer" }) {
+            companyContact { id title }
+            userErrors { field message code }
+          }
+          companyLocationUpdate(companyLocationId: $locationId, input: { name: "Acme Fulfillment" }) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { contactId, locationId },
+      });
+
+    expect(postAssignmentUpdateResponse.body.data.companyContactUpdate.companyContact).toEqual({
+      id: contactId,
+      title: 'Lead buyer',
+    });
+    expect(postAssignmentUpdateResponse.body.data.companyLocationUpdate.companyLocation).toEqual({
+      id: locationId,
+      name: 'Acme Fulfillment',
+    });
+
     const readAfterWrite = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
@@ -174,20 +227,56 @@ describe('B2B company lifecycle mutations', () => {
             name
             contactsCount { count }
             locationsCount { count }
-            contacts(first: 5) { nodes { id title roleAssignments(first: 5) { nodes { id role { id name } } } } }
+            contacts(first: 5) {
+              nodes {
+                id
+                title
+                roleAssignments(first: 5) {
+                  nodes {
+                    id
+                    role { id name }
+                    companyContact { id title }
+                    companyLocation { id name }
+                  }
+                }
+              }
+            }
             locations(first: 5) {
               nodes {
                 id
                 name
                 billingAddress { id city countryCode }
                 shippingAddress { id city countryCode }
-                roleAssignments(first: 5) { nodes { id role { id name } companyContact { id } } }
-                staffMemberAssignments(first: 5) { nodes { id staffMember { id } } }
+                taxRegistrationId
+                taxExempt
+                taxExemptions
+                roleAssignments(first: 5) {
+                  nodes {
+                    id
+                    role { id name }
+                    companyContact { id title }
+                    companyLocation { id name }
+                  }
+                }
+                staffMemberAssignments(first: 5) {
+                  nodes {
+                    id
+                    staffMember { id }
+                    companyLocation { id name }
+                  }
+                }
               }
             }
           }
           companyContact(id: $contactId) { id title company { id name } }
-          companyLocation(id: $locationId) { id name company { id name } }
+          companyLocation(id: $locationId) {
+            id
+            name
+            taxRegistrationId
+            taxExempt
+            taxExemptions
+            company { id name }
+          }
         }`,
         variables: { companyId, contactId, locationId },
       });
@@ -196,17 +285,58 @@ describe('B2B company lifecycle mutations', () => {
       id: companyId,
       name: 'Acme Wholesale',
       contactsCount: { count: 1 },
-      locationsCount: { count: 1 },
+      locationsCount: { count: 2 },
     });
-    expect(readAfterWrite.body.data.company.contacts.nodes[0].roleAssignments.nodes[0].id).toBe(assignmentId);
-    expect(readAfterWrite.body.data.company.locations.nodes[0].billingAddress).toEqual({
+    const contactRoleAssignments = readAfterWrite.body.data.company.contacts.nodes[0].roleAssignments.nodes;
+    expect(contactRoleAssignments.map((item: { id: string }) => item.id)).toEqual([defaultAssignmentId, assignmentId]);
+    expect(contactRoleAssignments[1]).toMatchObject({
+      companyContact: { id: contactId, title: 'Lead buyer' },
+      companyLocation: { id: assignmentLocationId, name: 'Acme Role Site' },
+    });
+    const mainLocation = readAfterWrite.body.data.company.locations.nodes.find(
+      (location: { id: string }) => location.id === locationId,
+    );
+    const roleLocation = readAfterWrite.body.data.company.locations.nodes.find(
+      (location: { id: string }) => location.id === assignmentLocationId,
+    );
+    expect(mainLocation.billingAddress).toEqual({
       id: addressId,
       city: 'Toronto',
       countryCode: 'CA',
     });
-    expect(readAfterWrite.body.data.company.locations.nodes[0].staffMemberAssignments.nodes[0].id).toBe(
-      staffAssignmentId,
-    );
+    expect(mainLocation.shippingAddress).toEqual({
+      id: addressId,
+      city: 'Toronto',
+      countryCode: 'CA',
+    });
+    expect(mainLocation).toMatchObject({
+      taxRegistrationId: '123456789',
+      taxExempt: true,
+      taxExemptions: ['CA_STATUS_CARD_EXEMPTION'],
+    });
+    expect(mainLocation.roleAssignments.nodes[0]).toMatchObject({
+      id: defaultAssignmentId,
+      companyContact: { id: contactId, title: 'Lead buyer' },
+      companyLocation: { id: locationId, name: 'Acme Fulfillment' },
+    });
+    expect(roleLocation.roleAssignments.nodes[0]).toMatchObject({
+      id: assignmentId,
+      companyContact: { id: contactId, title: 'Lead buyer' },
+      companyLocation: { id: assignmentLocationId, name: 'Acme Role Site' },
+    });
+    expect(mainLocation.staffMemberAssignments.nodes[0].id).toBe(staffAssignmentId);
+    expect(mainLocation.staffMemberAssignments.nodes[0].companyLocation).toEqual({
+      id: locationId,
+      name: 'Acme Fulfillment',
+    });
+    expect(readAfterWrite.body.data.companyContact).toMatchObject({ id: contactId, title: 'Lead buyer' });
+    expect(readAfterWrite.body.data.companyLocation).toMatchObject({
+      id: locationId,
+      name: 'Acme Fulfillment',
+      taxRegistrationId: '123456789',
+      taxExempt: true,
+      taxExemptions: ['CA_STATUS_CARD_EXEMPTION'],
+    });
 
     const secondContactResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -277,10 +407,24 @@ describe('B2B company lifecycle mutations', () => {
     const deleteContactId = extraLifecycleResponse.body.data.companyContactCreate.companyContact.id as string;
     expect(extraLifecycleResponse.body.data.companyLocationCreate.userErrors).toEqual([]);
 
+    const locationBulkLocationResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation LocationBulkLocation($companyId: ID!) {
+          companyLocationCreate(companyId: $companyId, input: { name: "Acme Location Bulk" }) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { companyId },
+      });
+    const locationBulkLocationId = locationBulkLocationResponse.body.data.companyLocationCreate.companyLocation
+      .id as string;
+
     const bulkRoleResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
       .send({
-        query: `mutation BulkRoleRoots($contactId: ID!, $roleId: ID!, $locationId: ID!, $extraLocationId: ID!) {
+        query: `mutation BulkRoleRoots($contactId: ID!, $roleId: ID!, $extraLocationId: ID!, $locationBulkLocationId: ID!) {
           companyContactAssignRoles(
             companyContactId: $contactId
             rolesToAssign: [{ companyContactRoleId: $roleId, companyLocationId: $extraLocationId }]
@@ -289,17 +433,18 @@ describe('B2B company lifecycle mutations', () => {
             userErrors { field message code }
           }
           companyLocationAssignRoles(
-            companyLocationId: $locationId
+            companyLocationId: $locationBulkLocationId
             rolesToAssign: [{ companyContactId: $contactId, companyContactRoleId: $roleId }]
           ) {
             roleAssignments { id }
             userErrors { field message code }
           }
         }`,
-        variables: { contactId, roleId, locationId, extraLocationId },
+        variables: { contactId, roleId, extraLocationId, locationBulkLocationId },
       });
     const contactBulkAssignmentId = bulkRoleResponse.body.data.companyContactAssignRoles.roleAssignments[0]
       .id as string;
+    expect(bulkRoleResponse.body.data.companyLocationAssignRoles.userErrors).toEqual([]);
     const locationBulkAssignmentId = bulkRoleResponse.body.data.companyLocationAssignRoles.roleAssignments[0]
       .id as string;
 
@@ -318,7 +463,7 @@ describe('B2B company lifecycle mutations', () => {
         }`,
         variables: {
           contactId,
-          locationId,
+          locationId: locationBulkLocationId,
           contactAssignmentId: contactBulkAssignmentId,
           locationAssignmentId: locationBulkAssignmentId,
         },

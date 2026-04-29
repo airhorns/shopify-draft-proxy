@@ -1,0 +1,13 @@
+mutation B2BContactLocationAssignmentsContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+    companyContact {
+      id
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

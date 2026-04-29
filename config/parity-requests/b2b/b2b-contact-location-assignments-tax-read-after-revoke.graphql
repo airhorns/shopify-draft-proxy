@@ -1,0 +1,21 @@
+query B2BContactLocationAssignmentsReadAfterRevoke($companyContactId: ID!, $companyLocationId: ID!) {
+  companyContact(id: $companyContactId) {
+    id
+    roleAssignments(first: 5) {
+      nodes {
+        id
+      }
+    }
+  }
+  companyLocation(id: $companyLocationId) {
+    id
+    billingAddress {
+      id
+    }
+    roleAssignments(first: 5) {
+      nodes {
+        id
+      }
+    }
+  }
+}

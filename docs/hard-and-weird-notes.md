@@ -2186,11 +2186,24 @@ can read the B2B company roots on that store. The capture showed:
   leaves the company with no main contact; downstream `Company.mainContact`
   returns `null` rather than falling back to the first contact with
   `isMainContact: false`.
+- HAR-446's 2026-04 assignment capture showed that `companyCreate` with a main
+  contact and default location automatically creates a
+  `CompanyContactRoleAssignment` for the `Ordering only` role at that location.
+  A later explicit assignment for the same contact/location returns a
+  `LIMIT_REACHED` userError with `field: null`.
+- The same capture showed that role assignment reads are relationship reads, not
+  immutable snapshots: after updating the contact title and assignment location
+  name, downstream role assignment selections for the nested contact title and
+  location name reflected the updated contact/location records.
 - The same capture showed that contacts created from email-bearing
   `companyCreate(input.companyContact)` / `companyContactCreate` inputs expose
   `CompanyContact.customer { id }` in B2B reads. The proxy should model that as
   a contact-local customer reference without inventing broader customer catalog
   rows.
+- `companyLocationTaxSettingsUpdate` accepts flat mutation arguments, but the
+  captured 2026-04 readback shape is nested under
+  `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`;
+  flat tax fields on `CompanyLocation` failed schema validation in that capture.
 - `companies(first:, query:)` can be used for filtered empty-read evidence, but
   `companiesCount(query:)` is not accepted by Shopify 2026-04. Keep count
   behavior unfiltered unless a later schema version proves otherwise.
