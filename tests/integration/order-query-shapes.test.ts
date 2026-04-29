@@ -790,4 +790,152 @@ describe('order query shapes', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('filters assigned fulfillment orders by assignment status and assigned location in snapshot mode', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('assignedFulfillmentOrders should not hit upstream in snapshot mode');
+    });
+    const order = makeOrder(
+      'gid://shopify/Order/assigned-fulfillment-orders',
+      '#ASSIGNED-FULFILLMENT-ORDERS',
+      '2026-04-25T00:00:00.000Z',
+      {
+        fulfillmentOrders: [
+          {
+            id: 'gid://shopify/FulfillmentOrder/101',
+            status: 'OPEN',
+            requestStatus: 'UNSUBMITTED',
+            assignedLocation: {
+              name: 'Fulfillment location A',
+              locationId: 'gid://shopify/Location/A',
+            },
+            lineItems: [],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/102',
+            status: 'OPEN',
+            requestStatus: 'SUBMITTED',
+            assignedLocation: {
+              name: 'Fulfillment location A',
+              locationId: 'gid://shopify/Location/A',
+            },
+            lineItems: [],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/103',
+            status: 'OPEN',
+            requestStatus: 'SUBMITTED',
+            assignedLocation: {
+              name: 'Fulfillment location B',
+              locationId: 'gid://shopify/Location/B',
+            },
+            lineItems: [],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/104',
+            status: 'OPEN',
+            requestStatus: 'ACCEPTED',
+            assignedLocation: {
+              name: 'Fulfillment location A',
+              locationId: 'gid://shopify/Location/A',
+            },
+            lineItems: [],
+          },
+          {
+            id: 'gid://shopify/FulfillmentOrder/105',
+            status: 'OPEN',
+            requestStatus: 'ACCEPTED',
+            assignedLocation: {
+              name: 'Fulfillment location A',
+              locationId: 'gid://shopify/Location/A',
+            },
+            merchantRequests: [
+              {
+                id: 'gid://shopify/FulfillmentOrderMerchantRequest/105',
+                kind: 'CANCELLATION_REQUEST',
+                message: 'Please cancel',
+                sentAt: '2026-04-25T00:00:00.000Z',
+              },
+            ],
+            lineItems: [],
+          },
+        ],
+      },
+    );
+    store.upsertBaseOrders([order]);
+
+    const app = createApp(snapshotConfig).callback();
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query AssignedFulfillmentOrders($locationIds: [ID!]) {
+          requested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes {
+              id
+              requestStatus
+              assignedLocation { location { id } }
+            }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          accepted: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: FULFILLMENT_ACCEPTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus }
+          }
+          cancellationRequested: assignedFulfillmentOrders(
+            first: 10
+            assignmentStatus: CANCELLATION_REQUESTED
+            locationIds: $locationIds
+            sortKey: ID
+          ) {
+            nodes { id requestStatus }
+          }
+        }`,
+        variables: {
+          locationIds: ['gid://shopify/Location/A'],
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.requested).toEqual({
+      nodes: [
+        {
+          id: 'gid://shopify/FulfillmentOrder/102',
+          requestStatus: 'SUBMITTED',
+          assignedLocation: {
+            location: {
+              id: 'gid://shopify/Location/A',
+            },
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: 'cursor:gid://shopify/FulfillmentOrder/102',
+        endCursor: 'cursor:gid://shopify/FulfillmentOrder/102',
+      },
+    });
+    expect(response.body.data.accepted.nodes).toEqual([
+      {
+        id: 'gid://shopify/FulfillmentOrder/104',
+        requestStatus: 'ACCEPTED',
+      },
+    ]);
+    expect(response.body.data.cancellationRequested.nodes).toEqual([
+      {
+        id: 'gid://shopify/FulfillmentOrder/105',
+        requestStatus: 'ACCEPTED',
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

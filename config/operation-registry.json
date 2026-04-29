@@ -4292,7 +4292,7 @@
     "implemented": true,
     "matchNames": ["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot support is intentionally limited to Shopify-like empty connections for local data with no fulfillment-service assignment model; captured live evidence records the current credential blocker when the app is not associated with a fulfillment service."
+    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot/local support exposes order-backed fulfillment orders for staged request and cancellation-request workflows, filters assignmentStatus for the locally modeled request states, filters locationIds against stored assigned-location IDs, and keeps the captured live credential blocker documented for app-to-fulfillment-service association gaps."
   },
   {
     "name": "fulfillmentOrder",
@@ -4302,7 +4302,7 @@
     "implemented": true,
     "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders. Stored fixture deliveryMethod data is serialized when present and returns null when absent; holds and lifecycle replacement semantics remain out of scope."
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders, including staged hold/request/lifecycle replacement records when those were created by local supported mutations."
   },
   {
     "name": "fulfillmentOrders",
@@ -4322,7 +4322,7 @@
     "implemented": true,
     "matchNames": ["manualHoldsFulfillmentOrders", "ManualHoldsFulfillmentOrders"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot support is currently limited to captured no-hold empty connection behavior because the local fulfillment-order model does not yet store hold records or hold-specific filters."
+    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot/local support returns Shopify-like empty connections when no held local work exists and lists order-backed fulfillment orders with locally staged fulfillmentHolds after fulfillmentOrderHold."
   },
   {
     "name": "fulfillmentOrderAcceptCancellationRequest",

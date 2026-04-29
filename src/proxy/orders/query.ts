@@ -10,6 +10,7 @@ import {
   listOrderReverseDeliveries,
   listOrderReverseFulfillmentOrders,
   listOrderReturns,
+  prepareAssignedFulfillmentOrders,
   prepareTopLevelFulfillmentOrders,
   serializeAbandonedCheckoutsConnection,
   serializeAbandonedCheckoutsCount,
@@ -146,7 +147,7 @@ export function handleOrderQuery(
       case 'assignedFulfillmentOrders':
         data[key] = serializeOrderFulfillmentOrdersConnection(
           field,
-          prepareTopLevelFulfillmentOrders(field, fulfillmentOrders, variables),
+          prepareAssignedFulfillmentOrders(field, fulfillmentOrders, variables),
           variables,
           { includeCursors: true },
         );

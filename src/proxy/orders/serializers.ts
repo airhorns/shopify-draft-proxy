@@ -2577,6 +2577,59 @@ export function sortFulfillmentOrdersForConnection(
   return reverse ? sorted.reverse() : sorted;
 }
 
+function readStringListArgumentValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function hasPendingCancellationRequest(fulfillmentOrder: OrderFulfillmentOrderRecord): boolean {
+  return (
+    fulfillmentOrder.requestStatus === 'ACCEPTED' &&
+    (fulfillmentOrder.merchantRequests ?? []).some((merchantRequest) => merchantRequest.kind === 'CANCELLATION_REQUEST')
+  );
+}
+
+function matchesAssignedFulfillmentOrderStatus(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  assignmentStatus: unknown,
+): boolean {
+  if (typeof assignmentStatus !== 'string') {
+    return true;
+  }
+
+  switch (assignmentStatus) {
+    case 'FULFILLMENT_REQUESTED':
+      return fulfillmentOrder.requestStatus === 'SUBMITTED';
+    case 'FULFILLMENT_ACCEPTED':
+      return fulfillmentOrder.requestStatus === 'ACCEPTED' && !hasPendingCancellationRequest(fulfillmentOrder);
+    case 'CANCELLATION_REQUESTED':
+      return hasPendingCancellationRequest(fulfillmentOrder);
+    default:
+      return false;
+  }
+}
+
+export function prepareAssignedFulfillmentOrders(
+  field: FieldNode,
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  variables: Record<string, unknown>,
+): OrderFulfillmentOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const locationIds = readStringListArgumentValue(args['locationIds']);
+  const visibleFulfillmentOrders = fulfillmentOrders.filter((fulfillmentOrder) => {
+    if (fulfillmentOrder.status === 'CLOSED') {
+      return false;
+    }
+
+    if (!matchesAssignedFulfillmentOrderStatus(fulfillmentOrder, args['assignmentStatus'])) {
+      return false;
+    }
+
+    return locationIds.length === 0 || locationIds.includes(fulfillmentOrder.assignedLocation?.locationId ?? '');
+  });
+
+  return sortFulfillmentOrdersForConnection(visibleFulfillmentOrders, field, variables);
+}
+
 export function prepareTopLevelFulfillmentOrders(
   field: FieldNode,
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
