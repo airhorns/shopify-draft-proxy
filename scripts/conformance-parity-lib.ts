@@ -6493,7 +6493,7 @@ function seedInventoryQuantityRootPreconditions(runtime: ProxyRuntimeContext, ca
   const variantId = readStringField(setup, 'variantId');
   const inventoryItemId = readStringField(setup, 'inventoryItemId');
   if (!productId || !variantId || !inventoryItemId) {
-    return false;
+    return seedInventoryQuantityContractPreconditions(runtime, capture);
   }
 
   const setEvidence = readRecordField(mutationEvidence, 'inventorySetQuantitiesAvailable');
@@ -6560,6 +6560,76 @@ function seedInventoryQuantityRootPreconditions(runtime: ProxyRuntimeContext, ca
         inventoryLevels: [...locationsById.values()].map((location) =>
           makeInventoryQuantityRootSeedLevel(inventoryItemId, location),
         ),
+      },
+    },
+  ]);
+
+  return true;
+}
+
+function seedInventoryQuantityContractPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const productSetup = readRecordField(setup, 'product');
+  const productId = readStringField(productSetup, 'productId');
+  const variantId = readStringField(productSetup, 'variantId');
+  const inventoryItemId = readStringField(productSetup, 'inventoryItemId');
+  const location = readRecordField(setup, 'location');
+  const locationId = readStringField(location, 'id');
+  if (!productId || !variantId || !inventoryItemId || !locationId) {
+    return false;
+  }
+
+  const createdProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(setup, 'create'), 'data'), 'productCreate'),
+    'product',
+  );
+  const trackedProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(setup, 'track'), 'data'), 'productVariantsBulkUpdate'),
+    'product',
+  );
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  const locationRecord = { id: locationId, name: readStringField(location, 'name') };
+  runtime.store.upsertBaseLocations([locationRecord]);
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(
+      productId,
+      {
+        id: productId,
+        title: readStringField(createdProduct, 'title') ?? 'Inventory quantity contract conformance seed',
+        totalInventory:
+          readNumberField(trackedProduct, 'totalInventory') ??
+          readNumberField(downstreamProduct, 'totalInventory') ??
+          0,
+        tracksInventory: true,
+      },
+      'Inventory quantity contract conformance seed',
+    ),
+  ]);
+  runtime.store.replaceBaseVariantsForProduct(productId, [
+    {
+      id: variantId,
+      productId,
+      title: 'Default Title',
+      sku: null,
+      barcode: null,
+      price: null,
+      compareAtPrice: null,
+      taxable: null,
+      inventoryPolicy: null,
+      inventoryQuantity: 0,
+      selectedOptions: [],
+      inventoryItem: {
+        id: inventoryItemId,
+        tracked: true,
+        requiresShipping: true,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: [makeInventoryQuantityRootSeedLevel(inventoryItemId, locationRecord)],
       },
     },
   ]);
