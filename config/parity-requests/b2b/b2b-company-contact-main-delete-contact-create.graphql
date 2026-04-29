@@ -1,0 +1,18 @@
+mutation B2BCompanyLifecycleContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  companyContactCreate(companyId: $companyId, input: $input) {
+    companyContact {
+      id
+      title
+      isMainContact
+      company {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

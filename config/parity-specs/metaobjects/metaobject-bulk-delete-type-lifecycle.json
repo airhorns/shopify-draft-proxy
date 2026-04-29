@@ -1,0 +1,51 @@
+{
+  "scenarioId": "metaobject-bulk-delete-type-lifecycle",
+  "operationNames": ["metaobjectBulkDelete", "metaobject", "metaobjects", "metaobjectDefinitionByType"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-bulk-delete-type-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/metaobject-draft-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-type-delete.graphql",
+    "variablesCapturePath": "$.bulkDelete[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "bulk-delete-type-payload",
+        "capturePath": "$.bulkDelete[0].response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The local proxy creates a synthetic Job ID while Shopify returns a live-store async job ID."
+          },
+          {
+            "path": "$.job.done",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify returns an asynchronous bulk-delete job with done=false while the local proxy applies the selected staged deletions immediately; downstream read parity below verifies the observable deleted state."
+          }
+        ]
+      },
+      {
+        "name": "downstream-after-bulk-delete-read",
+        "capturePath": "$.downstreamReads[0].response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-type-read.graphql",
+          "variablesCapturePath": "$.downstreamReads[0].request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-450 captured live 2026-04 evidence for `metaobjectBulkDelete(where: { type })` selecting all rows for a disposable definition. Shopify returned an async job with `done=false`, but immediate downstream reads already hid both selected rows and reported `metaobjectsCount: 0`. The parity runner seeds the proxy from the captured pre-delete read, replays the type-scoped bulk delete locally, and strictly compares the mutation userErrors plus downstream ID, catalog, and definition-count reads while accepting only job id/timing volatility."
+}

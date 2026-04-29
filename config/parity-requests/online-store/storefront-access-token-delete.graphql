@@ -1,0 +1,9 @@
+mutation StorefrontAccessTokenLocalDelete($input: StorefrontAccessTokenDeleteInput!) {
+  storefrontAccessTokenDelete(input: $input) {
+    deletedStorefrontAccessTokenId
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -727,7 +727,8 @@ export class InMemoryStore {
   private mutationLog: MutationLogEntry[] = [];
   private stagedCollectionFamilies = new Set<string>();
   private stagedMediaFamilies = new Set<string>();
-  private laggedTagSearchProductIds = new Map<string, number>();
+  private laggedTagSearchProducts = new Map<string, { expiresAt: number; searchableTags: string[] }>();
+  private laggedStatusSearchProducts = new Map<string, { expiresAt: number; searchableStatus: string }>();
   private laggedVariantSearchProductIds = new Set<string>();
   private baseProductSearchConnections: Record<string, ProductCatalogConnectionRecord> = {};
   private baseCustomerCatalogConnection: CustomerCatalogConnectionRecord | null = null;
@@ -760,7 +761,8 @@ export class InMemoryStore {
     this.mutationLog = [];
     this.stagedCollectionFamilies = new Set<string>();
     this.stagedMediaFamilies = new Set<string>();
-    this.laggedTagSearchProductIds = new Map<string, number>();
+    this.laggedTagSearchProducts = new Map<string, { expiresAt: number; searchableTags: string[] }>();
+    this.laggedStatusSearchProducts = new Map<string, { expiresAt: number; searchableStatus: string }>();
     this.laggedVariantSearchProductIds = new Set<string>();
     this.baseProductSearchConnections = structuredClone(this.initialProductSearchConnections);
     this.baseCustomerCatalogConnection = this.initialCustomerCatalogConnection
@@ -3677,6 +3679,36 @@ export class InMemoryStore {
     return existing ? structuredClone(existing) : null;
   }
 
+  removeTranslationsForLocale(locale: string): TranslationRecord[] {
+    const removed = new Map<string, TranslationRecord>();
+    for (const translation of Object.values(this.baseState.translations)) {
+      if (translation.locale !== locale) {
+        continue;
+      }
+
+      const storageKey = translationStorageKey(translation);
+      removed.set(storageKey, structuredClone(translation));
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+
+    for (const [storageKey, translation] of Object.entries(this.stagedState.translations)) {
+      if (translation.locale !== locale) {
+        continue;
+      }
+
+      removed.set(storageKey, structuredClone(translation));
+      delete this.stagedState.translations[storageKey];
+      this.stagedState.deletedTranslations[storageKey] = true;
+    }
+
+    return Array.from(removed.values()).sort(
+      (left, right) =>
+        left.resourceId.localeCompare(right.resourceId) ||
+        left.key.localeCompare(right.key) ||
+        left.updatedAt.localeCompare(right.updatedAt),
+    );
+  }
+
   listEffectiveTranslations(resourceId: string, locale: string, marketId: string | null = null): TranslationRecord[] {
     const translations = new Map<string, TranslationRecord>();
     for (const translation of Object.values(this.baseState.translations)) {
@@ -4688,20 +4720,42 @@ export class InMemoryStore {
     return baseProduct ? structuredClone(baseProduct) : null;
   }
 
-  markTagSearchLagged(productId: string, lagMs = 10_000): void {
-    this.laggedTagSearchProductIds.set(productId, Date.now() + lagMs);
+  markTagSearchLagged(productId: string, lagMs = 10_000, searchableTags: string[] = []): void {
+    this.laggedTagSearchProducts.set(productId, {
+      expiresAt: Date.now() + lagMs,
+      searchableTags: structuredClone(searchableTags),
+    });
   }
 
-  isTagSearchLagged(productId: string): boolean {
-    const lagExpiresAt = this.laggedTagSearchProductIds.get(productId);
-    if (lagExpiresAt === undefined) {
-      return false;
+  getLaggedTagSearchTags(productId: string): string[] | null {
+    const lag = this.laggedTagSearchProducts.get(productId);
+    if (!lag) {
+      return null;
     }
-    if (Date.now() < lagExpiresAt) {
-      return true;
+    if (Date.now() < lag.expiresAt) {
+      return structuredClone(lag.searchableTags);
     }
-    this.laggedTagSearchProductIds.delete(productId);
-    return false;
+    this.laggedTagSearchProducts.delete(productId);
+    return null;
+  }
+
+  markStatusSearchLagged(productId: string, searchableStatus: string, lagMs = 10_000): void {
+    this.laggedStatusSearchProducts.set(productId, {
+      expiresAt: Date.now() + lagMs,
+      searchableStatus,
+    });
+  }
+
+  getLaggedStatusSearchStatus(productId: string): string | null {
+    const lag = this.laggedStatusSearchProducts.get(productId);
+    if (!lag) {
+      return null;
+    }
+    if (Date.now() < lag.expiresAt) {
+      return lag.searchableStatus;
+    }
+    this.laggedStatusSearchProducts.delete(productId);
+    return null;
   }
 
   markVariantSearchLagged(productId: string): void {
@@ -5514,11 +5568,7 @@ export class InMemoryStore {
         return leftAppNamespace ? 1 : -1;
       }
 
-      return (
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id)
-      );
+      return 0;
     });
   }
 

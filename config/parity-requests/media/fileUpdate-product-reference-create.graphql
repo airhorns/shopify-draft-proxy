@@ -1,0 +1,23 @@
+mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      alt
+      createdAt
+      fileStatus
+      filename
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

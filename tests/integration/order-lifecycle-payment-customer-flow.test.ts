@@ -363,13 +363,19 @@ describe('order lifecycle, payment, and customer mutations', () => {
       .send({
         query: `mutation Cancel($orderId: ID!, $restock: Boolean!, $reason: OrderCancelReason!) {
           orderCancel(orderId: $orderId, restock: $restock, reason: $reason) {
+            job { id done }
             orderCancelUserErrors { field message }
+            userErrors { field message }
           }
         }`,
         variables: { orderId, restock: false, reason: 'OTHER' },
       });
 
-    expect(cancelResponse.body.data.orderCancel.orderCancelUserErrors).toEqual([]);
+    expect(cancelResponse.body.data.orderCancel).toEqual({
+      job: { id: expect.stringMatching(/^gid:\/\/shopify\/Job\//u), done: false },
+      orderCancelUserErrors: [],
+      userErrors: [],
+    });
 
     const readAfterCancelResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')

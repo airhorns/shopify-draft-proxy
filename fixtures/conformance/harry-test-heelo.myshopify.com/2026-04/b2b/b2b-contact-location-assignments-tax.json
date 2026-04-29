@@ -1,0 +1,963 @@
+{
+  "scenarioId": "b2b-contact-location-assignments-tax",
+  "capturedAt": "2026-04-29T02:07:13.818Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-446",
+    "plan": "Create a disposable B2B company, record role assignment, address/tax settings, relationship reads after contact/location updates, revoke/delete cleanup, and delete the company."
+  },
+  "staffAccessProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BContactLocationAssignmentsStaffProbe {\n    staffMembers(first: 1) { nodes { id name } }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "errors": [
+        {
+          "message": "Access denied for staffMembers field.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+          },
+          "path": ["staffMembers"]
+        }
+      ],
+      "data": {
+        "staffMembers": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role { id name }\n              companyLocation { id name }\n            }\n          }\n        }\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            isMainContact\n            roleAssignments(first: 5) {\n              nodes {\n                id\n                role { id name }\n                companyLocation { id name }\n              }\n            }\n          }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-446 B2B assignment 1777428429892",
+            "note": "HAR-446 B2B assignment parity",
+            "externalId": "har-446-assignment-1777428429892"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Assign",
+            "email": "har-446-assignment-1777428429892@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-446 B2B assignment 1777428429892 HQ",
+            "phone": "+16135550101",
+            "billingAddress": {
+              "address1": "1 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5428937010",
+            "name": "HAR-446 B2B assignment 1777428429892",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10139337010",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44636733746",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/10649665842",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8236073266",
+                      "name": "HAR-446 B2B assignment 1777428429892 HQ"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Buyer",
+                  "isMainContact": true,
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44636733746",
+                        "role": {
+                          "id": "gid://shopify/CompanyContactRole/10649665842",
+                          "name": "Ordering only"
+                        },
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8236073266",
+                          "name": "HAR-446 B2B assignment 1777428429892 HQ"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8236073266",
+                  "name": "HAR-446 B2B assignment 1777428429892 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10649633074",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10649665842",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 70,
+          "actualQueryCost": 30,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1970,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "extraLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5428937010",
+        "input": {
+          "name": "HAR-446 B2B assignment 1777428429892 Single assignment",
+          "phone": "+16135550102"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8236106034",
+            "name": "HAR-446 B2B assignment 1777428429892 Single assignment",
+            "company": {
+              "id": "gid://shopify/Company/5428937010",
+              "name": "HAR-446 B2B assignment 1777428429892"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactBulkLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5428937010",
+        "input": {
+          "name": "HAR-446 B2B assignment 1777428429892 Contact bulk",
+          "phone": "+16135550103"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8236138802",
+            "name": "HAR-446 B2B assignment 1777428429892 Contact bulk",
+            "company": {
+              "id": "gid://shopify/Company/5428937010",
+              "name": "HAR-446 B2B assignment 1777428429892"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationBulkLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5428937010",
+        "input": {
+          "name": "HAR-446 B2B assignment 1777428429892 Location bulk",
+          "phone": "+16135550104"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8236171570",
+            "name": "HAR-446 B2B assignment 1777428429892 Location bulk",
+            "company": {
+              "id": "gid://shopify/Company/5428937010",
+              "name": "HAR-446 B2B assignment 1777428429892"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignSingle": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/10649633074",
+        "companyLocationId": "gid://shopify/CompanyLocation/8236106034"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRole": {
+          "companyContactRoleAssignment": {
+            "id": "gid://shopify/CompanyContactRoleAssignment/44636766514",
+            "companyContact": {
+              "id": "gid://shopify/CompanyContact/10139337010",
+              "title": "Buyer"
+            },
+            "role": {
+              "id": "gid://shopify/CompanyContactRole/10649633074",
+              "name": "Location admin"
+            },
+            "companyLocation": {
+              "id": "gid://shopify/CompanyLocation/8236106034",
+              "name": "HAR-446 B2B assignment 1777428429892 Single assignment"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignContactRoles": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsAssignRoles(\n    $companyContactId: ID!\n    $rolesToAssign: [CompanyContactRoleAssign!]!\n  ) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "rolesToAssign": [
+          {
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10649633074",
+            "companyLocationId": "gid://shopify/CompanyLocation/8236138802"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44636799282",
+              "companyContact": {
+                "id": "gid://shopify/CompanyContact/10139337010",
+                "title": "Buyer"
+              },
+              "role": {
+                "id": "gid://shopify/CompanyContactRole/10649633074",
+                "name": "Location admin"
+              },
+              "companyLocation": {
+                "id": "gid://shopify/CompanyLocation/8236138802",
+                "name": "HAR-446 B2B assignment 1777428429892 Contact bulk"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignLocationRoles": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationAssignRoles(\n    $companyLocationId: ID!\n    $rolesToAssign: [CompanyLocationRoleAssign!]!\n  ) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8236171570",
+        "rolesToAssign": [
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10139337010",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10649665842"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44636832050",
+              "companyContact": {
+                "id": "gid://shopify/CompanyContact/10139337010",
+                "title": "Buyer"
+              },
+              "role": {
+                "id": "gid://shopify/CompanyContactRole/10649665842",
+                "name": "Ordering only"
+              },
+              "companyLocation": {
+                "id": "gid://shopify/CompanyLocation/8236171570",
+                "name": "HAR-446 B2B assignment 1777428429892 Location bulk"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignAddress": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsAddress(\n    $locationId: ID!\n    $address: CompanyAddressInput!\n    $addressTypes: [CompanyAddressType!]!\n  ) {\n    companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n      addresses { id address1 city countryCode }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8236073266",
+        "address": {
+          "address1": "446 Assignment Way",
+          "city": "Toronto",
+          "countryCode": "CA"
+        },
+        "addressTypes": ["BILLING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": [
+            {
+              "id": "gid://shopify/CompanyAddress/9337274674",
+              "address1": "446 Assignment Way",
+              "city": "Toronto",
+              "countryCode": "CA"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "taxUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsTax(\n    $companyLocationId: ID!\n    $taxRegistrationId: String\n    $taxExempt: Boolean\n    $exemptionsToAssign: [TaxExemption!]\n    $exemptionsToRemove: [TaxExemption!]\n  ) {\n    companyLocationTaxSettingsUpdate(\n      companyLocationId: $companyLocationId\n      taxRegistrationId: $taxRegistrationId\n      taxExempt: $taxExempt\n      exemptionsToAssign: $exemptionsToAssign\n      exemptionsToRemove: $exemptionsToRemove\n    ) {\n      companyLocation { id taxSettings { taxRegistrationId taxExempt taxExemptions } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8236073266",
+        "taxRegistrationId": "HAR446-TAX",
+        "taxExempt": true,
+        "exemptionsToAssign": ["CA_STATUS_CARD_EXEMPTION"],
+        "exemptionsToRemove": []
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationTaxSettingsUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8236073266",
+            "taxSettings": {
+              "taxRegistrationId": "HAR446-TAX",
+              "taxExempt": true,
+              "taxExemptions": ["CA_STATUS_CARD_EXEMPTION"]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact { id title }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "input": {
+          "title": "Lead buyer"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10139337010",
+            "title": "Lead buyer"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation { id name }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8236106034",
+        "input": {
+          "name": "HAR-446 B2B assignment 1777428429892 Single assignment updated"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8236106034",
+            "name": "HAR-446 B2B assignment 1777428429892 Single assignment updated"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterAssignments": {
+    "request": {
+      "query": "#graphql\n  query B2BContactLocationAssignmentsRead(\n    $companyContactId: ID!\n    $companyLocationId: ID!\n    $singleAssignmentLocationId: ID!\n    $contactBulkLocationId: ID!\n    $locationBulkLocationId: ID!\n  ) {\n    companyContact(id: $companyContactId) {\n      id\n      title\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    companyLocation(id: $companyLocationId) {\n      id\n      name\n      billingAddress { id address1 city countryCode }\n      taxSettings { taxRegistrationId taxExempt taxExemptions }\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {\n      id\n      name\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    contactBulkLocation: companyLocation(id: $contactBulkLocationId) {\n      id\n      name\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    locationBulkLocation: companyLocation(id: $locationBulkLocationId) {\n      id\n      name\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "companyLocationId": "gid://shopify/CompanyLocation/8236073266",
+        "singleAssignmentLocationId": "gid://shopify/CompanyLocation/8236106034",
+        "contactBulkLocationId": "gid://shopify/CompanyLocation/8236138802",
+        "locationBulkLocationId": "gid://shopify/CompanyLocation/8236171570"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10139337010",
+          "title": "Lead buyer",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636733746",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649665842",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236073266",
+                  "name": "HAR-446 B2B assignment 1777428429892 HQ"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636766514",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649633074",
+                  "name": "Location admin"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236106034",
+                  "name": "HAR-446 B2B assignment 1777428429892 Single assignment updated"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636799282",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649633074",
+                  "name": "Location admin"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236138802",
+                  "name": "HAR-446 B2B assignment 1777428429892 Contact bulk"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636832050",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649665842",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236171570",
+                  "name": "HAR-446 B2B assignment 1777428429892 Location bulk"
+                }
+              }
+            ]
+          }
+        },
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8236073266",
+          "name": "HAR-446 B2B assignment 1777428429892 HQ",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9337274674",
+            "address1": "446 Assignment Way",
+            "city": "Toronto",
+            "countryCode": "CA"
+          },
+          "taxSettings": {
+            "taxRegistrationId": "HAR446-TAX",
+            "taxExempt": true,
+            "taxExemptions": ["CA_STATUS_CARD_EXEMPTION"]
+          },
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636733746",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649665842",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236073266",
+                  "name": "HAR-446 B2B assignment 1777428429892 HQ"
+                }
+              }
+            ]
+          }
+        },
+        "singleAssignmentLocation": {
+          "id": "gid://shopify/CompanyLocation/8236106034",
+          "name": "HAR-446 B2B assignment 1777428429892 Single assignment updated",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636766514",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649633074",
+                  "name": "Location admin"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236106034",
+                  "name": "HAR-446 B2B assignment 1777428429892 Single assignment updated"
+                }
+              }
+            ]
+          }
+        },
+        "contactBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8236138802",
+          "name": "HAR-446 B2B assignment 1777428429892 Contact bulk",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636799282",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649633074",
+                  "name": "Location admin"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236138802",
+                  "name": "HAR-446 B2B assignment 1777428429892 Contact bulk"
+                }
+              }
+            ]
+          }
+        },
+        "locationBulkLocation": {
+          "id": "gid://shopify/CompanyLocation/8236171570",
+          "name": "HAR-446 B2B assignment 1777428429892 Location bulk",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636832050",
+                "companyContact": {
+                  "id": "gid://shopify/CompanyContact/10139337010",
+                  "title": "Lead buyer"
+                },
+                "role": {
+                  "id": "gid://shopify/CompanyContactRole/10649665842",
+                  "name": "Ordering only"
+                },
+                "companyLocation": {
+                  "id": "gid://shopify/CompanyLocation/8236171570",
+                  "name": "HAR-446 B2B assignment 1777428429892 Location bulk"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 77,
+          "actualQueryCost": 39,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "revokeSingle": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsRevokeRole(\n    $companyContactId: ID!\n    $companyContactRoleAssignmentId: ID!\n  ) {\n    companyContactRevokeRole(\n      companyContactId: $companyContactId\n      companyContactRoleAssignmentId: $companyContactRoleAssignmentId\n    ) {\n      revokedCompanyContactRoleAssignmentId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "companyContactRoleAssignmentId": "gid://shopify/CompanyContactRoleAssignment/44636766514"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRole": {
+          "revokedCompanyContactRoleAssignmentId": "gid://shopify/CompanyContactRoleAssignment/44636766514",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1967,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "revokeContactRoles": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n  ) {\n    companyContactRevokeRoles(companyContactId: $companyContactId, roleAssignmentIds: $roleAssignmentIds) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "roleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44636799282"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRoles": {
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44636799282"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "revokeLocationRoles": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsLocationRevokeRoles(\n    $companyLocationId: ID!\n    $rolesToRevoke: [ID!]!\n  ) {\n    companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8236171570",
+        "rolesToRevoke": ["gid://shopify/CompanyContactRoleAssignment/44636832050"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationRevokeRoles": {
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44636832050"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsAddressDelete($addressId: ID!) {\n    companyAddressDelete(addressId: $addressId) {\n      deletedAddressId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "addressId": "gid://shopify/CompanyAddress/9337274674"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAddressDelete": {
+          "deletedAddressId": "gid://shopify/CompanyAddress/9337274674",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterRevoke": {
+    "request": {
+      "query": "#graphql\n  query B2BContactLocationAssignmentsReadAfterRevoke($companyContactId: ID!, $companyLocationId: ID!) {\n    companyContact(id: $companyContactId) {\n      id\n      roleAssignments(first: 5) { nodes { id } }\n    }\n    companyLocation(id: $companyLocationId) {\n      id\n      billingAddress { id }\n      roleAssignments(first: 5) { nodes { id } }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10139337010",
+        "companyLocationId": "gid://shopify/CompanyLocation/8236073266"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10139337010",
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636733746"
+              }
+            ]
+          }
+        },
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8236073266",
+          "billingAddress": null,
+          "roleAssignments": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContactRoleAssignment/44636733746"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 9,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1991,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BContactLocationAssignmentsCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5428937010"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5428937010",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {}
+}

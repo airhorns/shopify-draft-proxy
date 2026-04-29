@@ -97,6 +97,22 @@
         ]
       },
       {
+        "name": "bulk-add-tags-by-search-payload",
+        "capturePath": "$.draftOrderBulkAddTagsBySearch.response.data.draftOrderBulkAddTags",
+        "proxyPath": "$.data.draftOrderBulkAddTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-residual-helper-bulk-add-tags-search.graphql",
+          "variablesCapturePath": "$.draftOrderBulkAddTagsBySearch.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      },
+      {
         "name": "bulk-remove-tags-payload",
         "capturePath": "$.draftOrderBulkRemoveTags.response.data.draftOrderBulkRemoveTags",
         "proxyPath": "$.data.draftOrderBulkRemoveTags",
@@ -110,6 +126,22 @@
             ],
             "tags": ["har-318-base"]
           }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy creates a deterministic local Job id while Shopify returns an async live Job id."
+          }
+        ]
+      },
+      {
+        "name": "bulk-remove-tags-by-search-payload",
+        "capturePath": "$.draftOrderBulkRemoveTagsBySearch.response.data.draftOrderBulkRemoveTags",
+        "proxyPath": "$.data.draftOrderBulkRemoveTags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draft-order-residual-helper-bulk-remove-tags-search.graphql",
+          "variablesCapturePath": "$.draftOrderBulkRemoveTagsBySearch.variables"
         },
         "expectedDifferences": [
           {
@@ -143,5 +175,5 @@
       }
     ]
   },
-  "notes": "HAR-318 residual helper capture records default saved searches, empty available-delivery-options no-data shape, calculate and invoice preview payloads, bulk tag/delete job payloads, downstream tag/delete reads, and the current draftOrderTag valid-ID blocker. Generic parity now executes the supported helper roots through explicit proxy requests; runtime tests cover local read-after-write tag/delete effects that intentionally differ from Shopify's asynchronous bulk job timing."
+  "notes": "HAR-318/HAR-440 residual helper capture records default saved searches, empty available-delivery-options no-data shape, calculate and invoice preview payloads, bulk tag/delete job payloads including safe unique search-based tag targeting, downstream tag/delete reads, and the current draftOrderTag valid-ID blocker. Generic parity now executes the supported helper roots through explicit proxy requests; runtime tests cover local read-after-write tag/delete effects and saved-search targeting that intentionally differ from Shopify's asynchronous bulk job timing. The broad default saved-search mutation path is kept as local runtime evidence because using Shopify's captured `Open` saved search in a live bulk mutation could affect unrelated disposable-store draft orders."
 }

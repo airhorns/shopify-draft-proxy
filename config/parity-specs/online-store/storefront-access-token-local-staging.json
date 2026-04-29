@@ -1,0 +1,70 @@
+{
+  "scenarioId": "storefront-access-token-local-staging",
+  "operationNames": ["shop", "storefrontAccessTokenCreate", "storefrontAccessTokenDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "credential-redaction",
+    "null-empty-behavior"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/storefront-access-token-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/online-store-integrations-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/storefront-access-token-create.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-token-create-payload",
+        "capturePath": "$.expected.create.response.data.storefrontAccessTokenCreate",
+        "proxyPath": "$.data.storefrontAccessTokenCreate"
+      },
+      {
+        "name": "storefront-token-read-after-create",
+        "capturePath": "$.expected.readAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.liveSafeReadEvidence.response",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "storefront-token-delete-payload",
+        "capturePath": "$.expected.delete.response.data.storefrontAccessTokenDelete",
+        "proxyPath": "$.data.storefrontAccessTokenDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-delete.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.storefrontAccessTokenCreate.storefrontAccessToken.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "storefront-token-read-after-delete",
+        "capturePath": "$.expected.readAfterDelete.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": "$.liveSafeReadEvidence.response",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/storefront-access-token-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-452 rework adds explicit generic parity coverage for the staged storefront access token lifecycle requested in PR review. Live 2026-04 safe-read evidence confirms Shopify's empty shop.storefrontAccessTokens connection shape; the current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful write evidence remains local-runtime-backed and runtime-test-backed until a write-capable conformance credential is available. The strict proxy replay covers create payload redaction, downstream read-after-create, delete payload, and downstream empty read-after-delete."
+}

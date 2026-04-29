@@ -27,6 +27,11 @@ company contact/location/role connections. The local cursor strings are stable
 synthetic cursors; captured Shopify cursors remain opaque and should not be
 treated as semantically meaningful.
 
+`companies(query:)` uses the shared Shopify Admin search helpers for the
+captured local subset (`name`, `id`, `external_id` / `externalId`, and free-text
+name/external-id terms). Shopify 2026-04 rejects `companiesCount(query:)`, so
+local `companiesCount` intentionally remains an unfiltered aggregate.
+
 Live-hybrid B2B reads currently pass through to Shopify rather than hydrating a
 local B2B overlay. This preserves Shopify's access behavior for shops or tokens
 without B2B/read-companies access, including field-level `ACCESS_DENIED`
@@ -61,6 +66,31 @@ role assignments, location staff assignments, address payloads, and location tax
 settings in the normalized in-memory B2B buckets. Subsequent `company`,
 `companyContact`, `companyLocation`, `companyLocations`, `companies`, and
 `companiesCount` reads observe the staged graph, including deletions.
+Contacts created from `companyCreate(input.companyContact)` or
+`companyContactCreate(input.email)` keep a contact-local synthetic customer
+reference so downstream B2B `CompanyContact.customer { id }` reads match
+Shopify's company/customer-contact relationship without broadening customer
+catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
+as that contact reference. `companyRevokeMainContact` clears all local
+`isMainContact` flags and downstream `Company.mainContact` reads return `null`,
+matching the captured Shopify 2026-04 behavior.
+
+HAR-446 captured a fidelity trap in the company-create path: when
+`companyCreate` creates both a main contact and a default company location,
+Shopify automatically assigns that contact the `Ordering only` role for that
+location. The local staged graph now creates the same normalized role
+assignment, rejects attempts to assign a second role to the same contact/location
+pair with Shopify's `LIMIT_REACHED` userError, and resolves nested
+`CompanyContactRoleAssignment.companyContact` / `.companyLocation` fields from
+the current normalized contact/location records so later contact or location
+updates are reflected in downstream assignment reads.
+
+Company location tax settings are written by
+`companyLocationTaxSettingsUpdate(...)` and can be read through the current
+`CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
+shape. The proxy also preserves the earlier flat fields used by local tests for
+compatibility with the staged record data, but `taxSettings` is the
+live-captured 2026-04 readback shape.
 
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
@@ -76,6 +106,9 @@ The local implementation intentionally models durable lifecycle state rather
 than every Shopify-side integration. Customer and staff member references are
 stored by ID for downstream B2B reads, but the proxy does not synthesize broader
 customer or staff catalog side effects from B2B assignment mutations.
+The HAR-446 live capture records that the current conformance token receives
+`ACCESS_DENIED` for `staffMembers(first:)`, so staff assignment remains covered
+by executable runtime tests instead of live staff-catalog parity.
 
 ## Historical and developer notes
 
@@ -85,12 +118,20 @@ customer or staff catalog side effects from B2B assignment mutations.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-roots-read.json`
 - Live lifecycle capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-create-lifecycle.json`
+- Live contact/main/delete lifecycle capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-contact-main-delete.json`
+- Live contact/location assignment and tax settings capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-location-assignments-tax.json`
 - Safe mutation validation capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/b2b-company-mutation-validation.json`
 - Strict read parity scenario:
   `config/parity-specs/b2b/b2b-company-roots-read.json`
 - Lifecycle parity scenario:
   `config/parity-specs/b2b/b2b-company-create-lifecycle.json`
+- Contact/main/delete lifecycle parity scenario:
+  `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
+- Contact/location assignment and tax settings parity scenario:
+  `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
 - Runtime coverage: `tests/integration/b2b-company-query-shapes.test.ts`
 - Lifecycle runtime coverage:
   `tests/integration/b2b-company-lifecycle-flow.test.ts`
@@ -116,3 +157,12 @@ The HAR-363 live lifecycle capture used API `2026-04` against
 valid app token and the store accepted `companyCreate`; the recorder deleted the
 disposable company with `companyDelete(id:)` after capturing the immediate
 downstream read.
+
+HAR-445 extended that 2026-04 evidence with a disposable company/customer
+lifecycle capture. The new scenario records `companyUpdate`,
+`companyContactCreate`, `companyAssignCustomerAsContact`,
+`companyAssignMainContact`, `companyRevokeMainContact`, `companiesDelete`,
+`companyDelete`, and post-delete `company(id:)` / `companies(query:)` empty
+reads. The capture showed that contact creation materializes customer
+references, revoking the main contact returns `Company.mainContact: null`, and
+`companiesCount` does not accept a `query` argument in 2026-04.
