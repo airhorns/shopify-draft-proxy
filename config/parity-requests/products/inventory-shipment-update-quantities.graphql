@@ -1,0 +1,38 @@
+mutation InventoryShipmentUpdateQuantitiesParity($id: ID!, $items: [InventoryShipmentUpdateItemQuantitiesInput!]) {
+  inventoryShipmentUpdateItemQuantities(id: $id, items: $items) {
+    shipment {
+      id
+      status
+      lineItemTotalQuantity
+      totalAcceptedQuantity
+      totalReceivedQuantity
+      totalRejectedQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          quantity
+          acceptedQuantity
+          rejectedQuantity
+          unreceivedQuantity
+          inventoryItem {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+    updatedLineItems {
+      id
+      quantity
+      acceptedQuantity
+      rejectedQuantity
+      unreceivedQuantity
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

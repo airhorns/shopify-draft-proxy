@@ -1,0 +1,159 @@
+{
+  "scenarioId": "inventory-shipment-partial-receive-update-delete-local-staging",
+  "operationNames": [
+    "inventoryShipmentCreateInTransit",
+    "inventoryShipmentReceive",
+    "inventoryShipmentUpdateItemQuantities",
+    "inventoryShipmentDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "inventory-quantity-side-effect",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/products/inventory-shipment-partial-receive-update-delete-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/inventory-shipment-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-shipment-create-in-transit.graphql",
+    "variablesCapturePath": "$.workflow.createInTransit.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-in-transit",
+        "capturePath": "$.workflow.createInTransit.response.payload.data.inventoryShipmentCreateInTransit",
+        "proxyPath": "$.data.inventoryShipmentCreateInTransit",
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The local proxy generates stable session-local shipment IDs."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The local proxy generates stable session-local shipment line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "receive-partial",
+        "capturePath": "$.workflow.receivePartial.response.payload.data.inventoryShipmentReceive",
+        "proxyPath": "$.data.inventoryShipmentReceive",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-receive.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.id"
+            },
+            "lineItems": [
+              {
+                "shipmentLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.lineItems.nodes[0].id"
+                },
+                "quantity": 3,
+                "reason": "ACCEPTED"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryShipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The local proxy keeps the synthetic shipment ID from the primary request."
+          },
+          {
+            "path": "$.inventoryShipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The local proxy keeps the synthetic shipment line item ID from the primary request."
+          }
+        ]
+      },
+      {
+        "name": "update-remaining-quantity",
+        "capturePath": "$.workflow.updateRemainingQuantity.response.payload.data.inventoryShipmentUpdateItemQuantities",
+        "proxyPath": "$.data.inventoryShipmentUpdateItemQuantities",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-update-quantities.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.id"
+            },
+            "items": [
+              {
+                "shipmentLineItemId": {
+                  "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.lineItems.nodes[0].id"
+                },
+                "quantity": 6
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shipment.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The local proxy keeps the synthetic shipment ID from the primary request."
+          },
+          {
+            "path": "$.shipment.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The local proxy keeps the synthetic shipment line item ID from the primary request."
+          },
+          {
+            "path": "$.updatedLineItems[*].id",
+            "matcher": "shopify-gid:InventoryShipmentLineItem",
+            "reason": "The local proxy keeps the synthetic shipment line item ID from the primary request."
+          }
+        ]
+      },
+      {
+        "name": "after-update-inventory-read",
+        "capturePath": "$.workflow.afterUpdateInventoryRead.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterUpdateInventoryRead.variables"
+        }
+      },
+      {
+        "name": "delete-partial",
+        "capturePath": "$.workflow.deletePartial.response.payload.data.inventoryShipmentDelete",
+        "proxyPath": "$.data.inventoryShipmentDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryShipmentCreateInTransit.inventoryShipment.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:InventoryShipment",
+            "reason": "The local proxy keeps the synthetic shipment ID from the primary request."
+          }
+        ]
+      },
+      {
+        "name": "after-delete-inventory-read",
+        "capturePath": "$.workflow.afterDeleteInventoryRead.response.payload.data.inventoryItem",
+        "proxyPath": "$.data.inventoryItem",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-shipment-inventory-read.graphql",
+          "variablesCapturePath": "$.workflow.afterDeleteInventoryRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-434 adds executable local-runtime parity for a partially received shipment that still carries unreceived incoming inventory. The scenario proves receive, quantity update, delete, and downstream inventory reads stay consistent without runtime Shopify writes; direct live shipment recording remains blocked by missing read/write inventory shipment scopes documented in the HAR-306 fixture."
+}

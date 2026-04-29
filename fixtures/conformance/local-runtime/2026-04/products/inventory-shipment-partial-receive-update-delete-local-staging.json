@@ -1,0 +1,252 @@
+{
+  "capturedAt": "2026-04-29T11:15:00.000Z",
+  "source": "local-runtime-vitest",
+  "apiVersion": "2026-04",
+  "scenarioId": "inventory-shipment-partial-receive-update-delete-local-staging",
+  "issue": "HAR-434",
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/9405",
+      "title": "Shipment Hoodie",
+      "handle": "shipment-hoodie",
+      "status": "ACTIVE",
+      "totalInventory": 1,
+      "tracksInventory": true,
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/94051",
+            "title": "Default Title",
+            "sku": "SHIP-ROOT",
+            "inventoryQuantity": 1,
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/94051",
+              "tracked": true,
+              "requiresShipping": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "workflow": {
+    "createInTransit": {
+      "variables": {
+        "input": {
+          "movementId": "gid://shopify/InventoryTransfer/7003",
+          "lineItems": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/94051",
+              "quantity": 5
+            }
+          ]
+        }
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentCreateInTransit": {
+              "inventoryShipment": {
+                "id": "gid://shopify/InventoryShipment/9101",
+                "name": "#S1",
+                "status": "IN_TRANSIT",
+                "lineItemTotalQuantity": 5,
+                "totalAcceptedQuantity": 0,
+                "totalReceivedQuantity": 0,
+                "totalRejectedQuantity": 0,
+                "tracking": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryShipmentLineItem/9102",
+                      "quantity": 5,
+                      "acceptedQuantity": 0,
+                      "rejectedQuantity": 0,
+                      "unreceivedQuantity": 5,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/94051",
+                        "sku": "SHIP-ROOT",
+                        "tracked": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "receivePartial": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentReceive": {
+              "inventoryShipment": {
+                "id": "gid://shopify/InventoryShipment/9101",
+                "status": "PARTIALLY_RECEIVED",
+                "lineItemTotalQuantity": 5,
+                "totalAcceptedQuantity": 3,
+                "totalReceivedQuantity": 3,
+                "totalRejectedQuantity": 0,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryShipmentLineItem/9102",
+                      "quantity": 5,
+                      "acceptedQuantity": 3,
+                      "rejectedQuantity": 0,
+                      "unreceivedQuantity": 2,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/94051",
+                        "sku": "SHIP-ROOT",
+                        "tracked": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "updateRemainingQuantity": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentUpdateItemQuantities": {
+              "shipment": {
+                "id": "gid://shopify/InventoryShipment/9101",
+                "status": "PARTIALLY_RECEIVED",
+                "lineItemTotalQuantity": 6,
+                "totalAcceptedQuantity": 3,
+                "totalReceivedQuantity": 3,
+                "totalRejectedQuantity": 0,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/InventoryShipmentLineItem/9102",
+                      "quantity": 6,
+                      "acceptedQuantity": 3,
+                      "rejectedQuantity": 0,
+                      "unreceivedQuantity": 3,
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/94051",
+                        "sku": "SHIP-ROOT",
+                        "tracked": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "updatedLineItems": [
+                {
+                  "id": "gid://shopify/InventoryShipmentLineItem/9102",
+                  "quantity": 6,
+                  "acceptedQuantity": 3,
+                  "rejectedQuantity": 0,
+                  "unreceivedQuantity": 3
+                }
+              ],
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "afterUpdateInventoryRead": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/94051"
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "variant": {
+                "id": "gid://shopify/ProductVariant/94051",
+                "inventoryQuantity": 4
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "deletePartial": {
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryShipmentDelete": {
+              "id": "gid://shopify/InventoryShipment/9101",
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "afterDeleteInventoryRead": {
+      "variables": {
+        "id": "gid://shopify/InventoryItem/94051"
+      },
+      "response": {
+        "payload": {
+          "data": {
+            "inventoryItem": {
+              "variant": {
+                "id": "gid://shopify/ProductVariant/94051",
+                "inventoryQuantity": 4
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 4
+                      },
+                      {
+                        "name": "incoming",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "runtimeEvidence": [
+    "Partially received shipments still carry incoming inventory for unreceived quantities.",
+    "Updating a partially received shipment line adjusts incoming by the unreceived delta.",
+    "Deleting a partially received shipment reverses remaining incoming inventory while preserving already accepted available/on_hand quantity."
+  ]
+}

@@ -345,6 +345,139 @@ describe('inventory transfer lifecycle roots', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('adjusts ready transfer reservations when line quantities change or are removed', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('ready transfer line-item edits should not hit upstream fetch');
+    });
+    seedTransferProduct();
+    const app = createApp(config).callback();
+
+    const readyCreateResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation ReadyTransfer($input: InventoryTransferCreateAsReadyToShipInput!) {
+          inventoryTransferCreateAsReadyToShip(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              lineItems(first: 5) { nodes { id totalQuantity shippableQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            originLocationId: 'gid://shopify/Location/1',
+            destinationLocationId: 'gid://shopify/Location/2',
+            lineItems: [{ inventoryItemId: 'gid://shopify/InventoryItem/97011', quantity: 2 }],
+          },
+        },
+      });
+
+    const transferId = readyCreateResponse.body.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.id;
+    const lineItemId =
+      readyCreateResponse.body.data.inventoryTransferCreateAsReadyToShip.inventoryTransfer.lineItems.nodes[0].id;
+
+    const setItemsResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation SetReadyTransferItems($input: InventoryTransferSetItemsInput!) {
+          inventoryTransferSetItems(input: $input) {
+            inventoryTransfer {
+              id
+              status
+              totalQuantity
+              lineItems(first: 5) { nodes { id totalQuantity shippableQuantity processableQuantity } }
+            }
+            updatedLineItems { inventoryItemId newQuantity deltaQuantity }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: { id: transferId, lineItems: [{ inventoryItemId: 'gid://shopify/InventoryItem/97011', quantity: 3 }] },
+        },
+      });
+
+    expect(setItemsResponse.body.data.inventoryTransferSetItems).toMatchObject({
+      inventoryTransfer: {
+        id: transferId,
+        status: 'READY_TO_SHIP',
+        totalQuantity: 3,
+        lineItems: {
+          nodes: [{ id: lineItemId, totalQuantity: 3, shippableQuantity: 3, processableQuantity: 3 }],
+        },
+      },
+      updatedLineItems: [{ inventoryItemId: 'gid://shopify/InventoryItem/97011', newQuantity: 3, deltaQuantity: 1 }],
+      userErrors: [],
+    });
+
+    const reservedRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes { location { id } quantities(names: ["available", "reserved"]) { name quantity } }
+            }
+          }
+        }`,
+        variables: { id: 'gid://shopify/InventoryItem/97011' },
+      });
+
+    expect(reservedRead.body.data.inventoryItem.variant.inventoryQuantity).toBe(2);
+    expect(reservedRead.body.data.inventoryItem.inventoryLevels.nodes[0]).toEqual({
+      location: { id: 'gid://shopify/Location/1' },
+      quantities: [
+        { name: 'available', quantity: 2 },
+        { name: 'reserved', quantity: 3 },
+      ],
+    });
+
+    const removeResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation RemoveReadyTransferItems($input: InventoryTransferRemoveItemsInput!) {
+          inventoryTransferRemoveItems(input: $input) {
+            inventoryTransfer { id status totalQuantity lineItems(first: 5) { nodes { id } } }
+            removedQuantities { inventoryItemId newQuantity deltaQuantity }
+            userErrors { field message code }
+          }
+        }`,
+        variables: { input: { id: transferId, transferLineItemIds: [lineItemId] } },
+      });
+
+    expect(removeResponse.body.data.inventoryTransferRemoveItems).toEqual({
+      inventoryTransfer: { id: transferId, status: 'READY_TO_SHIP', totalQuantity: 0, lineItems: { nodes: [] } },
+      removedQuantities: [{ inventoryItemId: 'gid://shopify/InventoryItem/97011', newQuantity: 0, deltaQuantity: -3 }],
+      userErrors: [],
+    });
+
+    const releasedRead = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes { location { id } quantities(names: ["available", "reserved"]) { name quantity } }
+            }
+          }
+        }`,
+        variables: { id: 'gid://shopify/InventoryItem/97011' },
+      });
+
+    expect(releasedRead.body.data.inventoryItem.variant.inventoryQuantity).toBe(5);
+    expect(releasedRead.body.data.inventoryItem.inventoryLevels.nodes[0]).toEqual({
+      location: { id: 'gid://shopify/Location/1' },
+      quantities: [
+        { name: 'available', quantity: 5 },
+        { name: 'reserved', quantity: 0 },
+      ],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('overlays staged transfers onto live-hybrid reads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
