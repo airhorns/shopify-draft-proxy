@@ -1,0 +1,270 @@
+{
+  "scenarioId": "order-edit-residual-workflow-calculated-edits",
+  "recordedAt": "2026-04-28T02:36:29.684Z",
+  "sourceCapture": "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-edit-residual-live-capture.json",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "variables": {
+    "id": "gid://shopify/Order/8714456891698"
+  },
+  "seedOrder": {
+    "id": "gid://shopify/Order/8714456891698",
+    "name": "#1043",
+    "note": "HAR-369 residual full capture 1777343785533",
+    "lineItems": {
+      "nodes": [
+        {
+          "id": "gid://shopify/LineItem/19275276550450",
+          "title": "HAR-369 base custom line",
+          "quantity": 1,
+          "currentQuantity": 1,
+          "sku": "har-369-base-1777343785533",
+          "variant": null,
+          "originalUnitPriceSet": {
+            "shopMoney": {
+              "amount": "10.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      ]
+    },
+    "shippingLines": {
+      "nodes": []
+    }
+  },
+  "steps": {
+    "begin": {
+      "response": {
+        "data": {
+          "orderEditBegin": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CalculatedLineItem/19275276550450",
+                    "title": "HAR-369 base custom line",
+                    "quantity": 1
+                  }
+                ]
+              },
+              "shippingLines": []
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "addCustomItem": {
+      "response": {
+        "data": {
+          "orderEditAddCustomItem": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "subtotalLineItemsQuantity": 3,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "calculatedLineItem": {
+              "id": "gid://shopify/CalculatedLineItem/df24dd6b-e287-471c-98ce-3ee012dbb734",
+              "title": "HAR-369 gift wrap",
+              "quantity": 2,
+              "originalUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "3.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "discountedUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "3.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "addLineItemDiscount": {
+      "response": {
+        "data": {
+          "orderEditAddLineItemDiscount": {
+            "addedDiscountStagedChange": {
+              "id": "gid://shopify/OrderStagedChangeAddLineItemDiscount/237242220850",
+              "description": "HAR-369 line discount"
+            },
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "14.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "calculatedLineItem": {
+              "id": "gid://shopify/CalculatedLineItem/df24dd6b-e287-471c-98ce-3ee012dbb734",
+              "hasStagedLineItemDiscount": true,
+              "calculatedDiscountAllocations": [
+                {
+                  "allocatedAmountSet": {
+                    "shopMoney": {
+                      "amount": "2.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "discountApplication": {
+                    "id": "gid://shopify/CalculatedManualDiscountApplication/9ea97537-1aeb-4b32-8291-02390a735187",
+                    "description": "HAR-369 line discount"
+                  }
+                }
+              ],
+              "discountedUnitPriceSet": {
+                "shopMoney": {
+                  "amount": "2.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "removeDiscount": {
+      "response": {
+        "data": {
+          "orderEditRemoveDiscount": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "addShippingLine": {
+      "response": {
+        "data": {
+          "orderEditAddShippingLine": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "20.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": [
+                {
+                  "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+                  "title": "HAR-369 Ground",
+                  "stagedStatus": "ADDED",
+                  "price": {
+                    "shopMoney": {
+                      "amount": "4.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "calculatedShippingLine": {
+              "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+              "title": "HAR-369 Ground",
+              "stagedStatus": "ADDED",
+              "price": {
+                "shopMoney": {
+                  "amount": "4.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "updateShippingLine": {
+      "response": {
+        "data": {
+          "orderEditUpdateShippingLine": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "22.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": [
+                {
+                  "id": "gid://shopify/CalculatedShippingLine/353561ed-e2ca-4513-9932-ec3b34d53556",
+                  "title": "HAR-369 Express",
+                  "stagedStatus": "ADDED",
+                  "price": {
+                    "shopMoney": {
+                      "amount": "6.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "removeShippingLine": {
+      "response": {
+        "data": {
+          "orderEditRemoveShippingLine": {
+            "calculatedOrder": {
+              "id": "gid://shopify/CalculatedOrder/105742008626",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": []
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  }
+}

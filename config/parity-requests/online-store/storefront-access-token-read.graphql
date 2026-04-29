@@ -1,0 +1,21 @@
+query StorefrontAccessTokenLocalRead {
+  shop {
+    id
+    storefrontAccessTokens(first: 5) {
+      nodes {
+        id
+        title
+        accessToken
+        accessScopes {
+          handle
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

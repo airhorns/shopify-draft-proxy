@@ -1,0 +1,19 @@
+mutation B2BContactLocationAssignmentsAddress(
+  $locationId: ID!
+  $address: CompanyAddressInput!
+  $addressTypes: [CompanyAddressType!]!
+) {
+  companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {
+    addresses {
+      id
+      address1
+      city
+      countryCode
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

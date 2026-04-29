@@ -716,7 +716,7 @@ function makeArticle(
       data: {},
     },
   );
-  const { metafields } = upsertOwnerMetafields(
+  const { metafields } = upsertOwnerMetafields<'articleId'>(
     runtime,
     'articleId',
     id,

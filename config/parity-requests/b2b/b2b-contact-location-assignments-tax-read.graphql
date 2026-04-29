@@ -1,0 +1,124 @@
+query B2BContactLocationAssignmentsRead(
+  $companyContactId: ID!
+  $companyLocationId: ID!
+  $singleAssignmentLocationId: ID!
+  $contactBulkLocationId: ID!
+  $locationBulkLocationId: ID!
+) {
+  companyContact(id: $companyContactId) {
+    id
+    title
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+  companyLocation(id: $companyLocationId) {
+    id
+    name
+    billingAddress {
+      id
+      address1
+      city
+      countryCode
+    }
+    taxSettings {
+      taxRegistrationId
+      taxExempt
+      taxExemptions
+    }
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+  singleAssignmentLocation: companyLocation(id: $singleAssignmentLocationId) {
+    id
+    name
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+  contactBulkLocation: companyLocation(id: $contactBulkLocationId) {
+    id
+    name
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+  locationBulkLocation: companyLocation(id: $locationBulkLocationId) {
+    id
+    name
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+}

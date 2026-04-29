@@ -1,0 +1,32 @@
+mutation OrderEditResidualWorkflowUpdateShippingLine(
+  $id: ID!
+  $shippingLineId: ID!
+  $shippingLine: OrderEditUpdateShippingLineInput!
+) {
+  orderEditUpdateShippingLine(id: $id, shippingLineId: $shippingLineId, shippingLine: $shippingLine) {
+    calculatedOrder {
+      id
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      shippingLines {
+        id
+        title
+        stagedStatus
+        price {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

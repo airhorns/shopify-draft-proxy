@@ -3,6 +3,7 @@ import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
+import { applySearchQuery, matchesSearchQueryString, type SearchQueryTerm } from '../search-query-parser.js';
 import type {
   B2BCompanyContactRecord,
   B2BCompanyContactRoleRecord,
@@ -22,7 +23,7 @@ import {
 } from './graphql-helpers.js';
 
 type B2BRecord = B2BCompanyRecord | B2BCompanyContactRecord | B2BCompanyContactRoleRecord | B2BCompanyLocationRecord;
-type B2BUserError = { field: string[]; message: string; code: string };
+type B2BUserError = { field: string[] | null; message: string; code: string };
 type B2BMutationResult = {
   response: Record<string, unknown>;
   staged: boolean;
@@ -134,10 +135,11 @@ function serializeEmptyConnection(field: FieldNode): Record<string, unknown> {
   });
 }
 
-function serializePlainConnection(
+function serializePlainObjectConnection(
   field: FieldNode,
   variables: Record<string, unknown>,
   items: Record<string, unknown>[],
+  serializeNode: (item: Record<string, unknown>, nodeField: FieldNode, index: number) => unknown,
 ): Record<string, unknown> {
   const window = paginateConnectionItems(items, field, variables, (item) => readStringValue(item['id']) ?? '', {
     parseCursor: (raw) => (raw.startsWith('cursor:') ? raw.slice('cursor:'.length) : raw),
@@ -148,7 +150,7 @@ function serializePlainConnection(
     hasNextPage: window.hasNextPage,
     hasPreviousPage: window.hasPreviousPage,
     getCursorValue: (item) => readStringValue(item['id']) ?? '',
-    serializeNode: (item, nodeField) => projectGraphqlObject(item, nodeField.selectionSet?.selections ?? [], new Map()),
+    serializeNode,
   });
 }
 
@@ -158,6 +160,79 @@ function serializeCompanyRole(role: B2BCompanyContactRoleRecord, field: FieldNod
     field.selectionSet?.selections ?? [],
     new Map(),
   );
+}
+
+function serializeLocationTaxSettings(location: B2BCompanyLocationRecord, field: FieldNode): unknown {
+  const storedTaxSettings = isPlainObject(location.data['taxSettings']) ? location.data['taxSettings'] : {};
+  return projectGraphqlObject(
+    {
+      __typename: 'CompanyLocationTaxSettings',
+      ...storedTaxSettings,
+      taxRegistrationId: storedTaxSettings['taxRegistrationId'] ?? location.data['taxRegistrationId'] ?? null,
+      taxExempt: storedTaxSettings['taxExempt'] ?? location.data['taxExempt'] ?? null,
+      taxExemptions: storedTaxSettings['taxExemptions'] ?? location.data['taxExemptions'] ?? [],
+    },
+    field.selectionSet?.selections ?? [],
+    new Map(),
+  );
+}
+
+function serializeRoleAssignment(
+  runtime: ProxyRuntimeContext,
+  assignment: Record<string, unknown>,
+  field: FieldNode,
+): unknown {
+  const contactId = readStringValue(assignment['companyContactId']);
+  const roleId = readStringValue(assignment['companyContactRoleId']);
+  const locationId = readStringValue(assignment['companyLocationId']);
+  const contact = contactId ? runtime.store.getEffectiveB2BCompanyContactById(contactId) : null;
+  const role = roleId ? runtime.store.getEffectiveB2BCompanyContactRoleById(roleId) : null;
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const source = {
+    __typename: 'CompanyContactRoleAssignment',
+    ...assignment,
+    companyContact: contact ? recordSource(contact, 'CompanyContact') : (assignment['companyContact'] ?? null),
+    role: role ? recordSource(role, 'CompanyContactRole') : (assignment['role'] ?? null),
+    companyLocation: location ? recordSource(location, 'CompanyLocation') : (assignment['companyLocation'] ?? null),
+  };
+
+  return projectGraphqlObject(source, field.selectionSet?.selections ?? [], new Map(), {
+    projectFieldValue: ({ field: childField, fieldName }) => {
+      if (fieldName === 'companyContact') {
+        return { handled: true, value: contact ? serializeCompanyContact(runtime, contact, childField) : null };
+      }
+      if (fieldName === 'role') {
+        return { handled: true, value: role ? serializeCompanyRole(role, childField) : null };
+      }
+      if (fieldName === 'companyLocation') {
+        return { handled: true, value: location ? serializeCompanyLocation(runtime, location, childField) : null };
+      }
+      return { handled: false };
+    },
+  });
+}
+
+function serializeStaffAssignment(
+  runtime: ProxyRuntimeContext,
+  assignment: Record<string, unknown>,
+  field: FieldNode,
+): unknown {
+  const locationId = readStringValue(assignment['companyLocationId']);
+  const location = locationId ? runtime.store.getEffectiveB2BCompanyLocationById(locationId) : null;
+  const source = {
+    __typename: 'CompanyLocationStaffMemberAssignment',
+    ...assignment,
+    companyLocation: location ? recordSource(location, 'CompanyLocation') : (assignment['companyLocation'] ?? null),
+  };
+
+  return projectGraphqlObject(source, field.selectionSet?.selections ?? [], new Map(), {
+    projectFieldValue: ({ field: childField, fieldName }) => {
+      if (fieldName === 'companyLocation') {
+        return { handled: true, value: location ? serializeCompanyLocation(runtime, location, childField) : null };
+      }
+      return { handled: false };
+    },
+  });
 }
 
 function serializeCompanyContact(
@@ -175,7 +250,12 @@ function serializeCompanyContact(
       if (fieldName === 'roleAssignments') {
         return {
           handled: true,
-          value: serializePlainConnection(childField, {}, readPlainObjectArray(contact.data['roleAssignments'])),
+          value: serializePlainObjectConnection(
+            childField,
+            {},
+            readPlainObjectArray(contact.data['roleAssignments']),
+            (assignment, nodeField) => serializeRoleAssignment(runtime, assignment, nodeField),
+          ),
         };
       }
       if (fieldName === 'orders' || fieldName === 'draftOrders') {
@@ -210,7 +290,14 @@ function serializeCompanyLocation(
           fieldName === 'roleAssignments'
             ? readPlainObjectArray(location.data['roleAssignments'])
             : readPlainObjectArray(location.data['staffMemberAssignments']);
-        return { handled: true, value: serializePlainConnection(childField, {}, items) };
+        return {
+          handled: true,
+          value: serializePlainObjectConnection(childField, {}, items, (item, nodeField) =>
+            fieldName === 'roleAssignments'
+              ? serializeRoleAssignment(runtime, item, nodeField)
+              : serializeStaffAssignment(runtime, item, nodeField),
+          ),
+        };
       }
       if (
         fieldName === 'orders' ||
@@ -230,6 +317,9 @@ function serializeCompanyLocation(
           handled: true,
           value: address ? projectGraphqlObject(address, childField.selectionSet?.selections ?? [], new Map()) : null,
         };
+      }
+      if (fieldName === 'taxSettings') {
+        return { handled: true, value: serializeLocationTaxSettings(location, childField) };
       }
       if (fieldName === 'metafield') {
         return { handled: true, value: null };
@@ -303,7 +393,7 @@ function serializeCompany(
             value: serializeCount(childField, readOptionalCount(source['locationsCount'], locations.length)),
           };
         case 'mainContact': {
-          const mainContact = contacts.find((contact) => contact.data['isMainContact'] === true) ?? contacts[0] ?? null;
+          const mainContact = contacts.find((contact) => contact.data['isMainContact'] === true) ?? null;
           return {
             handled: true,
             value: mainContact ? serializeCompanyContact(runtime, mainContact, childField) : null,
@@ -332,9 +422,39 @@ function serializeCompanies(
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
-  return serializeRecordConnection(field, variables, runtime.store.listEffectiveB2BCompanies(), (company, nodeField) =>
+  const args = getFieldArguments(field, variables);
+  const companies = filterCompaniesByQuery(runtime.store.listEffectiveB2BCompanies(), args['query']);
+  return serializeRecordConnection(field, variables, companies, (company, nodeField) =>
     serializeCompany(runtime, company, nodeField, variables),
   );
+}
+
+function matchesPositiveCompanyQueryTerm(company: B2BCompanyRecord, term: SearchQueryTerm): boolean {
+  const field = term.field?.toLowerCase() ?? null;
+  switch (field) {
+    case null:
+      return (
+        matchesSearchQueryString(readStringValue(company.data['name']), term.value, 'includes', { wordPrefix: true }) ||
+        matchesSearchQueryString(readStringValue(company.data['externalId']), term.value, 'includes', {
+          wordPrefix: true,
+        })
+      );
+    case 'id':
+      return matchesSearchQueryString(company.id, term.value);
+    case 'name':
+      return matchesSearchQueryString(readStringValue(company.data['name']), term.value, 'includes', {
+        wordPrefix: true,
+      });
+    case 'external_id':
+    case 'externalid':
+      return matchesSearchQueryString(readStringValue(company.data['externalId']), term.value);
+    default:
+      return false;
+  }
+}
+
+function filterCompaniesByQuery(companies: B2BCompanyRecord[], rawQuery: unknown): B2BCompanyRecord[] {
+  return applySearchQuery(companies, rawQuery, { recognizeNotKeyword: true }, matchesPositiveCompanyQueryTerm);
 }
 
 function serializeCompanyLocations(
@@ -350,7 +470,7 @@ function serializeCompanyLocations(
   );
 }
 
-function userError(field: string[], message: string, code: string): B2BUserError {
+function userError(field: string[] | null, message: string, code: string): B2BUserError {
   return { field, message, code };
 }
 
@@ -576,6 +696,17 @@ function createContact(
 ): B2BCompanyContactRecord {
   const id = runtime.syntheticIdentity.makeProxySyntheticGid('CompanyContact');
   const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
+  const email = readStringValue(input['email']);
+  const customer =
+    email === null
+      ? null
+      : {
+          __typename: 'Customer',
+          id: runtime.syntheticIdentity.makeProxySyntheticGid('Customer'),
+          email,
+          firstName: readStringValue(input['firstName']),
+          lastName: readStringValue(input['lastName']),
+        };
   return {
     id,
     companyId,
@@ -585,6 +716,12 @@ function createContact(
       isMainContact,
       roleAssignments: [],
       ...contactDataFromInput(input, now),
+      ...(customer
+        ? {
+            customerId: customer.id,
+            customer: jsonRecord(customer),
+          }
+        : {}),
     },
   };
 }
@@ -650,10 +787,22 @@ function handleCompanyCreate(
     locationIds: [location.id],
     contactRoleIds: roles.map((role) => role.id),
   });
+  const defaultRole = roles.find((role) => role.data['name'] === 'Ordering only') ?? roles[0] ?? null;
+  const defaultAssignment =
+    contact && defaultRole ? buildRoleAssignment(runtime, contact, defaultRole, location) : null;
+  const defaultAssignmentIds = defaultAssignment
+    ? [readStringValue(defaultAssignment['id']), ...stageRoleAssignments(runtime, [defaultAssignment])]
+    : [];
 
   return {
     payload: { company, userErrors: [] },
-    stagedIds: [company.id, location.id, ...roles.map((role) => role.id), ...(contact ? [contact.id] : [])],
+    stagedIds: [
+      company.id,
+      location.id,
+      ...roles.map((role) => role.id),
+      ...(contact ? [contact.id] : []),
+      ...defaultAssignmentIds.filter((id): id is string => id !== null),
+    ],
   };
 }
 
@@ -1111,6 +1260,12 @@ function stageRoleAssignments(runtime: ProxyRuntimeContext, assignments: Record<
   return stagedIds;
 }
 
+function contactHasRoleAssignmentForLocation(contact: B2BCompanyContactRecord, locationId: string): boolean {
+  return readPlainObjectArray(contact.data['roleAssignments']).some(
+    (assignment) => assignment['companyLocationId'] === locationId,
+  );
+}
+
 function resolveRoleAssignmentInputs(
   runtime: ProxyRuntimeContext,
   rawInputs: Record<string, unknown>[],
@@ -1134,6 +1289,12 @@ function resolveRoleAssignmentInputs(
       contact.companyId !== location.companyId
     ) {
       userErrors.push(resourceNotFound(['rolesToAssign']));
+      continue;
+    }
+    if (contactHasRoleAssignmentForLocation(contact, location.id)) {
+      userErrors.push(
+        userError(null, 'Company contact has already been assigned a role in that company location.', 'LIMIT_REACHED'),
+      );
       continue;
     }
     assignments.push(buildRoleAssignment(runtime, contact, role, location));
@@ -1268,6 +1429,7 @@ function handleAssignStaff(
       __typename: 'CompanyLocationStaffMemberAssignment',
       id,
       staffMemberId,
+      companyLocationId: location.id,
       staffMember: { __typename: 'StaffMember', id: staffMemberId },
       companyLocation: recordSource(location, 'CompanyLocation'),
     };
@@ -1348,6 +1510,11 @@ function handleTaxSettingsUpdate(
   };
   maybeSetString(data, args, 'taxRegistrationId');
   maybeSetBoolean(data, args, 'taxExempt');
+  data['taxSettings'] = {
+    taxRegistrationId: data['taxRegistrationId'] ?? null,
+    taxExempt: data['taxExempt'] ?? null,
+    taxExemptions: data['taxExemptions'] ?? [],
+  };
   const updated = runtime.store.upsertStagedB2BCompanyLocation({ ...location, data: jsonRecord(data) });
   return { payload: { companyLocation: updated, userErrors: [] }, stagedIds: [updated.id] };
 }

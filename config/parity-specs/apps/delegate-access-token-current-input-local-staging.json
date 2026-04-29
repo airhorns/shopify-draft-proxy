@@ -1,0 +1,36 @@
+{
+  "scenarioId": "delegate-access-token-current-input-local-staging",
+  "operationNames": ["delegateAccessTokenCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough", "secret-redaction"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json"],
+  "runtimeTestFiles": ["tests/integration/app-billing-access-flow.test.ts"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delegated-token-create-current-input-payload",
+        "capturePath": "$.evidence.parity.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The raw delegated token is a synthetic secret returned once by the local proxy."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executes the current documented delegateAccessTokenCreate input shape, input.delegateAccessScope, against the local app-domain proxy harness. The broader app-billing-access-local-staging scenario continues to preserve the earlier local-runtime accessScopes replay so existing fixture evidence is not rewritten without a fresh capture."
+}

@@ -1,0 +1,22 @@
+mutation OrderEditResidualWorkflowRemoveShippingLine($id: ID!, $shippingLineId: ID!) {
+  orderEditRemoveShippingLine(id: $id, shippingLineId: $shippingLineId) {
+    calculatedOrder {
+      id
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      shippingLines {
+        id
+        title
+        stagedStatus
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

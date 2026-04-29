@@ -843,6 +843,7 @@ function handleShopLocaleDisable(
   }
 
   runtime.store.disableShopLocale(locale);
+  runtime.store.removeTranslationsForLocale(locale);
   return projectShopLocalePayload(runtime, { locale, userErrors: [] }, field);
 }
 

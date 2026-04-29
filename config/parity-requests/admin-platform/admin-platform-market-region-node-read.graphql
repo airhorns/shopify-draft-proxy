@@ -1,0 +1,12 @@
+query AdminPlatformMarketRegionNodeRead($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    __typename
+    ... on Node {
+      id
+    }
+    ... on MarketRegionCountry {
+      name
+      code
+    }
+  }
+}

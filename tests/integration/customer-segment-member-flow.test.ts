@@ -225,6 +225,181 @@ describe('customer segment member query jobs and reads', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('creates member query jobs from segment IDs and supports direct query member reads', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('segmentId member query flow must not proxy'));
+    const app = createApp(config).callback();
+    const tag = 'codex-har458-segment-id';
+
+    const matchingCustomerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'codex-har458-segment-id@example.com',
+            firstName: 'SegmentId',
+            lastName: 'Match',
+            tags: [tag],
+          },
+        },
+      });
+
+    expect(matchingCustomerResponse.status).toBe(200);
+    expect(matchingCustomerResponse.body.data.customerCreate.userErrors).toEqual([]);
+
+    await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'codex-har458-segment-id-miss@example.com',
+            firstName: 'SegmentId',
+            lastName: 'Miss',
+            tags: [],
+          },
+        },
+      });
+
+    const segmentQuery = `customer_tags CONTAINS '${tag}'`;
+    const segmentResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation SegmentCreate($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment {
+              id
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          name: 'HAR-458 segmentId job',
+          query: segmentQuery,
+        },
+      });
+
+    expect(segmentResponse.status).toBe(200);
+    expect(segmentResponse.body.data.segmentCreate.userErrors).toEqual([]);
+    const segmentId = segmentResponse.body.data.segmentCreate.segment.id as string;
+
+    const queryJobResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CreateMembersQuery($input: CustomerSegmentMembersQueryInput!) {
+          customerSegmentMembersQueryCreate(input: $input) {
+            customerSegmentMembersQuery {
+              id
+              currentCount
+              done
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            segmentId,
+          },
+        },
+      });
+
+    expect(queryJobResponse.status).toBe(200);
+    expect(queryJobResponse.body.data.customerSegmentMembersQueryCreate).toEqual({
+      customerSegmentMembersQuery: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/CustomerSegmentMembersQuery\//),
+        currentCount: 0,
+        done: false,
+      },
+      userErrors: [],
+    });
+    const queryId = queryJobResponse.body.data.customerSegmentMembersQueryCreate.customerSegmentMembersQuery
+      .id as string;
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query ReadSegmentMembers($query: String!, $queryId: ID!) {
+          job: customerSegmentMembersQuery(id: $queryId) {
+            id
+            currentCount
+            done
+          }
+          byDirectQuery: customerSegmentMembers(query: $query, first: 5) {
+            totalCount
+            edges {
+              node {
+                firstName
+                lastName
+              }
+            }
+          }
+          byQueryJob: customerSegmentMembers(queryId: $queryId, first: 5) {
+            totalCount
+            edges {
+              node {
+                firstName
+                lastName
+              }
+            }
+          }
+        }`,
+        variables: {
+          query: segmentQuery,
+          queryId,
+        },
+      });
+
+    const expectedMembers = {
+      totalCount: 1,
+      edges: [
+        {
+          node: {
+            firstName: 'SegmentId',
+            lastName: 'Match',
+          },
+        },
+      ],
+    };
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data.job).toEqual({
+      id: queryId,
+      currentCount: 1,
+      done: true,
+    });
+    expect(readResponse.body.data.byDirectQuery).toEqual(expectedMembers);
+    expect(readResponse.body.data.byQueryJob).toEqual(expectedMembers);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('evaluates staged segment definitions for member reads and membership lookup', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('segment membership flow must not proxy'));
     const app = createApp(config).callback();
@@ -501,6 +676,113 @@ describe('customer segment member query jobs and reads', () => {
     expect(readResponse.body.data.byQuery).toEqual(readResponse.body.data.bySegment);
     expect(readResponse.body.data.membershipsTagged.memberships).toEqual([{ segmentId, isMember: false }]);
     expect(readResponse.body.data.membershipsUntagged.memberships).toEqual([{ segmentId, isMember: true }]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps accepted but unmodeled segment filters storage-only for membership evaluation', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('segment storage-only flow must not proxy'));
+    const app = createApp(config).callback();
+
+    const customerResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          input: {
+            email: 'codex-har458-storage-only@example.com',
+            firstName: 'StorageOnly',
+          },
+        },
+      });
+    const customerId = customerResponse.body.data.customerCreate.customer.id as string;
+
+    const segmentQuery = "email_subscription_status = 'SUBSCRIBED'";
+    const segmentResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `mutation SegmentCreate($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment {
+              id
+              query
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`,
+        variables: {
+          name: 'HAR-458 accepted storage-only filter',
+          query: segmentQuery,
+        },
+      });
+
+    expect(segmentResponse.status).toBe(200);
+    expect(segmentResponse.body.data.segmentCreate.userErrors).toEqual([]);
+    expect(segmentResponse.body.data.segmentCreate.segment.query).toBe(segmentQuery);
+    const segmentId = segmentResponse.body.data.segmentCreate.segment.id as string;
+
+    const readResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `query StorageOnlyMembership($segmentId: ID!, $customerId: ID!) {
+          segment(id: $segmentId) {
+            id
+            query
+          }
+          members: customerSegmentMembers(segmentId: $segmentId, first: 5) {
+            totalCount
+            edges {
+              node {
+                firstName
+              }
+            }
+          }
+          membership: customerSegmentMembership(customerId: $customerId, segmentIds: [$segmentId]) {
+            memberships {
+              segmentId
+              isMember
+            }
+          }
+        }`,
+        variables: {
+          segmentId,
+          customerId,
+        },
+      });
+
+    expect(readResponse.status).toBe(200);
+    expect(readResponse.body.data).toEqual({
+      segment: {
+        id: segmentId,
+        query: segmentQuery,
+      },
+      members: {
+        totalCount: 0,
+        edges: [],
+      },
+      membership: {
+        memberships: [
+          {
+            segmentId,
+            isMember: false,
+          },
+        ],
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

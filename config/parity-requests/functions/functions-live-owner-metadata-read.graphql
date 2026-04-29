@@ -1,0 +1,55 @@
+query ReadLiveFunctionOwnerMetadata($validationFunctionId: String!, $cartFunctionId: String!) {
+  shopifyFunctions(first: 20) {
+    nodes {
+      id
+      title
+      handle
+      apiType
+      description
+      appKey
+      app {
+        __typename
+        id
+        title
+        handle
+        apiKey
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  validationFunction: shopifyFunction(id: $validationFunctionId) {
+    id
+    title
+    handle
+    apiType
+    description
+    appKey
+    app {
+      __typename
+      id
+      title
+      handle
+      apiKey
+    }
+  }
+  cartFunction: shopifyFunction(id: $cartFunctionId) {
+    id
+    title
+    handle
+    apiType
+    description
+    appKey
+    app {
+      __typename
+      id
+      title
+      handle
+      apiKey
+    }
+  }
+}

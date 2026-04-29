@@ -1,0 +1,39 @@
+{
+  "scenarioId": "functions-live-owner-metadata-read",
+  "operationNames": ["shopifyFunction", "shopifyFunctions"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["live-capture", "payload-shape", "function-owner-metadata", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-live-owner-metadata-read.graphql",
+    "variablesCapturePath": "$.functionOwnershipRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.shopifyFunctions.pageInfo.startCursor",
+        "ignore": true,
+        "reason": "Shopify returns opaque connection cursors; local serializers use deterministic synthetic cursors that clients must not decode.",
+        "regrettable": true
+      },
+      {
+        "path": "$.shopifyFunctions.pageInfo.endCursor",
+        "ignore": true,
+        "reason": "Shopify returns opaque connection cursors; local serializers use deterministic synthetic cursors that clients must not decode.",
+        "regrettable": true
+      }
+    ],
+    "targets": [
+      {
+        "name": "live-function-owner-read-data",
+        "capturePath": "$.functionOwnershipRead.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "HAR-416 live Shopify evidence captured after deploying released validation and cart-transform Function extensions in the repo-local conformance app. The executable parity request seeds the captured ShopifyFunction metadata and verifies shopifyFunction/shopifyFunctions preserve appKey and selected app fields without executing Function WASM, checkout cart transforms, validation logic, or tax callbacks. Mutation probes now record live Shopify userErrors for wrong Function API type, unknown/unowned Function handles, invalid validation/cart-transform metafields, and duplicate cart-transform registration. Shopify allowed duplicate validation creates for the same Function in this shop, and taxAppConfigure remains authority-blocked because the caller must be a tax calculations app."
+}

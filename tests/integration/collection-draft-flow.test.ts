@@ -1836,7 +1836,7 @@ describe('collection draft flow', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const app = createApp(config).callback();
     const query =
-      'mutation ReorderProducts($id: ID!, $moves: [MoveInput!]!) { collectionReorderProducts(id: $id, moves: $moves) { job { id done } userErrors { field message } } }';
+      'mutation ReorderProducts($id: ID!, $moves: [MoveInput!]!) { collectionReorderProducts(id: $id, moves: $moves) { job { id done } userErrors { field message code } } }';
 
     const missingCollectionResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -1849,7 +1849,7 @@ describe('collection draft flow', () => {
       });
     const sortedCollectionResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
       query:
-        'mutation { collectionReorderProducts(id: "gid://shopify/Collection/991", moves: { id: "gid://shopify/Product/90", newPosition: "0" }) { job { id done } userErrors { field message } } }',
+        'mutation { collectionReorderProducts(id: "gid://shopify/Collection/991", moves: { id: "gid://shopify/Product/90", newPosition: "0" }) { job { id done } userErrors { field message code } } }',
     });
     const invalidMovesResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -1869,7 +1869,7 @@ describe('collection draft flow', () => {
       data: {
         collectionReorderProducts: {
           job: null,
-          userErrors: [{ field: ['id'], message: 'Collection not found' }],
+          userErrors: [{ field: ['id'], message: 'Collection not found', code: 'COLLECTION_NOT_FOUND' }],
         },
       },
     });
@@ -1878,7 +1878,13 @@ describe('collection draft flow', () => {
       data: {
         collectionReorderProducts: {
           job: null,
-          userErrors: [{ field: ['id'], message: "Can't reorder products unless collection is manually sorted" }],
+          userErrors: [
+            {
+              field: ['id'],
+              message: "Can't reorder products unless collection is manually sorted",
+              code: 'MANUALLY_SORTED_COLLECTION',
+            },
+          ],
         },
       },
     });
@@ -1888,8 +1894,8 @@ describe('collection draft flow', () => {
         collectionReorderProducts: {
           job: null,
           userErrors: [
-            { field: ['moves', '0', 'id'], message: 'Product is not in the collection' },
-            { field: ['moves', '1', 'id'], message: 'Product does not exist' },
+            { field: ['moves', '0', 'id'], message: 'Product is not in the collection', code: 'INVALID_MOVE' },
+            { field: ['moves', '1', 'id'], message: 'Product does not exist', code: 'INVALID_MOVE' },
           ],
         },
       },

@@ -123,6 +123,27 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   fixture seeding has been exhausted; do not add them merely to make parity
   tests pass. Opaque Shopify connection cursors are an acceptable expected
   difference because clients must not depend on their internal encoding.
+- Before handing off a fidelity PR, check the recent rejected-review lessons:
+  - If behavior is claimed to match Shopify, include executable parity evidence
+    (`conformance:parity` via a checked-in parity spec) unless the work is
+    explicitly limited to non-behavioral docs or registry bookkeeping.
+    Integration/unit tests alone prove local code paths, not Shopify fidelity.
+  - Do not turn implementation gaps into endpoint documentation as a substitute
+    for fixing or proving behavior. Endpoint docs may explain a supported
+    boundary after the behavior/evidence is in place; unresolved gaps belong in
+    Linear/workpad notes or a linked follow-up issue.
+  - Do not edit a parity replay request away from the recorded Shopify request
+    shape unless you also re-record or add a live capture proving that shape.
+    Variables, root inputs, and selected fields in parity requests must remain
+    faithful to their capture.
+  - When review finds one missing serializer field, error code, Node resolver,
+    state dump bucket, or similar family-level issue, audit and fix the sibling
+    code paths rather than patching only the reviewed example.
+  - New capture scripts must be reachable through the aggregate conformance
+    capture index/runner. Do not add resource-specific package scripts or docs
+    that imply each scenario needs its own top-level runner.
+  - If the branch adds no meaningful behavior, evidence, or docs beyond
+    current `main`, close/cancel it instead of trying to preserve a no-op PR.
 - Repo scripts must be TypeScript files executed with `tsx` or similar, not
   `.mjs` files. Do not add `.mjs` files anywhere in this repository.
 - Relative TypeScript import specifiers must use the emitted JavaScript

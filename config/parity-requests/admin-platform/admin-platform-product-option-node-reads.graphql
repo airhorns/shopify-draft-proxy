@@ -1,0 +1,19 @@
+query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    id
+    ... on ProductOption {
+      name
+      position
+      values
+      optionValues {
+        id
+        name
+        hasVariants
+      }
+    }
+    ... on ProductOptionValue {
+      name
+      hasVariants
+    }
+  }
+}

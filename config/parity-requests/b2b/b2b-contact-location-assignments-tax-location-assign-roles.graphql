@@ -1,0 +1,27 @@
+mutation B2BContactLocationAssignmentsLocationAssignRoles(
+  $companyLocationId: ID!
+  $rolesToAssign: [CompanyLocationRoleAssign!]!
+) {
+  companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {
+    roleAssignments {
+      id
+      companyContact {
+        id
+        title
+      }
+      role {
+        id
+        name
+      }
+      companyLocation {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

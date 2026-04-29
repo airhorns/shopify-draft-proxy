@@ -1,0 +1,17 @@
+mutation OrderEditResidualWorkflowRemoveDiscount($id: ID!, $discountApplicationId: ID!) {
+  orderEditRemoveDiscount(id: $id, discountApplicationId: $discountApplicationId) {
+    calculatedOrder {
+      id
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

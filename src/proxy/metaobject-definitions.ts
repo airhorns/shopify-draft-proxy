@@ -34,6 +34,11 @@ import {
   readStringValue,
   serializeConnection,
 } from './graphql-helpers.js';
+import {
+  isMeasurementMetafieldType,
+  normalizeMetafieldValue,
+  parseMetafieldJsonValue,
+} from './products/metafield-values.js';
 
 type MetaobjectUserError = {
   field: string[] | null;
@@ -567,19 +572,7 @@ function metaobjectHandleDisplayName(handle: string): string {
 }
 
 function readMetaobjectJsonValue(typeName: string | null, value: string | null): MetaobjectFieldRecord['jsonValue'] {
-  if (value === null) {
-    return null;
-  }
-
-  if (typeName !== 'json' && typeName !== 'list.metaobject_reference') {
-    return value;
-  }
-
-  try {
-    return JSON.parse(value) as MetaobjectFieldRecord['jsonValue'];
-  } catch {
-    return value;
-  }
+  return parseMetafieldJsonValue(typeName, value) as MetaobjectFieldRecord['jsonValue'];
 }
 
 function buildInvalidJsonMessage(value: string): string {
@@ -632,7 +625,7 @@ function buildMetaobjectFieldFromInput(
   rawField: Record<string, unknown>,
   fieldDefinition: MetaobjectFieldDefinitionRecord,
 ): MetaobjectFieldRecord {
-  const value = readStringValue(rawField['value']);
+  const value = normalizeMetafieldValue(fieldDefinition.type.name, readStringValue(rawField['value']));
   return {
     key: fieldDefinition.key,
     type: fieldDefinition.type.name,
@@ -741,9 +734,33 @@ function metaobjectDisplayName(
     return null;
   }
 
-  return (
-    fields.find((field) => field.key === displayNameKey)?.value ?? (handle ? metaobjectHandleDisplayName(handle) : null)
-  );
+  const displayField = fields.find((field) => field.key === displayNameKey) ?? null;
+  if (!displayField) {
+    return handle ? metaobjectHandleDisplayName(handle) : null;
+  }
+
+  if (isMeasurementMetafieldType(displayField.type) && displayField.jsonValue !== null) {
+    return JSON.stringify(normalizeMeasurementDisplayJsonValue(displayField.jsonValue));
+  }
+
+  return displayField.value ?? (handle ? metaobjectHandleDisplayName(handle) : null);
+}
+
+function normalizeMeasurementDisplayJsonValue(
+  value: MetaobjectFieldRecord['jsonValue'],
+): MetaobjectFieldRecord['jsonValue'] {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeMeasurementDisplayJsonValue(item as MetaobjectFieldRecord['jsonValue']));
+  }
+
+  if (isPlainObject(value) && typeof value['unit'] === 'string') {
+    return {
+      ...value,
+      unit: value['unit'].toLowerCase(),
+    } as MetaobjectFieldRecord['jsonValue'];
+  }
+
+  return value;
 }
 
 function normalizeMetaobjectHandle(value: string): string {

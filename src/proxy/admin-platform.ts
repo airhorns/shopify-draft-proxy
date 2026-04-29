@@ -1,4 +1,5 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
+import { Buffer } from 'node:buffer';
 import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
@@ -8,7 +9,7 @@ import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } fro
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
-import { handleDeliveryProfileQuery } from './delivery-profiles.js';
+import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
 import { handleFunctionQuery } from './functions.js';
 import { handleGiftCardQuery } from './gift-cards.js';
@@ -20,17 +21,28 @@ import {
   type FragmentMap,
 } from './graphql-helpers.js';
 import { handleMarketingQuery } from './marketing.js';
-import { handleMarketsQuery } from './markets.js';
+import { handleMarketsQuery, serializeMarketWebPresenceNodeById } from './markets.js';
 import { serializeFileNodeById } from './media.js';
 import { handleMetafieldDefinitionQuery } from './metafield-definitions.js';
+import { serializeMetafieldSelectionSet, type MetafieldRecordCore } from './metafields.js';
 import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
 import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
-import { handleProductQuery } from './products.js';
+import {
+  handleProductQuery,
+  serializeProductOptionNodeById,
+  serializeProductOptionValueNodeById,
+  serializeSellingPlanNodeById,
+} from './products.js';
 import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
-import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
+import {
+  handleStorePropertiesQuery,
+  serializeShopAddressNodeById,
+  serializeShopNodeById,
+  serializeShopPolicyNodeById,
+} from './store-properties.js';
 import { handleWebhookSubscriptionQuery } from './webhooks.js';
 
 interface GraphQLResponseError {
@@ -380,8 +392,89 @@ function serializeDomainRoot(
   return serializeDomain(primaryDomain, field.selectionSet?.selections ?? []);
 }
 
+function serializeMarketRegionCountryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const effectiveRegion = runtime.store.getEffectiveBackupRegion() ?? CAPTURED_BACKUP_REGION;
+  return effectiveRegion.id === id
+    ? serializePlainObject(effectiveRegion, selectedFields, 'MarketRegionCountry')
+    : null;
+}
+
+function collectEffectiveMetafields(runtime: ProxyRuntimeContext): MetafieldRecordCore[] {
+  const metafields = new Map<string, MetafieldRecordCore>();
+  const addMetafields = (items: readonly MetafieldRecordCore[]) => {
+    for (const metafield of items) {
+      metafields.set(metafield.id, metafield);
+    }
+  };
+
+  for (const product of runtime.store.listEffectiveProducts()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(product.id));
+    for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
+      addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(variant.id));
+    }
+  }
+  for (const collection of runtime.store.listEffectiveCollections()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByOwnerId(collection.id));
+  }
+  for (const customer of runtime.store.listEffectiveCustomers()) {
+    addMetafields(runtime.store.getEffectiveMetafieldsByCustomerId(customer.id));
+  }
+  for (const discount of runtime.store.listEffectiveDiscounts()) {
+    addMetafields(discount.metafields ?? []);
+  }
+
+  return [...metafields.values()];
+}
+
+function serializeMetafieldNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const metafield = collectEffectiveMetafields(runtime).find((candidate) => candidate.id === id) ?? null;
+  return metafield ? serializeMetafieldSelectionSet(metafield, selectedFields) : null;
+}
+
 function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
   return category.cursor ?? category.id;
+}
+
+function taxonomyCategoryCursorSortKey(category: TaxonomyCategoryRecord): number | null {
+  if (!category.cursor) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(category.cursor, 'base64').toString('utf8')) as unknown;
+    if (!isPlainObject(decoded)) {
+      return null;
+    }
+    const id = decoded['id'];
+    return typeof id === 'number' && Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function sortTaxonomyHierarchyCategories(categories: TaxonomyCategoryRecord[]): TaxonomyCategoryRecord[] {
+  return categories
+    .map((category, index) => ({
+      category,
+      index,
+      sortKey: taxonomyCategoryCursorSortKey(category),
+    }))
+    .sort((left, right) => {
+      if (left.sortKey !== null && right.sortKey !== null && left.sortKey !== right.sortKey) {
+        return left.sortKey - right.sortKey;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ category }) => category);
 }
 
 function taxonomyCategoryMatchesSearchTerm(category: TaxonomyCategoryRecord, term: SearchQueryTerm): boolean {
@@ -465,22 +558,57 @@ function serializeTaxonomyCategory(
   return result;
 }
 
+function serializeTaxonomyCategoryNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const category = runtime.store.getEffectiveTaxonomyCategories().find((candidate) => candidate.id === id) ?? null;
+  return category ? serializeTaxonomyCategory(category, selectedFields) : null;
+}
+
 function serializeTaxonomyCategories(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
   variables: Record<string, unknown>,
 ): Record<string, unknown> {
   const args = getFieldArguments(field, variables);
+  const rawChildrenOf = args['childrenOf'];
+  const rawDescendantsOf = args['descendantsOf'];
+  const rawSiblingsOf = args['siblingsOf'];
   const rawSearch = args['search'];
+  const allCategories = runtime.store.getEffectiveTaxonomyCategories();
+  const hasHierarchyFilter =
+    (typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0) ||
+    (typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0) ||
+    (typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0);
+  const hierarchyFilteredCategories =
+    typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0
+      ? allCategories.filter((category) => category.parentId === rawChildrenOf)
+      : typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0
+        ? allCategories.filter((category) => category.ancestorIds.includes(rawDescendantsOf))
+        : typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0
+          ? allCategories.filter((category) => {
+              const siblingSubject = allCategories.find((candidate) => candidate.id === rawSiblingsOf) ?? null;
+              return (
+                siblingSubject?.parentId !== undefined &&
+                category.parentId === siblingSubject.parentId &&
+                category.id !== rawSiblingsOf
+              );
+            })
+          : allCategories;
+  const orderedHierarchyFilteredCategories = hasHierarchyFilter
+    ? sortTaxonomyHierarchyCategories(hierarchyFilteredCategories)
+    : hierarchyFilteredCategories;
   const categories =
     typeof rawSearch === 'string' && rawSearch.trim().length > 0
       ? applySearchQueryTerms(
-          runtime.store.getEffectiveTaxonomyCategories(),
+          orderedHierarchyFilteredCategories,
           rawSearch,
           { ignoredKeywords: ['AND'], dropEmptyValues: true },
           taxonomyCategoryMatchesSearchTerm,
         )
-      : runtime.store.getEffectiveTaxonomyCategories();
+      : orderedHierarchyFilteredCategories;
   const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
   const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
 
@@ -564,6 +692,18 @@ const handleProductNodeQuery: LocalNodeQueryHandler = (runtime, document, variab
 const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Product: { rootField: 'product', typename: 'Product', handler: handleProductNodeQuery },
   ProductVariant: { rootField: 'productVariant', typename: 'ProductVariant', handler: handleProductNodeQuery },
+  ProductOption: {
+    typename: 'ProductOption',
+    serialize: (runtime, id, selectedFields) => serializeProductOptionNodeById(runtime, id, selectedFields),
+  },
+  ProductOptionValue: {
+    typename: 'ProductOptionValue',
+    serialize: (runtime, id, selectedFields) => serializeProductOptionValueNodeById(runtime, id, selectedFields),
+  },
+  Metafield: {
+    typename: 'Metafield',
+    serialize: (runtime, id, selectedFields) => serializeMetafieldNodeById(runtime, id, selectedFields),
+  },
   InventoryItem: { rootField: 'inventoryItem', typename: 'InventoryItem', handler: handleProductNodeQuery },
   InventoryLevel: { rootField: 'inventoryLevel', typename: 'InventoryLevel', handler: handleProductNodeQuery },
   InventoryShipment: { rootField: 'inventoryShipment', typename: 'InventoryShipment', handler: handleProductNodeQuery },
@@ -590,6 +730,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     handler: handleProductNodeQuery,
     typeConditions: ['ProductOperation'],
   },
+  SellingPlan: {
+    typename: 'SellingPlan',
+    serialize: (runtime, id, selectedFields) =>
+      serializeSellingPlanNodeById(runtime, id, syntheticNodeField(selectedFields)),
+  },
   SellingPlanGroup: { rootField: 'sellingPlanGroup', typename: 'SellingPlanGroup', handler: handleProductNodeQuery },
 
   Customer: { rootField: 'customer', typename: 'Customer', handler: handleCustomerQuery },
@@ -611,15 +756,48 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'Shop',
     serialize: (runtime, id, selectedFields) => serializeShopNodeById(runtime, id, selectedFields),
   },
+  ShopAddress: {
+    typename: 'ShopAddress',
+    serialize: (runtime, id, selectedFields) => serializeShopAddressNodeById(runtime, id, selectedFields),
+  },
+  ShopPolicy: {
+    typename: 'ShopPolicy',
+    serialize: (runtime, id, selectedFields) => serializeShopPolicyNodeById(runtime, id, selectedFields),
+  },
   DeliveryCarrierService: {
     rootField: 'carrierService',
     typename: 'DeliveryCarrierService',
     handler: handleStorePropertiesQuery,
   },
 
+  MarketRegionCountry: {
+    typename: 'MarketRegionCountry',
+    typeConditions: ['MarketRegion'],
+    serialize: (runtime, id, selectedFields) => serializeMarketRegionCountryNodeById(runtime, id, selectedFields),
+  },
+  TaxonomyCategory: {
+    typename: 'TaxonomyCategory',
+    serialize: (runtime, id, selectedFields) => serializeTaxonomyCategoryNodeById(runtime, id, selectedFields),
+  },
+
   PaymentCustomization: {
     rootField: 'paymentCustomization',
     typename: 'PaymentCustomization',
+    handler: handlePaymentQuery,
+  },
+  CashTrackingSession: {
+    rootField: 'cashTrackingSession',
+    typename: 'CashTrackingSession',
+    handler: handlePaymentQuery,
+  },
+  PointOfSaleDevice: {
+    rootField: 'pointOfSaleDevice',
+    typename: 'PointOfSaleDevice',
+    handler: handlePaymentQuery,
+  },
+  ShopifyPaymentsDispute: {
+    rootField: 'dispute',
+    typename: 'ShopifyPaymentsDispute',
     handler: handlePaymentQuery,
   },
   PaymentTermsTemplate: {
@@ -657,6 +835,46 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
 
   GiftCard: { rootField: 'giftCard', typename: 'GiftCard', handler: handleGiftCardQuery },
   DeliveryProfile: { rootField: 'deliveryProfile', typename: 'DeliveryProfile', handler: handleDeliveryProfileQuery },
+  DeliveryCondition: {
+    typename: 'DeliveryCondition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryCondition', selectedFields, variables),
+  },
+  DeliveryCountry: {
+    typename: 'DeliveryCountry',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryCountry', selectedFields, variables),
+  },
+  DeliveryLocationGroup: {
+    typename: 'DeliveryLocationGroup',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryLocationGroup', selectedFields, variables),
+  },
+  DeliveryMethodDefinition: {
+    typename: 'DeliveryMethodDefinition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryMethodDefinition', selectedFields, variables),
+  },
+  DeliveryParticipant: {
+    typename: 'DeliveryParticipant',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryParticipant', selectedFields, variables),
+  },
+  DeliveryProvince: {
+    typename: 'DeliveryProvince',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryProvince', selectedFields, variables),
+  },
+  DeliveryRateDefinition: {
+    typename: 'DeliveryRateDefinition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryRateDefinition', selectedFields, variables),
+  },
+  DeliveryZone: {
+    typename: 'DeliveryZone',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryZone', selectedFields, variables),
+  },
 
   DiscountCodeNode: { rootField: 'codeDiscountNode', typename: 'DiscountCodeNode', handler: handleDiscountQuery },
   DiscountAutomaticNode: {
@@ -681,6 +899,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   },
 
   Market: { rootField: 'market', typename: 'Market', handler: handleMarketsQuery },
+  MarketWebPresence: {
+    typename: 'MarketWebPresence',
+    serialize: (runtime, id, selectedFields, variables, fragments) =>
+      serializeMarketWebPresenceNodeById(runtime, id, syntheticNodeField(selectedFields), variables, fragments),
+  },
   MarketCatalog: {
     rootField: 'catalog',
     typename: 'MarketCatalog',

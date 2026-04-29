@@ -1,0 +1,92 @@
+query CustomerInputInlineConsentRead($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!) {
+  customer(id: $id) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+    }
+    defaultPhoneNumber {
+      phoneNumber
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+      marketingCollectedFrom
+    }
+    emailMarketingConsent {
+      marketingState
+      marketingOptInLevel
+      consentUpdatedAt
+    }
+    smsMarketingConsent {
+      marketingState
+      marketingOptInLevel
+      consentUpdatedAt
+      consentCollectedFrom
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    defaultEmailAddress {
+      emailAddress
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+    }
+    defaultPhoneNumber {
+      phoneNumber
+      marketingState
+      marketingOptInLevel
+      marketingUpdatedAt
+      marketingCollectedFrom
+    }
+    emailMarketingConsent {
+      marketingState
+      marketingOptInLevel
+      consentUpdatedAt
+    }
+    smsMarketingConsent {
+      marketingState
+      marketingOptInLevel
+      consentUpdatedAt
+      consentCollectedFrom
+    }
+  }
+  customers(first: 5, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    nodes {
+      id
+      email
+      defaultEmailAddress {
+        emailAddress
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+      }
+      defaultPhoneNumber {
+        phoneNumber
+        marketingState
+        marketingOptInLevel
+        marketingUpdatedAt
+        marketingCollectedFrom
+      }
+      emailMarketingConsent {
+        marketingState
+        marketingOptInLevel
+        consentUpdatedAt
+      }
+      smsMarketingConsent {
+        marketingState
+        marketingOptInLevel
+        consentUpdatedAt
+        consentCollectedFrom
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}

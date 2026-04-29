@@ -5,6 +5,7 @@ mutation MarketingEngagementLifecycle(
   $invalidChannelHandle: String!
   $engagement: MarketingEngagementInput!
   $duplicateEngagement: MarketingEngagementInput!
+  $negativeMetricEngagement: MarketingEngagementInput!
   $missingIdentifierEngagement: MarketingEngagementInput!
 ) {
   createActivity: marketingActivityCreateExternal(input: $activityInput) {
@@ -73,6 +74,18 @@ mutation MarketingEngagementLifecycle(
           currencyCode
         }
       }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  negativeMetric: marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $negativeMetricEngagement) {
+    marketingEngagement {
+      occurredOn
+      impressionsCount
+      clicksCount
     }
     userErrors {
       field
