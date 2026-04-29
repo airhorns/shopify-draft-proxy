@@ -1,0 +1,530 @@
+{
+  "capturedAt": "2026-04-28T22:40:30.660Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "schemaEvidence": {
+    "operationName": "CustomerInputInlineConsentSchema",
+    "query": "#graphql\n  query CustomerInputInlineConsentSchema {\n    customerInput: __type(name: \"CustomerInput\") {\n      inputFields {\n        name\n        type {\n          kind\n          name\n          ofType {\n            kind\n            name\n          }\n        }\n      }\n    }\n    emailConsentInput: __type(name: \"CustomerEmailMarketingConsentInput\") {\n      inputFields {\n        name\n      }\n    }\n    smsConsentInput: __type(name: \"CustomerSmsMarketingConsentInput\") {\n      inputFields {\n        name\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "data": {
+        "customerInput": {
+          "inputFields": [
+            {
+              "name": "email",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "firstName",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "id",
+              "type": {
+                "kind": "SCALAR",
+                "name": "ID",
+                "ofType": null
+              }
+            },
+            {
+              "name": "lastName",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "locale",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "metafields",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null
+                }
+              }
+            },
+            {
+              "name": "note",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "phone",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              }
+            },
+            {
+              "name": "tags",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null
+                }
+              }
+            },
+            {
+              "name": "emailMarketingConsent",
+              "type": {
+                "kind": "INPUT_OBJECT",
+                "name": "CustomerEmailMarketingConsentInput",
+                "ofType": null
+              }
+            },
+            {
+              "name": "smsMarketingConsent",
+              "type": {
+                "kind": "INPUT_OBJECT",
+                "name": "CustomerSmsMarketingConsentInput",
+                "ofType": null
+              }
+            },
+            {
+              "name": "taxExempt",
+              "type": {
+                "kind": "SCALAR",
+                "name": "Boolean",
+                "ofType": null
+              }
+            },
+            {
+              "name": "taxExemptions",
+              "type": {
+                "kind": "LIST",
+                "name": null,
+                "ofType": {
+                  "kind": "NON_NULL",
+                  "name": null
+                }
+              }
+            }
+          ]
+        },
+        "emailConsentInput": {
+          "inputFields": [
+            {
+              "name": "marketingOptInLevel"
+            },
+            {
+              "name": "marketingState"
+            },
+            {
+              "name": "consentUpdatedAt"
+            },
+            {
+              "name": "sourceLocationId"
+            }
+          ]
+        },
+        "smsConsentInput": {
+          "inputFields": [
+            {
+              "name": "marketingOptInLevel"
+            },
+            {
+              "name": "marketingState"
+            },
+            {
+              "name": "consentUpdatedAt"
+            },
+            {
+              "name": "sourceLocationId"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "operationName": "CustomerInputInlineConsentCreate",
+    "query": "#graphql\n  mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "email": "hermes-inline-consent-1777416029686@example.com",
+        "phone": "+14156029686",
+        "firstName": "Hermes",
+        "lastName": "InlineConsent",
+        "tags": ["parity", "inline-consent-1777416029686"],
+        "emailMarketingConsent": {
+          "marketingState": "SUBSCRIBED",
+          "marketingOptInLevel": "SINGLE_OPT_IN",
+          "consentUpdatedAt": "2026-04-25T01:00:00Z"
+        },
+        "smsMarketingConsent": {
+          "marketingState": "SUBSCRIBED",
+          "marketingOptInLevel": "SINGLE_OPT_IN",
+          "consentUpdatedAt": "2026-04-25T01:05:00Z"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10551233184050",
+            "email": "hermes-inline-consent-1777416029686@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-inline-consent-1777416029686@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14156029686",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            },
+            "emailMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:05:00Z",
+              "consentCollectedFrom": "OTHER"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "operationName": "CustomerInputInlineConsentRead",
+      "query": "#graphql\n  query CustomerInputInlineConsentRead($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n    }\n    customerByIdentifier(identifier: $identifier) {\n      #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n    }\n    customers(first: 5, query: $query, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10551233184050",
+        "identifier": {
+          "id": "gid://shopify/Customer/10551233184050"
+        },
+        "query": "email:hermes-inline-consent-1777416029686@example.com"
+      },
+      "response": {
+        "data": {
+          "customer": {
+            "id": "gid://shopify/Customer/10551233184050",
+            "email": "hermes-inline-consent-1777416029686@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-inline-consent-1777416029686@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14156029686",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            },
+            "emailMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:05:00Z",
+              "consentCollectedFrom": "OTHER"
+            }
+          },
+          "customerByIdentifier": {
+            "id": "gid://shopify/Customer/10551233184050",
+            "email": "hermes-inline-consent-1777416029686@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-inline-consent-1777416029686@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14156029686",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            },
+            "emailMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:05:00Z",
+              "consentCollectedFrom": "OTHER"
+            }
+          },
+          "customers": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "updateEmailConsent": {
+      "operationName": "CustomerInputInlineConsentUpdate",
+      "query": "#graphql\n  mutation CustomerInputInlineConsentUpdate($input: CustomerInput!) {\n    customerUpdate(input: $input) {\n      customer {\n        #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10551233184050",
+          "emailMarketingConsent": {
+            "marketingState": "UNSUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": "2026-04-25T02:00:00Z"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerUpdate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["emailMarketingConsent"],
+                "message": "To update emailMarketingConsent, please use the customerEmailMarketingConsentUpdate Mutation instead"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateSmsConsent": {
+      "operationName": "CustomerInputInlineConsentUpdate",
+      "query": "#graphql\n  mutation CustomerInputInlineConsentUpdate($input: CustomerInput!) {\n    customerUpdate(input: $input) {\n      customer {\n        #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10551233184050",
+          "smsMarketingConsent": {
+            "marketingState": "UNSUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": "2026-04-25T02:05:00Z"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerUpdate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["smsMarketingConsent"],
+                "message": "To update smsMarketingConsent, please use the customerSmsMarketingConsentUpdate Mutation instead"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "downstreamAfterRejectedUpdates": {
+      "operationName": "CustomerInputInlineConsentRead",
+      "query": "#graphql\n  query CustomerInputInlineConsentRead($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!) {\n    customer(id: $id) {\n      #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n    }\n    customerByIdentifier(identifier: $identifier) {\n      #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n    }\n    customers(first: 5, query: $query, sortKey: UPDATED_AT, reverse: true) {\n      nodes {\n        #graphql\n  id\n  email\n  defaultEmailAddress {\n    emailAddress\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n  }\n  defaultPhoneNumber {\n    phoneNumber\n    marketingState\n    marketingOptInLevel\n    marketingUpdatedAt\n    marketingCollectedFrom\n  }\n  emailMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n  }\n  smsMarketingConsent {\n    marketingState\n    marketingOptInLevel\n    consentUpdatedAt\n    consentCollectedFrom\n  }\n\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Customer/10551233184050",
+        "identifier": {
+          "id": "gid://shopify/Customer/10551233184050"
+        },
+        "query": "email:hermes-inline-consent-1777416029686@example.com"
+      },
+      "response": {
+        "data": {
+          "customer": {
+            "id": "gid://shopify/Customer/10551233184050",
+            "email": "hermes-inline-consent-1777416029686@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-inline-consent-1777416029686@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14156029686",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            },
+            "emailMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:05:00Z",
+              "consentCollectedFrom": "OTHER"
+            }
+          },
+          "customerByIdentifier": {
+            "id": "gid://shopify/Customer/10551233184050",
+            "email": "hermes-inline-consent-1777416029686@example.com",
+            "defaultEmailAddress": {
+              "emailAddress": "hermes-inline-consent-1777416029686@example.com",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "defaultPhoneNumber": {
+              "phoneNumber": "+14156029686",
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "marketingUpdatedAt": "2026-04-25T01:05:00Z",
+              "marketingCollectedFrom": "OTHER"
+            },
+            "emailMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:00:00Z"
+            },
+            "smsMarketingConsent": {
+              "marketingState": "SUBSCRIBED",
+              "marketingOptInLevel": "SINGLE_OPT_IN",
+              "consentUpdatedAt": "2026-04-25T01:05:00Z",
+              "consentCollectedFrom": "OTHER"
+            }
+          },
+          "customers": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 17,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Customer/10551233184050": {
+      "operationName": "CustomerInputInlineConsentDelete",
+      "query": "#graphql\n  mutation CustomerInputInlineConsentDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10551233184050"
+        }
+      },
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10551233184050",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "status": 200
+    }
+  }
+}

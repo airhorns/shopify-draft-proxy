@@ -3,16 +3,14 @@
   "operationNames": ["tagsRemove"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-remove-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/tagsRemove-parity-plan.graphql",
     "variablesPath": "config/parity-requests/products/tagsRemove-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live capture recorded for `tagsRemove`, and the staged runtime now mirrors Shopify's immediate tag-index lag for hydrated products by dropping removed hydrated/base tags from search immediately while leaving newly added-only tags out of `products(query: \"tag:...\")` / `productsCount(query: \"tag:...\")` until rehydration. This scenario now executes strict proxy-vs-Shopify comparison for mutation data and the immediate downstream remaining/removed tag-filtered read.",
+  "notes": "HAR-427 refreshed live capture for `tagsRemove` on harry-test-heelo.myshopify.com, and the staged runtime mirrors Shopify's immediate tag-index lag for hydrated products by preserving the pre-mutation searchable tag set while direct product reads serialize the current tags. This scenario executes strict proxy-vs-Shopify comparison for mutation data and the immediate downstream remaining/removed tag-filtered read.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

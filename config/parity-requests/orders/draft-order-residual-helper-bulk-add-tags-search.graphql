@@ -1,0 +1,12 @@
+mutation DraftOrderBulkAddTagsBySearch($search: String, $tags: [String!]!) {
+  draftOrderBulkAddTags(search: $search, tags: $tags) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

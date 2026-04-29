@@ -1,0 +1,125 @@
+{
+  "capturedAt": "2026-04-29T01:51:53.696Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "H458-mojeg6pr",
+  "notes": [
+    "HAR-458 capture for saved-search query grammar normalization.",
+    "savedSearchCreate preserved the submitted single-quoted grouped/OR query in the mutation payload.",
+    "SavedSearch searchTerms normalized quoted field values to double quotes and kept the grouped/OR expression as searchTerms.",
+    "The top-level negated field term -vendor:Archived was extracted as filters[{ key: \"vendor_not\", value: \"Archived\" }].",
+    "Downstream productSavedSearches normalized the stored query to double-quoted grouped terms plus the negated vendor filter.",
+    "The fixture includes cleanup delete evidence for the created saved search."
+  ],
+  "savedSearchCreateProductQueryGrammar": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "H458 Grammar H458-mojeg6pr",
+        "query": "title:'H458-mojeg6pr Alpha' OR (status:ACTIVE tag:'H458-mojeg6pr-tag') -vendor:Archived"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4003179266354",
+            "legacyResourceId": "4003179266354",
+            "name": "H458 Grammar H458-mojeg6pr",
+            "query": "title:'H458-mojeg6pr Alpha' OR (status:ACTIVE tag:'H458-mojeg6pr-tag') -vendor:Archived",
+            "resourceType": "PRODUCT",
+            "searchTerms": "title:\"H458-mojeg6pr Alpha\" OR (status:ACTIVE tag:\"H458-mojeg6pr-tag\")",
+            "filters": [
+              {
+                "key": "vendor_not",
+                "value": "Archived"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-read-after-create.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4003179266354",
+              "name": "H458 Grammar H458-mojeg6pr",
+              "query": "title:\"H458-mojeg6pr Alpha\" OR (status:ACTIVE tag:\"H458-mojeg6pr-tag\") -vendor:Archived",
+              "resourceType": "PRODUCT",
+              "searchTerms": "title:\"H458-mojeg6pr Alpha\" OR (status:ACTIVE tag:\"H458-mojeg6pr-tag\")",
+              "filters": [
+                {
+                  "key": "vendor_not",
+                  "value": "Archived"
+                }
+              ]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDAzMTc5MjY2MzU0LCJsYXN0X3ZhbHVlIjoiNDAwMzE3OTI2NjM1NCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDAzMTc5MjY2MzU0LCJsYXN0X3ZhbHVlIjoiNDAwMzE3OTI2NjM1NCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4003179266354"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4003179266354",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

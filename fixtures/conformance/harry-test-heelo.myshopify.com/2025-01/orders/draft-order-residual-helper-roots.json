@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-26T02:35:15.383Z",
+  "capturedAt": "2026-04-29T02:07:47.225Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setup": {
@@ -7,7 +7,7 @@
       "document": "#graphql\n  mutation CreateDraftOrder($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        status\n        ready\n        email\n        tags\n        createdAt\n        updatedAt\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            custom\n            requiresShipping\n            taxable\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            discountedTotalSet { shopMoney { amount currencyCode } }\n            totalDiscountSet { shopMoney { amount currencyCode } }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "input": {
-          "email": "har-318-live-1777170913052@example.com",
+          "email": "har-318-live-1777428464592@example.com",
           "note": "HAR-318 residual helper capture",
           "tags": ["har-318-base"],
           "lineItems": [
@@ -25,14 +25,14 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/1249089880370",
-              "name": "#D62",
+              "id": "gid://shopify/DraftOrder/1249502363954",
+              "name": "#D71",
               "status": "OPEN",
               "ready": true,
-              "email": "har-318-live-1777170913052@example.com",
+              "email": "har-318-live-1777428464592@example.com",
               "tags": ["har-318-base"],
-              "createdAt": "2026-04-26T02:35:13Z",
-              "updatedAt": "2026-04-26T02:35:13Z",
+              "createdAt": "2026-04-29T02:07:44Z",
+              "updatedAt": "2026-04-29T02:07:44Z",
               "subtotalPriceSet": {
                 "shopMoney": {
                   "amount": "3.5",
@@ -60,7 +60,7 @@
               "lineItems": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/DraftOrderLineItem/58580594065714",
+                    "id": "gid://shopify/DraftOrderLineItem/58581847998770",
                     "title": "HAR-318 custom line",
                     "name": "HAR-318 custom line",
                     "quantity": 1,
@@ -116,7 +116,7 @@
     "document": "#graphql\n  mutation CalculateDraftOrder($input: DraftOrderInput!) {\n    draftOrderCalculate(input: $input) {\n      calculatedDraftOrder {\n        currencyCode\n        totalQuantityOfLineItems\n        subtotalPriceSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        totalShippingPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        lineItems {\n          title\n          quantity\n          custom\n          originalUnitPriceSet { shopMoney { amount currencyCode } }\n          originalTotalSet { shopMoney { amount currencyCode } }\n          discountedTotalSet { shopMoney { amount currencyCode } }\n          totalDiscountSet { shopMoney { amount currencyCode } }\n        }\n        availableShippingRates { handle title price { amount currencyCode } }\n      }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
       "input": {
-        "email": "har-318-live-1777170913052@example.com",
+        "email": "har-318-live-1777428464592@example.com",
         "note": "HAR-318 residual helper capture",
         "tags": ["har-318-base"],
         "lineItems": [
@@ -323,7 +323,7 @@
   "draftOrderInvoicePreview": {
     "document": "#graphql\n  mutation DraftOrderInvoicePreview($id: ID!, $email: EmailInput) {\n    draftOrderInvoicePreview(id: $id, email: $email) {\n      previewSubject\n      previewHtml\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "id": "gid://shopify/DraftOrder/1249089880370",
+      "id": "gid://shopify/DraftOrder/1249502363954",
       "email": {
         "subject": "HAR-318 custom subject",
         "customMessage": "Custom note"
@@ -333,7 +333,7 @@
       "data": {
         "draftOrderInvoicePreview": {
           "previewSubject": "HAR-318 custom subject",
-          "previewHtml": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n  <head>\r\n  <title>\r\n  \r\n    Complete your purchase\r\n  \r\n</title>\r\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width\">\r\n  \r\n  \r\n<style>body {\r\nmargin: 0;\r\n}\r\nh1 a:hover {\r\nfont-size: 30px; color: #333;\r\n}\r\nh1 a:active {\r\nfont-size: 30px; color: #333;\r\n}\r\nh1 a:visited {\r\nfont-size: 30px; color: #333;\r\n}\r\na:hover {\r\ntext-decoration: none;\r\n}\r\na:active {\r\ntext-decoration: none;\r\n}\r\na:visited {\r\ntext-decoration: none;\r\n}\r\n.button__text:hover {\r\ncolor: #fff; text-decoration: none;\r\n}\r\n.button__text:active {\r\ncolor: #fff; text-decoration: none;\r\n}\r\n.button__text:visited {\r\ncolor: #fff; text-decoration: none;\r\n}\r\na:hover {\r\ncolor: #1990C6;\r\n}\r\na:active {\r\ncolor: #1990C6;\r\n}\r\na:visited {\r\ncolor: #1990C6;\r\n}\r\n@media (max-width: 600px) {\r\n  .container {\r\n    width: 94% !important;\r\n  }\r\n  .main-action-cell {\r\n    float: none !important; margin-right: 0 !important;\r\n  }\r\n  .actions-buttons .actions-buttons__cell {\r\n    display: block !important; width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; padding-bottom: 10px !important;\r\n  }\r\n  .actions-buttons tr {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell--separator {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--primary {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--shop-app {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--shop-app {\r\n    mso-margin-top-alt: 15px !important;\r\n  }\r\n  .actions-buttons .button__cell--separator {\r\n    height: 15px !important; mso-padding-top-alt: 15px !important; mso-padding-left-alt: 0 !important;\r\n  }\r\n  .actions-buttons .button__text--shop-app {\r\n    white-space: normal; line-height: 1.5; mso-line-height-rule: exactly;\r\n  }\r\n  .actions-buttons .button__shop-logo {\r\n    padding-bottom: 1px !important;\r\n  }\r\n  .secondary-action-cell {\r\n    text-align: center; width: 100%;\r\n  }\r\n  .header {\r\n    margin-top: 20px !important; margin-bottom: 2px !important;\r\n  }\r\n  .shop-name__cell {\r\n    display: block;\r\n  }\r\n  .order-number__cell {\r\n    display: block; text-align: left !important; margin-top: 20px;\r\n  }\r\n  .po-number__cell {\r\n    display: block; text-align: left !important; margin-top: 5px;\r\n  }\r\n  .button {\r\n    width: 100%;\r\n  }\r\n  .or {\r\n    margin-right: 0 !important;\r\n  }\r\n  .apple-wallet-button {\r\n    text-align: center;\r\n  }\r\n  .customer-info__item {\r\n    display: block; width: 100% !important;\r\n  }\r\n  .spacer {\r\n    display: none;\r\n  }\r\n  .subtotal-spacer {\r\n    display: none;\r\n  }\r\n  .return__mobile-padding {\r\n    margin-top: 19px; padding-top: 19px;\r\n  }\r\n}\r\n</style>\r\n</head>\r\n\r\n  <body style=\"margin: 0;\">\r\n    <table class=\"body\" style=\"height: 100% !important; width: 100% !important; border-spacing: 0; border-collapse: collapse;\">\r\n      <tr>\r\n        <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n          <table class=\"header row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin: 40px 0 20px;\">\r\n  <tr>\r\n    <td class=\"header__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <center>\r\n\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n\r\n              <table class=\"row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n                <tr>\r\n                  <td class=\"shop-name__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n                      <h1 class=\"shop-name__text\" style=\"font-weight: normal; font-size: 30px; color: #333; margin: 0;\">\r\n                        <a href=\"https://harry-test-heelo.myshopify.com\" style=\"font-size: 30px; color: #333; text-decoration: none;\">harry-test-heelo</a>\r\n                      </h1>\r\n                  </td>\r\n\r\n                    <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n                      <table class=\"order-po-number__container\" style=\"border-spacing: 0; border-collapse: collapse; margin-left: auto; margin-right: 0;\">\r\n                        <tr>\r\n                          <td class=\"order-number__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; text-transform: uppercase; font-size: 14px; color: #999;' align=\"right\">\r\n                            <span class=\"order-number__text\" style=\"font-size: 16px;\">\r\n                              Invoice #D62\r\n                            </span>\r\n                          </td>\r\n                        </tr>\r\n                      </table>\r\n                    </td>\r\n                </tr>\r\n              </table>\r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          <table class=\"row content\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n  <tr>\r\n    <td class=\"content__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding-bottom: 40px; border-width: 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n            <h2 style=\"font-weight: normal; font-size: 24px; margin: 0 0 10px;\">\r\n  \r\n    Complete your purchase\r\n  \r\n</h2>\r\n            \r\n              <p style=\"color: #777; line-height: 150%; font-size: 16px; margin: 0;\">Custom note</p>\r\n            \r\n            \r\n              <table class=\"row actions\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px;\">\r\n  <tr>\r\n    <td class=\"empty-line\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; line-height: 0em;'> </td>\r\n  </tr>\r\n  <tr>\r\n    <td class=\"actions__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n        <tr>\r\n          <td valign=\"middle\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n            <table class=\"button main-action-cell\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n              <tr>\r\n                <td class=\"button__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; border-radius: 4px;' align=\"center\" bgcolor=\"#1990C6\"><a href=\"https://harry-test-heelo.myshopify.com/92891250994/invoices/4984a99ecbc5277d858ef6ba0be9a468\" class=\"button__text\" style=\"font-size: 16px; text-decoration: none; display: block; text-align: center; color: #fff; padding: 20px 25px;\">Complete your purchase</a></td>\r\n              </tr>\r\n            </table>\r\n          </td>\r\n          <td valign=\"middle\" style='padding-left: 15px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n            \r\n    <table class=\"link secondary-action-cell\" style=\"margin-top: 0; vertical-align: middle; border-spacing: 0; border-collapse: collapse;\">\r\n      <tr>\r\n        <td class=\"link__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; border-radius: 4px;' align=\"center\">or <a href=\"https://harry-test-heelo.myshopify.com\" style=\"font-size: 16px; text-decoration: none; color: #1990C6;\">Visit our store</a>\r\n</td>\r\n      </tr>\r\n    </table>\r\n\r\n\r\n          </td>\r\n        </tr>\r\n      </table>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n            \r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          <table class=\"row section\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n  <tr>\r\n    <td class=\"section__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 40px 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              <h3 style=\"font-weight: normal; font-size: 20px; margin: 0 0 25px;\">Order summary</h3>\r\n            </td>\r\n          </tr>\r\n        </table>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n            \r\n  <table class=\"row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n    \r\n      \r\n\r\n\r\n\r\n  \r\n  \r\n  \r\n  \r\n\r\n  <tr class=\"order-list__item\" style=\"width: 100%; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: none;\">\r\n    <td class=\"order-list__item__cell \" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table height=\"100%\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n        <td style='padding-bottom: 0px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n          <table height=\"100%\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n            <tr valign=\"top\">\r\n              \r\n                <td class=\"order-list__image-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;' valign=\"middle\">\r\n                  \r\n                    <div class=\"order-list__no-image-cell\" style=\"border-radius: 8px; margin-right: 15px; height: 60px; width: 60px; border: 1px solid #e5e5e5;\">\r\n                      <img src=\"https://cdn.shopify.com/shopifycloud/shopify/assets/themes_support/notifications/no-image-f4b31b80de3984c0c3892c3c35d946963547e11331187e92cfb4e95de761b69b.png\" align=\"left\" width=\"60\" height=\"60\" class=\"order-list__no-product-image\" style=\"height: 30px; width: 30px; padding: 15px;\">\r\n                    </div>\r\n                  \r\n                </td>\r\n              \r\n            </tr>\r\n            \r\n          </table>\r\n        </td>\r\n\r\n        <td class=\"order-list__product-description-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; width: 100%;'>\r\n          \r\n          \r\n\r\n          <span class=\"order-list__item-title\" style=\"font-size: 16px; font-weight: 600; line-height: 1.4; color: #555;\">HAR-318 custom line × 1</span><br>\r\n\r\n          \r\n            <span class=\"order-list__item-variant\" style=\"font-size: 14px; color: #999; font-weight: 400;\"></span><br>\r\n          \r\n\r\n          \r\n            \r\n          \r\n\r\n            \r\n\r\n          \r\n\r\n          \r\n\r\n          \r\n            \r\n          \r\n        </td>\r\n          \r\n            <td class=\"order-list__price-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; white-space: nowrap;'>\r\n          \r\n          \r\n            <p class=\"order-list__item-price\" style=\"color: #555; line-height: 150%; font-size: 16px; font-weight: 600; margin: 4px 0 0 15px;\" align=\"right\">\r\n              \r\n                $3.50\r\n                \r\n              \r\n            </p>\r\n          </td>\r\n        \r\n      </table>\r\n    </td>\r\n  </tr>\r\n\r\n\r\n\r\n    \r\n  </table>\r\n\r\n            <table class=\"row subtotal-lines\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 15px; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n  <tr>\r\n    <td class=\"subtotal-spacer\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; width: 40%;'></td>\r\n    <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table class=\"row subtotal-table\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px;\">\r\n\r\n        \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Subtotal</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$3.50</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n\r\n\r\n\r\n\r\n        \r\n          \r\n  \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Shipping</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$0.00</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n\r\n        \r\n\r\n        \r\n\r\n        \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Estimated taxes</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$0.00</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n        \r\n      </table>\r\n\r\n      <table class=\"row subtotal-table subtotal-table--total\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px; border-top-width: 2px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n      \r\n        \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 20px 0 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Total</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 20px 0 0;' align=\"right\">\r\n      <strong style=\"font-size: 24px; color: #555;\">$3.50 CAD</strong>\r\n  </td>\r\n</tr>\r\n\r\n      \r\n      </table>\r\n\r\n      \r\n\r\n      \r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          \r\n\r\n          <table class=\"row footer\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n  <tr>\r\n    <td class=\"footer__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 35px 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n              <p class=\"disclaimer__subtext\" style=\"color: #999; line-height: 150%; font-size: 14px; margin: 0;\">If you have any questions, reply to this email or contact us at <a href=\"mailto:harry@harry.me\" style=\"font-size: 14px; text-decoration: none; color: #1990C6;\">harry@harry.me</a></p>\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n<img src=\"https://cdn.shopify.com/shopifycloud/shopify/assets/themes_support/notifications/spacer-1a26dfd5c56b21ac888f9f1610ef81191b571603cb207c6c0f564148473cab3c.png\" class=\"spacer\" height=\"1\" style=\"min-width: 600px; height: 0;\">\r\n\r\n        </td>\r\n      </tr>\r\n    </table>\r\n  </body>\r\n</html>\r\n",
+          "previewHtml": "<!DOCTYPE html>\r\n<html lang=\"en\">\r\n  <head>\r\n  <title>\r\n  \r\n    Complete your purchase\r\n  \r\n</title>\r\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\r\n  <meta name=\"viewport\" content=\"width=device-width\">\r\n  \r\n  \r\n<style>body {\r\nmargin: 0;\r\n}\r\nh1 a:hover {\r\nfont-size: 30px; color: #333;\r\n}\r\nh1 a:active {\r\nfont-size: 30px; color: #333;\r\n}\r\nh1 a:visited {\r\nfont-size: 30px; color: #333;\r\n}\r\na:hover {\r\ntext-decoration: none;\r\n}\r\na:active {\r\ntext-decoration: none;\r\n}\r\na:visited {\r\ntext-decoration: none;\r\n}\r\n.button__text:hover {\r\ncolor: #fff; text-decoration: none;\r\n}\r\n.button__text:active {\r\ncolor: #fff; text-decoration: none;\r\n}\r\n.button__text:visited {\r\ncolor: #fff; text-decoration: none;\r\n}\r\na:hover {\r\ncolor: #1990C6;\r\n}\r\na:active {\r\ncolor: #1990C6;\r\n}\r\na:visited {\r\ncolor: #1990C6;\r\n}\r\n@media (max-width: 600px) {\r\n  .container {\r\n    width: 94% !important;\r\n  }\r\n  .main-action-cell {\r\n    float: none !important; margin-right: 0 !important;\r\n  }\r\n  .actions-buttons .actions-buttons__cell {\r\n    display: block !important; width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; padding-bottom: 10px !important;\r\n  }\r\n  .actions-buttons tr {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell--separator {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--primary {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--shop-app {\r\n    width: 100% !important; display: block !important;\r\n  }\r\n  .actions-buttons .button__cell.button__cell--shop-app {\r\n    mso-margin-top-alt: 15px !important;\r\n  }\r\n  .actions-buttons .button__cell--separator {\r\n    height: 15px !important; mso-padding-top-alt: 15px !important; mso-padding-left-alt: 0 !important;\r\n  }\r\n  .actions-buttons .button__text--shop-app {\r\n    white-space: normal; line-height: 1.5; mso-line-height-rule: exactly;\r\n  }\r\n  .actions-buttons .button__shop-logo {\r\n    padding-bottom: 1px !important;\r\n  }\r\n  .secondary-action-cell {\r\n    text-align: center; width: 100%;\r\n  }\r\n  .header {\r\n    margin-top: 20px !important; margin-bottom: 2px !important;\r\n  }\r\n  .shop-name__cell {\r\n    display: block;\r\n  }\r\n  .order-number__cell {\r\n    display: block; text-align: left !important; margin-top: 20px;\r\n  }\r\n  .po-number__cell {\r\n    display: block; text-align: left !important; margin-top: 5px;\r\n  }\r\n  .button {\r\n    width: 100%;\r\n  }\r\n  .or {\r\n    margin-right: 0 !important;\r\n  }\r\n  .apple-wallet-button {\r\n    text-align: center;\r\n  }\r\n  .customer-info__item {\r\n    display: block; width: 100% !important;\r\n  }\r\n  .spacer {\r\n    display: none;\r\n  }\r\n  .subtotal-spacer {\r\n    display: none;\r\n  }\r\n  .return__mobile-padding {\r\n    margin-top: 19px; padding-top: 19px;\r\n  }\r\n}\r\n</style>\r\n</head>\r\n\r\n  <body style=\"margin: 0;\">\r\n    <table class=\"body\" style=\"height: 100% !important; width: 100% !important; border-spacing: 0; border-collapse: collapse;\">\r\n      <tr>\r\n        <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n          <table class=\"header row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin: 40px 0 20px;\">\r\n  <tr>\r\n    <td class=\"header__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <center>\r\n\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n\r\n              <table class=\"row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n                <tr>\r\n                  <td class=\"shop-name__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n                      <h1 class=\"shop-name__text\" style=\"font-weight: normal; font-size: 30px; color: #333; margin: 0;\">\r\n                        <a href=\"https://harry-test-heelo.myshopify.com\" style=\"font-size: 30px; color: #333; text-decoration: none;\">harry-test-heelo</a>\r\n                      </h1>\r\n                  </td>\r\n\r\n                    <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n                      <table class=\"order-po-number__container\" style=\"border-spacing: 0; border-collapse: collapse; margin-left: auto; margin-right: 0;\">\r\n                        <tr>\r\n                          <td class=\"order-number__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; text-transform: uppercase; font-size: 14px; color: #999;' align=\"right\">\r\n                            <span class=\"order-number__text\" style=\"font-size: 16px;\">\r\n                              Invoice #D71\r\n                            </span>\r\n                          </td>\r\n                        </tr>\r\n                      </table>\r\n                    </td>\r\n                </tr>\r\n              </table>\r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          <table class=\"row content\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n  <tr>\r\n    <td class=\"content__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding-bottom: 40px; border-width: 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n            <h2 style=\"font-weight: normal; font-size: 24px; margin: 0 0 10px;\">\r\n  \r\n    Complete your purchase\r\n  \r\n</h2>\r\n            \r\n              <p style=\"color: #777; line-height: 150%; font-size: 16px; margin: 0;\">Custom note</p>\r\n            \r\n            \r\n              <table class=\"row actions\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px;\">\r\n  <tr>\r\n    <td class=\"empty-line\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; line-height: 0em;'> </td>\r\n  </tr>\r\n  <tr>\r\n    <td class=\"actions__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n        <tr>\r\n          <td valign=\"middle\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n            <table class=\"button main-action-cell\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n              <tr>\r\n                <td class=\"button__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; border-radius: 4px;' align=\"center\" bgcolor=\"#1990C6\"><a href=\"https://harry-test-heelo.myshopify.com/92891250994/invoices/141b7a44cc6881389bcc4b96375e764e\" class=\"button__text\" style=\"font-size: 16px; text-decoration: none; display: block; text-align: center; color: #fff; padding: 20px 25px;\">Complete your purchase</a></td>\r\n              </tr>\r\n            </table>\r\n          </td>\r\n          <td valign=\"middle\" style='padding-left: 15px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n            \r\n    <table class=\"link secondary-action-cell\" style=\"margin-top: 0; vertical-align: middle; border-spacing: 0; border-collapse: collapse;\">\r\n      <tr>\r\n        <td class=\"link__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; border-radius: 4px;' align=\"center\">or <a href=\"https://harry-test-heelo.myshopify.com\" style=\"font-size: 16px; text-decoration: none; color: #1990C6;\">Visit our store</a>\r\n</td>\r\n      </tr>\r\n    </table>\r\n\r\n\r\n          </td>\r\n        </tr>\r\n      </table>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n            \r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          <table class=\"row section\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n  <tr>\r\n    <td class=\"section__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 40px 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              <h3 style=\"font-weight: normal; font-size: 20px; margin: 0 0 25px;\">Order summary</h3>\r\n            </td>\r\n          </tr>\r\n        </table>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n            \r\n  <table class=\"row\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse;\">\r\n    \r\n      \r\n\r\n\r\n\r\n  \r\n  \r\n  \r\n  \r\n\r\n  <tr class=\"order-list__item\" style=\"width: 100%; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: none;\">\r\n    <td class=\"order-list__item__cell \" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table height=\"100%\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n        <td style='padding-bottom: 0px; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n          <table height=\"100%\" style=\"border-spacing: 0; border-collapse: collapse;\">\r\n            <tr valign=\"top\">\r\n              \r\n                <td class=\"order-list__image-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;' valign=\"middle\">\r\n                  \r\n                    <div class=\"order-list__no-image-cell\" style=\"border-radius: 8px; margin-right: 15px; height: 60px; width: 60px; border: 1px solid #e5e5e5;\">\r\n                      <img src=\"https://cdn.shopify.com/shopifycloud/shopify/assets/themes_support/notifications/no-image-f4b31b80de3984c0c3892c3c35d946963547e11331187e92cfb4e95de761b69b.png\" align=\"left\" width=\"60\" height=\"60\" class=\"order-list__no-product-image\" style=\"height: 30px; width: 30px; padding: 15px;\">\r\n                    </div>\r\n                  \r\n                </td>\r\n              \r\n            </tr>\r\n            \r\n          </table>\r\n        </td>\r\n\r\n        <td class=\"order-list__product-description-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; width: 100%;'>\r\n          \r\n          \r\n\r\n          <span class=\"order-list__item-title\" style=\"font-size: 16px; font-weight: 600; line-height: 1.4; color: #555;\">HAR-318 custom line × 1</span><br>\r\n\r\n          \r\n            <span class=\"order-list__item-variant\" style=\"font-size: 14px; color: #999; font-weight: 400;\"></span><br>\r\n          \r\n\r\n          \r\n            \r\n          \r\n\r\n            \r\n\r\n          \r\n\r\n          \r\n\r\n          \r\n            \r\n          \r\n        </td>\r\n          \r\n            <td class=\"order-list__price-cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; white-space: nowrap;'>\r\n          \r\n          \r\n            <p class=\"order-list__item-price\" style=\"color: #555; line-height: 150%; font-size: 16px; font-weight: 600; margin: 4px 0 0 15px;\" align=\"right\">\r\n              \r\n                $3.50\r\n                \r\n              \r\n            </p>\r\n          </td>\r\n        \r\n      </table>\r\n    </td>\r\n  </tr>\r\n\r\n\r\n\r\n    \r\n  </table>\r\n\r\n            <table class=\"row subtotal-lines\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 15px; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n  <tr>\r\n    <td class=\"subtotal-spacer\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; width: 40%;'></td>\r\n    <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n      <table class=\"row subtotal-table\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px;\">\r\n\r\n        \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Subtotal</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$3.50</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n\r\n\r\n\r\n\r\n        \r\n          \r\n  \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Shipping</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$0.00</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n\r\n        \r\n\r\n        \r\n\r\n        \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Estimated taxes</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 2px 0;' align=\"right\">\r\n      <strong style=\"font-size: 16px; color: #555;\">$0.00</strong>\r\n  </td>\r\n</tr>\r\n\r\n\r\n        \r\n      </table>\r\n\r\n      <table class=\"row subtotal-table subtotal-table--total\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; margin-top: 20px; border-top-width: 2px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n      \r\n        \r\n<tr class=\"subtotal-line\">\r\n  <td class=\"subtotal-line__title\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 20px 0 0;'>\r\n    <p style=\"color: #777; line-height: 1.2em; font-size: 16px; margin: 4px 0 0;\">\r\n      <span style=\"font-size: 16px;\">Total</span>\r\n    </p>\r\n  </td>\r\n  <td class=\"subtotal-line__value\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 20px 0 0;' align=\"right\">\r\n      <strong style=\"font-size: 24px; color: #555;\">$3.50 CAD</strong>\r\n  </td>\r\n</tr>\r\n\r\n      \r\n      </table>\r\n\r\n      \r\n\r\n      \r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n          \r\n\r\n          <table class=\"row footer\" style=\"width: 100%; border-spacing: 0; border-collapse: collapse; border-top-width: 1px; border-top-color: #e5e5e5; border-top-style: solid;\">\r\n  <tr>\r\n    <td class=\"footer__cell\" style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif; padding: 35px 0;'>\r\n      <center>\r\n        <table class=\"container\" style=\"width: 560px; text-align: left; border-spacing: 0; border-collapse: collapse; margin: 0 auto;\">\r\n          <tr>\r\n            <td style='font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Roboto\", \"Oxygen\", \"Ubuntu\", \"Cantarell\", \"Fira Sans\", \"Droid Sans\", \"Helvetica Neue\", sans-serif;'>\r\n              \r\n              <p class=\"disclaimer__subtext\" style=\"color: #999; line-height: 150%; font-size: 14px; margin: 0;\">If you have any questions, reply to this email or contact us at <a href=\"mailto:harry@harry.me\" style=\"font-size: 14px; text-decoration: none; color: #1990C6;\">harry@harry.me</a></p>\r\n            </td>\r\n          </tr>\r\n        </table>\r\n      </center>\r\n    </td>\r\n  </tr>\r\n</table>\r\n\r\n<img src=\"https://cdn.shopify.com/shopifycloud/shopify/assets/themes_support/notifications/spacer-1a26dfd5c56b21ac888f9f1610ef81191b571603cb207c6c0f564148473cab3c.png\" class=\"spacer\" height=\"1\" style=\"min-width: 600px; height: 0;\">\r\n\r\n        </td>\r\n      </tr>\r\n    </table>\r\n  </body>\r\n</html>\r\n",
           "userErrors": []
         }
       },
@@ -353,14 +353,14 @@
   "draftOrderBulkAddTags": {
     "document": "#graphql\n  mutation DraftOrderBulkAddTags($ids: [ID!], $tags: [String!]!) {\n    draftOrderBulkAddTags(ids: $ids, tags: $tags) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "ids": ["gid://shopify/DraftOrder/1249089880370"],
+      "ids": ["gid://shopify/DraftOrder/1249502363954"],
       "tags": ["har-318-added"]
     },
     "response": {
       "data": {
         "draftOrderBulkAddTags": {
           "job": {
-            "id": "gid://shopify/Job/40b6f4c4-fa1d-4105-a25c-bab2ff2e7676",
+            "id": "gid://shopify/Job/559b3637-a954-4142-bb27-0cbfc5e7bccc",
             "done": false
           },
           "userErrors": []
@@ -381,13 +381,13 @@
     "downstreamRead": {
       "document": "#graphql\n  query ReadDraftOrder($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      tags\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1249089880370"
+        "id": "gid://shopify/DraftOrder/1249502363954"
       },
       "response": {
         "data": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1249089880370",
-            "tags": ["har-318-base"]
+            "id": "gid://shopify/DraftOrder/1249502363954",
+            "tags": ["har-318-added", "har-318-base"]
           }
         },
         "extensions": {
@@ -404,17 +404,17 @@
       }
     }
   },
-  "draftOrderBulkRemoveTags": {
-    "document": "#graphql\n  mutation DraftOrderBulkRemoveTags($ids: [ID!], $tags: [String!]!) {\n    draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
+  "draftOrderBulkAddTagsBySearch": {
+    "document": "#graphql\n  mutation DraftOrderBulkAddTagsBySearch($search: String, $tags: [String!]!) {\n    draftOrderBulkAddTags(search: $search, tags: $tags) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "ids": ["gid://shopify/DraftOrder/1249089880370"],
-      "tags": ["har-318-base"]
+      "search": "tag:har-318-base",
+      "tags": ["har-318-search-added"]
     },
     "response": {
       "data": {
-        "draftOrderBulkRemoveTags": {
+        "draftOrderBulkAddTags": {
           "job": {
-            "id": "gid://shopify/Job/fd4ce817-5e2c-4b3f-9227-2969406bc39e",
+            "id": "gid://shopify/Job/26467a5f-3e27-4907-86d7-a9b7b697068c",
             "done": false
           },
           "userErrors": []
@@ -435,12 +435,66 @@
     "downstreamRead": {
       "document": "#graphql\n  query ReadDraftOrder($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      tags\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1249089880370"
+        "id": "gid://shopify/DraftOrder/1249502363954"
       },
       "response": {
         "data": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1249089880370",
+            "id": "gid://shopify/DraftOrder/1249502363954",
+            "tags": ["har-318-base"]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "draftOrderBulkRemoveTags": {
+    "document": "#graphql\n  mutation DraftOrderBulkRemoveTags($ids: [ID!], $tags: [String!]!) {\n    draftOrderBulkRemoveTags(ids: $ids, tags: $tags) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "ids": ["gid://shopify/DraftOrder/1249502363954"],
+      "tags": ["har-318-base"]
+    },
+    "response": {
+      "data": {
+        "draftOrderBulkRemoveTags": {
+          "job": {
+            "id": "gid://shopify/Job/4e22c73a-22a7-44d2-97cc-4c59c2e4dd98",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "document": "#graphql\n  query ReadDraftOrder($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      tags\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249502363954"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1249502363954",
             "tags": ["har-318-added"]
           }
         },
@@ -450,7 +504,61 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1999,
+              "currentlyAvailable": 1998,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "draftOrderBulkRemoveTagsBySearch": {
+    "document": "#graphql\n  mutation DraftOrderBulkRemoveTagsBySearch($search: String, $tags: [String!]!) {\n    draftOrderBulkRemoveTags(search: $search, tags: $tags) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "search": "tag:har-318-search-added",
+      "tags": ["har-318-search-added"]
+    },
+    "response": {
+      "data": {
+        "draftOrderBulkRemoveTags": {
+          "job": {
+            "id": "gid://shopify/Job/26467a5f-3e27-4907-86d7-a9b7b697068c",
+            "done": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "document": "#graphql\n  query ReadDraftOrder($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      tags\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DraftOrder/1249502363954"
+      },
+      "response": {
+        "data": {
+          "draftOrder": {
+            "id": "gid://shopify/DraftOrder/1249502363954",
+            "tags": ["har-318-base"]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1998,
               "restoreRate": 100
             }
           }
@@ -500,13 +608,13 @@
   "draftOrderBulkDelete": {
     "document": "#graphql\n  mutation DraftOrderBulkDelete($ids: [ID!]) {\n    draftOrderBulkDelete(ids: $ids) {\n      job { id done }\n      userErrors { field message }\n    }\n  }\n",
     "variables": {
-      "ids": ["gid://shopify/DraftOrder/1249089880370"]
+      "ids": ["gid://shopify/DraftOrder/1249502363954"]
     },
     "response": {
       "data": {
         "draftOrderBulkDelete": {
           "job": {
-            "id": "gid://shopify/Job/2bb284bb-c862-4ca0-a355-31b865ab6a39",
+            "id": "gid://shopify/Job/b42ad005-a067-4f6f-8825-9a4696cdd0f6",
             "done": false
           },
           "userErrors": []
@@ -527,12 +635,12 @@
     "downstreamRead": {
       "document": "#graphql\n  query ReadDraftOrder($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      tags\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/DraftOrder/1249089880370"
+        "id": "gid://shopify/DraftOrder/1249502363954"
       },
       "response": {
         "data": {
           "draftOrder": {
-            "id": "gid://shopify/DraftOrder/1249089880370",
+            "id": "gid://shopify/DraftOrder/1249502363954",
             "tags": ["har-318-added"]
           }
         },

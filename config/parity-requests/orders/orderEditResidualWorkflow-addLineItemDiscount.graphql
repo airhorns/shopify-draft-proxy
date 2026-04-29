@@ -1,0 +1,47 @@
+mutation OrderEditResidualWorkflowAddLineItemDiscount(
+  $id: ID!
+  $lineItemId: ID!
+  $discount: OrderEditAppliedDiscountInput!
+) {
+  orderEditAddLineItemDiscount(id: $id, lineItemId: $lineItemId, discount: $discount) {
+    addedDiscountStagedChange {
+      id
+      description
+    }
+    calculatedOrder {
+      id
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    calculatedLineItem {
+      id
+      hasStagedLineItemDiscount
+      calculatedDiscountAllocations {
+        allocatedAmountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        discountApplication {
+          id
+          description
+        }
+      }
+      discountedUnitPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

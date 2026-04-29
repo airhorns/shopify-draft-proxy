@@ -1,0 +1,15 @@
+mutation DelegateAccessTokenCreateCurrentInputLocalLifecycle {
+  delegateAccessTokenCreate(input: { delegateAccessScope: "read_products", expiresIn: 3600 }) {
+    delegateAccessToken {
+      accessToken
+      accessScopes
+      createdAt
+      expiresIn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

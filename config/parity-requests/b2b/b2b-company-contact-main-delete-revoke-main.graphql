@@ -1,0 +1,24 @@
+mutation B2BCompanyLifecycleRevokeMainContact($companyId: ID!) {
+  companyRevokeMainContact(companyId: $companyId) {
+    company {
+      id
+      mainContact {
+        id
+        title
+        isMainContact
+      }
+      contacts(first: 5) {
+        nodes {
+          id
+          title
+          isMainContact
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1185,6 +1185,110 @@ describe('draft-order mutation family flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('stages residual draft-order bulk helpers by search and saved-search targets', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('draft-order bulk search helpers should not hit upstream in live-hybrid mode');
+    });
+    const app = createApp(liveHybridConfig).callback();
+
+    const firstCreateResponse = await createDraftOrder(app);
+    const secondCreateResponse = await createDraftOrder(app);
+    const firstDraftOrderId = firstCreateResponse.body.data.draftOrderCreate.draftOrder.id as string;
+    const secondDraftOrderId = secondCreateResponse.body.data.draftOrderCreate.draftOrder.id as string;
+    const firstDraftOrderNumericId = firstDraftOrderId.split('/').at(-1);
+    const readDraftOrder = async (id: string) =>
+      request(app)
+        .post('/admin/api/2026-04/graphql.json')
+        .send({
+          query: `query ReadDraft($id: ID!) {
+            draftOrder(id: $id) { id tags }
+          }`,
+          variables: { id },
+        });
+
+    const addBySearchResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkAddBySearch($search: String, $tags: [String!]!) {
+          draftOrderBulkAddTags(search: $search, tags: $tags) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          search: `id:${firstDraftOrderNumericId}`,
+          tags: ['search-added'],
+        },
+      });
+
+    expect(addBySearchResponse.status).toBe(200);
+    expect(addBySearchResponse.body.data.draftOrderBulkAddTags).toEqual({
+      job: {
+        id: expect.stringMatching(/^gid:\/\/shopify\/Job\//),
+        done: false,
+      },
+      userErrors: [],
+    });
+
+    const afterSearchAddFirstResponse = await readDraftOrder(firstDraftOrderId);
+    const afterSearchAddSecondResponse = await readDraftOrder(secondDraftOrderId);
+
+    expect(afterSearchAddFirstResponse.body.data.draftOrder.tags).toEqual(['draft', 'initial', 'search-added']);
+    expect(afterSearchAddSecondResponse.body.data.draftOrder.tags).toEqual(['draft', 'initial']);
+
+    const openSavedSearchId = 'gid://shopify/SavedSearch/3634390630706';
+    const removeBySavedSearchResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkRemoveBySavedSearch($savedSearchId: ID, $tags: [String!]!) {
+          draftOrderBulkRemoveTags(savedSearchId: $savedSearchId, tags: $tags) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          savedSearchId: openSavedSearchId,
+          tags: ['initial'],
+        },
+      });
+
+    expect(removeBySavedSearchResponse.status).toBe(200);
+    expect(removeBySavedSearchResponse.body.data.draftOrderBulkRemoveTags.userErrors).toEqual([]);
+
+    const afterSavedSearchRemoveFirstResponse = await readDraftOrder(firstDraftOrderId);
+    const afterSavedSearchRemoveSecondResponse = await readDraftOrder(secondDraftOrderId);
+
+    expect(afterSavedSearchRemoveFirstResponse.body.data.draftOrder.tags).toEqual(['draft', 'search-added']);
+    expect(afterSavedSearchRemoveSecondResponse.body.data.draftOrder.tags).toEqual(['draft']);
+
+    const deleteBySearchResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation BulkDeleteBySearch($search: String) {
+          draftOrderBulkDelete(search: $search) {
+            job { id done }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          search: `id:${firstDraftOrderNumericId}`,
+        },
+      });
+
+    expect(deleteBySearchResponse.status).toBe(200);
+    expect(deleteBySearchResponse.body.data.draftOrderBulkDelete.userErrors).toEqual([]);
+
+    const afterSearchDeleteFirstResponse = await readDraftOrder(firstDraftOrderId);
+    const afterSearchDeleteSecondResponse = await readDraftOrder(secondDraftOrderId);
+
+    expect(afterSearchDeleteFirstResponse.body.data.draftOrder).toBeNull();
+    expect(afterSearchDeleteSecondResponse.body.data.draftOrder).toEqual({
+      id: secondDraftOrderId,
+      tags: ['draft'],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('short-circuits safe draft-order mutation validation branches locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('draft-order validation branches should not hit upstream in snapshot mode');
