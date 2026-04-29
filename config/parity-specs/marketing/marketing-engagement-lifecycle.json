@@ -57,6 +57,13 @@
         "isCumulative": false,
         "utcOffset": "+00:00"
       },
+      "negativeMetricEngagement": {
+        "occurredOn": "2026-04-25",
+        "impressionsCount": -1,
+        "clicksCount": -2,
+        "isCumulative": false,
+        "utcOffset": "+00:00"
+      },
       "missingIdentifierEngagement": {
         "occurredOn": "2026-04-26",
         "impressionsCount": 7,
@@ -109,6 +116,12 @@
         "proxyPath": "$.data.duplicateSameDay.marketingEngagement",
         "upstreamCapturePath": null,
         "selectedPaths": ["$.occurredOn", "$.impressionsCount", "$.clicksCount", "$.adSpend"]
+      },
+      {
+        "name": "negative-metric-accepted",
+        "capturePath": "$.operations.validation.negativeMetric.data.marketingEngagementCreate",
+        "proxyPath": "$.data.negativeMetric",
+        "upstreamCapturePath": null
       },
       {
         "name": "missing-identifier-user-errors",
