@@ -746,6 +746,7 @@ export const giftCardRecordSchema = z.strictObject({
   balance: moneyV2RecordSchema,
   customerId: nullableStringSchema,
   recipientId: nullableStringSchema,
+  source: nullableStringSchema.optional(),
   recipientAttributes: giftCardRecipientAttributesRecordSchema.nullable().optional(),
   transactions: z.array(giftCardTransactionRecordSchema),
 });
