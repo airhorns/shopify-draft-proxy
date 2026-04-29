@@ -4802,6 +4802,7 @@ function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | nul
               locationId: readStringField(nestedLocation, 'id'),
             }
           : null,
+        merchantRequests: readCapturedFulfillmentOrderMerchantRequests(fulfillmentOrder),
         lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
       };
     });
