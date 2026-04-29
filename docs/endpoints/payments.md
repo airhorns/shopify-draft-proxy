@@ -134,6 +134,8 @@ Do not add planned-only parity specs for payment roots. Keep unsupported payment
 
 HAR-365 implements a scrubbed local staging slice for customer payment-method lifecycle roots and `paymentReminderSend`. These roots are sensitive because live success paths can involve PCI card sessions, PayPal billing-agreement IDs, remote gateway identifiers, encrypted duplication data, expiring customer-facing update URLs, destructive revocation, and customer-visible reminder email.
 
+HAR-436 re-reviewed the current Shopify Admin docs/examples and public examples for customer payment method flows. The local support boundary remains intentionally scrubbed: runtime staging must not vault or replay real cardserver sessions, billing-agreement identifiers, remote gateway tokens, Shopify duplication material, live update URLs, or delivered email. The executable evidence is `customer-payment-method-local-staging` plus `tests/integration/customer-payment-method-flow.test.ts`; live happy-path capture is still deferred until a credential has the required payment-method scopes and a disposable, non-customer-visible payment-method setup exists.
+
 Runtime support is local-only:
 
 - Credit-card create/update stages a normalized `CustomerPaymentMethod` with a `CustomerCreditCard` instrument shell and selected card fields set to `null`. The proxy does not store cardserver session IDs, billing addresses, card digits, expiry values, names, or masked numbers.
