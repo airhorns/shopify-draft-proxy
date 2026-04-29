@@ -139,7 +139,7 @@
       "company": "Updated Carrier"
     },
     "labelInput": {
-      "publicFileUrl": "https://labels.example/return.pdf"
+      "fileUrl": "https://labels.example/return.pdf"
     }
   },
   "expected": {

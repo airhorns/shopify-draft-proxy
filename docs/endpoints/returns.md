@@ -45,6 +45,10 @@ Local staged mutations:
 - `returnProcess` updates processed quantities for local return line items, closes the return when all lines are processed,
   and syncs reverse fulfillment order remaining quantities. Refund duties, refund shipping, financial transfers, exchange
   processing, and notification behavior are not emulated beyond local metadata and validation boundaries.
+- `reverseDeliveryCreateWithShipping` treats an empty `reverseDeliveryLineItems` input as Shopify documents it: the proxy
+  creates one local reverse delivery line for each line item on the reverse fulfillment order. `ReverseDeliveryLabelInput`
+  accepts Shopify's `fileUrl` field and preserves it as the downstream `label.publicFileUrl`; legacy local fixture aliases
+  `publicFileUrl` and `url` are still accepted for older recorded runtime fixtures.
 - Supported return mutations are handled locally in snapshot mode and for local/synthetic orders in live-hybrid mode.
   They do not call upstream Shopify at runtime.
 - Validation branches for unknown orders, unknown fulfillment line items, invalid quantities, and unknown returns return
@@ -59,6 +63,10 @@ Local staged mutations:
   The current checked-in evidence uses the local parity harness plus live 2026-04 root/type introspection; success-path live
   return/reverse-logistics mutation captures still need disposable order setup and cleanup before claiming carrier,
   refund-transfer, exchange, notification, or inventory movement fidelity.
+- HAR-442 reviews the return/reverse-logistics slice against current Shopify docs and public examples. It adds executable
+  coverage for documented empty reverse-delivery line expansion and `ReverseDeliveryLabelInput.fileUrl` handling while
+  keeping live success-path captures, exchange processing, carrier label creation, notification sends, refund transfers,
+  duties, and inventory/location movement as explicit unsupported fidelity gaps.
 
 ### Blocked roots
 
@@ -82,6 +90,8 @@ Local staged mutations:
   `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,
   `config/parity-specs/orders/return-request-decline-local-staging.json`, and
   `config/parity-specs/orders/removeFromReturn-local-staging.json`
+- HAR-442 extends `config/parity-specs/orders/return-reverse-logistics-local-staging.json` to exercise empty
+  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization.
 - No-side-effect schema evidence: live 2025-01 and 2026-04 conformance introspection captured root signatures for
   `return`, `returnCalculate`, `returnableFulfillment(s)`, `reverseDelivery`, `reverseFulfillmentOrder`, and the listed
   mutation payloads.

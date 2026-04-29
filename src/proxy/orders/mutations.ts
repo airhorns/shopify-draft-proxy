@@ -3805,12 +3805,27 @@ function normalizeReverseDeliveryLabel(raw: unknown): OrderReverseDeliveryRecord
   }
   return {
     publicFileUrl:
-      typeof input['publicFileUrl'] === 'string'
-        ? input['publicFileUrl']
-        : typeof input['url'] === 'string'
-          ? input['url']
-          : null,
+      typeof input['fileUrl'] === 'string'
+        ? input['fileUrl']
+        : typeof input['publicFileUrl'] === 'string'
+          ? input['publicFileUrl']
+          : typeof input['url'] === 'string'
+            ? input['url']
+            : null,
   };
+}
+
+function buildAllReverseDeliveryLineItems(
+  runtime: ProxyRuntimeContext,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] {
+  return reverseFulfillmentOrder.lineItems
+    .filter((lineItem) => lineItem.totalQuantity > 0)
+    .map((lineItem) => ({
+      id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
+      reverseFulfillmentOrderLineItemId: lineItem.id,
+      quantity: lineItem.totalQuantity,
+    }));
 }
 
 function applyReverseDeliveryCreateWithShipping(
@@ -3841,61 +3856,55 @@ function applyReverseDeliveryCreateWithShipping(
   }
 
   const rawLineItems = Array.isArray(args['reverseDeliveryLineItems']) ? args['reverseDeliveryLineItems'] : [];
-  if (rawLineItems.length === 0) {
-    return {
-      order: match.order,
-      orderReturn: match.orderReturn,
-      reverseFulfillmentOrder: match.reverseFulfillmentOrder,
-      reverseDelivery: null,
-      userErrors: [{ field: ['reverseDeliveryLineItems'], message: 'Reverse delivery line items are required.' }],
-    };
-  }
-
   const userErrors: ReturnUserError[] = [];
-  const lineItems = rawLineItems.flatMap(
-    (rawLineItem, index): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] => {
-      const input =
-        typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
-      const lineItemId =
-        typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
-          ? input['reverseFulfillmentOrderLineItemId']
-          : null;
-      const quantity =
-        typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
-      const lineItem = lineItemId
-        ? (match.reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null)
-        : null;
-      if (!lineItem) {
-        userErrors.push({
-          field: ['reverseDeliveryLineItems', String(index), 'reverseFulfillmentOrderLineItemId'],
-          message: 'Reverse fulfillment order line item does not exist.',
+  const lineItems =
+    rawLineItems.length === 0
+      ? buildAllReverseDeliveryLineItems(runtime, match.reverseFulfillmentOrder)
+      : rawLineItems.flatMap((rawLineItem, index): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] => {
+          const input =
+            typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
+          const lineItemId =
+            typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
+              ? input['reverseFulfillmentOrderLineItemId']
+              : null;
+          const quantity =
+            typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+          const lineItem = lineItemId
+            ? (match.reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null)
+            : null;
+          if (!lineItem) {
+            userErrors.push({
+              field: ['reverseDeliveryLineItems', String(index), 'reverseFulfillmentOrderLineItemId'],
+              message: 'Reverse fulfillment order line item does not exist.',
+            });
+            return [];
+          }
+          if (quantity <= 0 || quantity > lineItem.totalQuantity) {
+            userErrors.push({
+              field: ['reverseDeliveryLineItems', String(index), 'quantity'],
+              message: 'Quantity is not available for reverse delivery.',
+            });
+            return [];
+          }
+          return [
+            {
+              id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
+              reverseFulfillmentOrderLineItemId: lineItem.id,
+              quantity,
+            },
+          ];
         });
-        return [];
-      }
-      if (quantity <= 0 || quantity > lineItem.totalQuantity) {
-        userErrors.push({
-          field: ['reverseDeliveryLineItems', String(index), 'quantity'],
-          message: 'Quantity is not available for reverse delivery.',
-        });
-        return [];
-      }
-      return [
-        {
-          id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
-          reverseFulfillmentOrderLineItemId: lineItem.id,
-          quantity,
-        },
-      ];
-    },
-  );
 
-  if (userErrors.length > 0) {
+  if (userErrors.length > 0 || lineItems.length === 0) {
     return {
       order: match.order,
       orderReturn: match.orderReturn,
       reverseFulfillmentOrder: match.reverseFulfillmentOrder,
       reverseDelivery: null,
-      userErrors,
+      userErrors:
+        userErrors.length > 0
+          ? userErrors
+          : [{ field: ['reverseDeliveryLineItems'], message: 'Reverse delivery line items are required.' }],
     };
   }
 

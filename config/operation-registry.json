@@ -5203,7 +5203,7 @@
     "implemented": true,
     "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
     "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
-    "supportNotes": "HAR-370 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items and local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
+    "supportNotes": "HAR-370/HAR-442 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items, expands an empty line-item input to all reverse fulfillment order line work, and stores local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
   },
   {
     "name": "reverseDeliveryShippingUpdate",

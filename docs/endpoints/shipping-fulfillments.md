@@ -49,8 +49,11 @@ roots live in the shipping/fulfillments API area:
 `reverseFulfillmentOrder(id:)` and `reverseDelivery(id:)` resolve only records staged from local returns and return `null`
 for missing IDs. `returnCreate` and `returnApproveRequest` create local reverse fulfillment order work from returned line
 quantities. `reverseDeliveryCreateWithShipping` stores reverse delivery line items plus local tracking/label metadata;
-`reverseDeliveryShippingUpdate` updates that metadata. `reverseFulfillmentOrderDispose` records disposition type/location
-metadata, reduces remaining local quantities, and closes the reverse fulfillment order when all line work is disposed.
+when `reverseDeliveryLineItems` is empty, the proxy stages one reverse delivery line for every line item on the reverse
+fulfillment order. `reverseDeliveryShippingUpdate` updates tracking and label metadata, including Shopify's
+`ReverseDeliveryLabelInput.fileUrl` input projected back as downstream `label.publicFileUrl`.
+`reverseFulfillmentOrderDispose` records disposition type/location metadata, reduces remaining local quantities, and closes
+the reverse fulfillment order when all line work is disposed.
 These roots do not call carriers, create real labels, notify customers, move inventory, or mutate locations at runtime.
 Executable parity lives in `config/parity-specs/orders/return-reverse-logistics-local-staging.json`; live 2026-04 introspection
 evidence lives in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-introspection.json`.
