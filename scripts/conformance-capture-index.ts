@@ -977,19 +977,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'gift-cards',
     captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',
-    purpose: 'Gift-card read/configuration/count behavior plus create/update/credit/debit/deactivate lifecycle parity.',
+    purpose:
+      'Gift-card read/configuration/count behavior, advanced search filters, and create/update/credit/debit/deactivate lifecycle parity.',
     requiredAuthScopes: [
       'read_gift_cards',
       'write_gift_cards',
       'read_gift_card_transactions',
       'write_gift_card_transactions',
+      'read_customers',
+      'write_customers',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
     ],
     cleanupBehavior:
-      'Creates a disposable gift card, records transaction lifecycle behavior, and deactivates it; notification roots are not executed.',
+      'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

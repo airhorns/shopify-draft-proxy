@@ -54,6 +54,26 @@ function readCreatedGiftCardId(createCapture: CapturedRequest): string | null {
   return typeof id === 'string' ? id : null;
 }
 
+function readCreatedCustomerId(createCapture: CapturedRequest): string | null {
+  const data = createCapture.response.payload.data;
+  if (!isObject(data)) {
+    return null;
+  }
+
+  const payload = data['customerCreate'];
+  if (!isObject(payload)) {
+    return null;
+  }
+
+  const customer = payload['customer'];
+  if (!isObject(customer)) {
+    return null;
+  }
+
+  const id = customer['id'];
+  return typeof id === 'string' ? id : null;
+}
+
 function giftCardTail(id: string): string {
   return id.split('/').at(-1)?.split('?')[0] ?? id;
 }
@@ -90,6 +110,17 @@ const giftCardSelection = `#graphql
   balance {
     amount
     currencyCode
+  }
+  customer {
+    id
+  }
+  recipientAttributes {
+    message
+    preferredName
+    sendNotificationAt
+    recipient {
+      id
+    }
   }
 `;
 
@@ -243,12 +274,59 @@ const configurationRead = await capture(
   `,
 );
 
-const createInput = {
+const customerCreate = await capture(
+  'customerCreate',
+  `#graphql
+    mutation GiftCardSearchCustomerCreate($input: CustomerInput!) {
+      customerCreate(input: $input) {
+        customer {
+          id
+          email
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `,
+  {
+    input: {
+      email: `har-464-gift-card-${Date.now()}@example.com`,
+      firstName: 'HAR-464',
+      lastName: 'Gift Card Search',
+      note: 'Disposable customer for HAR-464 gift-card search conformance.',
+    },
+  },
+);
+const createdCustomerId = readCreatedCustomerId(customerCreate);
+
+const giftCardCode = `HAR310${Date.now()}`;
+const createInput: {
+  initialValue: string;
+  code: string;
+  note: string;
+  expiresOn: string;
+  customerId?: string;
+  recipientAttributes?: {
+    id: string;
+    message: string;
+    preferredName: string;
+  };
+} = {
   initialValue: '5.00',
-  code: `HAR310${Date.now()}`,
+  code: giftCardCode,
   note: 'HAR-310 conformance gift card',
   expiresOn: '2027-04-26',
 };
+if (createdCustomerId !== null) {
+  createInput.customerId = createdCustomerId;
+  createInput.recipientAttributes = {
+    id: createdCustomerId,
+    message: 'HAR-464 recipient message',
+    preferredName: 'HAR-464 recipient',
+  };
+}
 
 const create = await capture(
   'create',
@@ -296,6 +374,8 @@ if (createdId !== null) {
   };
   const giftCardIdQuery = `id:${giftCardTail(createdId)}`;
   const codeFragmentQuery = `${giftCardIdQuery} AND ${createInput.code.slice(-4)}`;
+  const captureDate = new Date().toISOString().slice(0, 10);
+  const customerIdTail = createdCustomerId ? giftCardTail(createdCustomerId) : null;
 
   lifecycle.push(
     await capture(
@@ -502,6 +582,159 @@ if (createdId !== null) {
   );
   lifecycle.push(
     await capture(
+      'advancedSearchFilterRead',
+      `#graphql
+        query GiftCardAdvancedSearchFilterRead(
+          $createdAfterQuery: String!
+          $createdFutureQuery: String!
+          $updatedAfterQuery: String!
+          $updatedFutureQuery: String!
+          $expiresAfterQuery: String!
+          $expiresBeforeQuery: String!
+          $customerQuery: String!
+          $recipientQuery: String!
+          $sourceQuery: String!
+          $sourceNoMatchQuery: String!
+          $initialValueQuery: String!
+        ) {
+          createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {
+            nodes {
+              id
+              createdAt
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {
+            count
+            precision
+          }
+          createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {
+            nodes {
+              id
+              createdAt
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {
+            nodes {
+              id
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {
+            nodes {
+              id
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {
+            nodes {
+              id
+              expiresOn
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {
+            nodes {
+              id
+              expiresOn
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {
+            nodes {
+              id
+              customer {
+                id
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {
+            nodes {
+              id
+              recipientAttributes {
+                recipient {
+                  id
+                }
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {
+            nodes {
+              id
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {
+            nodes {
+              id
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {
+            nodes {
+              id
+              initialValue {
+                amount
+                currencyCode
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+        }
+      `,
+      {
+        createdAfterQuery: `${giftCardIdQuery} AND created_at:>=${captureDate}`,
+        createdFutureQuery: `${giftCardIdQuery} AND created_at:>=2099-01-01`,
+        updatedAfterQuery: `${giftCardIdQuery} AND updated_at:>=${captureDate}`,
+        updatedFutureQuery: `${giftCardIdQuery} AND updated_at:>=2099-01-01`,
+        expiresAfterQuery: `${giftCardIdQuery} AND expires_on:>=2028-01-01`,
+        expiresBeforeQuery: `${giftCardIdQuery} AND expires_on:<2028-01-01`,
+        customerQuery: `${giftCardIdQuery} AND customer_id:${customerIdTail ?? '999999999999'}`,
+        recipientQuery: `${giftCardIdQuery} AND recipient_id:${customerIdTail ?? '999999999999'}`,
+        sourceQuery: `${giftCardIdQuery} AND source:api_client`,
+        sourceNoMatchQuery: `${giftCardIdQuery} AND source:manual`,
+        initialValueQuery: `${giftCardIdQuery} AND initial_value:>=5`,
+      },
+    ),
+  );
+  lifecycle.push(
+    await capture(
       'deactivate',
       `#graphql
         mutation GiftCardDeactivate($id: ID!) {
@@ -599,6 +832,25 @@ if (createdId !== null) {
       { id: createdId, query: `id:${giftCardTail(createdId)}` },
     ),
   );
+  if (createdCustomerId !== null) {
+    lifecycle.push(
+      await capture(
+        'customerCleanup',
+        `#graphql
+          mutation GiftCardSearchCustomerCleanup($input: CustomerDeleteInput!) {
+            customerDelete(input: $input) {
+              deletedCustomerId
+              userErrors {
+                field
+                message
+              }
+            }
+          }
+        `,
+        { input: { id: createdCustomerId } },
+      ),
+    );
+  }
 
   const operations = Object.fromEntries(lifecycle.map((step) => [step.label, step]));
 
@@ -614,6 +866,7 @@ if (createdId !== null) {
           'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
           'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
           'Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.',
+          'HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.',
           'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
         ],
         notificationRoots: {
@@ -648,12 +901,26 @@ if (createdId !== null) {
             nonEmptyQuery: `${giftCardIdQuery} AND balance_status:full_or_partial`,
             codeQuery: codeFragmentQuery,
           },
+          advancedSearchFilters: {
+            createdAfterQuery: `${giftCardIdQuery} AND created_at:>=${captureDate}`,
+            createdFutureQuery: `${giftCardIdQuery} AND created_at:>=2099-01-01`,
+            updatedAfterQuery: `${giftCardIdQuery} AND updated_at:>=${captureDate}`,
+            updatedFutureQuery: `${giftCardIdQuery} AND updated_at:>=2099-01-01`,
+            expiresAfterQuery: `${giftCardIdQuery} AND expires_on:>=2028-01-01`,
+            expiresBeforeQuery: `${giftCardIdQuery} AND expires_on:<2028-01-01`,
+            customerQuery: `${giftCardIdQuery} AND customer_id:${customerIdTail ?? '999999999999'}`,
+            recipientQuery: `${giftCardIdQuery} AND recipient_id:${customerIdTail ?? '999999999999'}`,
+            sourceQuery: `${giftCardIdQuery} AND source:api_client`,
+            sourceNoMatchQuery: `${giftCardIdQuery} AND source:manual`,
+            initialValueQuery: `${giftCardIdQuery} AND initial_value:>=5`,
+          },
         },
         operations: {
           schemaAndAccess,
           emptyRead,
           filteredEmptyRead,
           configurationRead,
+          customerCreate,
           create,
           ...operations,
         },
@@ -661,6 +928,7 @@ if (createdId !== null) {
         emptyRead,
         filteredEmptyRead,
         configurationRead,
+        customerCreate,
         create,
         lifecycle,
         lifecycleBlocked: null,
@@ -687,6 +955,7 @@ await writeFile(
         'HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.',
         'The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.',
         'Credit/debit transaction mutations and transaction-node reads are captured as payloads or access blockers depending on whether the active credential includes gift-card transaction scopes.',
+        'HAR-464 attempts to create a disposable customer-backed gift card so populated-data search filters can be captured when giftCardCreate returns a usable id.',
         'Notification roots are intentionally not executed by this capture script because they are customer-visible side effects.',
       ],
       notificationRoots: {
@@ -703,6 +972,7 @@ await writeFile(
       emptyRead,
       filteredEmptyRead,
       configurationRead,
+      customerCreate,
       create,
       lifecycle,
       lifecycleBlocked:

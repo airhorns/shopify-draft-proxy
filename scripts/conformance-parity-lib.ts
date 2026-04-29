@@ -2136,6 +2136,7 @@ function makeSeedGiftCard(runtime: ProxyRuntimeContext, source: Record<string, u
     balance,
     customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
     recipientId,
+    source: readNullableStringField(source, 'source'),
     recipientAttributes: recipientAttributesSource
       ? {
           id: recipientId,
@@ -2172,18 +2173,25 @@ function makeSeedGiftCardConfiguration(
 
 function seedGiftCardLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const recordsById = new Map<string, GiftCardRecord>();
-  const addGiftCard = (source: unknown): void => {
+  const addGiftCard = (source: unknown, options: { source?: string | null } = {}): void => {
     if (!isPlainObject(source)) {
       return;
     }
     const record = makeSeedGiftCard(runtime, source);
     if (record) {
+      if (options.source !== undefined) {
+        record.source = options.source;
+      }
       recordsById.set(record.id, record);
     }
   };
 
-  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'));
-  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'));
+  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
+  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
 
   const emptyReadNodes = readJsonPath(capture, '$.operations.emptyRead.response.payload.data.giftCards.nodes');
   for (const node of (Array.isArray(emptyReadNodes) ? emptyReadNodes : []).filter(isPlainObject)) {

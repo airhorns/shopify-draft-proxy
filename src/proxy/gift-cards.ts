@@ -3,8 +3,10 @@ import { Kind, type FieldNode, type SelectionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
+  applySearchQueryTerms,
+  matchesSearchQueryDate,
+  matchesSearchQueryNumber,
   matchesSearchQueryText,
-  parseSearchQueryTerms,
   normalizeSearchQueryValue,
   type SearchQueryTerm,
 } from '../search-query-parser.js';
@@ -418,67 +420,56 @@ function serializeGiftCard(
 function giftCardMatchesTerm(giftCard: GiftCardRecord, term: SearchQueryTerm): boolean {
   const normalizedValue = normalizeSearchQueryValue(term.value);
   const field = term.field?.toLowerCase() ?? null;
-  let matches = true;
+  const idMatches = (id: string | null | undefined): boolean =>
+    Boolean(id && (normalizedValue === normalizeSearchQueryValue(id) || normalizedValue === giftCardTail(id)));
 
   switch (field) {
     case null:
-      matches =
-        matchesSearchQueryText(giftCard.lastCharacters, term) || matchesSearchQueryText(giftCard.maskedCode, term);
-      break;
+      return matchesSearchQueryText(giftCard.lastCharacters, term) || matchesSearchQueryText(giftCard.maskedCode, term);
     case 'id':
-      matches =
-        normalizedValue === normalizeSearchQueryValue(giftCard.id) || normalizedValue === giftCardTail(giftCard.id);
-      break;
+      return idMatches(giftCard.id);
     case 'balance_status': {
       const initialValue = parseDecimalAmount(giftCard.initialValue.amount);
       const balance = parseDecimalAmount(giftCard.balance.amount);
       switch (normalizedValue) {
         case 'full':
-          matches = balance >= initialValue && balance > 0;
-          break;
+          return balance >= initialValue && balance > 0;
         case 'partial':
-          matches = balance > 0 && balance < initialValue;
-          break;
+          return balance > 0 && balance < initialValue;
         case 'empty':
-          matches = balance <= 0;
-          break;
+          return balance <= 0;
         case 'full_or_partial':
-          matches = balance > 0;
-          break;
+          return balance > 0;
         default:
-          matches = false;
-          break;
+          return false;
       }
-      break;
     }
     case 'status':
       if (['enabled', 'active', 'true'].includes(normalizedValue)) {
-        matches = giftCard.enabled;
+        return giftCard.enabled;
       } else if (['disabled', 'deactivated', 'inactive', 'false'].includes(normalizedValue)) {
-        matches = !giftCard.enabled;
-      } else {
-        matches = false;
+        return !giftCard.enabled;
       }
-      break;
+      return false;
+    case 'created_at':
+      return matchesSearchQueryDate(giftCard.createdAt, term);
+    case 'expires_on':
+      return matchesSearchQueryDate(giftCard.expiresOn, term);
+    case 'initial_value':
+      return matchesSearchQueryNumber(parseDecimalAmount(giftCard.initialValue.amount), term);
+    case 'customer_id':
+      return idMatches(giftCard.customerId);
+    case 'recipient_id':
+      return idMatches(giftCard.recipientId);
+    case 'source':
+      return normalizeSearchQueryValue(giftCard.source ?? '') === normalizedValue;
     default:
-      matches = true;
-      break;
+      return true;
   }
-
-  return term.negated ? !matches : matches;
 }
 
 function filterGiftCardsByQuery(giftCards: GiftCardRecord[], rawQuery: unknown): GiftCardRecord[] {
-  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
-    return giftCards;
-  }
-
-  const terms = parseSearchQueryTerms(rawQuery.trim(), { ignoredKeywords: ['AND'] }).filter(
-    (term) => term.field === null || ['id', 'status', 'balance_status'].includes(term.field.toLowerCase()),
-  );
-  return terms.length === 0
-    ? giftCards
-    : giftCards.filter((giftCard) => terms.every((term) => giftCardMatchesTerm(giftCard, term)));
+  return applySearchQueryTerms(giftCards, rawQuery, { ignoredKeywords: ['AND'] }, giftCardMatchesTerm);
 }
 
 function compareGiftCards(left: GiftCardRecord, right: GiftCardRecord, sortKey: unknown): number {
@@ -716,6 +707,7 @@ function stageGiftCardCreate(runtime: ProxyRuntimeContext, args: Record<string, 
     balance: { ...initialValue },
     customerId: readString(input['customerId']),
     recipientId: readString(input['recipientId']) ?? recipientAttributes?.id ?? null,
+    source: 'api_client',
     recipientAttributes,
     transactions: [],
   };

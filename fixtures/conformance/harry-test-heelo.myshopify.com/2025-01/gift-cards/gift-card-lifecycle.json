@@ -1,11 +1,12 @@
 {
-  "capturedAt": "2026-04-29T02:36:03.726Z",
+  "capturedAt": "2026-04-29T09:31:13.806Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
     "HAR-310 captures gift-card schema/access, read/config/count behavior, and lifecycle payloads when the active conformance credential permits them.",
     "The filtered empty read uses id:999999999999 because Shopify accepts id as a gift-card search field and returns an empty connection/count for a no-match numeric id.",
     "Credit/debit transaction mutations and transaction-node reads are captured with read_gift_card_transactions and write_gift_card_transactions.",
+    "HAR-464 extends the fixture with a disposable customer-backed gift card and populated-data search filters for date/range, customer_id, recipient_id, source, and initial_value behavior.",
     "Notification roots are intentionally not executed by this capture script because they are customer-visible side effects."
   ],
   "notificationRoots": {
@@ -20,7 +21,7 @@
   },
   "proxyVariables": {
     "lifecycle": {
-      "id": "gid://shopify/GiftCard/654771388722",
+      "id": "gid://shopify/GiftCard/654773256498",
       "updateInput": {
         "note": "HAR-310 conformance gift card updated",
         "templateSuffix": "birthday",
@@ -46,15 +47,28 @@
       "query": "id:999999999999"
     },
     "readAfterLifecycle": {
-      "id": "gid://shopify/GiftCard/654771388722",
-      "query": "id:654771388722"
+      "id": "gid://shopify/GiftCard/654773256498",
+      "query": "id:654773256498"
     },
     "searchFilters": {
-      "partialQuery": "id:654771388722 AND balance_status:partial",
-      "fullQuery": "id:654771388722 AND balance_status:full",
-      "emptyQuery": "id:654771388722 AND balance_status:empty",
-      "nonEmptyQuery": "id:654771388722 AND balance_status:full_or_partial",
-      "codeQuery": "id:654771388722 AND 2438"
+      "partialQuery": "id:654773256498 AND balance_status:partial",
+      "fullQuery": "id:654773256498 AND balance_status:full",
+      "emptyQuery": "id:654773256498 AND balance_status:empty",
+      "nonEmptyQuery": "id:654773256498 AND balance_status:full_or_partial",
+      "codeQuery": "id:654773256498 AND 2053"
+    },
+    "advancedSearchFilters": {
+      "createdAfterQuery": "id:654773256498 AND created_at:>=2026-04-29",
+      "createdFutureQuery": "id:654773256498 AND created_at:>=2099-01-01",
+      "updatedAfterQuery": "id:654773256498 AND updated_at:>=2026-04-29",
+      "updatedFutureQuery": "id:654773256498 AND updated_at:>=2099-01-01",
+      "expiresAfterQuery": "id:654773256498 AND expires_on:>=2028-01-01",
+      "expiresBeforeQuery": "id:654773256498 AND expires_on:<2028-01-01",
+      "customerQuery": "id:654773256498 AND customer_id:10552623464754",
+      "recipientQuery": "id:654773256498 AND recipient_id:10552623464754",
+      "sourceQuery": "id:654773256498 AND source:api_client",
+      "sourceNoMatchQuery": "id:654773256498 AND source:manual",
+      "initialValueQuery": "id:654773256498 AND initial_value:>=5"
     }
   },
   "operations": {
@@ -515,7 +529,7 @@
               }
             },
             "giftCardsCount": {
-              "count": 8,
+              "count": 10,
               "precision": "EXACT"
             },
             "giftCardConfiguration": {
@@ -535,7 +549,7 @@
               "actualQueryCost": 16,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -574,7 +588,7 @@
               "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1978,
+                "currentlyAvailable": 1977,
                 "restoreRate": 100
               }
             }
@@ -607,7 +621,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1987,
+                "currentlyAvailable": 1985,
                 "restoreRate": 100
               }
             }
@@ -615,43 +629,26 @@
         }
       }
     },
-    "create": {
-      "label": "create",
-      "query": "#graphql\n    mutation GiftCardCreate($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n        }\n        giftCardCode\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+    "customerCreate": {
+      "label": "customerCreate",
+      "query": "#graphql\n    mutation GiftCardSearchCustomerCreate($input: CustomerInput!) {\n      customerCreate(input: $input) {\n        customer {\n          id\n          email\n        }\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
       "variables": {
         "input": {
-          "initialValue": "5.00",
-          "code": "HAR3101777430152438",
-          "note": "HAR-310 conformance gift card",
-          "expiresOn": "2027-04-26"
+          "email": "har-464-gift-card-1777455061921@example.com",
+          "firstName": "HAR-464",
+          "lastName": "Gift Card Search",
+          "note": "Disposable customer for HAR-464 gift-card search conformance."
         }
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
-            "giftCardCreate": {
-              "giftCard": {
-                "id": "gid://shopify/GiftCard/654771388722",
-                "lastCharacters": "2438",
-                "maskedCode": "•••• •••• •••• 2438",
-                "enabled": true,
-                "deactivatedAt": null,
-                "expiresOn": "2027-04-26",
-                "note": "HAR-310 conformance gift card",
-                "templateSuffix": null,
-                "createdAt": "2026-04-29T02:35:52Z",
-                "updatedAt": "2026-04-29T02:35:52Z",
-                "initialValue": {
-                  "amount": "5.0",
-                  "currencyCode": "CAD"
-                },
-                "balance": {
-                  "amount": "5.0",
-                  "currencyCode": "CAD"
-                }
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754",
+                "email": "har-464-gift-card-1777455061921@example.com"
               },
-              "giftCardCode": "har3101777430152438",
               "userErrors": []
             }
           },
@@ -661,7 +658,78 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "create": {
+      "label": "create",
+      "query": "#graphql\n    mutation GiftCardCreate($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n        }\n        giftCardCode\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "HAR3101777455062053",
+          "note": "HAR-310 conformance gift card",
+          "expiresOn": "2027-04-26",
+          "customerId": "gid://shopify/Customer/10552623464754",
+          "recipientAttributes": {
+            "id": "gid://shopify/Customer/10552623464754",
+            "message": "HAR-464 recipient message",
+            "preferredName": "HAR-464 recipient"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654773256498",
+                "lastCharacters": "2053",
+                "maskedCode": "•••• •••• •••• 2053",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": "2027-04-26",
+                "note": "HAR-310 conformance gift card",
+                "templateSuffix": null,
+                "createdAt": "2026-04-29T09:31:02Z",
+                "updatedAt": "2026-04-29T09:31:02Z",
+                "initialValue": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "5.0",
+                  "currencyCode": "CAD"
+                },
+                "customer": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                },
+                "recipientAttributes": {
+                  "message": "HAR-464 recipient message",
+                  "preferredName": "HAR-464 recipient",
+                  "sendNotificationAt": null,
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10552623464754"
+                  }
+                }
+              },
+              "giftCardCode": "har3101777455062053",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
@@ -671,25 +739,25 @@
     },
     "detailAfterCreate": {
       "label": "detailAfterCreate",
-      "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/654771388722",
-              "lastCharacters": "2438",
-              "maskedCode": "•••• •••• •••• 2438",
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-04-29T02:35:52Z",
-              "updatedAt": "2026-04-29T02:35:52Z",
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:02Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -697,6 +765,17 @@
               "balance": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
               },
               "transactions": {
                 "nodes": [],
@@ -711,11 +790,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 6,
+              "requestedQueryCost": 9,
+              "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -725,9 +804,9 @@
     },
     "update": {
       "label": "update",
-      "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "note": "HAR-310 conformance gift card updated",
           "templateSuffix": "birthday",
@@ -740,16 +819,16 @@
           "data": {
             "giftCardUpdate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654771388722",
-                "lastCharacters": "2438",
-                "maskedCode": "•••• •••• •••• 2438",
+                "id": "gid://shopify/GiftCard/654773256498",
+                "lastCharacters": "2053",
+                "maskedCode": "•••• •••• •••• 2053",
                 "enabled": true,
                 "deactivatedAt": null,
                 "expiresOn": "2028-04-26",
                 "note": "HAR-310 conformance gift card updated",
                 "templateSuffix": "birthday",
-                "createdAt": "2026-04-29T02:35:52Z",
-                "updatedAt": "2026-04-29T02:35:52Z",
+                "createdAt": "2026-04-29T09:31:02Z",
+                "updatedAt": "2026-04-29T09:31:02Z",
                 "initialValue": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
@@ -757,6 +836,17 @@
                 "balance": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
+                },
+                "customer": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                },
+                "recipientAttributes": {
+                  "message": "HAR-464 recipient message",
+                  "preferredName": "HAR-464 recipient",
+                  "sendNotificationAt": null,
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10552623464754"
+                  }
                 }
               },
               "userErrors": []
@@ -764,11 +854,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -780,7 +870,7 @@
       "label": "credit",
       "query": "#graphql\n        mutation GiftCardCredit($id: ID!, $input: GiftCardCreditInput!) {\n          giftCardCredit(id: $id, creditInput: $input) {\n            giftCardCreditTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -795,15 +885,15 @@
           "data": {
             "giftCardCredit": {
               "giftCardCreditTransaction": {
-                "id": "gid://shopify/GiftCardCreditTransaction/246513140018",
+                "id": "gid://shopify/GiftCardCreditTransaction/246514385202",
                 "note": "HAR-310 credit",
-                "processedAt": "2026-04-29T02:35:52Z",
+                "processedAt": "2026-04-29T09:31:02Z",
                 "amount": {
                   "amount": "2.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/654771388722",
+                  "id": "gid://shopify/GiftCard/654773256498",
                   "balance": {
                     "amount": "7.0",
                     "currencyCode": "CAD"
@@ -831,7 +921,7 @@
       "label": "debit",
       "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "debitAmount": {
             "amount": "3.00",
@@ -846,15 +936,15 @@
           "data": {
             "giftCardDebit": {
               "giftCardDebitTransaction": {
-                "id": "gid://shopify/GiftCardDebitTransaction/246513172786",
+                "id": "gid://shopify/GiftCardDebitTransaction/246514417970",
                 "note": "HAR-310 debit",
-                "processedAt": "2026-04-29T02:35:53Z",
+                "processedAt": "2026-04-29T09:31:02Z",
                 "amount": {
                   "amount": "-3.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/654771388722",
+                  "id": "gid://shopify/GiftCard/654773256498",
                   "balance": {
                     "amount": "4.0",
                     "currencyCode": "CAD"
@@ -882,11 +972,11 @@
       "label": "searchFilterRead",
       "query": "#graphql\n        query GiftCardSearchFilterRead(\n          $partialQuery: String!\n          $fullQuery: String!\n          $emptyQuery: String!\n          $nonEmptyQuery: String!\n          $codeQuery: String!\n        ) {\n          partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {\n            count\n            precision\n          }\n          fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {\n            count\n            precision\n          }\n          codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "partialQuery": "id:654771388722 AND balance_status:partial",
-        "fullQuery": "id:654771388722 AND balance_status:full",
-        "emptyQuery": "id:654771388722 AND balance_status:empty",
-        "nonEmptyQuery": "id:654771388722 AND balance_status:full_or_partial",
-        "codeQuery": "id:654771388722 AND 2438"
+        "partialQuery": "id:654773256498 AND balance_status:partial",
+        "fullQuery": "id:654773256498 AND balance_status:full",
+        "emptyQuery": "id:654773256498 AND balance_status:empty",
+        "nonEmptyQuery": "id:654773256498 AND balance_status:full_or_partial",
+        "codeQuery": "id:654773256498 AND 2053"
       },
       "response": {
         "status": 200,
@@ -895,8 +985,8 @@
             "partialBalanceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": true,
                   "balance": {
                     "amount": "4.0",
@@ -934,8 +1024,8 @@
             "codeSearchGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": true
                 }
               ],
@@ -963,11 +1053,221 @@
         }
       }
     },
+    "advancedSearchFilterRead": {
+      "label": "advancedSearchFilterRead",
+      "query": "#graphql\n        query GiftCardAdvancedSearchFilterRead(\n          $createdAfterQuery: String!\n          $createdFutureQuery: String!\n          $updatedAfterQuery: String!\n          $updatedFutureQuery: String!\n          $expiresAfterQuery: String!\n          $expiresBeforeQuery: String!\n          $customerQuery: String!\n          $recipientQuery: String!\n          $sourceQuery: String!\n          $sourceNoMatchQuery: String!\n          $initialValueQuery: String!\n        ) {\n          createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {\n            count\n            precision\n          }\n          createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {\n            nodes {\n              id\n              customer {\n                id\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {\n            nodes {\n              id\n              recipientAttributes {\n                recipient {\n                  id\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {\n            nodes {\n              id\n              initialValue {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n        }\n      ",
+      "variables": {
+        "createdAfterQuery": "id:654773256498 AND created_at:>=2026-04-29",
+        "createdFutureQuery": "id:654773256498 AND created_at:>=2099-01-01",
+        "updatedAfterQuery": "id:654773256498 AND updated_at:>=2026-04-29",
+        "updatedFutureQuery": "id:654773256498 AND updated_at:>=2099-01-01",
+        "expiresAfterQuery": "id:654773256498 AND expires_on:>=2028-01-01",
+        "expiresBeforeQuery": "id:654773256498 AND expires_on:<2028-01-01",
+        "customerQuery": "id:654773256498 AND customer_id:10552623464754",
+        "recipientQuery": "id:654773256498 AND recipient_id:10552623464754",
+        "sourceQuery": "id:654773256498 AND source:api_client",
+        "sourceNoMatchQuery": "id:654773256498 AND source:manual",
+        "initialValueQuery": "id:654773256498 AND initial_value:>=5"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createdAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "createdAt": "2026-04-29T09:31:02Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "createdAfterGiftCardsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "createdFutureGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "updatedAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "updatedFutureGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "expiresAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "expiresOn": "2028-04-26"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "expiresBeforeGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "customerGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "customer": {
+                    "id": "gid://shopify/Customer/10552623464754"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "recipientGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "recipientAttributes": {
+                    "recipient": {
+                      "id": "gid://shopify/Customer/10552623464754"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "sourceGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "sourceNoMatchGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "initialValueGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "initialValue": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 44,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1930,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["updatedAfterGiftCards"],
+                "query": "id:654773256498 AND updated_at:>=2026-04-29",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2026-04-29"
+                    },
+                    {
+                      "field": "id",
+                      "match_all": "654773256498"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "updated_at",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              },
+              {
+                "path": ["updatedFutureGiftCards"],
+                "query": "id:654773256498 AND updated_at:>=2099-01-01",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2099-01-01"
+                    },
+                    {
+                      "field": "id",
+                      "match_all": "654773256498"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "updated_at",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
     "deactivate": {
       "label": "deactivate",
       "query": "#graphql\n        mutation GiftCardDeactivate($id: ID!) {\n          giftCardDeactivate(id: $id) {\n            giftCard {\n              id\n              enabled\n              deactivatedAt\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
@@ -975,9 +1275,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654771388722",
+                "id": "gid://shopify/GiftCard/654773256498",
                 "enabled": false,
-                "deactivatedAt": "2026-04-29T02:36:03Z",
+                "deactivatedAt": "2026-04-29T09:31:13Z",
                 "balance": {
                   "amount": "4.0",
                   "currencyCode": "CAD"
@@ -992,7 +1292,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
+                "currentlyAvailable": 1935,
                 "restoreRate": 100
               }
             }
@@ -1002,25 +1302,25 @@
     },
     "detailAfterDeactivate": {
       "label": "detailAfterDeactivate",
-      "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/654771388722",
-              "lastCharacters": "2438",
-              "maskedCode": "•••• •••• •••• 2438",
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
               "enabled": false,
-              "deactivatedAt": "2026-04-29T02:36:03Z",
+              "deactivatedAt": "2026-04-29T09:31:13Z",
               "expiresOn": "2028-04-26",
               "note": "HAR-310 conformance gift card updated",
               "templateSuffix": "birthday",
-              "createdAt": "2026-04-29T02:35:52Z",
-              "updatedAt": "2026-04-29T02:36:03Z",
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:13Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -1028,6 +1328,17 @@
               "balance": {
                 "amount": "4.0",
                 "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
               },
               "transactions": {
                 "nodes": [
@@ -1055,11 +1366,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 9,
+              "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1943,
                 "restoreRate": 100
               }
             }
@@ -1071,8 +1382,8 @@
       "label": "readAfterLifecycle",
       "query": "#graphql\n        query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {\n          giftCard(id: $id) {\n            note\n            templateSuffix\n            expiresOn\n            enabled\n            balance {\n              amount\n              currencyCode\n            }\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n          giftCards(first: 2, query: $query, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          giftCardsCount(query: $query) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
-        "query": "id:654771388722"
+        "id": "gid://shopify/GiftCard/654773256498",
+        "query": "id:654773256498"
       },
       "response": {
         "status": 200,
@@ -1113,8 +1424,8 @@
             "giftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": false
                 }
               ],
@@ -1134,7 +1445,38 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1973,
+                "currentlyAvailable": 1936,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerCleanup": {
+      "label": "customerCleanup",
+      "query": "#graphql\n          mutation GiftCardSearchCustomerCleanup($input: CustomerDeleteInput!) {\n            customerDelete(input: $input) {\n              deletedCustomerId\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10552623464754"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10552623464754",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1937,
                 "restoreRate": 100
               }
             }
@@ -1600,7 +1942,7 @@
             }
           },
           "giftCardsCount": {
-            "count": 8,
+            "count": 10,
             "precision": "EXACT"
           },
           "giftCardConfiguration": {
@@ -1620,7 +1962,7 @@
             "actualQueryCost": 16,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1981,
+              "currentlyAvailable": 1980,
               "restoreRate": 100
             }
           }
@@ -1659,7 +2001,7 @@
             "actualQueryCost": 13,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1977,
               "restoreRate": 100
             }
           }
@@ -1692,7 +2034,7 @@
             "actualQueryCost": 1,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1985,
               "restoreRate": 100
             }
           }
@@ -1700,43 +2042,26 @@
       }
     }
   },
-  "create": {
-    "label": "create",
-    "query": "#graphql\n    mutation GiftCardCreate($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n        }\n        giftCardCode\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+  "customerCreate": {
+    "label": "customerCreate",
+    "query": "#graphql\n    mutation GiftCardSearchCustomerCreate($input: CustomerInput!) {\n      customerCreate(input: $input) {\n        customer {\n          id\n          email\n        }\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
     "variables": {
       "input": {
-        "initialValue": "5.00",
-        "code": "HAR3101777430152438",
-        "note": "HAR-310 conformance gift card",
-        "expiresOn": "2027-04-26"
+        "email": "har-464-gift-card-1777455061921@example.com",
+        "firstName": "HAR-464",
+        "lastName": "Gift Card Search",
+        "note": "Disposable customer for HAR-464 gift-card search conformance."
       }
     },
     "response": {
       "status": 200,
       "payload": {
         "data": {
-          "giftCardCreate": {
-            "giftCard": {
-              "id": "gid://shopify/GiftCard/654771388722",
-              "lastCharacters": "2438",
-              "maskedCode": "•••• •••• •••• 2438",
-              "enabled": true,
-              "deactivatedAt": null,
-              "expiresOn": "2027-04-26",
-              "note": "HAR-310 conformance gift card",
-              "templateSuffix": null,
-              "createdAt": "2026-04-29T02:35:52Z",
-              "updatedAt": "2026-04-29T02:35:52Z",
-              "initialValue": {
-                "amount": "5.0",
-                "currencyCode": "CAD"
-              },
-              "balance": {
-                "amount": "5.0",
-                "currencyCode": "CAD"
-              }
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10552623464754",
+              "email": "har-464-gift-card-1777455061921@example.com"
             },
-            "giftCardCode": "har3101777430152438",
             "userErrors": []
           }
         },
@@ -1746,7 +2071,78 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "create": {
+    "label": "create",
+    "query": "#graphql\n    mutation GiftCardCreate($input: GiftCardCreateInput!) {\n      giftCardCreate(input: $input) {\n        giftCard {\n          #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n        }\n        giftCardCode\n        userErrors {\n          field\n          message\n        }\n      }\n    }\n  ",
+    "variables": {
+      "input": {
+        "initialValue": "5.00",
+        "code": "HAR3101777455062053",
+        "note": "HAR-310 conformance gift card",
+        "expiresOn": "2027-04-26",
+        "customerId": "gid://shopify/Customer/10552623464754",
+        "recipientAttributes": {
+          "id": "gid://shopify/Customer/10552623464754",
+          "message": "HAR-464 recipient message",
+          "preferredName": "HAR-464 recipient"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "giftCardCreate": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2027-04-26",
+              "note": "HAR-310 conformance gift card",
+              "templateSuffix": null,
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:02Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
+              }
+            },
+            "giftCardCode": "har3101777455062053",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
               "restoreRate": 100
             }
           }
@@ -1757,25 +2153,25 @@
   "lifecycle": [
     {
       "label": "detailAfterCreate",
-      "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        query GiftCardDetail($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                id\n                note\n                processedAt\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n                startCursor\n                endCursor\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/654771388722",
-              "lastCharacters": "2438",
-              "maskedCode": "•••• •••• •••• 2438",
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
               "enabled": true,
               "deactivatedAt": null,
               "expiresOn": "2027-04-26",
               "note": "HAR-310 conformance gift card",
               "templateSuffix": null,
-              "createdAt": "2026-04-29T02:35:52Z",
-              "updatedAt": "2026-04-29T02:35:52Z",
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:02Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -1783,6 +2179,17 @@
               "balance": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
               },
               "transactions": {
                 "nodes": [],
@@ -1797,11 +2204,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 6,
+              "requestedQueryCost": 9,
+              "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1994,
+                "currentlyAvailable": 1991,
                 "restoreRate": 100
               }
             }
@@ -1811,9 +2218,9 @@
     },
     {
       "label": "update",
-      "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        mutation GiftCardUpdate($id: ID!, $input: GiftCardUpdateInput!) {\n          giftCardUpdate(id: $id, input: $input) {\n            giftCard {\n              #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "note": "HAR-310 conformance gift card updated",
           "templateSuffix": "birthday",
@@ -1826,16 +2233,16 @@
           "data": {
             "giftCardUpdate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654771388722",
-                "lastCharacters": "2438",
-                "maskedCode": "•••• •••• •••• 2438",
+                "id": "gid://shopify/GiftCard/654773256498",
+                "lastCharacters": "2053",
+                "maskedCode": "•••• •••• •••• 2053",
                 "enabled": true,
                 "deactivatedAt": null,
                 "expiresOn": "2028-04-26",
                 "note": "HAR-310 conformance gift card updated",
                 "templateSuffix": "birthday",
-                "createdAt": "2026-04-29T02:35:52Z",
-                "updatedAt": "2026-04-29T02:35:52Z",
+                "createdAt": "2026-04-29T09:31:02Z",
+                "updatedAt": "2026-04-29T09:31:02Z",
                 "initialValue": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
@@ -1843,6 +2250,17 @@
                 "balance": {
                   "amount": "5.0",
                   "currencyCode": "CAD"
+                },
+                "customer": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                },
+                "recipientAttributes": {
+                  "message": "HAR-464 recipient message",
+                  "preferredName": "HAR-464 recipient",
+                  "sendNotificationAt": null,
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10552623464754"
+                  }
                 }
               },
               "userErrors": []
@@ -1850,11 +2268,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
-              "actualQueryCost": 10,
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1990,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -1866,7 +2284,7 @@
       "label": "credit",
       "query": "#graphql\n        mutation GiftCardCredit($id: ID!, $input: GiftCardCreditInput!) {\n          giftCardCredit(id: $id, creditInput: $input) {\n            giftCardCreditTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "creditAmount": {
             "amount": "2.00",
@@ -1881,15 +2299,15 @@
           "data": {
             "giftCardCredit": {
               "giftCardCreditTransaction": {
-                "id": "gid://shopify/GiftCardCreditTransaction/246513140018",
+                "id": "gid://shopify/GiftCardCreditTransaction/246514385202",
                 "note": "HAR-310 credit",
-                "processedAt": "2026-04-29T02:35:52Z",
+                "processedAt": "2026-04-29T09:31:02Z",
                 "amount": {
                   "amount": "2.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/654771388722",
+                  "id": "gid://shopify/GiftCard/654773256498",
                   "balance": {
                     "amount": "7.0",
                     "currencyCode": "CAD"
@@ -1917,7 +2335,7 @@
       "label": "debit",
       "query": "#graphql\n        mutation GiftCardDebit($id: ID!, $input: GiftCardDebitInput!) {\n          giftCardDebit(id: $id, debitInput: $input) {\n            giftCardDebitTransaction {\n              id\n              note\n              processedAt\n              amount {\n                amount\n                currencyCode\n              }\n              giftCard {\n                id\n                balance {\n                  amount\n                  currencyCode\n                }\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
+        "id": "gid://shopify/GiftCard/654773256498",
         "input": {
           "debitAmount": {
             "amount": "3.00",
@@ -1932,15 +2350,15 @@
           "data": {
             "giftCardDebit": {
               "giftCardDebitTransaction": {
-                "id": "gid://shopify/GiftCardDebitTransaction/246513172786",
+                "id": "gid://shopify/GiftCardDebitTransaction/246514417970",
                 "note": "HAR-310 debit",
-                "processedAt": "2026-04-29T02:35:53Z",
+                "processedAt": "2026-04-29T09:31:02Z",
                 "amount": {
                   "amount": "-3.0",
                   "currencyCode": "CAD"
                 },
                 "giftCard": {
-                  "id": "gid://shopify/GiftCard/654771388722",
+                  "id": "gid://shopify/GiftCard/654773256498",
                   "balance": {
                     "amount": "4.0",
                     "currencyCode": "CAD"
@@ -1968,11 +2386,11 @@
       "label": "searchFilterRead",
       "query": "#graphql\n        query GiftCardSearchFilterRead(\n          $partialQuery: String!\n          $fullQuery: String!\n          $emptyQuery: String!\n          $nonEmptyQuery: String!\n          $codeQuery: String!\n        ) {\n          partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {\n            count\n            precision\n          }\n          fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {\n            count\n            precision\n          }\n          codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "partialQuery": "id:654771388722 AND balance_status:partial",
-        "fullQuery": "id:654771388722 AND balance_status:full",
-        "emptyQuery": "id:654771388722 AND balance_status:empty",
-        "nonEmptyQuery": "id:654771388722 AND balance_status:full_or_partial",
-        "codeQuery": "id:654771388722 AND 2438"
+        "partialQuery": "id:654773256498 AND balance_status:partial",
+        "fullQuery": "id:654773256498 AND balance_status:full",
+        "emptyQuery": "id:654773256498 AND balance_status:empty",
+        "nonEmptyQuery": "id:654773256498 AND balance_status:full_or_partial",
+        "codeQuery": "id:654773256498 AND 2053"
       },
       "response": {
         "status": 200,
@@ -1981,8 +2399,8 @@
             "partialBalanceGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": true,
                   "balance": {
                     "amount": "4.0",
@@ -2020,8 +2438,8 @@
             "codeSearchGiftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": true
                 }
               ],
@@ -2050,10 +2468,220 @@
       }
     },
     {
+      "label": "advancedSearchFilterRead",
+      "query": "#graphql\n        query GiftCardAdvancedSearchFilterRead(\n          $createdAfterQuery: String!\n          $createdFutureQuery: String!\n          $updatedAfterQuery: String!\n          $updatedFutureQuery: String!\n          $expiresAfterQuery: String!\n          $expiresBeforeQuery: String!\n          $customerQuery: String!\n          $recipientQuery: String!\n          $sourceQuery: String!\n          $sourceNoMatchQuery: String!\n          $initialValueQuery: String!\n        ) {\n          createdAfterGiftCards: giftCards(first: 2, query: $createdAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          createdAfterGiftCardsCount: giftCardsCount(query: $createdAfterQuery) {\n            count\n            precision\n          }\n          createdFutureGiftCards: giftCards(first: 2, query: $createdFutureQuery, sortKey: ID) {\n            nodes {\n              id\n              createdAt\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedAfterGiftCards: giftCards(first: 2, query: $updatedAfterQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          updatedFutureGiftCards: giftCards(first: 2, query: $updatedFutureQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresAfterGiftCards: giftCards(first: 2, query: $expiresAfterQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          expiresBeforeGiftCards: giftCards(first: 2, query: $expiresBeforeQuery, sortKey: ID) {\n            nodes {\n              id\n              expiresOn\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          customerGiftCards: giftCards(first: 2, query: $customerQuery, sortKey: ID) {\n            nodes {\n              id\n              customer {\n                id\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          recipientGiftCards: giftCards(first: 2, query: $recipientQuery, sortKey: ID) {\n            nodes {\n              id\n              recipientAttributes {\n                recipient {\n                  id\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceGiftCards: giftCards(first: 2, query: $sourceQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          sourceNoMatchGiftCards: giftCards(first: 2, query: $sourceNoMatchQuery, sortKey: ID) {\n            nodes {\n              id\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          initialValueGiftCards: giftCards(first: 2, query: $initialValueQuery, sortKey: ID) {\n            nodes {\n              id\n              initialValue {\n                amount\n                currencyCode\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n        }\n      ",
+      "variables": {
+        "createdAfterQuery": "id:654773256498 AND created_at:>=2026-04-29",
+        "createdFutureQuery": "id:654773256498 AND created_at:>=2099-01-01",
+        "updatedAfterQuery": "id:654773256498 AND updated_at:>=2026-04-29",
+        "updatedFutureQuery": "id:654773256498 AND updated_at:>=2099-01-01",
+        "expiresAfterQuery": "id:654773256498 AND expires_on:>=2028-01-01",
+        "expiresBeforeQuery": "id:654773256498 AND expires_on:<2028-01-01",
+        "customerQuery": "id:654773256498 AND customer_id:10552623464754",
+        "recipientQuery": "id:654773256498 AND recipient_id:10552623464754",
+        "sourceQuery": "id:654773256498 AND source:api_client",
+        "sourceNoMatchQuery": "id:654773256498 AND source:manual",
+        "initialValueQuery": "id:654773256498 AND initial_value:>=5"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createdAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "createdAt": "2026-04-29T09:31:02Z"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "createdAfterGiftCardsCount": {
+              "count": 1,
+              "precision": "EXACT"
+            },
+            "createdFutureGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "updatedAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "updatedFutureGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "expiresAfterGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "expiresOn": "2028-04-26"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "expiresBeforeGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "customerGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "customer": {
+                    "id": "gid://shopify/Customer/10552623464754"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "recipientGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "recipientAttributes": {
+                    "recipient": {
+                      "id": "gid://shopify/Customer/10552623464754"
+                    }
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "sourceGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "sourceNoMatchGiftCards": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            },
+            "initialValueGiftCards": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "initialValue": {
+                    "amount": "5.0",
+                    "currencyCode": "CAD"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 44,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1930,
+                "restoreRate": 100
+              }
+            },
+            "search": [
+              {
+                "path": ["updatedAfterGiftCards"],
+                "query": "id:654773256498 AND updated_at:>=2026-04-29",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2026-04-29"
+                    },
+                    {
+                      "field": "id",
+                      "match_all": "654773256498"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "updated_at",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              },
+              {
+                "path": ["updatedFutureGiftCards"],
+                "query": "id:654773256498 AND updated_at:>=2099-01-01",
+                "parsed": {
+                  "and": [
+                    {
+                      "field": "updated_at",
+                      "range_gte": "2099-01-01"
+                    },
+                    {
+                      "field": "id",
+                      "match_all": "654773256498"
+                    }
+                  ]
+                },
+                "warnings": [
+                  {
+                    "field": "updated_at",
+                    "message": "Invalid search field for this query.",
+                    "code": "invalid_field"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "label": "deactivate",
       "query": "#graphql\n        mutation GiftCardDeactivate($id: ID!) {\n          giftCardDeactivate(id: $id) {\n            giftCard {\n              id\n              enabled\n              deactivatedAt\n              balance {\n                amount\n                currencyCode\n              }\n            }\n            userErrors {\n              field\n              message\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
@@ -2061,9 +2689,9 @@
           "data": {
             "giftCardDeactivate": {
               "giftCard": {
-                "id": "gid://shopify/GiftCard/654771388722",
+                "id": "gid://shopify/GiftCard/654773256498",
                 "enabled": false,
-                "deactivatedAt": "2026-04-29T02:36:03Z",
+                "deactivatedAt": "2026-04-29T09:31:13Z",
                 "balance": {
                   "amount": "4.0",
                   "currencyCode": "CAD"
@@ -2078,7 +2706,7 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1968,
+                "currentlyAvailable": 1935,
                 "restoreRate": 100
               }
             }
@@ -2088,25 +2716,25 @@
     },
     {
       "label": "detailAfterDeactivate",
-      "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
+      "query": "#graphql\n        query GiftCardDetailAfterDeactivate($id: ID!) {\n          giftCard(id: $id) {\n            #graphql\n  id\n  lastCharacters\n  maskedCode\n  enabled\n  deactivatedAt\n  expiresOn\n  note\n  templateSuffix\n  createdAt\n  updatedAt\n  initialValue {\n    amount\n    currencyCode\n  }\n  balance {\n    amount\n    currencyCode\n  }\n  customer {\n    id\n  }\n  recipientAttributes {\n    message\n    preferredName\n    sendNotificationAt\n    recipient {\n      id\n    }\n  }\n\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722"
+        "id": "gid://shopify/GiftCard/654773256498"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "giftCard": {
-              "id": "gid://shopify/GiftCard/654771388722",
-              "lastCharacters": "2438",
-              "maskedCode": "•••• •••• •••• 2438",
+              "id": "gid://shopify/GiftCard/654773256498",
+              "lastCharacters": "2053",
+              "maskedCode": "•••• •••• •••• 2053",
               "enabled": false,
-              "deactivatedAt": "2026-04-29T02:36:03Z",
+              "deactivatedAt": "2026-04-29T09:31:13Z",
               "expiresOn": "2028-04-26",
               "note": "HAR-310 conformance gift card updated",
               "templateSuffix": "birthday",
-              "createdAt": "2026-04-29T02:35:52Z",
-              "updatedAt": "2026-04-29T02:36:03Z",
+              "createdAt": "2026-04-29T09:31:02Z",
+              "updatedAt": "2026-04-29T09:31:13Z",
               "initialValue": {
                 "amount": "5.0",
                 "currencyCode": "CAD"
@@ -2114,6 +2742,17 @@
               "balance": {
                 "amount": "4.0",
                 "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10552623464754"
+              },
+              "recipientAttributes": {
+                "message": "HAR-464 recipient message",
+                "preferredName": "HAR-464 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10552623464754"
+                }
               },
               "transactions": {
                 "nodes": [
@@ -2141,11 +2780,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 6,
-              "actualQueryCost": 4,
+              "requestedQueryCost": 9,
+              "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1977,
+                "currentlyAvailable": 1943,
                 "restoreRate": 100
               }
             }
@@ -2157,8 +2796,8 @@
       "label": "readAfterLifecycle",
       "query": "#graphql\n        query GiftCardReadAfterLifecycle($id: ID!, $query: String!) {\n          giftCard(id: $id) {\n            note\n            templateSuffix\n            expiresOn\n            enabled\n            balance {\n              amount\n              currencyCode\n            }\n            transactions(first: 5) {\n              nodes {\n                note\n                amount {\n                  amount\n                  currencyCode\n                }\n              }\n              pageInfo {\n                hasNextPage\n                hasPreviousPage\n              }\n            }\n          }\n          giftCards(first: 2, query: $query, sortKey: ID) {\n            nodes {\n              id\n              lastCharacters\n              enabled\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n            }\n          }\n          giftCardsCount(query: $query) {\n            count\n            precision\n          }\n        }\n      ",
       "variables": {
-        "id": "gid://shopify/GiftCard/654771388722",
-        "query": "id:654771388722"
+        "id": "gid://shopify/GiftCard/654773256498",
+        "query": "id:654773256498"
       },
       "response": {
         "status": 200,
@@ -2199,8 +2838,8 @@
             "giftCards": {
               "nodes": [
                 {
-                  "id": "gid://shopify/GiftCard/654771388722",
-                  "lastCharacters": "2438",
+                  "id": "gid://shopify/GiftCard/654773256498",
+                  "lastCharacters": "2053",
                   "enabled": false
                 }
               ],
@@ -2220,7 +2859,38 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1973,
+                "currentlyAvailable": 1936,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerCleanup",
+      "query": "#graphql\n          mutation GiftCardSearchCustomerCleanup($input: CustomerDeleteInput!) {\n            customerDelete(input: $input) {\n              deletedCustomerId\n              userErrors {\n                field\n                message\n              }\n            }\n          }\n        ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10552623464754"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10552623464754",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1937,
                 "restoreRate": 100
               }
             }
