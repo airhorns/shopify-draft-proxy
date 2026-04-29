@@ -1345,12 +1345,11 @@ describe('product draft flow', () => {
       tags: ['existing', 'hermes-summer-live'],
     });
 
-    store.markTagSearchLagged(productId);
     const filteredResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
         query:
-          'query FilteredTaggedReads($id: ID!) { product(id: $id) { id tags } remaining: products(first: 10, query: "tag:hermes-summer-live") { nodes { id tags } } removed: products(first: 10, query: "tag:hermes-sale-live") { nodes { id } } remainingCount: productsCount(query: "tag:hermes-summer-live") { count precision } removedCount: productsCount(query: "tag:hermes-sale-live") { count precision } }',
+          'query FilteredTaggedReads($id: ID!) { product(id: $id) { id tags } remaining: products(first: 10, query: "tag:hermes-summer-live") { nodes { id tags } } removed: products(first: 10, query: "tag:hermes-sale-live") { nodes { id tags } } remainingCount: productsCount(query: "tag:hermes-summer-live") { count precision } removedCount: productsCount(query: "tag:hermes-sale-live") { count precision } }',
         variables: { id: productId },
       });
 
@@ -1359,14 +1358,24 @@ describe('product draft flow', () => {
       id: productId,
       tags: ['existing', 'hermes-summer-live'],
     });
-    expect(filteredResponse.body.data.remaining.nodes).toEqual([]);
-    expect(filteredResponse.body.data.removed.nodes).toEqual([]);
+    expect(filteredResponse.body.data.remaining.nodes).toEqual([
+      {
+        id: productId,
+        tags: ['existing', 'hermes-summer-live'],
+      },
+    ]);
+    expect(filteredResponse.body.data.removed.nodes).toEqual([
+      {
+        id: productId,
+        tags: ['existing', 'hermes-summer-live'],
+      },
+    ]);
     expect(filteredResponse.body.data.remainingCount).toEqual({
-      count: 0,
+      count: 1,
       precision: 'EXACT',
     });
     expect(filteredResponse.body.data.removedCount).toEqual({
-      count: 0,
+      count: 1,
       precision: 'EXACT',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(4);
@@ -1463,13 +1472,17 @@ describe('product draft flow', () => {
         tags: ['existing', 'summer'],
       },
     ]);
-    expect(filteredResponse.body.data.removed.nodes).toEqual([]);
+    expect(filteredResponse.body.data.removed.nodes).toEqual([
+      {
+        id: 'gid://shopify/Product/900',
+      },
+    ]);
     expect(filteredResponse.body.data.remainingCount).toEqual({
       count: 1,
       precision: 'EXACT',
     });
     expect(filteredResponse.body.data.removedCount).toEqual({
-      count: 0,
+      count: 1,
       precision: 'EXACT',
     });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -1981,14 +1994,9 @@ describe('product draft flow', () => {
 
     expect(overlayResponse.status).toBe(200);
     expect(overlayResponse.body.data.product).toEqual(changeResponse.body.data.productChangeStatus.product);
-    expect(overlayResponse.body.data.archived.nodes).toEqual([
-      {
-        id: 'gid://shopify/Product/1',
-        status: 'ARCHIVED',
-      },
-    ]);
+    expect(overlayResponse.body.data.archived.nodes).toEqual([]);
     expect(overlayResponse.body.data.archivedCount).toEqual({
-      count: 1,
+      count: 0,
       precision: 'EXACT',
     });
   });

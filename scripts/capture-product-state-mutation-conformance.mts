@@ -202,7 +202,7 @@ function buildCreateVariables(runId) {
     product: {
       title: `Hermes Product State Conformance ${runId}`,
       status: 'DRAFT',
-      tags: ['existing'],
+      tags: ['existing', `hermes-state-${runId}`],
     },
   };
 }
@@ -260,10 +260,11 @@ try {
   statusResponse = await runGraphql(changeStatusMutation, statusVariables);
   unknownStatusResponse = await runGraphql(changeStatusMutation, unknownStatusVariables);
   nullLiteralStatusResponse = await runGraphqlAllowErrors(changeStatusNullLiteralMutation);
-  const postStatusRead = await runGraphql(postStatusReadQuery, {
+  const postStatusReadVariables = {
     id: createdProductId,
-    query: 'status:archived',
-  });
+    query: `status:archived tag:hermes-state-${runId}`,
+  };
+  const postStatusRead = await runGraphql(postStatusReadQuery, postStatusReadVariables);
 
   tagsAddResponse = await runGraphql(tagsAddMutation, tagsAddVariables);
   const tagsAddDownstreamReadVariables = {
@@ -284,6 +285,7 @@ try {
 
   const captures = {
     'product-change-status-parity.json': {
+      seedProduct: createResponse.data?.productCreate?.product ?? null,
       mutation: {
         variables: statusVariables,
         response: statusResponse,
@@ -298,9 +300,11 @@ try {
           response: nullLiteralStatusResponse,
         },
       },
+      downstreamReadVariables: postStatusReadVariables,
       downstreamRead: postStatusRead,
     },
     'tags-add-parity.json': {
+      seedProduct: createResponse.data?.productCreate?.product ?? null,
       mutation: {
         variables: tagsAddVariables,
         response: tagsAddResponse,
@@ -314,6 +318,7 @@ try {
       },
     },
     'tags-remove-parity.json': {
+      seedProduct: createResponse.data?.productCreate?.product ?? null,
       mutation: {
         variables: tagsRemoveVariables,
         response: tagsRemoveResponse,

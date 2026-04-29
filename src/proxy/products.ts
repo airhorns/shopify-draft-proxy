@@ -8883,16 +8883,11 @@ function matchesStringValue(candidate: string, rawValue: string, matchMode: 'inc
 }
 
 function getSearchableProductTags(runtime: ProxyRuntimeContext, product: ProductRecord): string[] {
-  if (!runtime.store.isTagSearchLagged(product.id)) {
-    return product.tags;
-  }
+  return runtime.store.getLaggedTagSearchTags(product.id) ?? product.tags;
+}
 
-  const baseProduct = runtime.store.getBaseProductById(product.id);
-  if (!baseProduct) {
-    return product.tags;
-  }
-
-  return product.tags.filter((tag) => baseProduct.tags.includes(tag));
+function getSearchableProductStatus(runtime: ProxyRuntimeContext, product: ProductRecord): string {
+  return runtime.store.getLaggedStatusSearchStatus(product.id) ?? product.status;
 }
 
 function getSearchableProductVariants(runtime: ProxyRuntimeContext, product: ProductRecord): ProductVariantRecord[] {
@@ -8944,7 +8939,7 @@ function matchesPositiveProductQueryTerm(
     case 'vendor':
       return typeof product.vendor === 'string' && matchesStringValue(product.vendor, value, 'exact');
     case 'status':
-      return matchesStringValue(product.status, value, 'exact');
+      return matchesStringValue(getSearchableProductStatus(runtime, product), value, 'exact');
     case 'created_at':
       return matchesProductTimestampTerm(product.createdAt, value);
     case 'published_at':
@@ -11643,11 +11638,12 @@ export function handleProductMutation(
         }
       }
 
+      const previousSearchableTags = getSearchableProductTags(runtime, existingProduct);
       runtime.store.stageUpdateProduct(
         makeProductRecord(runtime, { id: productId, tags: normalizeProductTags(nextTags) }, existingProduct),
       );
       if (runtime.store.getBaseProductById(productId)) {
-        runtime.store.markTagSearchLagged(productId);
+        runtime.store.markTagSearchLagged(productId, 10_000, previousSearchableTags);
       }
       const product = runtime.store.getEffectiveProductById(productId);
       return {
@@ -11697,10 +11693,11 @@ export function handleProductMutation(
         };
       }
 
+      const previousSearchableTags = getSearchableProductTags(runtime, existingProduct);
       const nextTags = normalizeProductTags(existingProduct.tags.filter((tag) => !tags.includes(tag)));
       runtime.store.stageUpdateProduct(makeProductRecord(runtime, { id: productId, tags: nextTags }, existingProduct));
       if (runtime.store.getBaseProductById(productId)) {
-        runtime.store.markTagSearchLagged(productId);
+        runtime.store.markTagSearchLagged(productId, 10_000, previousSearchableTags);
       }
       const product = runtime.store.getEffectiveProductById(productId);
       return {
@@ -12157,6 +12154,7 @@ export function handleProductMutation(
         };
       }
 
+      const previousSearchableStatus = getSearchableProductStatus(runtime, existing);
       runtime.store.stageUpdateProduct(
         makeProductRecord(
           runtime,
@@ -12167,6 +12165,9 @@ export function handleProductMutation(
           existing,
         ),
       );
+      if (runtime.store.getBaseProductById(productId)) {
+        runtime.store.markStatusSearchLagged(productId, previousSearchableStatus);
+      }
       const product = runtime.store.getEffectiveProductById(productId);
 
       return {
