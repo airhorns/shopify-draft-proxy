@@ -490,7 +490,7 @@ pub fn meta_state_reflects_staged_saved_search_test() {
     draft_proxy.process_request(proxy, meta_get("/__meta/state"))
   assert status == 200
   assert json.to_string(body)
-    == "{\"baseState\":{},\"stagedState\":{\"savedSearches\":{\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"legacyResourceId\":\"1\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\",\"searchTerms\":\"tag:promo\",\"filters\":[],\"cursor\":null}}}}"
+    == "{\"baseState\":{},\"stagedState\":{\"savedSearches\":{\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\":{\"id\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"legacyResourceId\":\"1\",\"name\":\"Promo orders\",\"query\":\"tag:promo\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"tag\",\"value\":\"promo\"}],\"cursor\":null}}}}"
 }
 
 pub fn meta_log_reflects_staged_mutation_test() {
@@ -732,7 +732,7 @@ pub fn graphql_webhook_subscription_create_missing_topic_top_level_error_test() 
     draft_proxy.process_request(proxy, graphql_request(body))
   assert status == 200
   assert json.to_string(response_body)
-    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionCreate' is missing required arguments: topic\",\"path\":[\"mutation\",\"webhookSubscriptionCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionCreate\",\"arguments\":\"topic\"}}]}"
+    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionCreate' is missing required arguments: topic\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionCreate\",\"arguments\":\"topic\"}}]}"
 }
 
 pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {

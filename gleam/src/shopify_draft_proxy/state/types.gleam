@@ -205,3 +205,158 @@ pub type AppInstallationRecord {
     uninstalled_at: Option(String),
   )
 }
+
+// ---------------------------------------------------------------------------
+// Functions domain (Pass 18)
+// ---------------------------------------------------------------------------
+
+/// Mirrors `ShopifyFunctionRecord`. The TS schema also carries an
+/// `app: jsonObjectSchema.optional()` field for upstream-hydrated
+/// functions; the Gleam port omits it because the proxy never mints
+/// app metadata locally — `app` always projects to `null` until
+/// upstream hydration lands.
+pub type ShopifyFunctionRecord {
+  ShopifyFunctionRecord(
+    id: String,
+    title: Option(String),
+    handle: Option(String),
+    api_type: Option(String),
+    description: Option(String),
+    app_key: Option(String),
+  )
+}
+
+/// Mirrors `ValidationRecord`. `enable`/`blockOnFailure` are nullable
+/// in TS so the same handler can model partial upstream payloads;
+/// here they're `Option(Bool)`.
+pub type ValidationRecord {
+  ValidationRecord(
+    id: String,
+    title: Option(String),
+    enable: Option(Bool),
+    block_on_failure: Option(Bool),
+    function_id: Option(String),
+    function_handle: Option(String),
+    shopify_function_id: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+/// Mirrors `CartTransformRecord`. Same shape as `ValidationRecord`
+/// minus the `enable` flag.
+pub type CartTransformRecord {
+  CartTransformRecord(
+    id: String,
+    title: Option(String),
+    block_on_failure: Option(Bool),
+    function_id: Option(String),
+    function_handle: Option(String),
+    shopify_function_id: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+/// Mirrors `TaxAppConfigurationRecord`. The proxy stores this as a
+/// singleton (one configuration per shop), unlike the validation /
+/// cart-transform records which live in keyed dictionaries.
+pub type TaxAppConfigurationRecord {
+  TaxAppConfigurationRecord(
+    id: String,
+    ready: Bool,
+    state: String,
+    updated_at: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Gift cards domain (Pass 19)
+// ---------------------------------------------------------------------------
+
+/// Mirrors `GiftCardTransactionRecord`. `kind` is `"CREDIT"` or
+/// `"DEBIT"` — kept as a `String` to match the TS literal-union shape;
+/// the gift-card handler never inspects it as a sum.
+pub type GiftCardTransactionRecord {
+  GiftCardTransactionRecord(
+    id: String,
+    kind: String,
+    amount: Money,
+    processed_at: String,
+    note: Option(String),
+  )
+}
+
+/// Mirrors `GiftCardRecipientAttributesRecord`. Every field is nullable
+/// in TS to match the Admin GraphQL schema; the proxy's create/update
+/// helpers preserve null-vs-omit semantics by reading/writing
+/// `Option(String)` here directly.
+pub type GiftCardRecipientAttributesRecord {
+  GiftCardRecipientAttributesRecord(
+    id: Option(String),
+    message: Option(String),
+    preferred_name: Option(String),
+    send_notification_at: Option(String),
+  )
+}
+
+/// Mirrors `GiftCardRecord`. `recipient_attributes` is `None` for cards
+/// minted without recipient input; the serializer falls back to a
+/// constructed attributes record built from `recipient_id` if present.
+pub type GiftCardRecord {
+  GiftCardRecord(
+    id: String,
+    legacy_resource_id: String,
+    last_characters: String,
+    masked_code: String,
+    enabled: Bool,
+    deactivated_at: Option(String),
+    expires_on: Option(String),
+    note: Option(String),
+    template_suffix: Option(String),
+    created_at: String,
+    updated_at: String,
+    initial_value: Money,
+    balance: Money,
+    customer_id: Option(String),
+    recipient_id: Option(String),
+    recipient_attributes: Option(GiftCardRecipientAttributesRecord),
+    transactions: List(GiftCardTransactionRecord),
+  )
+}
+
+/// Mirrors `GiftCardConfigurationRecord`. Stored as a singleton on the
+/// store like `TaxAppConfigurationRecord` — one configuration per shop.
+pub type GiftCardConfigurationRecord {
+  GiftCardConfigurationRecord(issue_limit: Money, purchase_limit: Money)
+}
+
+/// Mirrors `SegmentRecord`. Customer segments are upstream resources the
+/// proxy mirrors locally so create/update/delete mutations can be staged
+/// without contacting Admin. Every field except `id` is nullable to match
+/// the Admin GraphQL schema.
+pub type SegmentRecord {
+  SegmentRecord(
+    id: String,
+    name: Option(String),
+    query: Option(String),
+    creation_date: Option(String),
+    last_edit_date: Option(String),
+  )
+}
+
+/// Mirrors `CustomerSegmentMembersQueryRecord`. A staged record captures
+/// the resolved query string + originating segmentId, plus the
+/// realized member count and `done` flag. The proxy stages these in
+/// finished form (done=true) at create time; the create-mutation
+/// response shape returns currentCount=0/done=false to match Shopify's
+/// asynchronous job semantics.
+pub type CustomerSegmentMembersQueryRecord {
+  CustomerSegmentMembersQueryRecord(
+    id: String,
+    query: Option(String),
+    segment_id: Option(String),
+    current_count: Int,
+    done: Bool,
+  )
+}

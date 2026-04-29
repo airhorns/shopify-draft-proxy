@@ -107,7 +107,7 @@ pub fn order_saved_searches_full_node_shape_test() {
       "{ orderSavedSearches(first: 1) { nodes { __typename id legacyResourceId name query resourceType searchTerms filters { key value } } } }",
     )
   assert result
-    == "{\"orderSavedSearches\":{\"nodes\":[{\"__typename\":\"SavedSearch\",\"id\":\"gid://shopify/SavedSearch/3634391515442\",\"legacyResourceId\":\"3634391515442\",\"name\":\"Unfulfilled\",\"query\":\"status:open fulfillment_status:unshipped,partial\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[]}]}}"
+    == "{\"orderSavedSearches\":{\"nodes\":[{\"__typename\":\"SavedSearch\",\"id\":\"gid://shopify/SavedSearch/3634391515442\",\"legacyResourceId\":\"3634391515442\",\"name\":\"Unfulfilled\",\"query\":\"status:open fulfillment_status:unshipped,partial\",\"resourceType\":\"ORDER\",\"searchTerms\":\"\",\"filters\":[{\"key\":\"status\",\"value\":\"open\"},{\"key\":\"fulfillment_status\",\"value\":\"unshipped,partial\"}]}]}}"
 }
 
 pub fn aliased_root_test() {

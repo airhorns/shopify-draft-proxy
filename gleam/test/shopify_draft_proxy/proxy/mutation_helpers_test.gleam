@@ -9,7 +9,7 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
-import shopify_draft_proxy/graphql/ast.{type Selection}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/mutation_helpers.{
   RequiredArgument, build_missing_required_argument_error,
@@ -23,13 +23,18 @@ fn parse_field(document: String) -> Selection {
   field
 }
 
+fn field_loc(field: Selection) {
+  case field {
+    Field(loc: loc, ..) -> loc
+    _ -> None
+  }
+}
+
 // ---------- validate_required_field_arguments ----------
 
 pub fn validate_required_arguments_happy_path_test() {
-  let field =
-    parse_field(
-      "mutation { foo(topic: \"x\", uri: \"https://e\") { id } }",
-    )
+  let document = "mutation { foo(topic: \"x\", uri: \"https://e\") { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -40,13 +45,15 @@ pub fn validate_required_arguments_happy_path_test() {
         RequiredArgument(name: "uri", expected_type: "String!"),
       ],
       "mutation",
+      document,
     )
   assert errors == []
 }
 
 pub fn validate_required_arguments_missing_arg_test() {
   // No `topic` argument supplied at all.
-  let field = parse_field("mutation { foo(uri: \"https://e\") { id } }")
+  let document = "mutation { foo(uri: \"https://e\") { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -54,15 +61,23 @@ pub fn validate_required_arguments_missing_arg_test() {
       "foo",
       [RequiredArgument(name: "topic", expected_type: "String!")],
       "mutation",
+      document,
     )
   assert errors
     == [
-      build_missing_required_argument_error("foo", "topic", "mutation"),
+      build_missing_required_argument_error(
+        "foo",
+        "topic",
+        "mutation",
+        field_loc(field),
+        document,
+      ),
     ]
 }
 
 pub fn validate_required_arguments_multiple_missing_joined_test() {
-  let field = parse_field("mutation { foo { id } }")
+  let document = "mutation { foo { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -73,6 +88,7 @@ pub fn validate_required_arguments_multiple_missing_joined_test() {
         RequiredArgument(name: "uri", expected_type: "String!"),
       ],
       "mutation",
+      document,
     )
   // Joined with ", " in the order the required-arguments list was
   // supplied — matches the TS error envelope.
@@ -82,12 +98,15 @@ pub fn validate_required_arguments_multiple_missing_joined_test() {
         "foo",
         "topic, uri",
         "mutation",
+        field_loc(field),
+        document,
       ),
     ]
 }
 
 pub fn validate_required_arguments_null_literal_test() {
-  let field = parse_field("mutation { foo(topic: null) { id } }")
+  let document = "mutation { foo(topic: null) { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -95,18 +114,26 @@ pub fn validate_required_arguments_null_literal_test() {
       "foo",
       [RequiredArgument(name: "topic", expected_type: "String!")],
       "mutation",
+      document,
     )
   assert errors
     == [
-      build_null_argument_error("foo", "topic", "String!", "mutation"),
+      build_null_argument_error(
+        "foo",
+        "topic",
+        "String!",
+        "mutation",
+        field_loc(field),
+        document,
+      ),
     ]
 }
 
 pub fn validate_required_arguments_unbound_variable_test() {
   // Variable `$t` is referenced but the variables dict has no entry,
   // so it resolves to "missing"/null.
-  let field =
-    parse_field("mutation Op($t: String!) { foo(topic: $t) { id } }")
+  let document = "mutation Op($t: String!) { foo(topic: $t) { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -114,14 +141,15 @@ pub fn validate_required_arguments_unbound_variable_test() {
       "foo",
       [RequiredArgument(name: "topic", expected_type: "String!")],
       "mutation Op",
+      document,
     )
   assert errors == [build_missing_variable_error("t", "String!")]
 }
 
 pub fn validate_required_arguments_null_variable_test() {
   // Variable supplied but with a NullVal.
-  let field =
-    parse_field("mutation Op($t: String!) { foo(topic: $t) { id } }")
+  let document = "mutation Op($t: String!) { foo(topic: $t) { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -129,13 +157,14 @@ pub fn validate_required_arguments_null_variable_test() {
       "foo",
       [RequiredArgument(name: "topic", expected_type: "String!")],
       "mutation Op",
+      document,
     )
   assert errors == [build_missing_variable_error("t", "String!")]
 }
 
 pub fn validate_required_arguments_bound_variable_ok_test() {
-  let field =
-    parse_field("mutation Op($t: String!) { foo(topic: $t) { id } }")
+  let document = "mutation Op($t: String!) { foo(topic: $t) { id } }"
+  let field = parse_field(document)
   let errors =
     validate_required_field_arguments(
       field,
@@ -143,6 +172,7 @@ pub fn validate_required_arguments_bound_variable_ok_test() {
       "foo",
       [RequiredArgument(name: "topic", expected_type: "String!")],
       "mutation Op",
+      document,
     )
   assert errors == []
 }
@@ -150,51 +180,95 @@ pub fn validate_required_arguments_bound_variable_ok_test() {
 // ---------- validate_required_id_argument ----------
 
 pub fn validate_required_id_argument_literal_id_test() {
-  let field =
-    parse_field("mutation { fooDelete(id: \"gid://shopify/Foo/1\") { id } }")
+  let document = "mutation { fooDelete(id: \"gid://shopify/Foo/1\") { id } }"
+  let field = parse_field(document)
   let #(id, errs) =
-    validate_required_id_argument(field, dict.new(), "fooDelete", "mutation")
+    validate_required_id_argument(
+      field,
+      dict.new(),
+      "fooDelete",
+      "mutation",
+      document,
+    )
   assert id == Some("gid://shopify/Foo/1")
   assert errs == []
 }
 
 pub fn validate_required_id_argument_missing_test() {
-  let field = parse_field("mutation { fooDelete { id } }")
+  let document = "mutation { fooDelete { id } }"
+  let field = parse_field(document)
   let #(id, errs) =
-    validate_required_id_argument(field, dict.new(), "fooDelete", "mutation")
+    validate_required_id_argument(
+      field,
+      dict.new(),
+      "fooDelete",
+      "mutation",
+      document,
+    )
   assert id == None
   assert errs
-    == [build_missing_required_argument_error("fooDelete", "id", "mutation")]
+    == [
+      build_missing_required_argument_error(
+        "fooDelete",
+        "id",
+        "mutation",
+        field_loc(field),
+        document,
+      ),
+    ]
 }
 
 pub fn validate_required_id_argument_null_literal_test() {
-  let field = parse_field("mutation { fooDelete(id: null) { id } }")
+  let document = "mutation { fooDelete(id: null) { id } }"
+  let field = parse_field(document)
   let #(id, errs) =
-    validate_required_id_argument(field, dict.new(), "fooDelete", "mutation")
+    validate_required_id_argument(
+      field,
+      dict.new(),
+      "fooDelete",
+      "mutation",
+      document,
+    )
   assert id == None
   assert errs
-    == [build_null_argument_error("fooDelete", "id", "ID!", "mutation")]
+    == [
+      build_null_argument_error(
+        "fooDelete",
+        "id",
+        "ID!",
+        "mutation",
+        field_loc(field),
+        document,
+      ),
+    ]
 }
 
 pub fn validate_required_id_argument_bound_variable_test() {
-  let field =
-    parse_field("mutation Op($x: ID!) { fooDelete(id: $x) { id } }")
+  let document = "mutation Op($x: ID!) { fooDelete(id: $x) { id } }"
+  let field = parse_field(document)
   let #(id, errs) =
     validate_required_id_argument(
       field,
       dict.from_list([#("x", root_field.StringVal("gid://shopify/Foo/2"))]),
       "fooDelete",
       "mutation Op",
+      document,
     )
   assert id == Some("gid://shopify/Foo/2")
   assert errs == []
 }
 
 pub fn validate_required_id_argument_unbound_variable_test() {
-  let field =
-    parse_field("mutation Op($x: ID!) { fooDelete(id: $x) { id } }")
+  let document = "mutation Op($x: ID!) { fooDelete(id: $x) { id } }"
+  let field = parse_field(document)
   let #(id, errs) =
-    validate_required_id_argument(field, dict.new(), "fooDelete", "mutation Op")
+    validate_required_id_argument(
+      field,
+      dict.new(),
+      "fooDelete",
+      "mutation Op",
+      document,
+    )
   assert id == None
   assert errs == [build_missing_variable_error("x", "ID!")]
 }
@@ -202,16 +276,41 @@ pub fn validate_required_id_argument_unbound_variable_test() {
 // ---------- error builders ----------
 
 pub fn build_missing_required_argument_error_shape_test() {
+  // Without field location info, no `locations` field is emitted.
   let err =
-    build_missing_required_argument_error("foo", "topic, uri", "mutation")
-  // Spot-check the JSON shape: code + arguments string + path.
+    build_missing_required_argument_error(
+      "foo",
+      "topic, uri",
+      "mutation",
+      None,
+      "",
+    )
   let s = json.to_string(err)
   assert s
     == "{\"message\":\"Field 'foo' is missing required arguments: topic, uri\",\"path\":[\"mutation\",\"foo\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"foo\",\"arguments\":\"topic, uri\"}}"
 }
 
+pub fn build_missing_required_argument_error_with_location_test() {
+  // With a field location and source body, `locations: [{line, column}]`
+  // appears between `message` and `path` — matches live Shopify shape.
+  let document = "mutation Op {\n  foo {\n    id\n  }\n}"
+  let field = parse_field(document)
+  let err =
+    build_missing_required_argument_error(
+      "foo",
+      "topic",
+      "mutation Op",
+      field_loc(field),
+      document,
+    )
+  let s = json.to_string(err)
+  assert s
+    == "{\"message\":\"Field 'foo' is missing required arguments: topic\",\"locations\":[{\"line\":2,\"column\":3}],\"path\":[\"mutation Op\",\"foo\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"foo\",\"arguments\":\"topic\"}}"
+}
+
 pub fn build_null_argument_error_shape_test() {
-  let err = build_null_argument_error("foo", "topic", "String!", "mutation")
+  let err =
+    build_null_argument_error("foo", "topic", "String!", "mutation", None, "")
   let s = json.to_string(err)
   assert s
     == "{\"message\":\"Argument 'topic' on Field 'foo' has an invalid value (null). Expected type 'String!'.\",\"path\":[\"mutation\",\"foo\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}"

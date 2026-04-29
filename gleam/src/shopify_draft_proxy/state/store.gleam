@@ -16,7 +16,11 @@ import gleam/string
 import shopify_draft_proxy/state/types.{
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
   type AppSubscriptionLineItemRecord, type AppSubscriptionRecord,
-  type AppUsageRecord, type DelegatedAccessTokenRecord, type SavedSearchRecord,
+  type AppUsageRecord, type CartTransformRecord,
+  type CustomerSegmentMembersQueryRecord, type DelegatedAccessTokenRecord,
+  type GiftCardConfigurationRecord, type GiftCardRecord,
+  type SavedSearchRecord, type SegmentRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type ValidationRecord,
   type WebhookSubscriptionRecord,
 } as types_mod
 
@@ -47,6 +51,26 @@ pub type BaseState {
     app_usage_record_order: List(String),
     delegated_access_tokens: Dict(String, DelegatedAccessTokenRecord),
     delegated_access_token_order: List(String),
+    shopify_functions: Dict(String, ShopifyFunctionRecord),
+    shopify_function_order: List(String),
+    validations: Dict(String, ValidationRecord),
+    validation_order: List(String),
+    deleted_validation_ids: Dict(String, Bool),
+    cart_transforms: Dict(String, CartTransformRecord),
+    cart_transform_order: List(String),
+    deleted_cart_transform_ids: Dict(String, Bool),
+    tax_app_configuration: Option(TaxAppConfigurationRecord),
+    gift_cards: Dict(String, GiftCardRecord),
+    gift_card_order: List(String),
+    gift_card_configuration: Option(GiftCardConfigurationRecord),
+    segments: Dict(String, SegmentRecord),
+    segment_order: List(String),
+    deleted_segment_ids: Dict(String, Bool),
+    customer_segment_members_queries: Dict(
+      String,
+      CustomerSegmentMembersQueryRecord,
+    ),
+    customer_segment_members_query_order: List(String),
   )
 }
 
@@ -75,6 +99,26 @@ pub type StagedState {
     app_usage_record_order: List(String),
     delegated_access_tokens: Dict(String, DelegatedAccessTokenRecord),
     delegated_access_token_order: List(String),
+    shopify_functions: Dict(String, ShopifyFunctionRecord),
+    shopify_function_order: List(String),
+    validations: Dict(String, ValidationRecord),
+    validation_order: List(String),
+    deleted_validation_ids: Dict(String, Bool),
+    cart_transforms: Dict(String, CartTransformRecord),
+    cart_transform_order: List(String),
+    deleted_cart_transform_ids: Dict(String, Bool),
+    tax_app_configuration: Option(TaxAppConfigurationRecord),
+    gift_cards: Dict(String, GiftCardRecord),
+    gift_card_order: List(String),
+    gift_card_configuration: Option(GiftCardConfigurationRecord),
+    segments: Dict(String, SegmentRecord),
+    segment_order: List(String),
+    deleted_segment_ids: Dict(String, Bool),
+    customer_segment_members_queries: Dict(
+      String,
+      CustomerSegmentMembersQueryRecord,
+    ),
+    customer_segment_members_query_order: List(String),
   )
 }
 
@@ -171,6 +215,23 @@ pub fn empty_base_state() -> BaseState {
     app_usage_record_order: [],
     delegated_access_tokens: dict.new(),
     delegated_access_token_order: [],
+    shopify_functions: dict.new(),
+    shopify_function_order: [],
+    validations: dict.new(),
+    validation_order: [],
+    deleted_validation_ids: dict.new(),
+    cart_transforms: dict.new(),
+    cart_transform_order: [],
+    deleted_cart_transform_ids: dict.new(),
+    tax_app_configuration: None,
+    gift_cards: dict.new(),
+    gift_card_order: [],
+    gift_card_configuration: None,
+    segments: dict.new(),
+    segment_order: [],
+    deleted_segment_ids: dict.new(),
+    customer_segment_members_queries: dict.new(),
+    customer_segment_members_query_order: [],
   )
 }
 
@@ -198,6 +259,23 @@ pub fn empty_staged_state() -> StagedState {
     app_usage_record_order: [],
     delegated_access_tokens: dict.new(),
     delegated_access_token_order: [],
+    shopify_functions: dict.new(),
+    shopify_function_order: [],
+    validations: dict.new(),
+    validation_order: [],
+    deleted_validation_ids: dict.new(),
+    cart_transforms: dict.new(),
+    cart_transform_order: [],
+    deleted_cart_transform_ids: dict.new(),
+    tax_app_configuration: None,
+    gift_cards: dict.new(),
+    gift_card_order: [],
+    gift_card_configuration: None,
+    segments: dict.new(),
+    segment_order: [],
+    deleted_segment_ids: dict.new(),
+    customer_segment_members_queries: dict.new(),
+    customer_segment_members_query_order: [],
   )
 }
 
@@ -983,6 +1061,591 @@ pub fn destroy_delegated_access_token(
       let #(_, new_store) = stage_delegated_access_token(store, updated)
       new_store
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Functions domain (Pass 18)
+// ---------------------------------------------------------------------------
+
+/// Stage a `ShopifyFunctionRecord`. Mirrors `upsertStagedShopifyFunction`.
+/// Functions cannot be deleted in the proxy — once a record is staged or
+/// hydrated upstream, it stays.
+pub fn upsert_staged_shopify_function(
+  store: Store,
+  record: ShopifyFunctionRecord,
+) -> #(ShopifyFunctionRecord, Store) {
+  let staged = store.staged_state
+  let already =
+    dict_has(store.base_state.shopify_functions, record.id)
+    || dict_has(staged.shopify_functions, record.id)
+  let new_order = case already {
+    True -> staged.shopify_function_order
+    False -> list.append(staged.shopify_function_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      shopify_functions: dict.insert(staged.shopify_functions, record.id, record),
+      shopify_function_order: new_order,
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Look up an effective `ShopifyFunctionRecord` (staged-over-base).
+/// Mirrors `getEffectiveShopifyFunctionById`.
+pub fn get_effective_shopify_function_by_id(
+  store: Store,
+  id: String,
+) -> Option(ShopifyFunctionRecord) {
+  case dict.get(store.staged_state.shopify_functions, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.shopify_functions, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+/// List every effective `ShopifyFunctionRecord`. Mirrors
+/// `listEffectiveShopifyFunctions`. Ordered records first, then any
+/// unordered ones sorted by id.
+pub fn list_effective_shopify_functions(
+  store: Store,
+) -> List(ShopifyFunctionRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.shopify_function_order,
+      store.staged_state.shopify_function_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_shopify_function_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.shopify_functions,
+      store.staged_state.shopify_functions,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_shopify_function_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+/// Stage a `ValidationRecord`. Mirrors `upsertStagedValidation`. Clears
+/// any deletion marker the staged side may carry for the same id.
+pub fn upsert_staged_validation(
+  store: Store,
+  record: ValidationRecord,
+) -> #(ValidationRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.validation_order, record.id)
+    || list.contains(staged.validation_order, record.id)
+  let new_order = case already_known {
+    True -> staged.validation_order
+    False -> list.append(staged.validation_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      validations: dict.insert(staged.validations, record.id, record),
+      validation_order: new_order,
+      deleted_validation_ids: dict.delete(
+        staged.deleted_validation_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Mark a validation id as deleted. Mirrors `deleteStagedValidation`.
+pub fn delete_staged_validation(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      validations: dict.delete(staged.validations, id),
+      deleted_validation_ids: dict.insert(
+        staged.deleted_validation_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
+/// Look up an effective validation. Mirrors
+/// `getEffectiveValidationById`.
+pub fn get_effective_validation_by_id(
+  store: Store,
+  id: String,
+) -> Option(ValidationRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_validation_ids, id)
+    || dict_has(store.staged_state.deleted_validation_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.validations, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.validations, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+/// List every effective validation. Mirrors `listEffectiveValidations`.
+pub fn list_effective_validations(store: Store) -> List(ValidationRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.validation_order,
+      store.staged_state.validation_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_validation_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.validations, store.staged_state.validations)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_validation_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+/// Stage a `CartTransformRecord`. Mirrors `upsertStagedCartTransform`.
+pub fn upsert_staged_cart_transform(
+  store: Store,
+  record: CartTransformRecord,
+) -> #(CartTransformRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.cart_transform_order, record.id)
+    || list.contains(staged.cart_transform_order, record.id)
+  let new_order = case already_known {
+    True -> staged.cart_transform_order
+    False -> list.append(staged.cart_transform_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      cart_transforms: dict.insert(staged.cart_transforms, record.id, record),
+      cart_transform_order: new_order,
+      deleted_cart_transform_ids: dict.delete(
+        staged.deleted_cart_transform_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Mark a cart-transform id as deleted. Mirrors
+/// `deleteStagedCartTransform`.
+pub fn delete_staged_cart_transform(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      cart_transforms: dict.delete(staged.cart_transforms, id),
+      deleted_cart_transform_ids: dict.insert(
+        staged.deleted_cart_transform_ids,
+        id,
+        True,
+      ),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
+/// Look up an effective cart-transform. Mirrors
+/// `getEffectiveCartTransformById`.
+pub fn get_effective_cart_transform_by_id(
+  store: Store,
+  id: String,
+) -> Option(CartTransformRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_cart_transform_ids, id)
+    || dict_has(store.staged_state.deleted_cart_transform_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.cart_transforms, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.cart_transforms, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+/// List every effective cart-transform. Mirrors
+/// `listEffectiveCartTransforms`.
+pub fn list_effective_cart_transforms(
+  store: Store,
+) -> List(CartTransformRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.cart_transform_order,
+      store.staged_state.cart_transform_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_cart_transform_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.cart_transforms,
+      store.staged_state.cart_transforms,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_cart_transform_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+/// Stage the singleton tax-app configuration. Mirrors
+/// `setStagedTaxAppConfiguration`. The TS proxy permits one
+/// configuration per shop; here it lives as `Option` on staged state.
+pub fn set_staged_tax_app_configuration(
+  store: Store,
+  record: TaxAppConfigurationRecord,
+) -> Store {
+  let staged = store.staged_state
+  let new_staged = StagedState(..staged, tax_app_configuration: Some(record))
+  Store(..store, staged_state: new_staged)
+}
+
+/// Read the effective tax-app configuration (staged-over-base).
+/// Mirrors `getEffectiveTaxAppConfiguration`.
+pub fn get_effective_tax_app_configuration(
+  store: Store,
+) -> Option(TaxAppConfigurationRecord) {
+  case store.staged_state.tax_app_configuration {
+    Some(record) -> Some(record)
+    None -> store.base_state.tax_app_configuration
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Gift card slice (Pass 19)
+// ---------------------------------------------------------------------------
+
+/// Stage a freshly minted `GiftCardRecord`. Mirrors
+/// `stageCreateGiftCard` — appends the id to staged order on first
+/// sight, otherwise leaves the order alone (idempotent re-stage).
+pub fn stage_create_gift_card(
+  store: Store,
+  record: GiftCardRecord,
+) -> #(GiftCardRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.gift_card_order, record.id)
+    || list.contains(staged.gift_card_order, record.id)
+  let new_order = case already_known {
+    True -> staged.gift_card_order
+    False -> list.append(staged.gift_card_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      gift_cards: dict.insert(staged.gift_cards, record.id, record),
+      gift_card_order: new_order,
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Stage an updated `GiftCardRecord`. Mirrors `stageUpdateGiftCard`.
+/// Same semantics as `stage_create_gift_card` since gift cards are
+/// never deleted (deactivation flips a flag instead).
+pub fn stage_update_gift_card(
+  store: Store,
+  record: GiftCardRecord,
+) -> #(GiftCardRecord, Store) {
+  stage_create_gift_card(store, record)
+}
+
+/// Look up the effective gift card for an id (staged-over-base).
+/// Mirrors `getEffectiveGiftCardById`.
+pub fn get_effective_gift_card_by_id(
+  store: Store,
+  id: String,
+) -> Option(GiftCardRecord) {
+  case dict.get(store.staged_state.gift_cards, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.gift_cards, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+/// List every effective gift card. Mirrors `listEffectiveGiftCards`.
+/// Ordered records first (`giftCardOrder`), then any unordered records
+/// sorted by id.
+pub fn list_effective_gift_cards(store: Store) -> List(GiftCardRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.gift_card_order,
+      store.staged_state.gift_card_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_gift_card_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.gift_cards, store.staged_state.gift_cards)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_gift_card_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+/// Stage the singleton gift-card configuration. Mirrors
+/// `setStagedGiftCardConfiguration`.
+pub fn set_staged_gift_card_configuration(
+  store: Store,
+  record: GiftCardConfigurationRecord,
+) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(..staged, gift_card_configuration: Some(record))
+  Store(..store, staged_state: new_staged)
+}
+
+/// Read the effective gift-card configuration (staged-over-base).
+/// Mirrors `getEffectiveGiftCardConfiguration`. Returns the proxy's
+/// default (CAD 0.0 limits) when neither side has staged a
+/// configuration — matches the TS fallback.
+pub fn get_effective_gift_card_configuration(
+  store: Store,
+) -> GiftCardConfigurationRecord {
+  case store.staged_state.gift_card_configuration {
+    Some(record) -> record
+    None ->
+      case store.base_state.gift_card_configuration {
+        Some(record) -> record
+        None -> default_gift_card_configuration()
+      }
+  }
+}
+
+fn default_gift_card_configuration() -> GiftCardConfigurationRecord {
+  types_mod.GiftCardConfigurationRecord(
+    issue_limit: types_mod.Money(amount: "0.0", currency_code: "CAD"),
+    purchase_limit: types_mod.Money(amount: "0.0", currency_code: "CAD"),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Segment slice (Pass 20)
+// ---------------------------------------------------------------------------
+
+/// Stage a segment record. Mirrors `upsertStagedSegment`. Returns the
+/// stored record alongside the new store so the caller can build a
+/// mutation payload.
+pub fn upsert_staged_segment(
+  store: Store,
+  record: SegmentRecord,
+) -> #(SegmentRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.segment_order, record.id)
+    || list.contains(staged.segment_order, record.id)
+  let new_order = case already_known {
+    True -> staged.segment_order
+    False -> list.append(staged.segment_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      segments: dict.insert(staged.segments, record.id, record),
+      segment_order: new_order,
+      deleted_segment_ids: dict.delete(staged.deleted_segment_ids, record.id),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+/// Mark a segment id as deleted. Mirrors `deleteStagedSegment`.
+pub fn delete_staged_segment(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  let new_staged =
+    StagedState(
+      ..staged,
+      segments: dict.delete(staged.segments, id),
+      deleted_segment_ids: dict.insert(staged.deleted_segment_ids, id, True),
+    )
+  Store(..store, staged_state: new_staged)
+}
+
+/// Look up the effective segment for an id. Staged wins over base; any
+/// "deleted" marker on either side suppresses the record. Mirrors
+/// `getEffectiveSegmentById`.
+pub fn get_effective_segment_by_id(
+  store: Store,
+  id: String,
+) -> Option(SegmentRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_segment_ids, id)
+    || dict_has(store.staged_state.deleted_segment_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.segments, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.segments, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+/// List every effective segment the store knows about. Ordered records
+/// (those tracked by `segmentOrder`) come first, followed by any
+/// unordered staged/base records sorted by id. Mirrors
+/// `listEffectiveSegments`.
+pub fn list_effective_segments(store: Store) -> List(SegmentRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.segment_order,
+      store.staged_state.segment_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_segment_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged = dict.merge(store.base_state.segments, store.staged_state.segments)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_segment_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+// ---------------------------------------------------------------------------
+// Customer-segment-members-query slice (Pass 22j)
+// ---------------------------------------------------------------------------
+
+/// Stage a customer-segment-members-query record. Mirrors
+/// `stageCustomerSegmentMembersQuery`.
+pub fn stage_customer_segment_members_query(
+  store: Store,
+  record: CustomerSegmentMembersQueryRecord,
+) -> Store {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.customer_segment_members_query_order, record.id)
+    || list.contains(staged.customer_segment_members_query_order, record.id)
+  let new_order = case already_known {
+    True -> staged.customer_segment_members_query_order
+    False ->
+      list.append(staged.customer_segment_members_query_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      customer_segment_members_queries: dict.insert(
+        staged.customer_segment_members_queries,
+        record.id,
+        record,
+      ),
+      customer_segment_members_query_order: new_order,
+    )
+  Store(..store, staged_state: new_staged)
+}
+
+/// Look up the effective customer-segment-members-query for an id.
+/// Staged wins over base. Mirrors
+/// `getEffectiveCustomerSegmentMembersQueryById`.
+pub fn get_effective_customer_segment_members_query_by_id(
+  store: Store,
+  id: String,
+) -> Option(CustomerSegmentMembersQueryRecord) {
+  case dict.get(store.staged_state.customer_segment_members_queries, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.customer_segment_members_queries, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
   }
 }
 

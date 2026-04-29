@@ -721,7 +721,7 @@ pub fn webhook_subscription_create_missing_topic_top_level_error_test() {
   let body = run_mutation(store.new(), document)
   // Body should be the {"errors": [...]} envelope, no data key
   assert body
-    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionCreate' is missing required arguments: topic\",\"path\":[\"mutation\",\"webhookSubscriptionCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionCreate\",\"arguments\":\"topic\"}}]}"
+    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionCreate' is missing required arguments: topic\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionCreate\",\"arguments\":\"topic\"}}]}"
 }
 
 pub fn webhook_subscription_create_null_topic_top_level_error_test() {
@@ -729,7 +729,7 @@ pub fn webhook_subscription_create_null_topic_top_level_error_test() {
     "mutation { webhookSubscriptionCreate(topic: null, webhookSubscription: { uri: \"https://hooks.example.com/orders\" }) { webhookSubscription { id } userErrors { field message } } }"
   let body = run_mutation(store.new(), document)
   assert body
-    == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (null). Expected type 'WebhookSubscriptionTopic!'.\",\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
+    == "{\"errors\":[{\"message\":\"Argument 'topic' on Field 'webhookSubscriptionCreate' has an invalid value (null). Expected type 'WebhookSubscriptionTopic!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionCreate\",\"topic\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"topic\"}}]}"
 }
 
 pub fn webhook_subscription_update_modifies_record_test() {
@@ -766,7 +766,7 @@ pub fn webhook_subscription_update_missing_id_top_level_error_test() {
     "mutation { webhookSubscriptionUpdate { webhookSubscription { id } userErrors { field message } } }"
   let body = run_mutation(store.new(), document)
   assert body
-    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionUpdate' is missing required arguments: id, webhookSubscription\",\"path\":[\"mutation\",\"webhookSubscriptionUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionUpdate\",\"arguments\":\"id, webhookSubscription\"}}]}"
+    == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionUpdate' is missing required arguments: id, webhookSubscription\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionUpdate\",\"arguments\":\"id, webhookSubscription\"}}]}"
 }
 
 pub fn webhook_subscription_delete_removes_record_test() {
@@ -807,5 +807,5 @@ pub fn webhook_subscription_delete_null_id_top_level_error_test() {
     "mutation { webhookSubscriptionDelete(id: null) { deletedWebhookSubscriptionId userErrors { field message } } }"
   let body = run_mutation(store.new(), document)
   assert body
-    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'webhookSubscriptionDelete' has an invalid value (null). Expected type 'ID!'.\",\"path\":[\"mutation\",\"webhookSubscriptionDelete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
+    == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'webhookSubscriptionDelete' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionDelete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
 }

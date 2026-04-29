@@ -31,11 +31,15 @@ import shopify_draft_proxy/proxy/capabilities
 import shopify_draft_proxy/proxy/delivery_settings
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/functions
+import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/metafield_definitions
 import shopify_draft_proxy/proxy/operation_registry.{
-  type RegistryEntry, Apps, Events, SavedSearches, ShippingFulfillments,
-  Webhooks,
+  type RegistryEntry, Apps, Events, Functions, GiftCards, Metafields,
+  SavedSearches, Segments, ShippingFulfillments, Webhooks,
 }
 import shopify_draft_proxy/proxy/saved_searches
+import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -541,6 +545,99 @@ fn route_mutation(
           proxy,
         )
       }
+    Ok(AppsDomain) ->
+      case
+        apps.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          proxy.config.shopify_admin_origin,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle apps mutation"),
+          proxy,
+        )
+      }
+    Ok(FunctionsDomain) ->
+      case
+        functions.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle functions mutation"),
+          proxy,
+        )
+      }
+    Ok(GiftCardsDomain) ->
+      case
+        gift_cards.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle gift cards mutation"),
+          proxy,
+        )
+      }
+    Ok(SegmentsDomain) ->
+      case
+        segments.process_mutation(
+          proxy.store,
+          proxy.synthetic_identity,
+          request_path,
+          query,
+          variables,
+        )
+      {
+        Ok(outcome) -> #(
+          Response(status: 200, body: outcome.data, headers: []),
+          DraftProxy(
+            ..proxy,
+            store: outcome.store,
+            synthetic_identity: outcome.identity,
+          ),
+        )
+        Error(_) -> #(
+          bad_request("Failed to handle segments mutation"),
+          proxy,
+        )
+      }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
@@ -585,6 +682,30 @@ fn route_query(
         apps.process(proxy.store, query, variables),
         "Failed to handle apps query",
       )
+    Ok(FunctionsDomain) ->
+      respond(
+        proxy,
+        functions.process(proxy.store, query, variables),
+        "Failed to handle functions query",
+      )
+    Ok(GiftCardsDomain) ->
+      respond(
+        proxy,
+        gift_cards.process(proxy.store, query, variables),
+        "Failed to handle gift cards query",
+      )
+    Ok(SegmentsDomain) ->
+      respond(
+        proxy,
+        segments.process(proxy.store, query, variables),
+        "Failed to handle segments query",
+      )
+    Ok(MetafieldDefinitionsDomain) ->
+      respond(
+        proxy,
+        metafield_definitions.process(query),
+        "Failed to handle metafield definitions query",
+      )
     Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
@@ -601,6 +722,10 @@ type Domain {
   SavedSearchesDomain
   WebhooksDomain
   AppsDomain
+  FunctionsDomain
+  GiftCardsDomain
+  SegmentsDomain
+  MetafieldDefinitionsDomain
 }
 
 /// Resolve a query operation's domain. With a registry loaded, the
@@ -643,6 +768,10 @@ fn capability_to_query_domain(
         ShippingFulfillments -> Ok(DeliverySettingsDomain)
         Webhooks -> Ok(WebhooksDomain)
         Apps -> Ok(AppsDomain)
+        Functions -> Ok(FunctionsDomain)
+        GiftCards -> Ok(GiftCardsDomain)
+        Segments -> Ok(SegmentsDomain)
+        Metafields -> Ok(MetafieldDefinitionsDomain)
         _ -> Error(Nil)
       }
     }
@@ -660,6 +789,10 @@ fn capability_to_mutation_domain(
       case cap.domain {
         SavedSearches -> Ok(SavedSearchesDomain)
         Webhooks -> Ok(WebhooksDomain)
+        Apps -> Ok(AppsDomain)
+        Functions -> Ok(FunctionsDomain)
+        GiftCards -> Ok(GiftCardsDomain)
+        Segments -> Ok(SegmentsDomain)
         _ -> Error(Nil)
       }
     }
@@ -680,7 +813,27 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
             False ->
               case apps.is_app_query_root(name) {
                 True -> Ok(AppsDomain)
-                False -> Error(Nil)
+                False ->
+                  case functions.is_function_query_root(name) {
+                    True -> Ok(FunctionsDomain)
+                    False ->
+                      case gift_cards.is_gift_card_query_root(name) {
+                        True -> Ok(GiftCardsDomain)
+                        False ->
+                          case segments.is_segment_query_root(name) {
+                            True -> Ok(SegmentsDomain)
+                            False ->
+                              case
+                                metafield_definitions.is_metafield_definitions_query_root(
+                                  name,
+                                )
+                              {
+                                True -> Ok(MetafieldDefinitionsDomain)
+                                False -> Error(Nil)
+                              }
+                          }
+                      }
+                  }
               }
           }
       }
@@ -693,7 +846,23 @@ fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
     False ->
       case webhooks.is_webhook_subscription_mutation_root(name) {
         True -> Ok(WebhooksDomain)
-        False -> Error(Nil)
+        False ->
+          case apps.is_app_mutation_root(name) {
+            True -> Ok(AppsDomain)
+            False ->
+              case functions.is_function_mutation_root(name) {
+                True -> Ok(FunctionsDomain)
+                False ->
+                  case gift_cards.is_gift_card_mutation_root(name) {
+                    True -> Ok(GiftCardsDomain)
+                    False ->
+                      case segments.is_segment_mutation_root(name) {
+                        True -> Ok(SegmentsDomain)
+                        False -> Error(Nil)
+                      }
+                  }
+              }
+          }
       }
   }
 }

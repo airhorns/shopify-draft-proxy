@@ -1,37 +1,55 @@
-//// Mirrors the read path of `src/proxy/apps.ts`.
+//// Mirrors `src/proxy/apps.ts`.
 ////
 //// Pass 16 lands the six query roots (`app`, `appByHandle`, `appByKey`,
 //// `appInstallation`, `appInstallations`, `currentAppInstallation`) plus
-//// the per-record source projections needed to serve them. The
-//// mutation path lives in a later pass — this module only exposes
-//// pure functions of the store.
+//// the per-record source projections needed to serve them.
 ////
-//// Note: the TS read path does NOT auto-create the default app /
-//// installation. Only mutations do. So the dispatcher can keep the same
-//// pure shape as for `webhooks` / `saved_searches`.
+//// Pass 17 lands the ten mutation roots (`appUninstall`,
+//// `appRevokeAccessScopes`, `delegateAccessTokenCreate` / `Destroy`,
+//// `appPurchaseOneTimeCreate`, `appSubscriptionCreate` /
+//// `Cancel` / `LineItemUpdate` / `TrialExtend`,
+//// `appUsageRecordCreate`) plus the supporting plumbing
+//// (`MutationOutcome`, `process_mutation`, `ensure_current_installation`,
+//// `confirmation_url`, `token_hash`, `token_preview`).
+////
+//// Note: the read path is pure of the store. Mutations thread
+//// `(store, identity)` forward and may auto-create a default app
+//// installation when one isn't registered yet — mirroring TS
+//// `ensureCurrentInstallation`.
 
 import gleam/dict.{type Dict}
+import gleam/float
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
+import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
-  SerializeConnectionConfig, SelectedFieldOptions, SrcBool, SrcInt, SrcList,
-  SrcNull, SrcString, default_connection_page_info_options,
+  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
+  ConnectionWindow, SerializeConnectionConfig, SelectedFieldOptions, SrcBool,
+  SrcInt, SrcList, SrcNull, SrcString, default_connection_page_info_options,
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/synthetic_identity.{
+  type SyntheticIdentityRegistry,
+}
 import shopify_draft_proxy/state/types.{
-  type AccessScopeRecord, type AppInstallationRecord, type AppOneTimePurchaseRecord,
-  type AppRecord, type AppSubscriptionLineItemPlan,
-  type AppSubscriptionLineItemRecord, type AppSubscriptionPricing,
-  type AppSubscriptionRecord, type AppUsageRecord, type Money,
-  AppRecurringPricing, AppUsagePricing,
+  type AccessScopeRecord, type AppInstallationRecord,
+  type AppOneTimePurchaseRecord, type AppRecord,
+  type AppSubscriptionLineItemPlan, type AppSubscriptionLineItemRecord,
+  type AppSubscriptionPricing, type AppSubscriptionRecord, type AppUsageRecord,
+  type Money, AccessScopeRecord,
+  AppInstallationRecord, AppOneTimePurchaseRecord, AppRecord,
+  AppRecurringPricing, AppSubscriptionLineItemPlan,
+  AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
+  AppUsageRecord, DelegatedAccessTokenRecord, Money,
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +70,23 @@ pub fn is_app_query_root(name: String) -> Bool {
     "appInstallation" -> True
     "appInstallations" -> True
     "currentAppInstallation" -> True
+    _ -> False
+  }
+}
+
+/// Predicate matching the TS `APP_MUTATION_ROOTS` set.
+pub fn is_app_mutation_root(name: String) -> Bool {
+  case name {
+    "appPurchaseOneTimeCreate" -> True
+    "appSubscriptionCreate" -> True
+    "appSubscriptionCancel" -> True
+    "appSubscriptionLineItemUpdate" -> True
+    "appSubscriptionTrialExtend" -> True
+    "appUsageRecordCreate" -> True
+    "appRevokeAccessScopes" -> True
+    "appUninstall" -> True
+    "delegateAccessTokenCreate" -> True
+    "delegateAccessTokenDestroy" -> True
     _ -> False
   }
 }
@@ -681,4 +716,1561 @@ fn optional_int_to_source(value: Option(Int)) -> graphql_helpers.SourceValue {
     Some(i) -> SrcInt(i)
     None -> SrcNull
   }
+}
+
+// ===========================================================================
+// Mutation path
+// ===========================================================================
+
+/// Outcome of an apps mutation. Mirrors the saved-search/webhook-subscription
+/// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
+/// the updated store and identity registry, and the staged GIDs.
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+  )
+}
+
+/// User-error payload emitted on a mutation failure. Mirrors the apps
+/// `UserError` shape in TS: an optional `code` and a path that defaults
+/// to an empty list.
+pub type UserError {
+  UserError(field: List(String), message: String, code: Option(String))
+}
+
+type MutationFieldResult {
+  MutationFieldResult(
+    key: String,
+    payload: Json,
+    staged_resource_ids: List(String),
+  )
+}
+
+/// Process an apps mutation document. Mirrors `handleAppMutation`. Each
+/// mutation handler stages its records and returns a payload; the
+/// outcomes are combined into a single `{"data": {...}}` envelope. Apps
+/// mutations don't currently produce top-level error envelopes — every
+/// failure mode is surfaced through `userErrors` instead.
+pub fn process_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(MutationOutcome, AppsError) {
+  case root_field.get_root_fields(document) {
+    Error(err) -> Error(ParseFailed(err))
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        request_path,
+        origin,
+        document,
+        fields,
+        fragments,
+        variables,
+      ))
+    }
+  }
+}
+
+fn handle_mutation_fields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  fields: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationOutcome {
+  let initial = #([], store, identity, [])
+  let #(data_entries, final_store, final_identity, all_staged) =
+    list.fold(fields, initial, fn(acc, field) {
+      let #(entries, current_store, current_identity, staged_ids) = acc
+      case field {
+        Field(name: name, ..) -> {
+          let dispatch = case name.value {
+            "appUninstall" ->
+              Some(handle_uninstall(
+                current_store,
+                current_identity,
+                request_path,
+                origin,
+                document,
+                field,
+                fragments,
+              ))
+            "appRevokeAccessScopes" ->
+              Some(handle_revoke_access_scopes(
+                current_store,
+                current_identity,
+                request_path,
+                origin,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "delegateAccessTokenCreate" ->
+              Some(handle_delegate_create(
+                current_store,
+                current_identity,
+                request_path,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "delegateAccessTokenDestroy" ->
+              Some(handle_delegate_destroy(
+                current_store,
+                current_identity,
+                request_path,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appPurchaseOneTimeCreate" ->
+              Some(handle_purchase_create(
+                current_store,
+                current_identity,
+                request_path,
+                origin,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appSubscriptionCreate" ->
+              Some(handle_subscription_create(
+                current_store,
+                current_identity,
+                request_path,
+                origin,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appSubscriptionCancel" ->
+              Some(handle_subscription_cancel(
+                current_store,
+                current_identity,
+                request_path,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appSubscriptionLineItemUpdate" ->
+              Some(handle_line_item_update(
+                current_store,
+                current_identity,
+                request_path,
+                origin,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appSubscriptionTrialExtend" ->
+              Some(handle_trial_extend(
+                current_store,
+                current_identity,
+                request_path,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            "appUsageRecordCreate" ->
+              Some(handle_usage_record_create(
+                current_store,
+                current_identity,
+                request_path,
+                document,
+                field,
+                fragments,
+                variables,
+              ))
+            _ -> None
+          }
+          case dispatch {
+            None -> acc
+            Some(#(result, next_store, next_identity)) -> #(
+              list.append(entries, [#(result.key, result.payload)]),
+              next_store,
+              next_identity,
+              list.append(staged_ids, result.staged_resource_ids),
+            )
+          }
+        }
+        _ -> acc
+      }
+    })
+  MutationOutcome(
+    data: json.object([#("data", json.object(data_entries))]),
+    store: final_store,
+    identity: final_identity,
+    staged_resource_ids: all_staged,
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Per-mutation handlers
+// ---------------------------------------------------------------------------
+
+fn handle_uninstall(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let #(installation, store_after_ensure, identity_after_ensure) =
+    ensure_current_installation(store, identity, origin)
+  let #(timestamp, identity_after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_ensure)
+  let app =
+    store.get_effective_app_by_id(store_after_ensure, installation.app_id)
+  let updated =
+    AppInstallationRecord(..installation, uninstalled_at: Some(timestamp))
+  let #(_, store_staged) =
+    store.stage_app_installation(store_after_ensure, updated)
+  let payload =
+    project_uninstall_payload(app, [], field, fragments)
+  let #(store_logged, _, identity_final) =
+    record_log(
+      store_staged,
+      identity_after_ts,
+      "appUninstall",
+      request_path,
+      document,
+      [installation.id],
+      store.Staged,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [installation.id],
+    ),
+    store_logged,
+    identity_final,
+  )
+}
+
+fn handle_revoke_access_scopes(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let #(installation, store_after_ensure, identity_after_ensure) =
+    ensure_current_installation(store, identity, origin)
+  let args = field_args(field, variables)
+  let requested_scopes = case dict.get(args, "scopes") {
+    Ok(root_field.ListVal(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  let current_handles =
+    list.map(installation.access_scopes, fn(s) { s.handle })
+  let revoked =
+    list.filter(installation.access_scopes, fn(scope) {
+      list.contains(requested_scopes, scope.handle)
+    })
+  let errors =
+    list.filter(requested_scopes, fn(scope) {
+      !list.contains(current_handles, scope)
+    })
+    |> list.map(fn(scope) {
+      UserError(
+        field: ["scopes"],
+        message: "Access scope '" <> scope <> "' is not granted.",
+        code: Some("UNKNOWN_SCOPES"),
+      )
+    })
+  let updated =
+    AppInstallationRecord(
+      ..installation,
+      access_scopes: list.filter(installation.access_scopes, fn(scope) {
+        !list.contains(requested_scopes, scope.handle)
+      }),
+    )
+  let #(_, store_staged) =
+    store.stage_app_installation(store_after_ensure, updated)
+  let payload =
+    project_revoke_payload(revoked, errors, field, fragments)
+  let status = case errors {
+    [] -> store.Staged
+    _ -> store.Failed
+  }
+  let #(store_logged, _, identity_final) =
+    record_log(
+      store_staged,
+      identity_after_ensure,
+      "appRevokeAccessScopes",
+      request_path,
+      document,
+      [installation.id],
+      status,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [installation.id],
+    ),
+    store_logged,
+    identity_final,
+  )
+}
+
+fn handle_delegate_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = case dict.get(args, "input") {
+    Ok(root_field.ObjectVal(d)) -> d
+    _ -> dict.new()
+  }
+  let delegate_scope = read_arg_string(input, "delegateAccessScope")
+  let legacy_scopes = case dict.get(input, "accessScopes") {
+    Ok(root_field.ListVal(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  let access_scopes = case delegate_scope {
+    Some(s) -> [s]
+    None -> legacy_scopes
+  }
+  let expires_in = case dict.get(input, "expiresIn") {
+    Ok(root_field.IntVal(n)) -> Some(n)
+    _ -> None
+  }
+  let #(token_gid, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "DelegateAccessToken")
+  let #(timestamp, identity_after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let raw_token =
+    "shpat_delegate_proxy_" <> trailing_segment(token_gid)
+  let record =
+    DelegatedAccessTokenRecord(
+      id: token_gid,
+      access_token_sha256: token_hash(raw_token),
+      access_token_preview: token_preview(raw_token),
+      access_scopes: access_scopes,
+      created_at: timestamp,
+      expires_in: expires_in,
+      destroyed_at: None,
+    )
+  let #(_, store_staged) =
+    store.stage_delegated_access_token(store, record)
+  let payload =
+    project_delegate_create_payload(
+      raw_token,
+      access_scopes,
+      timestamp,
+      expires_in,
+      [],
+      field,
+      fragments,
+    )
+  let #(store_logged, _, identity_final) =
+    record_log(
+      store_staged,
+      identity_after_ts,
+      "delegateAccessTokenCreate",
+      request_path,
+      document,
+      [token_gid],
+      store.Staged,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [token_gid],
+    ),
+    store_logged,
+    identity_final,
+  )
+}
+
+fn handle_delegate_destroy(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let access_token = read_arg_string(args, "accessToken")
+  let token = case access_token {
+    Some(raw) ->
+      store.find_delegated_access_token_by_hash(store, token_hash(raw))
+    None -> None
+  }
+  case token {
+    None -> {
+      let payload =
+        project_delegate_destroy_payload(
+          False,
+          [
+            UserError(
+              field: ["accessToken"],
+              message: "Access token not found.",
+              code: Some("ACCESS_TOKEN_NOT_FOUND"),
+            ),
+          ],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store,
+          identity,
+          "delegateAccessTokenDestroy",
+          request_path,
+          document,
+          [],
+          store.Failed,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+    Some(record) -> {
+      let #(timestamp, identity_after_ts) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let store_after =
+        store.destroy_delegated_access_token(store, record.id, timestamp)
+      let payload =
+        project_delegate_destroy_payload(True, [], field, fragments)
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store_after,
+          identity_after_ts,
+          "delegateAccessTokenDestroy",
+          request_path,
+          document,
+          [record.id],
+          store.Staged,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [record.id],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+  }
+}
+
+fn handle_purchase_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let #(installation, store_after_ensure, identity_after_ensure) =
+    ensure_current_installation(store, identity, origin)
+  let #(purchase_gid, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_ensure,
+      "AppPurchaseOneTime",
+    )
+  let #(timestamp, identity_after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let purchase =
+    AppOneTimePurchaseRecord(
+      id: purchase_gid,
+      name: option.unwrap(read_arg_string(args, "name"), ""),
+      status: "PENDING",
+      is_test: read_arg_bool(args, "test"),
+      created_at: timestamp,
+      price: read_money_input(args, "price"),
+    )
+  let #(_, store_with_purchase) =
+    store.stage_app_one_time_purchase(store_after_ensure, purchase)
+  let updated_installation =
+    AppInstallationRecord(
+      ..installation,
+      one_time_purchase_ids: list.append(installation.one_time_purchase_ids, [
+        purchase.id,
+      ]),
+    )
+  let #(_, store_staged) =
+    store.stage_app_installation(store_with_purchase, updated_installation)
+  let payload =
+    project_purchase_create_payload(
+      Some(purchase),
+      Some(confirmation_url(origin, "ApplicationCharge", purchase.id)),
+      [],
+      field,
+      fragments,
+    )
+  let #(store_logged, _, identity_final) =
+    record_log(
+      store_staged,
+      identity_after_ts,
+      "appPurchaseOneTimeCreate",
+      request_path,
+      document,
+      [purchase.id],
+      store.Staged,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [purchase.id],
+    ),
+    store_logged,
+    identity_final,
+  )
+}
+
+fn handle_subscription_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let #(installation, store_after_ensure, identity_after_ensure) =
+    ensure_current_installation(store, identity, origin)
+  let #(sub_gid, identity_after_sub_id) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_ensure,
+      "AppSubscription",
+    )
+  let line_item_inputs = case dict.get(args, "lineItems") {
+    Ok(root_field.ListVal(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          root_field.ObjectVal(d) -> Ok(d)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+  let #(line_items, store_after_lis, identity_after_lis) =
+    list.index_fold(
+      line_item_inputs,
+      #([], store_after_ensure, identity_after_sub_id),
+      fn(acc, input, index) {
+        let #(records, current_store, current_identity) = acc
+        let #(record, ident_next) =
+          read_line_item_plan(
+            current_identity,
+            input,
+            sub_gid,
+            index + 1,
+          )
+        let #(_, store_next) =
+          store.stage_app_subscription_line_item(current_store, record)
+        #(list.append(records, [record]), store_next, ident_next)
+      },
+    )
+  let #(timestamp, identity_after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_lis)
+  let subscription =
+    AppSubscriptionRecord(
+      id: sub_gid,
+      name: option.unwrap(read_arg_string(args, "name"), ""),
+      status: "PENDING",
+      is_test: read_arg_bool(args, "test"),
+      trial_days: read_arg_int(args, "trialDays"),
+      current_period_end: None,
+      created_at: timestamp,
+      line_item_ids: list.map(line_items, fn(li) { li.id }),
+    )
+  let #(_, store_after_sub) =
+    store.stage_app_subscription(store_after_lis, subscription)
+  let updated_installation =
+    AppInstallationRecord(
+      ..installation,
+      all_subscription_ids: list.append(installation.all_subscription_ids, [
+        subscription.id,
+      ]),
+    )
+  let #(_, store_staged) =
+    store.stage_app_installation(store_after_sub, updated_installation)
+  let payload =
+    project_subscription_create_payload(
+      store_staged,
+      Some(subscription),
+      Some(confirmation_url(origin, "RecurringApplicationCharge", subscription.id)),
+      [],
+      field,
+      fragments,
+    )
+  let staged_ids =
+    list.append([subscription.id], list.map(line_items, fn(li) { li.id }))
+  let #(store_logged, _, identity_final) =
+    record_log(
+      store_staged,
+      identity_after_ts,
+      "appSubscriptionCreate",
+      request_path,
+      document,
+      staged_ids,
+      store.Staged,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: staged_ids,
+    ),
+    store_logged,
+    identity_final,
+  )
+}
+
+fn handle_subscription_cancel(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let subscription_id = read_arg_string(args, "id")
+  let subscription = case subscription_id {
+    Some(id) -> store.get_effective_app_subscription_by_id(store, id)
+    None -> None
+  }
+  case subscription {
+    None -> {
+      let payload =
+        project_subscription_payload(
+          store,
+          None,
+          None,
+          [
+            UserError(
+              field: ["id"],
+              message: "Subscription not found",
+              code: None,
+            ),
+          ],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store,
+          identity,
+          "appSubscriptionCancel",
+          request_path,
+          document,
+          [],
+          store.Failed,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+    Some(sub) -> {
+      let cancelled = AppSubscriptionRecord(..sub, status: "CANCELLED")
+      let #(_, store_after_sub) =
+        store.stage_app_subscription(store, cancelled)
+      let store_after_install = case
+        store.get_current_app_installation(store_after_sub)
+      {
+        Some(install) -> {
+          let updated =
+            AppInstallationRecord(
+              ..install,
+              active_subscription_ids: list.filter(
+                install.active_subscription_ids,
+                fn(id) { id != cancelled.id },
+              ),
+            )
+          let #(_, store_next) =
+            store.stage_app_installation(store_after_sub, updated)
+          store_next
+        }
+        None -> store_after_sub
+      }
+      let payload =
+        project_subscription_payload(
+          store_after_install,
+          Some(cancelled),
+          None,
+          [],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store_after_install,
+          identity,
+          "appSubscriptionCancel",
+          request_path,
+          document,
+          [cancelled.id],
+          store.Staged,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [cancelled.id],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+  }
+}
+
+fn handle_line_item_update(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  origin: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let line_item_id = read_arg_string(args, "id")
+  let line_item = case line_item_id {
+    Some(id) ->
+      store.get_effective_app_subscription_line_item_by_id(store, id)
+    None -> None
+  }
+  let subscription = case line_item {
+    Some(li) ->
+      store.get_effective_app_subscription_by_id(store, li.subscription_id)
+    None -> None
+  }
+  case line_item, subscription {
+    Some(li), Some(sub) -> {
+      let capped = read_money_input(args, "cappedAmount")
+      let updated_pricing = case li.plan.pricing_details {
+        AppRecurringPricing(..) ->
+          // TS allows updating cappedAmount on a recurring line item by
+          // shallow-merging onto the existing pricing details. The Gleam
+          // model has no field for that on AppRecurringPricing, so we
+          // fall through and leave it unchanged. (Realistic shape is
+          // AppUsagePricing — that's what the TS shop emits.)
+          li.plan.pricing_details
+        AppUsagePricing(
+          balance_used: balance,
+          interval: interval,
+          terms: terms,
+          ..,
+        ) ->
+          AppUsagePricing(
+            capped_amount: capped,
+            balance_used: balance,
+            interval: interval,
+            terms: terms,
+          )
+      }
+      let updated_line_item =
+        AppSubscriptionLineItemRecord(
+          ..li,
+          plan: AppSubscriptionLineItemPlan(pricing_details: updated_pricing),
+        )
+      let #(_, store_after_li) =
+        store.stage_app_subscription_line_item(store, updated_line_item)
+      let payload =
+        project_subscription_payload(
+          store_after_li,
+          Some(sub),
+          Some(confirmation_url(origin, "RecurringApplicationCharge", sub.id)),
+          [],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store_after_li,
+          identity,
+          "appSubscriptionLineItemUpdate",
+          request_path,
+          document,
+          [updated_line_item.id],
+          store.Staged,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [updated_line_item.id],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+    _, _ -> {
+      let payload =
+        project_subscription_payload(
+          store,
+          None,
+          None,
+          [
+            UserError(
+              field: ["id"],
+              message: "Subscription line item not found",
+              code: None,
+            ),
+          ],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store,
+          identity,
+          "appSubscriptionLineItemUpdate",
+          request_path,
+          document,
+          [],
+          store.Failed,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+  }
+}
+
+fn handle_trial_extend(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let subscription_id = read_arg_string(args, "id")
+  let days = option.unwrap(read_arg_int(args, "days"), 0)
+  let subscription = case subscription_id {
+    Some(id) -> store.get_effective_app_subscription_by_id(store, id)
+    None -> None
+  }
+  case subscription {
+    None -> {
+      let payload =
+        project_subscription_payload(
+          store,
+          None,
+          None,
+          [
+            UserError(
+              field: ["id"],
+              message: "Subscription not found",
+              code: None,
+            ),
+          ],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store,
+          identity,
+          "appSubscriptionTrialExtend",
+          request_path,
+          document,
+          [],
+          store.Failed,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+    Some(sub) -> {
+      let extended_days = option.unwrap(sub.trial_days, 0) + days
+      let extended =
+        AppSubscriptionRecord(..sub, trial_days: Some(extended_days))
+      let #(_, store_after) = store.stage_app_subscription(store, extended)
+      let payload =
+        project_subscription_payload(
+          store_after,
+          Some(extended),
+          None,
+          [],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store_after,
+          identity,
+          "appSubscriptionTrialExtend",
+          request_path,
+          document,
+          [extended.id],
+          store.Staged,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [extended.id],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+  }
+}
+
+fn handle_usage_record_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let line_item_id = read_arg_string(args, "subscriptionLineItemId")
+  let line_item = case line_item_id {
+    Some(id) ->
+      store.get_effective_app_subscription_line_item_by_id(store, id)
+    None -> None
+  }
+  case line_item {
+    None -> {
+      let payload =
+        project_usage_record_payload(
+          store,
+          None,
+          [
+            UserError(
+              field: ["subscriptionLineItemId"],
+              message: "Subscription line item not found",
+              code: None,
+            ),
+          ],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store,
+          identity,
+          "appUsageRecordCreate",
+          request_path,
+          document,
+          [],
+          store.Failed,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+    Some(li) -> {
+      let #(record_gid, identity_after_id) =
+        synthetic_identity.make_synthetic_gid(identity, "AppUsageRecord")
+      let #(timestamp, identity_after_ts) =
+        synthetic_identity.make_synthetic_timestamp(identity_after_id)
+      let record =
+        AppUsageRecord(
+          id: record_gid,
+          subscription_line_item_id: li.id,
+          description: option.unwrap(read_arg_string(args, "description"), ""),
+          price: read_money_input(args, "price"),
+          created_at: timestamp,
+          idempotency_key: read_arg_string(args, "idempotencyKey"),
+        )
+      let #(_, store_after) =
+        store.stage_app_usage_record(store, record)
+      let payload =
+        project_usage_record_payload(
+          store_after,
+          Some(record),
+          [],
+          field,
+          fragments,
+        )
+      let #(store_logged, _, identity_final) =
+        record_log(
+          store_after,
+          identity_after_ts,
+          "appUsageRecordCreate",
+          request_path,
+          document,
+          [record.id],
+          store.Staged,
+        )
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [record.id],
+        ),
+        store_logged,
+        identity_final,
+      )
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mutation helpers
+// ---------------------------------------------------------------------------
+
+fn ensure_current_installation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+) -> #(AppInstallationRecord, Store, SyntheticIdentityRegistry) {
+  case store.get_current_app_installation(store) {
+    Some(existing) -> #(existing, store, identity)
+    None -> {
+      let #(app, identity_after_app) = default_app(identity)
+      let #(_, store_with_app) = store.stage_app(store, app)
+      let #(install_gid, identity_after_install_id) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_app,
+          "AppInstallation",
+        )
+      let installation =
+        AppInstallationRecord(
+          id: install_gid,
+          app_id: app.id,
+          launch_url: Some(
+            origin
+            <> "/admin/apps/"
+            <> option.unwrap(app.handle, "shopify-draft-proxy"),
+          ),
+          uninstall_url: None,
+          access_scopes: app.requested_access_scopes,
+          active_subscription_ids: [],
+          all_subscription_ids: [],
+          one_time_purchase_ids: [],
+          uninstalled_at: None,
+        )
+      let #(_, store_with_install) =
+        store.stage_app_installation(store_with_app, installation)
+      #(installation, store_with_install, identity_after_install_id)
+    }
+  }
+}
+
+fn default_app(
+  identity: SyntheticIdentityRegistry,
+) -> #(AppRecord, SyntheticIdentityRegistry) {
+  let #(app_gid, identity_after) =
+    synthetic_identity.make_synthetic_gid(identity, "App")
+  let app =
+    AppRecord(
+      id: app_gid,
+      api_key: Some("shopify-draft-proxy-local-app"),
+      handle: Some("shopify-draft-proxy"),
+      title: Some("shopify-draft-proxy"),
+      developer_name: Some("shopify-draft-proxy"),
+      embedded: Some(True),
+      previously_installed: Some(False),
+      requested_access_scopes: [
+        AccessScopeRecord(handle: "read_products", description: None),
+        AccessScopeRecord(handle: "write_products", description: None),
+      ],
+    )
+  #(app, identity_after)
+}
+
+fn confirmation_url(origin: String, kind: String, id: String) -> String {
+  origin
+  <> "/admin/charges/shopify-draft-proxy/"
+  <> trailing_segment(id)
+  <> "/"
+  <> kind
+  <> "/confirm?signature=shopify-draft-proxy-local-redacted"
+}
+
+fn token_hash(raw: String) -> String {
+  crypto.sha256_hex(raw)
+}
+
+fn token_preview(raw: String) -> String {
+  case string.length(raw) <= 8 {
+    True -> "[redacted]"
+    False -> {
+      let chars = string.to_graphemes(raw)
+      let n = list.length(chars)
+      let last_four =
+        list.drop(chars, n - 4)
+        |> string.join("")
+      "[redacted]" <> last_four
+    }
+  }
+}
+
+fn trailing_segment(id: String) -> String {
+  case list.last(string.split(id, "/")) {
+    Ok(tail) ->
+      case string.split_once(tail, "?") {
+        Ok(#(head, _)) -> head
+        Error(_) -> tail
+      }
+    Error(_) -> "local"
+  }
+}
+
+fn read_arg_bool(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(args, name) {
+    Ok(root_field.BoolVal(b)) -> b
+    _ -> False
+  }
+}
+
+fn read_arg_int(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(args, name) {
+    Ok(root_field.IntVal(n)) -> Some(n)
+    _ -> None
+  }
+}
+
+fn read_money_input(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Money {
+  case dict.get(args, name) {
+    Ok(root_field.ObjectVal(d)) -> {
+      let amount = case dict.get(d, "amount") {
+        Ok(root_field.StringVal(s)) -> s
+        Ok(root_field.IntVal(n)) -> int.to_string(n)
+        Ok(root_field.FloatVal(f)) -> float.to_string(f)
+        _ -> "0.0"
+      }
+      let currency = case dict.get(d, "currencyCode") {
+        Ok(root_field.StringVal(s)) ->
+          case s {
+            "" -> "USD"
+            _ -> s
+          }
+        _ -> "USD"
+      }
+      Money(amount: amount, currency_code: currency)
+    }
+    _ -> Money(amount: "0.0", currency_code: "USD")
+  }
+}
+
+fn read_line_item_plan(
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+  subscription_id: String,
+  index: Int,
+) -> #(AppSubscriptionLineItemRecord, SyntheticIdentityRegistry) {
+  let plan = case dict.get(input, "plan") {
+    Ok(root_field.ObjectVal(d)) -> d
+    _ -> dict.new()
+  }
+  let recurring = case dict.get(plan, "appRecurringPricingDetails") {
+    Ok(root_field.ObjectVal(d)) -> Some(d)
+    _ -> None
+  }
+  let usage = case dict.get(plan, "appUsagePricingDetails") {
+    Ok(root_field.ObjectVal(d)) -> Some(d)
+    _ -> None
+  }
+  let pricing = case recurring {
+    Some(r) -> {
+      let price = read_money_input(r, "price")
+      let interval = case dict.get(r, "interval") {
+        Ok(root_field.StringVal(s)) -> s
+        _ -> "EVERY_30_DAYS"
+      }
+      let plan_handle = read_arg_string(r, "planHandle")
+      AppRecurringPricing(
+        price: price,
+        interval: interval,
+        plan_handle: plan_handle,
+      )
+    }
+    None -> {
+      let usage_dict = option.unwrap(usage, dict.new())
+      let capped = read_money_input(usage_dict, "cappedAmount")
+      let interval = case dict.get(usage_dict, "interval") {
+        Ok(root_field.StringVal(s)) -> s
+        _ -> "EVERY_30_DAYS"
+      }
+      let terms = read_arg_string(usage_dict, "terms")
+      AppUsagePricing(
+        capped_amount: capped,
+        balance_used: Money(
+          amount: "0.0",
+          currency_code: capped.currency_code,
+        ),
+        interval: interval,
+        terms: terms,
+      )
+    }
+  }
+  let #(base_gid, identity_after) =
+    synthetic_identity.make_synthetic_gid(
+      identity,
+      "AppSubscriptionLineItem",
+    )
+  let id = base_gid <> "?v=1&index=" <> int.to_string(index)
+  let _ = subscription_id
+  // subscription_id is used by the schema marker; the line item carries
+  // it explicitly on the record.
+  let record =
+    AppSubscriptionLineItemRecord(
+      id: id,
+      subscription_id: subscription_id,
+      plan: AppSubscriptionLineItemPlan(pricing_details: pricing),
+    )
+  #(record, identity_after)
+}
+
+fn record_log(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_field_name: String,
+  request_path: String,
+  document: String,
+  staged_ids: List(String),
+  status: store.EntryStatus,
+) -> #(Store, String, SyntheticIdentityRegistry) {
+  let #(log_id, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
+  let #(received_at, identity_after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let entry = build_log_entry(
+    root_field_name,
+    log_id,
+    received_at,
+    request_path,
+    document,
+    staged_ids,
+    status,
+  )
+  let store_logged = store.record_mutation_log_entry(store, entry)
+  #(store_logged, log_id, identity_after_ts)
+}
+
+fn build_log_entry(
+  root_field_name: String,
+  log_id: String,
+  received_at: String,
+  request_path: String,
+  document: String,
+  staged_ids: List(String),
+  status: store.EntryStatus,
+) -> store.MutationLogEntry {
+  store.MutationLogEntry(
+    id: log_id,
+    received_at: received_at,
+    operation_name: None,
+    path: request_path,
+    query: document,
+    variables: dict.new(),
+    staged_resource_ids: staged_ids,
+    status: status,
+    interpreted: store.InterpretedMetadata(
+      operation_type: store.Mutation,
+      operation_name: None,
+      root_fields: [root_field_name],
+      primary_root_field: Some(root_field_name),
+      capability: store.Capability(
+        operation_name: Some(root_field_name),
+        domain: "apps",
+        execution: "stage-locally",
+      ),
+    ),
+    notes: Some("Locally staged " <> root_field_name <> " in shopify-draft-proxy."),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Mutation projections
+// ---------------------------------------------------------------------------
+
+fn project_uninstall_payload(
+  app: Option(AppRecord),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let app_source = case app {
+    Some(a) -> app_to_source(a)
+    None -> SrcNull
+  }
+  let payload =
+    src_object([
+      #("app", app_source),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_revoke_payload(
+  revoked: List(AccessScopeRecord),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let payload =
+    src_object([
+      #(
+        "revoked",
+        SrcList(list.map(revoked, access_scope_to_source)),
+      ),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_delegate_create_payload(
+  raw_token: String,
+  access_scopes: List(String),
+  created_at: String,
+  expires_in: Option(Int),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let token_source =
+    src_object([
+      #("__typename", SrcString("DelegateAccessToken")),
+      #("accessToken", SrcString(raw_token)),
+      #(
+        "accessScopes",
+        SrcList(list.map(access_scopes, fn(s) { SrcString(s) })),
+      ),
+      #("createdAt", SrcString(created_at)),
+      #("expiresIn", optional_int_to_source(expires_in)),
+    ])
+  let payload =
+    src_object([
+      #("delegateAccessToken", token_source),
+      #("shop", SrcNull),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_delegate_destroy_payload(
+  status: Bool,
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let payload =
+    src_object([
+      #("status", SrcBool(status)),
+      #("shop", SrcNull),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_purchase_create_payload(
+  purchase: Option(AppOneTimePurchaseRecord),
+  confirmation: Option(String),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let purchase_source = case purchase {
+    Some(p) -> one_time_purchase_to_source(p)
+    None -> SrcNull
+  }
+  let payload =
+    src_object([
+      #("appPurchaseOneTime", purchase_source),
+      #("confirmationUrl", optional_string_to_source(confirmation)),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_subscription_create_payload(
+  store: Store,
+  subscription: Option(AppSubscriptionRecord),
+  confirmation: Option(String),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let sub_source = case subscription {
+    Some(s) -> subscription_to_source(store, s, fragments)
+    None -> SrcNull
+  }
+  let payload =
+    src_object([
+      #("appSubscription", sub_source),
+      #("confirmationUrl", optional_string_to_source(confirmation)),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_subscription_payload(
+  store: Store,
+  subscription: Option(AppSubscriptionRecord),
+  confirmation: Option(String),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_subscription_create_payload(
+    store,
+    subscription,
+    confirmation,
+    user_errors,
+    field,
+    fragments,
+  )
+}
+
+fn project_usage_record_payload(
+  store: Store,
+  record: Option(AppUsageRecord),
+  user_errors: List(UserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  let record_source = case record {
+    Some(r) -> usage_record_to_source(store, r)
+    None -> SrcNull
+  }
+  let payload =
+    src_object([
+      #("appUsageRecord", record_source),
+      #("userErrors", user_errors_source(user_errors)),
+    ])
+  project_payload(payload, field, fragments)
+}
+
+fn project_payload(
+  payload: SourceValue,
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      project_graphql_value(payload, selections, fragments)
+    _ -> json.object([])
+  }
+}
+
+fn user_errors_source(errors: List(UserError)) -> SourceValue {
+  SrcList(list.map(errors, user_error_to_source))
+}
+
+fn user_error_to_source(error: UserError) -> SourceValue {
+  let base = [
+    #("__typename", SrcString("UserError")),
+    #(
+      "field",
+      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
+    ),
+    #("message", SrcString(error.message)),
+  ]
+  let full = case error.code {
+    Some(c) -> list.append(base, [#("code", SrcString(c))])
+    None -> list.append(base, [#("code", SrcNull)])
+  }
+  src_object(full)
 }

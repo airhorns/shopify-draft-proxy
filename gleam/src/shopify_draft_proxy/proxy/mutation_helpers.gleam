@@ -27,9 +27,12 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Selection, Argument, Field, NullValue, VariableValue,
+  type Argument, type Location, type Selection, Argument, Field, NullValue,
+  VariableValue,
 }
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 
 /// One required top-level argument on a mutation field. `name` is the
 /// argument name as it appears in the schema; `expected_type` is the
@@ -56,11 +59,13 @@ pub fn validate_required_field_arguments(
   operation_name: String,
   required_arguments: List(RequiredArgument),
   operation_path: String,
+  source_body: String,
 ) -> List(Json) {
   let arguments = case field {
     Field(arguments: args, ..) -> args
     _ -> []
   }
+  let field_loc = field_location(field)
   let #(missing_names, errors) =
     list.fold(required_arguments, #([], []), fn(acc, required) {
       let #(missing, errs) = acc
@@ -76,6 +81,8 @@ pub fn validate_required_field_arguments(
                   required.name,
                   required.expected_type,
                   operation_path,
+                  field_loc,
+                  source_body,
                 ),
               ]),
             )
@@ -103,6 +110,8 @@ pub fn validate_required_field_arguments(
         operation_name,
         string.join(missing_names, ", "),
         operation_path,
+        field_loc,
+        source_body,
       ),
       ..errors
     ]
@@ -123,17 +132,21 @@ pub fn validate_required_id_argument(
   variables: Dict(String, root_field.ResolvedValue),
   operation_name: String,
   operation_path: String,
+  source_body: String,
 ) -> #(Option(String), List(Json)) {
   let arguments = case field {
     Field(arguments: args, ..) -> args
     _ -> []
   }
+  let field_loc = field_location(field)
   case find_argument(arguments, "id") {
     None -> #(None, [
       build_missing_required_argument_error(
         operation_name,
         "id",
         operation_path,
+        field_loc,
+        source_body,
       ),
     ])
     Some(argument) ->
@@ -144,6 +157,8 @@ pub fn validate_required_id_argument(
             "id",
             "ID!",
             operation_path,
+            field_loc,
+            source_body,
           ),
         ])
         VariableValue(variable: var) ->
@@ -193,8 +208,10 @@ pub fn build_missing_required_argument_error(
   operation_name: String,
   argument_names_joined: String,
   operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
 ) -> Json {
-  json.object([
+  let base = [
     #(
       "message",
       json.string(
@@ -204,20 +221,28 @@ pub fn build_missing_required_argument_error(
         <> argument_names_joined,
       ),
     ),
-    #(
-      "path",
-      json.array([operation_path, operation_name], json.string),
-    ),
-    #(
-      "extensions",
-      json.object([
-        #("code", json.string("missingRequiredArguments")),
-        #("className", json.string("Field")),
-        #("name", json.string(operation_name)),
-        #("arguments", json.string(argument_names_joined)),
-      ]),
-    ),
-  ])
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array([operation_path, operation_name], json.string),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("missingRequiredArguments")),
+          #("className", json.string("Field")),
+          #("name", json.string(operation_name)),
+          #("arguments", json.string(argument_names_joined)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 /// Build the structured error for an argument bound to a literal
@@ -227,8 +252,10 @@ pub fn build_null_argument_error(
   argument_name: String,
   expected_type: String,
   operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
 ) -> Json {
-  json.object([
+  let base = [
     #(
       "message",
       json.string(
@@ -241,22 +268,30 @@ pub fn build_null_argument_error(
         <> "'.",
       ),
     ),
-    #(
-      "path",
-      json.array(
-        [operation_path, operation_name, argument_name],
-        json.string,
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, operation_name, argument_name],
+          json.string,
+        ),
       ),
-    ),
-    #(
-      "extensions",
-      json.object([
-        #("code", json.string("argumentLiteralsIncompatible")),
-        #("typeName", json.string("Field")),
-        #("argumentName", json.string(argument_name)),
-      ]),
-    ),
-  ])
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("Field")),
+          #("argumentName", json.string(argument_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 /// Build the structured error for an argument bound to a variable
@@ -329,5 +364,33 @@ pub fn read_optional_string_array(
         }),
       )
     _ -> None
+  }
+}
+
+fn field_location(field: Selection) -> Option(Location) {
+  case field {
+    Field(loc: loc, ..) -> loc
+    _ -> None
+  }
+}
+
+fn locations_payload(
+  field_loc: Option(Location),
+  source_body: String,
+) -> Option(Json) {
+  case field_loc {
+    None -> None
+    Some(loc) -> {
+      let source = graphql_source.new(source_body)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Some(
+        json.preprocessed_array([
+          json.object([
+            #("line", json.int(computed.line)),
+            #("column", json.int(computed.column)),
+          ]),
+        ]),
+      )
+    }
   }
 }

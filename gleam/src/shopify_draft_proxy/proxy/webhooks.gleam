@@ -864,6 +864,7 @@ fn handle_create(
         ),
       ],
       operation_path,
+      document,
     )
   case validation_errors {
     [_, ..] -> {
@@ -973,6 +974,7 @@ fn handle_update(
         ),
       ],
       operation_path,
+      document,
     )
   case validation_errors {
     [_, ..] -> {
@@ -1071,6 +1073,7 @@ fn handle_delete(
       variables,
       "webhookSubscriptionDelete",
       operation_path,
+      document,
     )
   case id_errors {
     [_, ..] -> {
