@@ -51,6 +51,22 @@ Local staged mutations:
 - Shopify Payments fields that can reveal balances, bank accounts, statement descriptors, payout schedules, or other account-specific financial data remain unavailable unless captured and modeled explicitly; snapshot reads return `null` for those selections with `UNSUPPORTED_FIELD` diagnostics.
 - Generic `publishablePublish` and `publishableUnpublish` stage Product and Collection publishables locally. `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` currently cover Product publishables. Product publishable mutation payloads can select `shop.publicationCount`, which is derived from the same normalized publication catalog used by product and publication reads. Current-channel product placeholders are excluded from the shop publication catalog so `shop.publicationCount` does not grow just because a local current-channel membership marker was staged. Unsupported publishable target types return local userErrors instead of proxying upstream as supported behavior.
 
+### HAR-460 fidelity review summary
+
+The April 2026 review compared the implemented Store properties slice with the Admin GraphQL docs/examples and public usage examples for shop, location, business entity, generic publishable, and shop policy roots. The current executable evidence is concentrated in strict store-properties parity specs plus targeted integration tests rather than broad schema-shape assertions:
+
+- Shop and policy evidence covers baseline `shop` reads, snapshot no-shop `null`, live-hybrid staged overlays, `shopPolicyUpdate` local staging, oversized policy body `TOO_BIG` userErrors, and downstream `shop.shopPolicies` read-after-write.
+- Location evidence covers top-level empty `locations` behavior, `location` primary fallback, `location(id:)`, `locationByIdentifier(identifier: { id })`, `locationByIdentifier(identifier: { customId })` missing-definition `NOT_FOUND` behavior, invalid empty identifier errors, captured address/lifecycle/metafield/suggested-address shapes, local add/edit/activate/deactivate/delete staging, missing idempotency guardrails, active stocked delete guardrails, and downstream inventory-level/location reads after lifecycle writes.
+- Business entity evidence covers captured ordered `businessEntities`, primary `businessEntity` fallback, known/unknown ID lookup, empty/no-data structures, and safe Shopify Payments account fields only when explicitly fixture-backed.
+- Publishable evidence covers Product generic publish/unpublish, Product current-channel publish/unpublish, Collection generic publish/unpublish, downstream publication aggregates, `shop.publicationCount`, and local userErrors for unsupported publishable target types instead of supported-runtime passthrough.
+
+Remaining gaps are intentional rather than silent support claims:
+
+- `publishablePublishToCurrentChannel` and `publishableUnpublishToCurrentChannel` stay Product-scoped until Collection current-channel behavior has separate captured evidence.
+- `LocationIdentifierInput.customId` currently returns `null` plus Shopify's captured top-level `NOT_FOUND` error when there is no id-typed location metafield definition; do not synthesize custom identifier matches from arbitrary metafields.
+- Location lifecycle happy paths are covered by runtime tests; strict live parity is currently strongest for safe validation/idempotency branches plus read/detail fixtures. Fresh success-path captures should use disposable location setup and cleanup evidence before replacing those runtime-test-backed assertions.
+- Business entity reads must not expose or synthesize Shopify Payments balances, bank accounts, payout schedules, statement descriptors, or other financial data unless those exact fields are captured and modeled safely.
+
 ## Historical and developer notes
 
 ### Validation anchors

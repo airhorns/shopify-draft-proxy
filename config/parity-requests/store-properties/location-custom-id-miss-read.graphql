@@ -1,0 +1,8 @@
+query StorePropertiesLocationCustomIdMissing {
+  unknownCustomIdentifier: locationByIdentifier(
+    identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+  ) {
+    id
+    name
+  }
+}

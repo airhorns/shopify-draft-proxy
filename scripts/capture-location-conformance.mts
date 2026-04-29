@@ -17,6 +17,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'store-properties');
 const storePropertiesOutputPath = path.join(outputDir, 'store-properties-baseline.json');
 const locationsCatalogOutputPath = path.join(outputDir, 'locations-catalog.json');
+const locationCustomIdMissingOutputPath = path.join(outputDir, 'location-custom-id-miss.json');
 const businessEntitiesCatalogOutputPath = path.join(outputDir, 'business-entities-catalog.json');
 const businessEntityFallbacksOutputPath = path.join(outputDir, 'business-entity-fallbacks.json');
 
@@ -274,6 +275,17 @@ const locationDetailsQuery = `#graphql
 const locationInvalidIdentifierQuery = `#graphql
   query StorePropertiesLocationInvalidIdentifier {
     emptyIdentifier: locationByIdentifier(identifier: {}) {
+      id
+      name
+    }
+  }
+`;
+
+const locationCustomIdMissingQuery = `#graphql
+  query StorePropertiesLocationCustomIdMissing {
+    unknownCustomIdentifier: locationByIdentifier(
+      identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+    ) {
       id
       name
     }
@@ -539,6 +551,7 @@ const locationInventoryLevel =
       })
     : null;
 const locationInvalidIdentifier = await runGraphqlCapture(locationInvalidIdentifierQuery);
+const locationCustomIdMissing = await runGraphqlCapture(locationCustomIdMissingQuery);
 const businessEntitiesCatalog = await runGraphqlCapture(businessEntitiesCatalogQuery);
 const firstBusinessEntityId = businessEntitiesCatalog.data?.businessEntities?.[0]?.id ?? null;
 const businessEntityFallbacks =
@@ -571,6 +584,7 @@ const storePropertiesBaseline = {
     location: locationDetails,
     locationInventoryLevel,
     locationInvalidIdentifier,
+    locationCustomIdMissing,
     businessEntitiesCatalog,
     businessEntityFallbacks,
   },
@@ -578,6 +592,7 @@ const storePropertiesBaseline = {
 };
 
 await writeFile(locationsCatalogOutputPath, `${JSON.stringify(locationsCatalog, null, 2)}\n`, 'utf8');
+await writeFile(locationCustomIdMissingOutputPath, `${JSON.stringify(locationCustomIdMissing, null, 2)}\n`, 'utf8');
 await writeFile(businessEntitiesCatalogOutputPath, `${JSON.stringify(businessEntitiesCatalog, null, 2)}\n`, 'utf8');
 if (businessEntityFallbacks) {
   await writeFile(businessEntityFallbacksOutputPath, `${JSON.stringify(businessEntityFallbacks, null, 2)}\n`, 'utf8');
@@ -591,6 +606,7 @@ console.log(
       outputDir,
       files: [
         'locations-catalog.json',
+        'location-custom-id-miss.json',
         'business-entities-catalog.json',
         ...(businessEntityFallbacks ? ['business-entity-fallbacks.json'] : []),
         'store-properties-baseline.json',
