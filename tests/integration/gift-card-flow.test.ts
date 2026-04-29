@@ -347,6 +347,156 @@ describe('gift-card local staging', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('filters seeded gift cards by captured advanced search fields locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('gift-card reads must stay local'));
+    const customerId = 'gid://shopify/Customer/2001';
+    store.upsertBaseGiftCards([
+      baseGiftCard({
+        id: 'gid://shopify/GiftCard/1001',
+        legacyResourceId: '1001',
+        lastCharacters: 'OLD1',
+        maskedCode: '**** **** **** OLD1',
+        createdAt: '2026-04-20T12:00:00.000Z',
+        updatedAt: '2026-04-20T12:00:00.000Z',
+        expiresOn: '2027-04-26',
+        source: 'manual',
+      }),
+      baseGiftCard({
+        id: 'gid://shopify/GiftCard/1004',
+        legacyResourceId: '1004',
+        lastCharacters: 'RICH',
+        maskedCode: '**** **** **** RICH',
+        createdAt: '2026-04-24T12:00:00.000Z',
+        updatedAt: '2026-04-25T12:00:00.000Z',
+        expiresOn: '2028-04-26',
+        initialValue: {
+          amount: '50.0',
+          currencyCode: 'CAD',
+        },
+        balance: {
+          amount: '50.0',
+          currencyCode: 'CAD',
+        },
+        customerId,
+        recipientId: customerId,
+        source: 'api_client',
+        recipientAttributes: {
+          id: customerId,
+          message: 'Advanced search recipient',
+          preferredName: 'Search Recipient',
+          sendNotificationAt: null,
+        },
+      }),
+    ]);
+    const app = createApp(config).callback();
+
+    const response = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query GiftCardAdvancedSearch($customerQuery: String!, $recipientQuery: String!) {
+          createdAfterGiftCards: giftCards(first: 5, query: "created_at:>=2026-04-22", sortKey: ID) {
+            nodes {
+              id
+              createdAt
+            }
+          }
+          expiresAfterGiftCards: giftCards(first: 5, query: "expires_on:>=2028-01-01", sortKey: ID) {
+            nodes {
+              id
+              expiresOn
+            }
+          }
+          futureCreatedGiftCards: giftCards(first: 5, query: "created_at:>=2099-01-01", sortKey: ID) {
+            nodes {
+              id
+            }
+            edges {
+              cursor
+              node {
+                id
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+              startCursor
+              endCursor
+            }
+          }
+          futureCreatedGiftCardsCount: giftCardsCount(query: "created_at:>=2099-01-01") {
+            count
+            precision
+          }
+          customerGiftCards: giftCards(first: 5, query: $customerQuery, sortKey: ID) {
+            nodes {
+              id
+              customer {
+                id
+              }
+            }
+          }
+          recipientGiftCards: giftCards(first: 5, query: $recipientQuery, sortKey: ID) {
+            nodes {
+              id
+              recipientAttributes {
+                recipient {
+                  id
+                }
+              }
+            }
+          }
+          sourceGiftCards: giftCards(first: 5, query: "source:api_client", sortKey: ID) {
+            nodes {
+              id
+            }
+          }
+          initialValueGiftCards: giftCards(first: 5, query: "initial_value:>=50", sortKey: ID) {
+            nodes {
+              id
+              initialValue {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }`,
+        variables: {
+          customerQuery: 'customer_id:2001',
+          recipientQuery: 'recipient_id:2001',
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.createdAfterGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1004', createdAt: '2026-04-24T12:00:00.000Z' },
+    ]);
+    expect(response.body.data.expiresAfterGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1004', expiresOn: '2028-04-26' },
+    ]);
+    expect(response.body.data.futureCreatedGiftCards).toEqual({
+      nodes: [],
+      edges: [],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: null,
+        endCursor: null,
+      },
+    });
+    expect(response.body.data.futureCreatedGiftCardsCount).toEqual({ count: 0, precision: 'EXACT' });
+    expect(response.body.data.customerGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1004', customer: { id: customerId } },
+    ]);
+    expect(response.body.data.recipientGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1004', recipientAttributes: { recipient: { id: customerId } } },
+    ]);
+    expect(response.body.data.sourceGiftCards.nodes).toEqual([{ id: 'gid://shopify/GiftCard/1004' }]);
+    expect(response.body.data.initialValueGiftCards.nodes).toEqual([
+      { id: 'gid://shopify/GiftCard/1004', initialValue: { amount: '50.0', currencyCode: 'CAD' } },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages gift-card create, update, credit, debit, deactivate, and notification roots locally', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('gift-card mutations must stay local'));
     const app = createApp(config).callback();

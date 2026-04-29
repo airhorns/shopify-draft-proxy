@@ -4,7 +4,7 @@
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-log-parity"],
   "operationNames": ["marketingActivityCreateExternal", "marketingEngagementCreate", "marketingEngagementsDelete"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-engagement-lifecycle.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json"
   ],
   "runtimeTestFiles": ["tests/integration/marketing-engagement-flow.test.ts"],
   "proxyRequest": {
@@ -41,6 +41,8 @@
           "currencyCode": "USD"
         },
         "orders": "1.5",
+        "primaryConversions": "0.75",
+        "allConversions": "2.25",
         "firstTimeCustomers": "1.0",
         "returningCustomers": "0.5",
         "isCumulative": false,
@@ -73,7 +75,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-214 captured write_marketing_events evidence for activity-level marketing engagement create by remoteId, duplicate same-day replacement, selector/userError branches, delete-all result shape, and immediate downstream activity adSpend behavior. Channel-handle success is intentionally not claimed because the conformance shop exposed no recognized channel handles.",
+  "notes": "HAR-214 captured write_marketing_events evidence for activity-level marketing engagement create by remoteId, duplicate same-day replacement, selector/userError branches, delete-all result shape, and immediate downstream activity adSpend behavior. HAR-463 refreshes the executable fixture against Admin GraphQL 2026-04 so primaryConversions and allConversions are live-capture-backed. Channel-handle success is intentionally not claimed because the current conformance shop still exposes no recognized channel handles.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -100,6 +102,8 @@
           "$.adSpend",
           "$.sales",
           "$.orders",
+          "$.primaryConversions",
+          "$.allConversions",
           "$.firstTimeCustomers",
           "$.returningCustomers"
         ]
