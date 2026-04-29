@@ -116,6 +116,14 @@ Delete support stages a tombstone for base or staged rows, returns the selected 
 
 Bulk delete support accepts the current 2026-04 `where.ids` and `where.type` branches, with the older local `ids` branch retained only for already-checked-in local replay evidence. It stages tombstones for found rows, returns a completed local `Job` payload when at least one row is deleted, preserves ordered `elementIndex` `RECORD_NOT_FOUND` userErrors for missing IDs, updates definition counts per type, and keeps all effects local. Live 2026-04 introspection shows `where` is the required argument and direct `ids` is not accepted by Shopify.
 
+### Metaobject field value type matrix
+
+HAR-294 adds executable set/read parity for 99 metaobject field value types in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json`, replayed by `config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json`.
+
+The recorder splits the field set across three disposable definitions because Shopify caps a metaobject definition at 40 fields. It uses `custom_id` as the field key for Shopify's `id` type because `id` itself is reserved as a metaobject field key. The matrix covers scalar custom-data values, measurement values, supported lists, product/variant/collection references, `metaobject_reference`, `list.metaobject_reference`, `mixed_reference`, and `list.mixed_reference`. Shopify rejected `list.boolean` and `list.multi_line_text_field` for this metaobject definition path, so those are not represented as working metaobject field fixtures.
+
+The local entry model shares the metafield custom-data normalization helper for field `value` / `jsonValue` projection. Metaobject `displayName` for measurement display keys follows the captured Shopify behavior by formatting the measurement `jsonValue` form rather than the stored canonical `value` string.
+
 ### Coverage boundaries
 
 - Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.

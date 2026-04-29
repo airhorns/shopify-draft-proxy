@@ -5757,13 +5757,17 @@ function seedBulkVariantValidationAtomicityPreconditions(runtime: ProxyRuntimeCo
   );
   const firstCase = readArrayField(capture as Record<string, unknown>, 'cases').find(isPlainObject) ?? null;
   const beforeProduct = readRecordField(readRecordField(firstCase, 'before'), 'product');
+  const productSource = beforeProduct ?? setupProduct;
+  if (!productSource) {
+    return false;
+  }
+
   const productId = seedProductId ?? readStringField(setupProduct, 'id') ?? readStringField(beforeProduct, 'id');
 
   if (!productId?.startsWith('gid://shopify/Product/')) {
     return false;
   }
 
-  const productSource = beforeProduct ?? setupProduct;
   runtime.store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
 
   const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
@@ -6585,6 +6589,31 @@ function seedProductMetafieldsReadPreconditions(runtime: ProxyRuntimeContext, ca
   return true;
 }
 
+function seedCustomDataFieldTypeMatrixPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
+  const hasCustomDataMatrix =
+    readArrayField(capture as Record<string, unknown>, 'metafieldBatches').length > 0 ||
+    readArrayField(capture as Record<string, unknown>, 'metaobjectMatrices').length > 0;
+  if (!hasCustomDataMatrix) {
+    return;
+  }
+
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const productId = readStringField(seed, 'productId');
+  if (productId?.startsWith('gid://shopify/Product/')) {
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, null, 'Custom data field type matrix seed product')]);
+
+    const variantId = readStringField(seed, 'variantId');
+    if (variantId?.startsWith('gid://shopify/ProductVariant/')) {
+      runtime.store.replaceBaseVariantsForProduct(productId, [{ ...makeSeedVariant(productId), id: variantId }]);
+    }
+  }
+
+  const collectionId = readStringField(seed, 'collectionId');
+  if (collectionId?.startsWith('gid://shopify/Collection/')) {
+    runtime.store.upsertBaseCollections([makeSeedCollection(collectionId)]);
+  }
+}
+
 function seedMetaobjectReadPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   if (!isPlainObject(capture)) {
     return false;
@@ -7375,21 +7404,53 @@ function readTaxonomyConnectionCategories(connection: Record<string, unknown> | 
 function readTaxonomyCaptureCategories(
   captures: Record<string, unknown> | null,
   captureName: string,
+  connectionName = 'categories',
 ): TaxonomyCategoryRecord[] {
   const payload = readRecordField(readRecordField(readRecordField(captures, captureName), 'result'), 'payload');
   const data = readRecordField(payload, 'data');
   const taxonomy = readRecordField(data, 'taxonomy');
-  return readTaxonomyConnectionCategories(readRecordField(taxonomy, 'categories'));
+  return readTaxonomyConnectionCategories(readRecordField(taxonomy, connectionName));
+}
+
+function readTaxonomyNodeCaptureCategories(
+  captures: Record<string, unknown> | null,
+  captureName: string,
+): TaxonomyCategoryRecord[] {
+  const payload = readRecordField(readRecordField(readRecordField(captures, captureName), 'result'), 'payload');
+  const data = readRecordField(payload, 'data');
+  const node = readRecordField(data, 'node');
+  const nodes = readArrayField(data, 'nodes').filter(isPlainObject);
+  return [node, ...nodes]
+    .filter((candidate): candidate is Record<string, unknown> => candidate !== null)
+    .filter((candidate) => readStringField(candidate, '__typename') === 'TaxonomyCategory')
+    .map((candidate) => readTaxonomyCategoryRecord(candidate, null))
+    .filter((category): category is TaxonomyCategoryRecord => category !== null);
+}
+
+function dedupeTaxonomyCategories(categories: TaxonomyCategoryRecord[]): TaxonomyCategoryRecord[] {
+  const seen = new Set<string>();
+  return categories.filter((category) => {
+    if (seen.has(category.id)) {
+      return false;
+    }
+    seen.add(category.id);
+    return true;
+  });
 }
 
 function seedAdminPlatformTaxonomyPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
   const captures = readRecordField(capture as Record<string, unknown>, 'captures');
-  const categories = [
+  const categories = dedupeTaxonomyCategories([
     ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogFirstPage'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomyCatalogNextPage'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparel'),
     ...readTaxonomyCaptureCategories(captures, 'taxonomySearchApparelOverflowSeed'),
-  ];
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'children'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'descendants'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads', 'siblings'),
+    ...readTaxonomyCaptureCategories(captures, 'taxonomyHierarchySiblingOverflowSeed', 'siblings'),
+    ...readTaxonomyNodeCaptureCategories(captures, 'taxonomyHierarchyAndNodeReads'),
+  ]);
   if (categories.length > 0) {
     runtime.store.upsertBaseTaxonomyCategories(categories);
   }
@@ -7451,6 +7512,7 @@ function seedPreconditionsFromCapture(
       runtime.store.replaceBaseOptionsForProduct(productId, options);
     }
   }
+  seedCustomDataFieldTypeMatrixPreconditions(runtime, capture);
   if (seedProductContextualPricingReadPreconditions(runtime, capture)) {
     return;
   }
