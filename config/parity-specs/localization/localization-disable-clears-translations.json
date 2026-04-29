@@ -1,0 +1,98 @@
+{
+  "scenarioId": "localization-disable-clears-translations",
+  "operationNames": [
+    "availableLocales",
+    "shopLocales",
+    "translatableResource",
+    "translatableResources",
+    "translatableResourcesByIds",
+    "shopLocaleEnable",
+    "shopLocaleDisable",
+    "translationsRegister"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-disable-clears-translations.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/localization-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-locale-translation-read.graphql",
+    "variablesCapturePath": "$.readCapture.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-data",
+        "capturePath": "$.disableCleanupLifecycle.enable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "variables": { "locale": "fr" }
+        }
+      },
+      {
+        "name": "translation-register-before-disable-data",
+        "capturePath": "$.disableCleanupLifecycle.register",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "variablesCapturePath": "$.disableCleanupLifecycle.registerRequest.variables"
+        }
+      },
+      {
+        "name": "translation-downstream-registered-before-disable-data",
+        "capturePath": "$.disableCleanupLifecycle.downstreamRegistered",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.resourceId",
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+        }
+      },
+      {
+        "name": "shop-locale-disable-data",
+        "capturePath": "$.disableCleanupLifecycle.disable",
+        "proxyPath": "$.data.shopLocaleDisable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-disable.graphql",
+          "variables": { "locale": "fr" }
+        }
+      },
+      {
+        "name": "translation-downstream-after-disable-data",
+        "capturePath": "$.disableCleanupLifecycle.downstreamAfterDisable",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.resourceId", "$.translations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-read.graphql",
+          "variables": { "resourceId": "gid://shopify/Product/9801098789170" }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves Shopify removes translations for a locale when shopLocaleDisable succeeds. The parity runner replays the locale enable, translation register, locale disable, and immediate downstream translations(locale:) read against the local proxy."
+}
