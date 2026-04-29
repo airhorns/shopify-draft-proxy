@@ -108,7 +108,9 @@ export type ExpectedDifference = z.infer<typeof expectedDifferenceSchema>;
 export const comparisonTargetSchema = z.strictObject({
   name: z.string(),
   capturePath: z.string(),
-  proxyPath: z.string(),
+  proxyPath: z.string().optional(),
+  proxyStatePath: z.string().optional(),
+  proxyLogPath: z.string().optional(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   selectedPaths: z.array(z.string()).optional(),

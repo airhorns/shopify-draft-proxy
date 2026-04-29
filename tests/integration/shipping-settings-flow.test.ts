@@ -278,6 +278,31 @@ describe('shipping settings local staging', () => {
       ],
     });
 
+    const inactiveDisableResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `
+          mutation DisableInactivePickup($id: ID!) {
+            locationLocalPickupDisable(locationId: $id) {
+              locationId
+              userErrors { field message code }
+            }
+          }
+        `,
+        variables: { id: 'gid://shopify/Location/30' },
+      });
+
+    expect(inactiveDisableResponse.body.data.locationLocalPickupDisable).toEqual({
+      locationId: null,
+      userErrors: [
+        {
+          field: ['locationId'],
+          message: 'Unable to find an active location for location ID 30',
+          code: 'ACTIVE_LOCATION_NOT_FOUND',
+        },
+      ],
+    });
+
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(store.getLog().map((entry) => entry.operationName)).toEqual([
       'locationLocalPickupEnable',
@@ -335,6 +360,46 @@ describe('shipping settings local staging', () => {
 
     expect(defaultResponse.body.data.shippingPackageMakeDefault).toEqual({ userErrors: [] });
 
+    const stateAfterMakeDefault = await request(app).get('/__meta/state');
+    expect(stateAfterMakeDefault.body.stagedState.shippingPackages['gid://shopify/ShippingPackage/2']).toMatchObject({
+      id: 'gid://shopify/ShippingPackage/2',
+      default: true,
+    });
+
+    const restoreDefaultResponse = await request(app)
+      .post('/admin/api/2025-01/graphql.json')
+      .send({
+        query: `
+          mutation RestoreDefaultViaUpdate($id: ID!, $package: CustomShippingPackageInput!) {
+            shippingPackageUpdate(id: $id, shippingPackage: $package) {
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: {
+          id: 'gid://shopify/ShippingPackage/1',
+          package: {
+            default: true,
+          },
+        },
+      });
+
+    expect(restoreDefaultResponse.body.data.shippingPackageUpdate).toEqual({ userErrors: [] });
+
+    const stateAfterRestoreDefault = await request(app).get('/__meta/state');
+    expect(stateAfterRestoreDefault.body.stagedState.shippingPackages['gid://shopify/ShippingPackage/1']).toMatchObject(
+      {
+        id: 'gid://shopify/ShippingPackage/1',
+        default: true,
+      },
+    );
+    expect(stateAfterRestoreDefault.body.stagedState.shippingPackages['gid://shopify/ShippingPackage/2']).toMatchObject(
+      {
+        id: 'gid://shopify/ShippingPackage/2',
+        default: false,
+      },
+    );
+
     const deleteResponse = await request(app)
       .post('/admin/api/2025-01/graphql.json')
       .send({
@@ -357,7 +422,7 @@ describe('shipping settings local staging', () => {
     const stateResponse = await request(app).get('/__meta/state');
     expect(stateResponse.body.stagedState.shippingPackages['gid://shopify/ShippingPackage/2']).toMatchObject({
       id: 'gid://shopify/ShippingPackage/2',
-      default: true,
+      default: false,
     });
     expect(stateResponse.body.stagedState.deletedShippingPackageIds).toEqual({
       'gid://shopify/ShippingPackage/1': true,
@@ -367,6 +432,7 @@ describe('shipping settings local staging', () => {
     expect(store.getLog().map((entry) => entry.operationName)).toEqual([
       'shippingPackageUpdate',
       'shippingPackageMakeDefault',
+      'shippingPackageUpdate',
       'shippingPackageDelete',
     ]);
     expect(store.getLog().every((entry) => entry.status === 'staged')).toBe(true);

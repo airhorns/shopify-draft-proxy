@@ -1,0 +1,8 @@
+mutation ShippingPackageUpdateLocalRuntime($id: ID!, $shippingPackage: CustomShippingPackageInput!) {
+  shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) {
+    userErrors {
+      field
+      message
+    }
+  }
+}

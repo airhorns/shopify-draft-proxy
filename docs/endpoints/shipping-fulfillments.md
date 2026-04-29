@@ -185,6 +185,16 @@ Shipping package mutations stage against normalized local package records. `ship
 
 HAR-320 fulfillment-constraint evidence is blocker-only. The current conformance credential receives `ACCESS_DENIED` for `fulfillmentConstraintRules` without `read_fulfillment_constraint_rules` and for `fulfillmentConstraintRuleCreate`, `fulfillmentConstraintRuleUpdate`, and `fulfillmentConstraintRuleDelete` without `write_fulfillment_constraint_rules`. These roots are registry-only until a scoped test app can capture Shopify Function ownership, metafield behavior, success payloads, and downstream rule reads.
 
+### HAR-443 review summary
+
+The HAR-443 shipping-settings/service/profile review found the scoped roots already have executable local evidence rather than registry-only placeholders:
+
+- Carrier services and fulfillment services have local lifecycle models, empty/no-data reads, validation branches, downstream detail/catalog reads, meta-log preservation of original raw mutations, and captured parity specs.
+- Delivery profiles have fixture-backed catalog/detail reads plus bounded custom-profile create/update/remove staging with downstream read-after-write behavior and captured parity specs.
+- Delivery settings and delivery promise settings remain intentionally read-only. The local shape is the captured empty/no-feature branch; `deliverySettingUpdate` and delivery customization/promise mutation families remain unsupported until success, rollback/cleanup, validation, access-scope, and downstream read effects are captured.
+- Local pickup and shipping package roots are modeled as shipping-settings local state. Pickup has downstream `Location`, `locationsAvailableForDeliveryProfilesConnection`, and `availableCarrierServices.locations` visibility. Shipping packages have no Admin GraphQL read root in the captured schema, so successful package staging is validated through meta state/logs and unknown-id GraphQL error parity.
+- The highest remaining fidelity gaps are carrier callback/service-discovery side effects, fulfillment-service inventory transfer semantics, carrier-backed delivery-profile participants, delivery-settings mutations, checkout pickup/rate calculation behavior, and package discovery/validation beyond known normalized package records. These are deliberately excluded from supported status until separately captured and modeled.
+
 ### Registry-only coverage map
 
 These roots are known Admin GraphQL shipping/fulfillment surface area, but they are not locally implemented. They are registered with `implemented: false` as explicit future local-model commitments, not as supported passthrough behavior.
