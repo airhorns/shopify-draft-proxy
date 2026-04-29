@@ -95,18 +95,19 @@ defmodule ShopifyDraftProxy.InteropTest do
     assert refreshed =~ "gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic"
   end
 
-  test "/__meta/commit returns 501 with an explanation about the missing upstream client" do
+  test "/__meta/commit returns the empty-log commit envelope" do
     proxy = DraftProxy.new()
 
-    {{:response, 501, json_tree, _}, _} =
+    {{:response, 200, json_tree, _}, _} =
       DraftProxy.process_request(
         proxy,
         {:request, "POST", "/__meta/commit", %{}, ""}
       )
 
     body = :gleam@json.to_string(json_tree)
-    assert body =~ "not yet implemented"
-    assert body =~ "upstream"
+    assert body =~ ~s("ok":true)
+    assert body =~ ~s("stopIndex":null)
+    assert body =~ ~s("attempts":[])
   end
 
   test "dump_state + restore_state round-trips synthetic identity counters" do
