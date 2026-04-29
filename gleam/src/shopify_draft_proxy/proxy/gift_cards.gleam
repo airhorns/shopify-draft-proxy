@@ -29,8 +29,8 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  ConnectionWindow, SerializeConnectionConfig, SelectedFieldOptions,
-  SrcInt, SrcList, SrcNull, SrcString, default_connection_page_info_options,
+  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcInt,
+  SrcList, SrcNull, SrcString, default_connection_page_info_options,
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
@@ -142,7 +142,8 @@ fn root_payload_for_field(
   case field {
     Field(name: name, ..) ->
       case name.value {
-        "giftCard" -> serialize_gift_card_by_id(store, field, fragments, variables)
+        "giftCard" ->
+          serialize_gift_card_by_id(store, field, fragments, variables)
         "giftCards" ->
           serialize_gift_cards_connection(store, field, fragments, variables)
         "giftCardsCount" ->
@@ -278,13 +279,18 @@ fn normalize_money_value(
   fallback_currency: String,
 ) -> Money {
   case raw {
-    None -> Money(amount: format_decimal_amount(0.0), currency_code: fallback_currency)
-    Some(root_field.StringVal(_)) | Some(root_field.IntVal(_)) | Some(root_field.FloatVal(_)) ->
+    None ->
       Money(
-        amount: format_decimal_amount(parse_decimal_amount(option.unwrap(
-          raw,
-          root_field.NullVal,
-        ))),
+        amount: format_decimal_amount(0.0),
+        currency_code: fallback_currency,
+      )
+    Some(root_field.StringVal(_))
+    | Some(root_field.IntVal(_))
+    | Some(root_field.FloatVal(_)) ->
+      Money(
+        amount: format_decimal_amount(
+          parse_decimal_amount(option.unwrap(raw, root_field.NullVal)),
+        ),
         currency_code: fallback_currency,
       )
     Some(root_field.ObjectVal(d)) -> {
@@ -304,7 +310,11 @@ fn normalize_money_value(
         currency_code: currency,
       )
     }
-    _ -> Money(amount: format_decimal_amount(0.0), currency_code: fallback_currency)
+    _ ->
+      Money(
+        amount: format_decimal_amount(0.0),
+        currency_code: fallback_currency,
+      )
   }
 }
 
@@ -381,7 +391,8 @@ fn project_gift_card_value(
               ..,
             )) ->
               case cond_name.value == "GiftCard" {
-                True -> flatten_gift_card_entries(record, inner, fragments, variables)
+                True ->
+                  flatten_gift_card_entries(record, inner, fragments, variables)
                 False -> []
               }
             _ -> []
@@ -423,12 +434,15 @@ fn flatten_gift_card_entries(
             ..,
           )) ->
             case cond_name.value == "GiftCard" {
-              True -> flatten_gift_card_entries(record, inner, fragments, variables)
+              True ->
+                flatten_gift_card_entries(record, inner, fragments, variables)
               False -> []
             }
           _ -> []
         }
-      Field(..) -> [gift_card_field_entry(record, selection, fragments, variables)]
+      Field(..) -> [
+        gift_card_field_entry(record, selection, fragments, variables),
+      ]
     }
   })
 }
@@ -673,7 +687,13 @@ fn transaction_entries(
         case cond {
           None | Some("GiftCardTransaction") -> {
             let SelectionSet(selections: inner, ..) = ss
-            transaction_entries(transaction, inner, giftcard, fragments, variables)
+            transaction_entries(
+              transaction,
+              inner,
+              giftcard,
+              fragments,
+              variables,
+            )
           }
           _ -> []
         }
@@ -731,13 +751,10 @@ fn transaction_field_entry(
           key,
           serialize_money(transaction.amount, child_selections(ss), fragments),
         )
-        "giftCard" -> #(
-          key,
-          case giftcard {
-            Some(gc) -> project_gift_card(gc, field, fragments, variables)
-            None -> json.null()
-          },
-        )
+        "giftCard" -> #(key, case giftcard {
+          Some(gc) -> project_gift_card(gc, field, fragments, variables)
+          None -> json.null()
+        })
         _ -> #(key, json.null())
       }
     _ -> #(key, json.null())
@@ -820,8 +837,14 @@ fn list_gift_cards_for_connection(
   let raw_query = read_arg_string(args, "query")
   let sort_key = read_arg_string(args, "sortKey")
   let filtered =
-    filter_gift_cards_by_query(store.list_effective_gift_cards(store), raw_query)
-  let sorted = list.sort(filtered, fn(left, right) { compare_gift_cards(left, right, sort_key) })
+    filter_gift_cards_by_query(
+      store.list_effective_gift_cards(store),
+      raw_query,
+    )
+  let sorted =
+    list.sort(filtered, fn(left, right) {
+      compare_gift_cards(left, right, sort_key)
+    })
   case reverse {
     True -> list.reverse(sorted)
     False -> sorted
@@ -970,7 +993,10 @@ fn project_payload(
 // Search query matching
 // ---------------------------------------------------------------------------
 
-fn matches_gift_card_term(record: GiftCardRecord, term: SearchQueryTerm) -> Bool {
+fn matches_gift_card_term(
+  record: GiftCardRecord,
+  term: SearchQueryTerm,
+) -> Bool {
   let normalized_value =
     search_query_parser.normalize_search_query_value(term.value)
   let raw_field = case term.field {
@@ -994,8 +1020,10 @@ fn matches_gift_card_term(record: GiftCardRecord, term: SearchQueryTerm) -> Bool
       normalized_value == id_normalized || normalized_value == tail
     }
     Some("balance_status") -> {
-      let initial_value = parse_decimal_amount(root_field.StringVal(record.initial_value.amount))
-      let balance = parse_decimal_amount(root_field.StringVal(record.balance.amount))
+      let initial_value =
+        parse_decimal_amount(root_field.StringVal(record.initial_value.amount))
+      let balance =
+        parse_decimal_amount(root_field.StringVal(record.balance.amount))
       case normalized_value {
         "full" -> balance >=. initial_value && balance >. 0.0
         "partial" -> balance >. 0.0 && balance <. initial_value
@@ -1010,11 +1038,48 @@ fn matches_gift_card_term(record: GiftCardRecord, term: SearchQueryTerm) -> Bool
         "disabled" | "deactivated" | "inactive" | "false" -> !record.enabled
         _ -> False
       }
+    Some("created_at") ->
+      search_query_parser.matches_search_query_date(
+        Some(record.created_at),
+        term,
+        0,
+      )
+    Some("expires_on") ->
+      search_query_parser.matches_search_query_date(record.expires_on, term, 0)
+    Some("initial_value") ->
+      search_query_parser.matches_search_query_number(
+        Some(
+          parse_decimal_amount(root_field.StringVal(record.initial_value.amount)),
+        ),
+        term,
+      )
+    Some("customer_id") ->
+      gift_card_id_matches(record.customer_id, normalized_value)
+    Some("recipient_id") ->
+      gift_card_id_matches(record.recipient_id, normalized_value)
+    Some("source") ->
+      search_query_parser.normalize_search_query_value(option.unwrap(
+        record.source,
+        "",
+      ))
+      == normalized_value
     _ -> True
   }
   case term.negated {
     True -> !positive_match
     False -> positive_match
+  }
+}
+
+fn gift_card_id_matches(id: Option(String), normalized_value: String) -> Bool {
+  case id {
+    None -> False
+    Some(value) -> {
+      let id_normalized =
+        search_query_parser.normalize_search_query_value(value)
+      let tail = gift_card_tail(value)
+      normalized_value == id_normalized || normalized_value == tail
+    }
   }
 }
 
@@ -1042,7 +1107,15 @@ fn filter_gift_cards_by_query(
                 None -> True
                 Some(name) ->
                   case string.lowercase(name) {
-                    "id" | "status" | "balance_status" -> True
+                    "id"
+                    | "status"
+                    | "balance_status"
+                    | "created_at"
+                    | "expires_on"
+                    | "initial_value"
+                    | "customer_id"
+                    | "recipient_id"
+                    | "source" -> True
                     _ -> False
                   }
               }
@@ -1287,7 +1360,8 @@ fn handle_gift_card_create(
     synthetic_identity.make_proxy_synthetic_gid(identity, "GiftCard")
   let initial_value =
     normalize_money_value(dict_get(input, "initialValue"), "CAD")
-  let initial_amount = parse_decimal_amount(root_field.StringVal(initial_value.amount))
+  let initial_amount =
+    parse_decimal_amount(root_field.StringVal(initial_value.amount))
   case initial_amount <=. 0.0 {
     True -> {
       let payload =
@@ -1348,6 +1422,7 @@ fn handle_gift_card_create(
           balance: initial_value,
           customer_id: read_arg_string(input, "customerId"),
           recipient_id: recipient_id,
+          source: Some("api_client"),
           recipient_attributes: recipient_attributes,
           transactions: [],
         )
@@ -1423,7 +1498,10 @@ fn handle_gift_card_update(
         dict_has_key(input, "recipientId"),
         dict_has_key(input, "recipientAttributes")
       {
-        True, _ -> #(read_arg_string(input, "recipientId"), current.recipient_attributes)
+        True, _ -> #(
+          read_arg_string(input, "recipientId"),
+          current.recipient_attributes,
+        )
         False, True -> {
           let attrs =
             read_recipient_attributes(
@@ -1519,8 +1597,10 @@ fn handle_gift_card_transaction(
   }
   case id, existing {
     Some(_), Some(current) -> {
-      let raw_money = read_mutation_money(args, preferred_amount_key, preferred_input_key)
-      let magnitude = parse_decimal_amount(root_field.StringVal(raw_money.amount))
+      let raw_money =
+        read_mutation_money(args, preferred_amount_key, preferred_input_key)
+      let magnitude =
+        parse_decimal_amount(root_field.StringVal(raw_money.amount))
       case magnitude <=. 0.0 {
         True -> {
           let payload =
@@ -1598,7 +1678,8 @@ fn handle_gift_card_transaction(
                 processed_at_explicit
               {
                 Some(value) -> #(value, identity_after_id)
-                None -> synthetic_identity.make_synthetic_timestamp(identity_after_id)
+                None ->
+                  synthetic_identity.make_synthetic_timestamp(identity_after_id)
               }
               let transaction =
                 GiftCardTransactionRecord(
@@ -1626,7 +1707,8 @@ fn handle_gift_card_transaction(
                   updated_at: now,
                   transactions: list.append(current.transactions, [transaction]),
                 )
-              let #(_, store_after) = store.stage_update_gift_card(store, updated)
+              let #(_, store_after) =
+                store.stage_update_gift_card(store, updated)
               let payload =
                 GiftCardPayload(
                   gift_card: Some(updated),
@@ -1830,7 +1912,10 @@ fn not_found_user_error() -> UserError {
   UserError(field: ["id"], message: "Gift card does not exist")
 }
 
-fn dict_has_key(d: Dict(String, root_field.ResolvedValue), key: String) -> Bool {
+fn dict_has_key(
+  d: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
   case dict.get(d, key) {
     Ok(_) -> True
     Error(_) -> False
@@ -1969,7 +2054,10 @@ fn gift_card_tail(id: String) -> String {
   }
 }
 
-fn normalize_gift_card_code(raw: Option(String), fallback_id: String) -> String {
+fn normalize_gift_card_code(
+  raw: Option(String),
+  fallback_id: String,
+) -> String {
   case raw {
     None -> proxy_code(fallback_id)
     Some(value) -> {
@@ -2062,7 +2150,13 @@ fn payload_entries(
         case cond {
           None -> {
             let SelectionSet(selections: inner, ..) = ss
-            payload_entries(payload, payload_typename, inner, fragments, variables)
+            payload_entries(
+              payload,
+              payload_typename,
+              inner,
+              fragments,
+              variables,
+            )
           }
           Some(c) ->
             case c == payload_typename {
@@ -2125,13 +2219,10 @@ fn payload_field_entry(
     Field(name: name, selection_set: ss, ..) ->
       case name.value {
         "__typename" -> #(key, json.string(payload_typename))
-        "giftCard" -> #(
-          key,
-          case payload.gift_card {
-            Some(gc) -> project_gift_card(gc, field, fragments, variables)
-            None -> json.null()
-          },
-        )
+        "giftCard" -> #(key, case payload.gift_card {
+          Some(gc) -> project_gift_card(gc, field, fragments, variables)
+          None -> json.null()
+        })
         "giftCardCode" -> #(key, option_string_json(payload.gift_card_code))
         "giftCardTransaction"
         | "transaction"
@@ -2152,7 +2243,11 @@ fn payload_field_entry(
         )
         "userErrors" -> #(
           key,
-          serialize_user_errors(payload.user_errors, child_selections(ss), fragments),
+          serialize_user_errors(
+            payload.user_errors,
+            child_selections(ss),
+            fragments,
+          ),
         )
         _ -> #(key, json.null())
       }
@@ -2174,11 +2269,7 @@ fn serialize_user_errors(
 fn user_error_to_source(error: UserError) -> SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
-    #(
-      "field",
-      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
-    ),
+    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
   ])
 }
-

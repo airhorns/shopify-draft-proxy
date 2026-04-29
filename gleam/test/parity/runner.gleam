@@ -24,7 +24,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import parity/diff.{type Mismatch}
-import parity/json_value.{type JsonValue, JArray, JObject}
+import parity/json_value.{type JsonValue, JArray, JBool, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
   type Spec, type Target, NoVariables, OverrideRequest, ReusePrimary,
@@ -32,6 +32,13 @@ import parity/spec.{
 }
 import shopify_draft_proxy/proxy/draft_proxy.{
   type DraftProxy, type Response, Request,
+}
+import shopify_draft_proxy/state/store as store_mod
+import shopify_draft_proxy/state/types.{
+  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
+  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
+  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
+  GiftCardTransactionRecord, Money,
 }
 import simplifile
 
@@ -88,9 +95,9 @@ pub fn run_with_config(
   use spec_source <- result.try(read_file(resolve(config, spec_path)))
   use parsed <- result.try(parse_spec(spec_source))
   use capture <- result.try(load_capture(config, parsed))
-  use primary_doc <- result.try(read_file(
-    resolve(config, parsed.proxy_request.document_path),
-  ))
+  use primary_doc <- result.try(
+    read_file(resolve(config, parsed.proxy_request.document_path)),
+  )
   use primary_vars <- result.try(resolve_variables(
     config,
     parsed.proxy_request.variables,
@@ -99,6 +106,7 @@ pub fn run_with_config(
     "<primary>",
   ))
   let proxy = draft_proxy.new()
+  let proxy = seed_capture_preconditions(parsed, capture, proxy)
   use #(primary_response, proxy) <- result.try(execute(
     proxy,
     primary_doc,
@@ -114,6 +122,273 @@ pub fn run_with_config(
     proxy,
   ))
   Ok(Report(scenario_id: parsed.scenario_id, targets: target_reports))
+}
+
+fn seed_capture_preconditions(
+  parsed: Spec,
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case parsed.scenario_id {
+    "gift-card-search-filters" ->
+      seed_gift_card_lifecycle_preconditions(capture, proxy)
+    _ -> proxy
+  }
+}
+
+fn seed_gift_card_lifecycle_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records =
+    [
+      jsonpath.lookup(
+        capture,
+        "$.operations.create.response.payload.data.giftCardCreate.giftCard",
+      ),
+      jsonpath.lookup(
+        capture,
+        "$.create.response.payload.data.giftCardCreate.giftCard",
+      ),
+    ]
+    |> list.filter_map(fn(candidate) {
+      case candidate {
+        Some(value) -> make_seed_gift_card(value, Some("api_client"))
+        None -> Error(Nil)
+      }
+    })
+
+  let empty_read_records = case
+    jsonpath.lookup(
+      capture,
+      "$.operations.emptyRead.response.payload.data.giftCards.nodes",
+    )
+  {
+    Some(JArray(nodes)) ->
+      list.filter_map(nodes, fn(node) { make_seed_gift_card(node, None) })
+    _ -> []
+  }
+
+  let records = list.append(records, empty_read_records)
+  let seeded_store = case records {
+    [] -> proxy.store
+    _ -> store_mod.upsert_base_gift_cards(proxy.store, records)
+  }
+  let seeded_store = case seed_gift_card_configuration(capture) {
+    Some(configuration) ->
+      store_mod.upsert_base_gift_card_configuration(seeded_store, configuration)
+    None -> seeded_store
+  }
+  draft_proxy.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn make_seed_gift_card(
+  source: JsonValue,
+  source_override: Option(String),
+) -> Result(GiftCardRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  case string.starts_with(id, "gid://shopify/GiftCard/") {
+    False -> Error(Nil)
+    True -> {
+      let last_characters =
+        read_string_field(source, "lastCharacters")
+        |> option.unwrap(gift_card_tail(id))
+      let initial_value =
+        read_money_record(read_object_field(source, "initialValue"))
+      let balance =
+        read_money_record(
+          read_object_field(source, "balance")
+          |> option.or(read_object_field(source, "initialValue")),
+        )
+      let recipient_attributes_source =
+        read_object_field(source, "recipientAttributes")
+      let recipient_source =
+        recipient_attributes_source
+        |> option.then(read_object_field(_, "recipient"))
+      let recipient_id =
+        read_string_field_from_option(recipient_source, "id")
+        |> option.or(read_string_field_from_option(
+          read_object_field(source, "recipient"),
+          "id",
+        ))
+      let transactions =
+        read_transactions(read_object_field(source, "transactions"))
+      Ok(GiftCardRecord(
+        id: id,
+        legacy_resource_id: read_string_field(source, "legacyResourceId")
+          |> option.unwrap(gift_card_tail(id)),
+        last_characters: last_characters,
+        masked_code: read_string_field(source, "maskedCode")
+          |> option.unwrap(masked_code(last_characters)),
+        enabled: read_bool_field(source, "enabled") |> option.unwrap(True),
+        deactivated_at: read_string_field(source, "deactivatedAt"),
+        expires_on: read_string_field(source, "expiresOn"),
+        note: read_string_field(source, "note"),
+        template_suffix: read_string_field(source, "templateSuffix"),
+        created_at: read_string_field(source, "createdAt")
+          |> option.unwrap("2026-01-01T00:00:00Z"),
+        updated_at: read_string_field(source, "updatedAt")
+          |> option.unwrap("2026-01-01T00:00:00Z"),
+        initial_value: initial_value,
+        balance: balance,
+        customer_id: read_string_field_from_option(
+          read_object_field(source, "customer"),
+          "id",
+        ),
+        recipient_id: recipient_id,
+        source: case source_override {
+          Some(_) -> source_override
+          None -> read_string_field(source, "source")
+        },
+        recipient_attributes: make_seed_recipient_attributes(
+          recipient_attributes_source,
+          recipient_id,
+        ),
+        transactions: transactions,
+      ))
+    }
+  }
+}
+
+fn seed_gift_card_configuration(
+  capture: JsonValue,
+) -> Option(GiftCardConfigurationRecord) {
+  let primary =
+    jsonpath.lookup(
+      capture,
+      "$.operations.configurationRead.response.payload.data.giftCardConfiguration",
+    )
+  let fallback =
+    jsonpath.lookup(
+      capture,
+      "$.configurationRead.response.payload.data.giftCardConfiguration",
+    )
+  case primary |> option.or(fallback) {
+    Some(value) ->
+      Some(GiftCardConfigurationRecord(
+        issue_limit: read_money_record(read_object_field(value, "issueLimit")),
+        purchase_limit: read_money_record(read_object_field(
+          value,
+          "purchaseLimit",
+        )),
+      ))
+    None -> None
+  }
+}
+
+fn make_seed_recipient_attributes(
+  source: Option(JsonValue),
+  recipient_id: Option(String),
+) -> Option(GiftCardRecipientAttributesRecord) {
+  case source {
+    None -> None
+    Some(value) ->
+      Some(GiftCardRecipientAttributesRecord(
+        id: recipient_id,
+        message: read_string_field(value, "message"),
+        preferred_name: read_string_field(value, "preferredName"),
+        send_notification_at: read_string_field(value, "sendNotificationAt"),
+      ))
+  }
+}
+
+fn read_transactions(
+  source: Option(JsonValue),
+) -> List(GiftCardTransactionRecord) {
+  case source |> option.then(read_array_field(_, "nodes")) {
+    Some(nodes) ->
+      list.filter_map(nodes, fn(node) {
+        let amount = read_money_record(read_object_field(node, "amount"))
+        Ok(GiftCardTransactionRecord(
+          id: read_string_field(node, "id")
+            |> option.unwrap("gid://shopify/GiftCardTransaction/0"),
+          kind: case string.starts_with(amount.amount, "-") {
+            True -> "DEBIT"
+            False -> "CREDIT"
+          },
+          amount: amount,
+          processed_at: read_string_field(node, "processedAt")
+            |> option.unwrap("2026-01-01T00:00:00Z"),
+          note: read_string_field(node, "note"),
+        ))
+      })
+    None -> []
+  }
+}
+
+fn read_money_record(source: Option(JsonValue)) -> Money {
+  case source {
+    Some(value) ->
+      Money(
+        amount: read_string_field(value, "amount") |> option.unwrap("0.0"),
+        currency_code: read_string_field(value, "currencyCode")
+          |> option.unwrap("CAD"),
+      )
+    None -> Money(amount: "0.0", currency_code: "CAD")
+  }
+}
+
+fn required_string_field(
+  value: JsonValue,
+  name: String,
+) -> Result(String, Nil) {
+  case read_string_field(value, name) {
+    Some(s) -> Ok(s)
+    None -> Error(Nil)
+  }
+}
+
+fn read_string_field(value: JsonValue, name: String) -> Option(String) {
+  case json_value.field(value, name) {
+    Some(JString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn read_string_field_from_option(
+  value: Option(JsonValue),
+  name: String,
+) -> Option(String) {
+  case value {
+    Some(v) -> read_string_field(v, name)
+    None -> None
+  }
+}
+
+fn read_bool_field(value: JsonValue, name: String) -> Option(Bool) {
+  case json_value.field(value, name) {
+    Some(JBool(b)) -> Some(b)
+    _ -> None
+  }
+}
+
+fn read_object_field(value: JsonValue, name: String) -> Option(JsonValue) {
+  case json_value.field(value, name) {
+    Some(JObject(_)) as object -> object
+    _ -> None
+  }
+}
+
+fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
+  case json_value.field(value, name) {
+    Some(JArray(items)) -> Some(items)
+    _ -> None
+  }
+}
+
+fn gift_card_tail(id: String) -> String {
+  case string.split(id, on: "/") |> list.last {
+    Ok(tail_with_query) ->
+      case string.split(tail_with_query, on: "?") {
+        [tail, ..] -> tail
+        [] -> id
+      }
+    Error(_) -> id
+  }
+}
+
+fn masked_code(last_characters: String) -> String {
+  "•••• •••• •••• " <> last_characters
 }
 
 fn run_targets(
@@ -160,10 +435,7 @@ fn run_target(
   let actual_opt = jsonpath.lookup(actual_response, target.proxy_path)
   case expected_opt, actual_opt {
     None, _ ->
-      Error(CaptureUnresolved(
-        target: target.name,
-        path: target.capture_path,
-      ))
+      Error(CaptureUnresolved(target: target.name, path: target.capture_path))
     _, None ->
       Error(ProxyUnresolved(target: target.name, path: target.proxy_path))
     Some(expected), Some(actual) -> {
@@ -196,9 +468,9 @@ fn actual_response_for(
   case target.request {
     ReusePrimary -> Ok(#(primary_response, proxy))
     OverrideRequest(request: request) -> {
-      use document <- result.try(read_file(
-        resolve(config, request.document_path),
-      ))
+      use document <- result.try(
+        read_file(resolve(config, request.document_path)),
+      )
       use variables <- result.try(resolve_variables(
         config,
         request.variables,
@@ -423,17 +695,13 @@ pub fn render_error(error: RunError) -> String {
     FileError(path, reason) -> "file error at " <> path <> ": " <> reason
     JsonError(path, reason) -> "json error at " <> path <> ": " <> reason
     SpecError(reason) -> "spec error: " <> reason
-    VariablesUnresolved(path) ->
-      "variables jsonpath did not resolve: " <> path
+    VariablesUnresolved(path) -> "variables jsonpath did not resolve: " <> path
     PrimaryRefUnresolved(path) ->
       "fromPrimaryProxyPath did not resolve in primary response: " <> path
     CaptureRefUnresolved(path) ->
       "fromCapturePath did not resolve in capture: " <> path
     CaptureUnresolved(target, path) ->
-      "capture jsonpath did not resolve for target '"
-      <> target
-      <> "': "
-      <> path
+      "capture jsonpath did not resolve for target '" <> target <> "': " <> path
     ProxyUnresolved(target, path) ->
       "proxy response jsonpath did not resolve for target '"
       <> target

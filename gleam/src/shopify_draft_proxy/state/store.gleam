@@ -21,8 +21,7 @@ import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecord, type LocaleRecord,
   type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
   type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord,
-  type WebhookSubscriptionRecord,
+  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -149,11 +148,7 @@ pub type EntryStatus {
 /// Capability metadata recorded alongside each mutation log entry.
 /// Mirrors `MutationLogInterpretedMetadata['capability']`.
 pub type Capability {
-  Capability(
-    operation_name: Option(String),
-    domain: String,
-    execution: String,
-  )
+  Capability(operation_name: Option(String), domain: String, execution: String)
 }
 
 /// Slim port of `MutationLogInterpretedMetadata`. Only the fields the
@@ -329,10 +324,7 @@ pub fn upsert_base_saved_searches(
       BaseState(
         ..base,
         saved_searches: dict.insert(base.saved_searches, record.id, record),
-        saved_search_order: append_unique_id(
-          base.saved_search_order,
-          record.id,
-        ),
+        saved_search_order: append_unique_id(base.saved_search_order, record.id),
         deleted_saved_search_ids: dict.delete(
           base.deleted_saved_search_ids,
           record.id,
@@ -676,9 +668,9 @@ pub fn find_effective_app_by_handle(
   store: Store,
   handle: String,
 ) -> Option(AppRecord) {
-  case find_app_in_dict(store.staged_state.apps, fn(a) {
-    a.handle == Some(handle)
-  }) {
+  case
+    find_app_in_dict(store.staged_state.apps, fn(a) { a.handle == Some(handle) })
+  {
     Some(record) -> Some(record)
     None ->
       find_app_in_dict(store.base_state.apps, fn(a) { a.handle == Some(handle) })
@@ -691,9 +683,11 @@ pub fn find_effective_app_by_api_key(
   store: Store,
   api_key: String,
 ) -> Option(AppRecord) {
-  case find_app_in_dict(store.staged_state.apps, fn(a) {
-    a.api_key == Some(api_key)
-  }) {
+  case
+    find_app_in_dict(store.staged_state.apps, fn(a) {
+      a.api_key == Some(api_key)
+    })
+  {
     Some(record) -> Some(record)
     None ->
       find_app_in_dict(store.base_state.apps, fn(a) {
@@ -865,8 +859,7 @@ pub fn stage_app_subscription_line_item(
     || dict_has(staged.app_subscription_line_items, record.id)
   let new_order = case already {
     True -> staged.app_subscription_line_item_order
-    False ->
-      list.append(staged.app_subscription_line_item_order, [record.id])
+    False -> list.append(staged.app_subscription_line_item_order, [record.id])
   }
   let new_staged =
     StagedState(
@@ -1042,10 +1035,9 @@ pub fn find_delegated_access_token_by_hash(
   {
     Some(record) -> Some(record)
     None ->
-      find_token_in_dict(
-        store.base_state.delegated_access_tokens,
-        fn(t) { t.access_token_sha256 == hash },
-      )
+      find_token_in_dict(store.base_state.delegated_access_tokens, fn(t) {
+        t.access_token_sha256 == hash
+      })
   }
 }
 
@@ -1101,7 +1093,11 @@ pub fn upsert_staged_shopify_function(
   let new_staged =
     StagedState(
       ..staged,
-      shopify_functions: dict.insert(staged.shopify_functions, record.id, record),
+      shopify_functions: dict.insert(
+        staged.shopify_functions,
+        record.id,
+        record,
+      ),
       shopify_function_order: new_order,
     )
   #(record, Store(..store, staged_state: new_staged))
@@ -1393,6 +1389,35 @@ pub fn get_effective_tax_app_configuration(
 // Gift card slice (Pass 19)
 // ---------------------------------------------------------------------------
 
+/// Upsert one or more gift-card records into the base state.
+/// Mirrors `upsertBaseGiftCards`.
+pub fn upsert_base_gift_cards(
+  store: Store,
+  records: List(GiftCardRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let new_base =
+      BaseState(
+        ..base,
+        gift_cards: dict.insert(base.gift_cards, record.id, record),
+        gift_card_order: append_unique_id(base.gift_card_order, record.id),
+      )
+    Store(..acc, base_state: new_base)
+  })
+}
+
+/// Upsert the singleton base gift-card configuration.
+/// Mirrors `upsertBaseGiftCardConfiguration`.
+pub fn upsert_base_gift_card_configuration(
+  store: Store,
+  record: GiftCardConfigurationRecord,
+) -> Store {
+  let base = store.base_state
+  let new_base = BaseState(..base, gift_card_configuration: Some(record))
+  Store(..store, base_state: new_base)
+}
+
 /// Stage a freshly minted `GiftCardRecord`. Mirrors
 /// `stageCreateGiftCard` — appends the id to staged order on first
 /// sight, otherwise leaves the order alone (idempotent re-stage).
@@ -1485,8 +1510,7 @@ pub fn set_staged_gift_card_configuration(
   record: GiftCardConfigurationRecord,
 ) -> Store {
   let staged = store.staged_state
-  let new_staged =
-    StagedState(..staged, gift_card_configuration: Some(record))
+  let new_staged = StagedState(..staged, gift_card_configuration: Some(record))
   Store(..store, staged_state: new_staged)
 }
 
@@ -1599,7 +1623,8 @@ pub fn list_effective_segments(store: Store) -> List(SegmentRecord) {
       }
     })
   let ordered_set = list_to_set(ordered_ids)
-  let merged = dict.merge(store.base_state.segments, store.staged_state.segments)
+  let merged =
+    dict.merge(store.base_state.segments, store.staged_state.segments)
   let unordered_ids =
     dict.keys(merged)
     |> list.filter(fn(id) { !dict_has(ordered_set, id) })
@@ -1879,8 +1904,7 @@ pub fn remove_translation(
   key: String,
   market_id: Option(String),
 ) -> #(Option(TranslationRecord), Store) {
-  let storage_key =
-    translation_storage_key(resource_id, locale, key, market_id)
+  let storage_key = translation_storage_key(resource_id, locale, key, market_id)
   let staged = store.staged_state
   let base = store.base_state
   let existing = case dict.get(staged.translations, storage_key) {
@@ -1926,12 +1950,14 @@ pub fn remove_translations_for_locale(
     |> list.filter(fn(t) { t.locale == locale })
   let merged_dict =
     list.fold(base_matching, dict.new(), fn(acc, t) {
-      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      let k =
+        translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
       dict.insert(acc, k, t)
     })
   let merged_dict =
     list.fold(staged_matching, merged_dict, fn(acc, t) {
-      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      let k =
+        translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
       dict.insert(acc, k, t)
     })
   let staged = store.staged_state
@@ -1992,12 +2018,14 @@ pub fn list_effective_translations(
     })
   let merged_dict =
     list.fold(base_matching, dict.new(), fn(acc, t) {
-      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      let k =
+        translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
       dict.insert(acc, k, t)
     })
   let merged_dict =
     list.fold(staged_matching, merged_dict, fn(acc, t) {
-      let k = translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
+      let k =
+        translation_storage_key(t.resource_id, t.locale, t.key, t.market_id)
       dict.insert(acc, k, t)
     })
   dict.values(merged_dict)

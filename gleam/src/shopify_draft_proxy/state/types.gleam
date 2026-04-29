@@ -320,6 +320,7 @@ pub type GiftCardRecord {
     balance: Money,
     customer_id: Option(String),
     recipient_id: Option(String),
+    source: Option(String),
     recipient_attributes: Option(GiftCardRecipientAttributesRecord),
     transactions: List(GiftCardTransactionRecord),
   )

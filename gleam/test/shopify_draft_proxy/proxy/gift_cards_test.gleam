@@ -52,6 +52,7 @@ fn gift_card(
     balance: money(balance_amount, "CAD"),
     customer_id: None,
     recipient_id: None,
+    source: None,
     recipient_attributes: None,
     transactions: [],
   )
@@ -170,8 +171,7 @@ pub fn gift_card_disabled_at_alias_test() {
 // ----------- giftCards connection -----------
 
 pub fn gift_cards_connection_empty_test() {
-  let result =
-    run(store.new(), "{ giftCards(first: 5) { nodes { id } } }")
+  let result = run(store.new(), "{ giftCards(first: 5) { nodes { id } } }")
   assert result == "{\"giftCards\":{\"nodes\":[]}}"
 }
 
@@ -196,11 +196,7 @@ pub fn gift_cards_connection_returns_seeded_test() {
     store.new()
     |> seed(r1)
     |> seed(r2)
-  let result =
-    run(
-      s,
-      "{ giftCards(first: 5) { nodes { id lastCharacters } } }",
-    )
+  let result = run(s, "{ giftCards(first: 5) { nodes { id lastCharacters } } }")
   assert result
     == "{\"giftCards\":{\"nodes\":[{\"id\":\"gid://shopify/GiftCard/10?shopify-draft-proxy=synthetic\",\"lastCharacters\":\"1010\"},{\"id\":\"gid://shopify/GiftCard/11?shopify-draft-proxy=synthetic\",\"lastCharacters\":\"1111\"}]}}"
 }

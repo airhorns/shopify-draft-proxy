@@ -166,6 +166,17 @@ If your test fixtures use the wrong form, look-by-id misses silently.
 Trust the actual handler output rather than guessing — Pass 19 + 20 both
 hit this.
 
+### Parity runner capture seeding
+
+Some parity specs use a setup mutation against an upstream resource
+that already exists in the live capture. Do not edit those specs or
+rewrite the setup request. Seed the Gleam proxy from capture data in
+`test/parity/runner.gleam` before executing the primary request, keyed
+by scenario id, mirroring the TS parity harness. Pass 27's
+`gift-card-search-filters` seeding is the current template: decode only
+fields present in the capture, upsert them into base state, then let
+the setup mutation produce the staged read-after-write state.
+
 ## Workflow for a new pass
 
 1. Pick a candidate from the most recent log entry's "Pass N candidates"

@@ -112,6 +112,7 @@ pub fn gift_card_update_changes_note_test() {
       balance: money("100.0", "CAD"),
       customer_id: None,
       recipient_id: None,
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )
@@ -145,6 +146,7 @@ pub fn gift_card_credit_increases_balance_test() {
       balance: money("50.0", "CAD"),
       customer_id: None,
       recipient_id: None,
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )
@@ -178,6 +180,7 @@ pub fn gift_card_debit_decreases_balance_test() {
       balance: money("100.0", "CAD"),
       customer_id: None,
       recipient_id: None,
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )
@@ -211,6 +214,7 @@ pub fn gift_card_deactivate_disables_card_test() {
       balance: money("25.0", "CAD"),
       customer_id: None,
       recipient_id: None,
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )
@@ -245,6 +249,7 @@ pub fn gift_card_send_notification_to_customer_returns_card_test() {
       balance: money("100.0", "CAD"),
       customer_id: Some("gid://shopify/Customer/1"),
       recipient_id: None,
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )
@@ -278,6 +283,7 @@ pub fn gift_card_send_notification_to_recipient_returns_card_test() {
       balance: money("100.0", "CAD"),
       customer_id: None,
       recipient_id: Some("gid://shopify/Customer/2"),
+      source: None,
       recipient_attributes: None,
       transactions: [],
     )

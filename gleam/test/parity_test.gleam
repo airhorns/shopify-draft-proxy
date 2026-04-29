@@ -35,7 +35,9 @@ pub fn webhook_subscription_catalog_read_test() {
 }
 
 pub fn webhook_subscription_required_argument_validation_test() {
-  check("config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json")
+  check(
+    "config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json",
+  )
 }
 
 pub fn webhook_subscription_conformance_test() {
@@ -54,9 +56,9 @@ pub fn saved_search_resource_roots_test() {
   check("config/parity-specs/saved-searches/saved-search-resource-roots.json")
 }
 
-// NOTE: gift-card-search-filters needs the parity runner to seed gift
-// cards into the proxy store before driving the search request — see
-// Pass 22b in the port log.
+pub fn gift_card_search_filters_test() {
+  check("config/parity-specs/gift-cards/gift-card-search-filters.json")
+}
 
 // NOTE: functions-metadata-local-staging fails because the capture
 // fixture (`fixtures/.../functions-metadata-flow.json`) is hand-
@@ -93,7 +95,9 @@ pub fn delegate_access_token_current_input_local_staging_test() {
 // ----------- segments -----------
 
 pub fn segments_create_invalid_query_validation_test() {
-  check("config/parity-specs/segments/segment-create-invalid-query-validation.json")
+  check(
+    "config/parity-specs/segments/segment-create-invalid-query-validation.json",
+  )
 }
 
 pub fn segment_query_grammar_not_contains_test() {
@@ -101,11 +105,15 @@ pub fn segment_query_grammar_not_contains_test() {
 }
 
 pub fn segments_update_unknown_id_validation_test() {
-  check("config/parity-specs/segments/segment-update-unknown-id-validation.json")
+  check(
+    "config/parity-specs/segments/segment-update-unknown-id-validation.json",
+  )
 }
 
 pub fn segments_delete_unknown_id_validation_test() {
-  check("config/parity-specs/segments/segment-delete-unknown-id-validation.json")
+  check(
+    "config/parity-specs/segments/segment-delete-unknown-id-validation.json",
+  )
 }
 
 pub fn customer_segment_members_query_lifecycle_test() {
@@ -139,19 +147,16 @@ pub fn standard_metafield_definition_enable_validation_test() {
 /// empty reports.
 pub fn runner_into_assert_flags_mismatches_test() {
   let report =
-    runner.Report(
-      scenario_id: "synthetic",
-      targets: [
-        runner.TargetReport(
-          name: "always-fails",
-          capture_path: "$",
-          proxy_path: "$",
-          mismatches: [
-            diff.Mismatch(path: "$.x", expected: "1", actual: "2"),
-          ],
-        ),
-      ],
-    )
+    runner.Report(scenario_id: "synthetic", targets: [
+      runner.TargetReport(
+        name: "always-fails",
+        capture_path: "$",
+        proxy_path: "$",
+        mismatches: [
+          diff.Mismatch(path: "$.x", expected: "1", actual: "2"),
+        ],
+      ),
+    ])
   assert runner.has_mismatches(report)
   let assert Error(_) = runner.into_assert(report)
 }

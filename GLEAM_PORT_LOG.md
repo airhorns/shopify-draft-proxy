@@ -9,6 +9,65 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-29 — Pass 27: gift-card search parity seeding
+
+Promotes the `gift-card-search-filters` parity spec from a documented
+runner gap into executable Gleam parity coverage. The spec's primary
+request is a lifecycle setup mutation (`giftCardUpdate` +
+`giftCardCredit` + `giftCardDebit`) against a captured real gift card,
+so the runner now seeds the proxy's base gift-card state from the
+capture before driving that setup request. The comparison targets then
+exercise the same staged local read-after-write state as the TS parity
+harness.
+
+This pass also fills the missing gift-card search predicates needed by
+the captured filter scenario: `created_at`, `expires_on`,
+`initial_value`, `customer_id`, `recipient_id`, and `source`.
+`updated_at` intentionally remains ignored, matching the TS handler
+and the captured Shopify behavior for the scenario's future-date
+query.
+
+| Module | Change |
+| --- | --- |
+| `gleam/test/parity/runner.gleam` | Adds scenario precondition seeding for `gift-card-search-filters`, including capture-to-`GiftCardRecord` and configuration decoding helpers. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam` | Adds `GiftCardRecord.source` so the local model can evaluate `source:` search terms. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam` | Adds base upsert helpers for gift cards and gift-card configuration, mirroring the TS parity harness precondition path. |
+| `gleam/src/shopify_draft_proxy/proxy/gift_cards.gleam` | Ports the remaining captured search predicates and sets locally-created cards to `source: "api_client"`. |
+| `gleam/test/parity_test.gleam` | Enables `gift-card-search-filters` as a first-class parity test. |
+
+Validation: `gleam test --target javascript` is green at 641 tests.
+`gleam test --target erlang` is green at 634 tests via the `erlang:27`
+container fallback because the host lacks `escript`. The targeted
+touched-file `gleam format --check ...` invocation is green. The
+TypeScript `gleam-interop` Vitest smoke is green.
+
+### Findings
+
+- The parity runner can stay spec-compatible without mutating
+  `config/parity-specs/**`: seed decisions live in runner code, keyed
+  by scenario id, and decode only data already present in the capture.
+- Gift-card search must preserve TS's permissive unknown-field
+  behavior. Some fields, such as `updated_at`, are intentionally not
+  interpreted even when the query uses them.
+
+### Risks / open items
+
+- The host workspace still lacks local Erlang tooling (`escript`), so
+  BEAM validation currently depends on a container fallback.
+- The next parity-seeding candidates are the existing function
+  metadata scenarios that need pre-installed Shopify function records
+  from capture data.
+
+### Pass 28 candidates
+
+- Add capture seeding for `functions-owner-metadata-local-staging`.
+- Continue bulk-operations beyond the empty-read stub by porting the
+  state slice and real catalog reads.
+- Continue marketing beyond the empty-read stub by porting the activity
+  and engagement state slices.
+
+---
+
 ## 2026-04-29 — Pass 26: bulk-operations domain (empty-read stub)
 
 Adds a new `BulkOperationsDomain` covering the always-on read shape
