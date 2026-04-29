@@ -1,4 +1,5 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
+import { Buffer } from 'node:buffer';
 import { createHash, createHmac } from 'node:crypto';
 import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'graphql';
 
@@ -432,6 +433,40 @@ function taxonomyCategoryCursor(category: TaxonomyCategoryRecord): string {
   return category.cursor ?? category.id;
 }
 
+function taxonomyCategoryCursorSortKey(category: TaxonomyCategoryRecord): number | null {
+  if (!category.cursor) {
+    return null;
+  }
+
+  try {
+    const decoded = JSON.parse(Buffer.from(category.cursor, 'base64').toString('utf8')) as unknown;
+    if (!isPlainObject(decoded)) {
+      return null;
+    }
+    const id = decoded['id'];
+    return typeof id === 'number' && Number.isFinite(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function sortTaxonomyHierarchyCategories(categories: TaxonomyCategoryRecord[]): TaxonomyCategoryRecord[] {
+  return categories
+    .map((category, index) => ({
+      category,
+      index,
+      sortKey: taxonomyCategoryCursorSortKey(category),
+    }))
+    .sort((left, right) => {
+      if (left.sortKey !== null && right.sortKey !== null && left.sortKey !== right.sortKey) {
+        return left.sortKey - right.sortKey;
+      }
+
+      return left.index - right.index;
+    })
+    .map(({ category }) => category);
+}
+
 function taxonomyCategoryMatchesSearchTerm(category: TaxonomyCategoryRecord, term: SearchQueryTerm): boolean {
   switch (term.field) {
     case null:
@@ -533,6 +568,10 @@ function serializeTaxonomyCategories(
   const rawSiblingsOf = args['siblingsOf'];
   const rawSearch = args['search'];
   const allCategories = runtime.store.getEffectiveTaxonomyCategories();
+  const hasHierarchyFilter =
+    (typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0) ||
+    (typeof rawDescendantsOf === 'string' && rawDescendantsOf.length > 0) ||
+    (typeof rawSiblingsOf === 'string' && rawSiblingsOf.length > 0);
   const hierarchyFilteredCategories =
     typeof rawChildrenOf === 'string' && rawChildrenOf.length > 0
       ? allCategories.filter((category) => category.parentId === rawChildrenOf)
@@ -548,15 +587,18 @@ function serializeTaxonomyCategories(
               );
             })
           : allCategories;
+  const orderedHierarchyFilteredCategories = hasHierarchyFilter
+    ? sortTaxonomyHierarchyCategories(hierarchyFilteredCategories)
+    : hierarchyFilteredCategories;
   const categories =
     typeof rawSearch === 'string' && rawSearch.trim().length > 0
       ? applySearchQueryTerms(
-          hierarchyFilteredCategories,
+          orderedHierarchyFilteredCategories,
           rawSearch,
           { ignoredKeywords: ['AND'], dropEmptyValues: true },
           taxonomyCategoryMatchesSearchTerm,
         )
-      : hierarchyFilteredCategories;
+      : orderedHierarchyFilteredCategories;
   const window = paginateConnectionItems(categories, field, variables, taxonomyCategoryCursor);
   const hasPreviousPage = typeof args['last'] === 'number' ? window.hasPreviousPage : false;
 

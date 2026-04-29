@@ -1080,25 +1080,25 @@ describe('admin platform utility query shapes', () => {
     expect(response.status).toBe(200);
     expect(response.body.data.taxonomy.children.nodes).toEqual([
       {
-        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
-        name: 'Pet Apparel',
+        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+        name: 'Pet Apparel Hangers',
         parentId: 'gid://shopify/TaxonomyCategory/ap-2',
       },
       {
-        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
-        name: 'Pet Apparel Hangers',
+        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+        name: 'Pet Apparel',
         parentId: 'gid://shopify/TaxonomyCategory/ap-2',
       },
     ]);
     expect(response.body.data.taxonomy.descendants.nodes).toEqual([
       {
-        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
-        name: 'Pet Apparel',
+        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
+        name: 'Pet Apparel Hangers',
         ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
       },
       {
-        id: 'gid://shopify/TaxonomyCategory/ap-2-7',
-        name: 'Pet Apparel Hangers',
+        id: 'gid://shopify/TaxonomyCategory/ap-2-6',
+        name: 'Pet Apparel',
         ancestorIds: ['gid://shopify/TaxonomyCategory/ap-2', 'gid://shopify/TaxonomyCategory/ap'],
       },
     ]);
