@@ -1,0 +1,36 @@
+{
+  "scenarioId": "gift-card-search-filters",
+  "operationNames": ["giftCards", "giftCardsCount", "giftCardUpdate", "giftCardCredit", "giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "search-filter-parity",
+    "balance-status-parity",
+    "code-fragment-search-parity",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/gift-card-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-search-setup.graphql",
+    "variablesCapturePath": "$.proxyVariables.lifecycle"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "gift-card balance and code search filters match",
+        "capturePath": "$.operations.searchFilterRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-search-filters.graphql",
+          "variablesCapturePath": "$.proxyVariables.searchFilters"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-457 rework adds executable strict parity for giftCards/giftCardsCount search behavior that was previously covered only by integration tests. The live capture records the post-credit/debit, pre-deactivation gift-card state so `balance_status:partial`, `balance_status:full`, `balance_status:empty`, `balance_status:full_or_partial`, and visible code-fragment search are compared against the local proxy without customer-visible notification delivery."
+}

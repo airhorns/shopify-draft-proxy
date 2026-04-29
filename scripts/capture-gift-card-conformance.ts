@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { setTimeout } from 'node:timers/promises';
 
 import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
@@ -288,11 +289,13 @@ if (createdId !== null) {
   };
   const debitInput = {
     debitAmount: {
-      amount: '1.00',
+      amount: '3.00',
       currencyCode: 'CAD',
     },
     note: 'HAR-310 debit',
   };
+  const giftCardIdQuery = `id:${giftCardTail(createdId)}`;
+  const codeFragmentQuery = `${giftCardIdQuery} AND ${createInput.code.slice(-4)}`;
 
   lifecycle.push(
     await capture(
@@ -413,6 +416,87 @@ if (createdId !== null) {
       {
         id: createdId,
         input: debitInput,
+      },
+    ),
+  );
+  await setTimeout(10_000);
+  lifecycle.push(
+    await capture(
+      'searchFilterRead',
+      `#graphql
+        query GiftCardSearchFilterRead(
+          $partialQuery: String!
+          $fullQuery: String!
+          $emptyQuery: String!
+          $nonEmptyQuery: String!
+          $codeQuery: String!
+        ) {
+          partialBalanceGiftCards: giftCards(first: 2, query: $partialQuery, sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+              enabled
+              balance {
+                amount
+                currencyCode
+              }
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          partialBalanceGiftCardsCount: giftCardsCount(query: $partialQuery) {
+            count
+            precision
+          }
+          fullBalanceGiftCards: giftCards(first: 2, query: $fullQuery, sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          emptyBalanceGiftCards: giftCards(first: 2, query: $emptyQuery, sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          nonEmptyBalanceGiftCardsCount: giftCardsCount(query: $nonEmptyQuery) {
+            count
+            precision
+          }
+          codeSearchGiftCards: giftCards(first: 2, query: $codeQuery, sortKey: ID) {
+            nodes {
+              id
+              lastCharacters
+              enabled
+            }
+            pageInfo {
+              hasNextPage
+              hasPreviousPage
+            }
+          }
+          codeSearchGiftCardsCount: giftCardsCount(query: $codeQuery) {
+            count
+            precision
+          }
+        }
+      `,
+      {
+        partialQuery: `${giftCardIdQuery} AND balance_status:partial`,
+        fullQuery: `${giftCardIdQuery} AND balance_status:full`,
+        emptyQuery: `${giftCardIdQuery} AND balance_status:empty`,
+        nonEmptyQuery: `${giftCardIdQuery} AND balance_status:full_or_partial`,
+        codeQuery: codeFragmentQuery,
       },
     ),
   );
@@ -556,6 +640,13 @@ if (createdId !== null) {
           readAfterLifecycle: {
             id: createdId,
             query: `id:${giftCardTail(createdId)}`,
+          },
+          searchFilters: {
+            partialQuery: `${giftCardIdQuery} AND balance_status:partial`,
+            fullQuery: `${giftCardIdQuery} AND balance_status:full`,
+            emptyQuery: `${giftCardIdQuery} AND balance_status:empty`,
+            nonEmptyQuery: `${giftCardIdQuery} AND balance_status:full_or_partial`,
+            codeQuery: codeFragmentQuery,
           },
         },
         operations: {

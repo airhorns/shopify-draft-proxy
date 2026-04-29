@@ -4642,7 +4642,7 @@
     "implemented": true,
     "matchNames": ["giftCardsCount", "GiftCardsCount"],
     "runtimeTests": ["tests/integration/gift-card-flow.test.ts"],
-    "supportNotes": "Local count support covers exact no-data and staged gift-card counts with basic id/enabled query filtering."
+    "supportNotes": "Local count support covers exact no-data and staged gift-card counts with id, status, balance_status, and visible code-fragment query filtering."
   },
   {
     "name": "giftCardConfiguration",
