@@ -9,11 +9,15 @@ import { createAdminGraphqlClient } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
+const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
+  defaultApiVersion: '2026-04',
+  exitOnMissing: true,
+});
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-linkage-parity.json');
+const inactiveLifecyclePath = path.join(outputDir, 'inventory-inactive-level-lifecycle-2026-04.json');
 const pendingDir = 'pending';
 const blockerPath = path.join(pendingDir, 'inventory-linkage-single-location-blocker.md');
 const { runGraphql } = createAdminGraphqlClient({
@@ -72,11 +76,63 @@ const locationsQuery = `#graphql
   }
 `;
 
+const trackInventoryMutation = `#graphql
+  mutation InventoryInactiveLifecycleTrack($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+    productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+      product {
+        id
+        totalInventory
+        tracksInventory
+      }
+      productVariants {
+        id
+        inventoryQuantity
+        inventoryItem {
+          id
+          tracked
+          requiresShipping
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const inventorySetQuantitiesMutation = `#graphql
+  mutation InventoryInactiveLifecycleSet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+    inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+      inventoryAdjustmentGroup {
+        id
+        changes {
+          name
+          delta
+          quantityAfterChange
+          item {
+            id
+          }
+          location {
+            id
+            name
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const inventoryActivateMutation = `#graphql
-  mutation InventoryActivateParityPlan($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
-    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+  mutation InventoryActivateParityPlan($inventoryItemId: ID!, $locationId: ID!, $available: Int, $idempotencyKey: String!) {
+    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) @idempotent(key: $idempotencyKey) {
       inventoryLevel {
         id
+        isActive
         location {
           id
           name
@@ -109,8 +165,8 @@ const inventoryActivateMutation = `#graphql
 `;
 
 const inventoryDeactivateMutation = `#graphql
-  mutation InventoryDeactivateParityPlan($inventoryLevelId: ID!) {
-    inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+  mutation InventoryDeactivateParityPlan($inventoryLevelId: ID!, $idempotencyKey: String!) {
+    inventoryDeactivate(inventoryLevelId: $inventoryLevelId) @idempotent(key: $idempotencyKey) {
       userErrors {
         field
         message
@@ -120,8 +176,8 @@ const inventoryDeactivateMutation = `#graphql
 `;
 
 const inventoryBulkToggleMutation = `#graphql
-  mutation InventoryBulkToggleActivationParityPlan($inventoryItemId: ID!, $inventoryItemUpdates: [InventoryBulkToggleActivationInput!]!) {
-    inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $inventoryItemUpdates) {
+  mutation InventoryBulkToggleActivationParityPlan($inventoryItemId: ID!, $inventoryItemUpdates: [InventoryBulkToggleActivationInput!]!, $idempotencyKey: String!) {
+    inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $inventoryItemUpdates) @idempotent(key: $idempotencyKey) {
       inventoryItem {
         id
         tracked
@@ -215,6 +271,111 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const inactiveLifecycleProductQuery = `#graphql
+  query InventoryInactiveLifecycleProduct($productId: ID!) {
+    product(id: $productId) {
+      id
+      title
+      handle
+      status
+      totalInventory
+      tracksInventory
+      variants(first: 1) {
+        nodes {
+          id
+          title
+          sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
+            inventoryLevels(first: 5, includeInactive: true) {
+              nodes {
+                id
+                isActive
+                location {
+                  id
+                  name
+                }
+                quantities(names: ["available", "on_hand", "incoming"]) {
+                  name
+                  quantity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const inactiveLifecycleReadQuery = `#graphql
+  query InventoryInactiveLifecycleRead($inventoryItemId: ID!, $inventoryLevelId: ID!, $inactiveLocationId: ID!) {
+    inventoryItem(id: $inventoryItemId) {
+      id
+      tracked
+      variant {
+        id
+        inventoryQuantity
+        product {
+          id
+          totalInventory
+          tracksInventory
+        }
+      }
+      inventoryLevels(first: 5, includeInactive: true) {
+        nodes {
+          id
+          isActive
+          location {
+            id
+            name
+          }
+          quantities(names: ["available", "on_hand", "incoming"]) {
+            name
+            quantity
+          }
+        }
+      }
+      inactiveLevel: inventoryLevel(locationId: $inactiveLocationId, includeInactive: true) {
+        id
+        isActive
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "incoming"]) {
+          name
+          quantity
+        }
+      }
+    }
+    inventoryLevel(id: $inventoryLevelId) {
+      id
+      isActive
+      location {
+        id
+        name
+      }
+      quantities(names: ["available", "on_hand", "incoming"]) {
+        name
+        quantity
+      }
+      item {
+        id
+        tracked
+      }
+    }
+  }
+`;
+
 const deleteProductMutation = `#graphql
   mutation InventoryLinkageProductDelete($input: ProductDeleteInput!) {
     productDelete(input: $input) {
@@ -257,6 +418,169 @@ async function cleanupTemporaryProducts(products) {
     await runGraphql(deleteProductMutation, { input: { id: product.id } }).catch((error) => {
       console.error(`Cleanup failed for ${product.id}: ${error.message}`);
     });
+  }
+}
+
+function readFirstVariant(product) {
+  return product?.variants?.nodes?.[0] ?? null;
+}
+
+async function captureInactiveInventoryLifecycle(primaryLocation, secondaryLocation) {
+  const runId = `${Date.now()}`;
+  const lifecycleProduct = await createTemporaryProduct(`hermes-inventory-inactive-lifecycle-${runId}`);
+  const defaultLocationId = lifecycleProduct.inventoryLevel?.location?.id ?? null;
+  const defaultLocation =
+    [primaryLocation, secondaryLocation].find((location) => location.id === defaultLocationId) ?? primaryLocation;
+  const alternateLocation =
+    [primaryLocation, secondaryLocation].find((location) => location.id !== defaultLocation.id) ?? secondaryLocation;
+
+  try {
+    const trackVariables = {
+      productId: lifecycleProduct.product.id,
+      variants: [
+        {
+          id: lifecycleProduct.variant.id,
+          inventoryItem: {
+            tracked: true,
+            requiresShipping: true,
+          },
+        },
+      ],
+    };
+    const trackInventory = await runGraphql(trackInventoryMutation, trackVariables);
+
+    const setPrimaryVariables = {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        referenceDocumentUri: `logistics://har-468/primary/${runId}`,
+        quantities: [
+          {
+            inventoryItemId: lifecycleProduct.inventoryItem.id,
+            locationId: defaultLocation.id,
+            quantity: 5,
+            changeFromQuantity: 0,
+          },
+        ],
+      },
+      idempotencyKey: `har-468-primary-${runId}`,
+    };
+    const setPrimaryQuantity = await runGraphql(inventorySetQuantitiesMutation, setPrimaryVariables);
+
+    const activateSecondaryVariables = {
+      inventoryItemId: lifecycleProduct.inventoryItem.id,
+      locationId: alternateLocation.id,
+      available: 0,
+      idempotencyKey: `har-468-activate-secondary-${runId}`,
+    };
+    const activateSecondary = await runGraphql(inventoryActivateMutation, activateSecondaryVariables);
+
+    const setSecondaryVariables = {
+      input: {
+        name: 'available',
+        reason: 'correction',
+        referenceDocumentUri: `logistics://har-468/secondary/${runId}`,
+        quantities: [
+          {
+            inventoryItemId: lifecycleProduct.inventoryItem.id,
+            locationId: alternateLocation.id,
+            quantity: 7,
+            changeFromQuantity: 0,
+          },
+        ],
+      },
+      idempotencyKey: `har-468-secondary-${runId}`,
+    };
+    const setSecondaryQuantity = await runGraphql(inventorySetQuantitiesMutation, setSecondaryVariables);
+
+    const seedProductRead = await runGraphql(inactiveLifecycleProductQuery, {
+      productId: lifecycleProduct.product.id,
+    });
+    const seedProduct = seedProductRead.data?.product ?? null;
+    const seedVariant = readFirstVariant(seedProduct);
+    const seedInventoryItem = seedVariant?.inventoryItem ?? null;
+    const secondaryLevel =
+      seedInventoryItem?.inventoryLevels?.nodes?.find((level) => level?.location?.id === alternateLocation.id) ?? null;
+    if (!seedProduct?.id || !seedVariant?.id || !seedInventoryItem?.id || !secondaryLevel?.id) {
+      throw new Error(`Unexpected inactive lifecycle setup payload: ${JSON.stringify(seedProductRead, null, 2)}`);
+    }
+
+    const deactivateVariables = {
+      inventoryLevelId: secondaryLevel.id,
+      idempotencyKey: `har-468-deactivate-${runId}`,
+    };
+    const deactivate = await runGraphql(inventoryDeactivateMutation, deactivateVariables);
+
+    const readAfterDeactivateVariables = {
+      inventoryItemId: seedInventoryItem.id,
+      inventoryLevelId: secondaryLevel.id,
+      inactiveLocationId: alternateLocation.id,
+    };
+    const readAfterDeactivate = await runGraphql(inactiveLifecycleReadQuery, readAfterDeactivateVariables);
+
+    const reactivateVariables = {
+      inventoryItemId: seedInventoryItem.id,
+      locationId: alternateLocation.id,
+      idempotencyKey: `har-468-reactivate-${runId}`,
+    };
+    const reactivate = await runGraphql(inventoryActivateMutation, reactivateVariables);
+
+    const readAfterReactivateVariables = {
+      inventoryItemId: seedInventoryItem.id,
+      inventoryLevelId: secondaryLevel.id,
+      inactiveLocationId: alternateLocation.id,
+    };
+    const readAfterReactivate = await runGraphql(inactiveLifecycleReadQuery, readAfterReactivateVariables);
+
+    return {
+      fixture: {
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
+        locations: [defaultLocation, alternateLocation],
+        createdProduct: seedProduct,
+        setup: {
+          productCreate: lifecycleProduct.product,
+          trackInventory: {
+            variables: trackVariables,
+            response: trackInventory,
+          },
+          setPrimaryQuantity: {
+            variables: setPrimaryVariables,
+            response: setPrimaryQuantity,
+          },
+          inventoryActivateSecondaryLocation: {
+            variables: activateSecondaryVariables,
+            response: activateSecondary,
+          },
+          setSecondaryQuantity: {
+            variables: setSecondaryVariables,
+            response: setSecondaryQuantity,
+          },
+          seedProductRead,
+        },
+        inventoryInactiveLifecycleDeactivate: {
+          variables: deactivateVariables,
+          response: deactivate,
+        },
+        inventoryInactiveLifecycleReadAfterDeactivate: {
+          variables: readAfterDeactivateVariables,
+          response: readAfterDeactivate,
+        },
+        inventoryInactiveLifecycleReactivate: {
+          variables: reactivateVariables,
+          response: reactivate,
+        },
+        inventoryInactiveLifecycleReadAfterReactivate: {
+          variables: readAfterReactivateVariables,
+          response: readAfterReactivate,
+        },
+      },
+      cleanupProducts: [lifecycleProduct.product],
+    };
+  } catch (error) {
+    await cleanupTemporaryProducts([lifecycleProduct.product]);
+    throw error;
   }
 }
 
@@ -317,44 +641,57 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
   const singleLocationProduct = await createTemporaryProduct(`hermes-inventory-linkage-single-${Date.now()}`);
   const directSuccessProduct = await createTemporaryProduct(`hermes-inventory-linkage-direct-${Date.now()}`);
   const bulkSuccessProduct = await createTemporaryProduct(`hermes-inventory-linkage-bulk-${Date.now()}`);
+  let inactiveLifecycleCapture = null;
 
   try {
+    inactiveLifecycleCapture = await captureInactiveInventoryLifecycle(primaryLocation, secondaryLocation);
+    const mutationRunId = `${Date.now()}`;
+
     const activateNoOpVariables = {
       inventoryItemId: singleLocationProduct.inventoryItem.id,
       locationId: primaryLocation.id,
+      idempotencyKey: `inventory-linkage-activate-no-op-${mutationRunId}`,
     };
     const activateAvailableErrorVariables = {
       ...activateNoOpVariables,
       available: 7,
+      idempotencyKey: `inventory-linkage-activate-available-${mutationRunId}`,
     };
     const activateUnknownLocationVariables = {
       inventoryItemId: singleLocationProduct.inventoryItem.id,
       locationId: 'gid://shopify/Location/999999999999',
+      idempotencyKey: `inventory-linkage-activate-unknown-${mutationRunId}`,
     };
     const deactivateOnlyLocationVariables = {
       inventoryLevelId: singleLocationProduct.inventoryLevel.id,
+      idempotencyKey: `inventory-linkage-deactivate-only-${mutationRunId}`,
     };
     const bulkActivateNoOpVariables = {
       inventoryItemId: singleLocationProduct.inventoryItem.id,
       inventoryItemUpdates: [{ locationId: primaryLocation.id, activate: true }],
+      idempotencyKey: `inventory-linkage-bulk-no-op-${mutationRunId}`,
     };
     const bulkUnknownLocationVariables = {
       inventoryItemId: singleLocationProduct.inventoryItem.id,
       inventoryItemUpdates: [{ locationId: 'gid://shopify/Location/999999999999', activate: true }],
+      idempotencyKey: `inventory-linkage-bulk-unknown-${mutationRunId}`,
     };
     const bulkDeactivateOnlyLocationVariables = {
       inventoryItemId: singleLocationProduct.inventoryItem.id,
       inventoryItemUpdates: [{ locationId: primaryLocation.id, activate: false }],
+      idempotencyKey: `inventory-linkage-bulk-deactivate-only-${mutationRunId}`,
     };
 
     const activateSecondLocationVariables = {
       inventoryItemId: directSuccessProduct.inventoryItem.id,
       locationId: secondaryLocation.id,
       available: 9,
+      idempotencyKey: `inventory-linkage-activate-second-${mutationRunId}`,
     };
     const bulkActivateSecondLocationVariables = {
       inventoryItemId: bulkSuccessProduct.inventoryItem.id,
       inventoryItemUpdates: [{ locationId: secondaryLocation.id, activate: true }],
+      idempotencyKey: `inventory-linkage-bulk-activate-second-${mutationRunId}`,
     };
 
     const activateNoOp = await runGraphql(inventoryActivateMutation, activateNoOpVariables);
@@ -375,6 +712,7 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
     });
     const deactivateAlternateLocationVariables = {
       inventoryLevelId: directSuccessProduct.inventoryLevel.id,
+      idempotencyKey: `inventory-linkage-deactivate-alternate-${mutationRunId}`,
     };
     const deactivateWithAlternateLocation = await runGraphql(
       inventoryDeactivateMutation,
@@ -396,6 +734,7 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
     const bulkDeactivateSecondLocationVariables = {
       inventoryItemId: bulkSuccessProduct.inventoryItem.id,
       inventoryItemUpdates: [{ locationId: secondaryLocation.id, activate: false }],
+      idempotencyKey: `inventory-linkage-bulk-deactivate-second-${mutationRunId}`,
     };
     const bulkDeactivateSecondLocation = await runGraphql(
       inventoryBulkToggleMutation,
@@ -463,6 +802,7 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
     };
 
     await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+    await writeFile(inactiveLifecyclePath, `${JSON.stringify(inactiveLifecycleCapture.fixture, null, 2)}\n`, 'utf8');
     await rm(blockerPath, { force: true });
 
     console.log(
@@ -472,7 +812,7 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
           storeDomain,
           apiVersion,
           locations: locationNodes,
-          files: ['inventory-linkage-parity.json'],
+          files: ['inventory-linkage-parity.json', 'inventory-inactive-level-lifecycle-2026-04.json'],
         },
         null,
         2,
@@ -483,6 +823,7 @@ Before trying to close the broader success path for \`inventoryActivate\` / \`in
       singleLocationProduct.product,
       directSuccessProduct.product,
       bulkSuccessProduct.product,
+      ...(inactiveLifecycleCapture?.cleanupProducts ?? []),
     ]);
   }
 }

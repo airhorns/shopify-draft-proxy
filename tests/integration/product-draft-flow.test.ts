@@ -10419,6 +10419,227 @@ describe('product draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('preserves inactive inventory levels and their quantities across deactivate/reactivate', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('inactive inventory lifecycle should not hit upstream fetch');
+    });
+
+    store.upsertBaseProducts([
+      {
+        id: 'gid://shopify/Product/814',
+        legacyResourceId: '814',
+        title: 'Inventory Inactive Lifecycle Hoodie',
+        handle: 'inventory-inactive-lifecycle-hoodie',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        vendor: 'ACME',
+        productType: 'APPAREL',
+        tags: ['inventory'],
+        totalInventory: 12,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+      {
+        id: 'gid://shopify/Product/815',
+        legacyResourceId: '815',
+        title: 'Known Inactive Location Hoodie',
+        handle: 'known-inactive-location-hoodie',
+        status: 'ACTIVE',
+        publicationIds: [],
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-02T00:00:00.000Z',
+        vendor: 'ACME',
+        productType: 'APPAREL',
+        tags: ['inventory'],
+        totalInventory: 0,
+        tracksInventory: true,
+        descriptionHtml: null,
+        onlineStorePreviewUrl: null,
+        templateSuffix: null,
+        seo: { title: null, description: null },
+        category: null,
+      },
+    ]);
+    store.replaceBaseVariantsForProduct('gid://shopify/Product/814', [
+      {
+        id: 'gid://shopify/ProductVariant/8141',
+        productId: 'gid://shopify/Product/814',
+        title: 'Default Title',
+        sku: 'INV-INACTIVE-LIFECYCLE',
+        barcode: null,
+        price: '55.00',
+        compareAtPrice: null,
+        taxable: true,
+        inventoryPolicy: 'DENY',
+        inventoryQuantity: 12,
+        selectedOptions: [],
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/8141',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+          inventoryLevels: [
+            {
+              id: 'gid://shopify/InventoryLevel/8141-1?inventory_item_id=8141',
+              cursor: 'cursor:gid://shopify/InventoryLevel/8141-1?inventory_item_id=8141',
+              location: { id: 'gid://shopify/Location/68509171945', name: '103 ossington' },
+              quantities: [
+                { name: 'available', quantity: 5, updatedAt: '2026-04-17T12:44:00Z' },
+                { name: 'on_hand', quantity: 5, updatedAt: null },
+                { name: 'incoming', quantity: 0, updatedAt: null },
+              ],
+            },
+            {
+              id: 'gid://shopify/InventoryLevel/8141-2?inventory_item_id=8141',
+              cursor: 'cursor:gid://shopify/InventoryLevel/8141-2?inventory_item_id=8141',
+              location: { id: 'gid://shopify/Location/89026920681', name: 'Hermes Conformance Annex' },
+              quantities: [
+                { name: 'available', quantity: 7, updatedAt: '2026-04-17T12:44:01Z' },
+                { name: 'on_hand', quantity: 7, updatedAt: null },
+                { name: 'incoming', quantity: 0, updatedAt: null },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+    store.replaceBaseVariantsForProduct('gid://shopify/Product/815', [
+      {
+        id: 'gid://shopify/ProductVariant/8151',
+        productId: 'gid://shopify/Product/815',
+        title: 'Default Title',
+        sku: 'INV-INACTIVE-KNOWN-LOCATION',
+        barcode: null,
+        price: '55.00',
+        compareAtPrice: null,
+        taxable: true,
+        inventoryPolicy: 'DENY',
+        inventoryQuantity: 0,
+        selectedOptions: [],
+        inventoryItem: {
+          id: 'gid://shopify/InventoryItem/8151',
+          tracked: true,
+          requiresShipping: true,
+          measurement: null,
+          countryCodeOfOrigin: null,
+          provinceCodeOfOrigin: null,
+          harmonizedSystemCode: null,
+          inventoryLevels: [
+            {
+              id: 'gid://shopify/InventoryLevel/8151-1?inventory_item_id=8151',
+              cursor: 'cursor:gid://shopify/InventoryLevel/8151-1?inventory_item_id=8151',
+              location: { id: 'gid://shopify/Location/68509171945', name: '103 ossington' },
+              quantities: [
+                { name: 'available', quantity: 0, updatedAt: '2026-04-17T12:44:02Z' },
+                { name: 'on_hand', quantity: 0, updatedAt: null },
+                { name: 'incoming', quantity: 0, updatedAt: null },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+
+    const app = createApp({ ...config, readMode: 'snapshot' }).callback();
+    const inactiveLevelId = 'gid://shopify/InventoryLevel/8141-1?inventory_item_id=8141';
+    const deactivateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation DeactivateInventory($inventoryLevelId: ID!) { inventoryDeactivate(inventoryLevelId: $inventoryLevelId) { userErrors { field message } } }',
+        variables: { inventoryLevelId: inactiveLevelId },
+      });
+
+    expect(deactivateResponse.status).toBe(200);
+    expect(deactivateResponse.body.data.inventoryDeactivate.userErrors).toEqual([]);
+
+    const inactiveReadResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'query InspectInactiveInventory($inventoryItemId: ID!, $inventoryLevelId: ID!) { inventoryItem(id: $inventoryItemId) { id inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity } } } } inventoryLevel(id: $inventoryLevelId) { id isActive location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity } } }',
+        variables: {
+          inventoryItemId: 'gid://shopify/InventoryItem/8141',
+          inventoryLevelId: inactiveLevelId,
+        },
+      });
+
+    expect(inactiveReadResponse.status).toBe(200);
+    expect(inactiveReadResponse.body.data.inventoryItem.inventoryLevels.nodes).toEqual([
+      {
+        id: inactiveLevelId,
+        isActive: false,
+        location: { id: 'gid://shopify/Location/68509171945', name: '103 ossington' },
+        quantities: [
+          { name: 'available', quantity: 5 },
+          { name: 'on_hand', quantity: 5 },
+          { name: 'incoming', quantity: 0 },
+        ],
+      },
+      {
+        id: 'gid://shopify/InventoryLevel/8141-2?inventory_item_id=8141',
+        isActive: true,
+        location: { id: 'gid://shopify/Location/89026920681', name: 'Hermes Conformance Annex' },
+        quantities: [
+          { name: 'available', quantity: 7 },
+          { name: 'on_hand', quantity: 7 },
+          { name: 'incoming', quantity: 0 },
+        ],
+      },
+    ]);
+    expect(inactiveReadResponse.body.data.inventoryLevel).toEqual({
+      id: inactiveLevelId,
+      isActive: false,
+      location: { id: 'gid://shopify/Location/68509171945', name: '103 ossington' },
+      quantities: [
+        { name: 'available', quantity: 5 },
+        { name: 'on_hand', quantity: 5 },
+        { name: 'incoming', quantity: 0 },
+      ],
+    });
+
+    const reactivateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation ReactivateInventory($inventoryItemId: ID!, $locationId: ID!) { inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) { inventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "incoming"]) { name quantity } } userErrors { field message } } }',
+        variables: {
+          inventoryItemId: 'gid://shopify/InventoryItem/8141',
+          locationId: 'gid://shopify/Location/68509171945',
+        },
+      });
+
+    expect(reactivateResponse.status).toBe(200);
+    expect(reactivateResponse.body).toEqual({
+      data: {
+        inventoryActivate: {
+          inventoryLevel: {
+            id: inactiveLevelId,
+            isActive: true,
+            location: { id: 'gid://shopify/Location/68509171945', name: '103 ossington' },
+            quantities: [
+              { name: 'available', quantity: 5 },
+              { name: 'on_hand', quantity: 5 },
+              { name: 'incoming', quantity: 0 },
+            ],
+          },
+          userErrors: [],
+        },
+      },
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages inventoryBulkToggleActivation locally for multi-location activate:true and deactivate:false success', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('inventoryBulkToggleActivation success path should not hit upstream fetch');
