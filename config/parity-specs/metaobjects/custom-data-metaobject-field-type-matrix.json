@@ -1,0 +1,149 @@
+{
+  "scenarioId": "custom-data-metaobject-field-type-matrix",
+  "operationNames": ["metaobjectCreate", "metaobject", "metaobjectByHandle", "metaobjects"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["field-type-value-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-create.graphql",
+    "variablesCapturePath": "$.metaobjectMatrices[0].create.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-294 captures metaobject field set/get parity for 99 custom-data field types across three disposable definitions to stay under Shopify's 40-field definition limit. The fixture covers id, scalar, measurement, list, product/variant/collection reference, metaobject reference, and mixed reference fields; remaining resource references are documented as setup-heavy exclusions in the shared fixture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metaobject.id",
+        "matcher": "shopify-gid:Metaobject",
+        "reason": "The local proxy stages synthetic metaobject IDs while Shopify returns live IDs."
+      },
+      {
+        "path": "$.metaobject.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metaobjects at replay time."
+      },
+      {
+        "path": "$.detail.id",
+        "matcher": "shopify-gid:Metaobject",
+        "reason": "The local proxy returns staged synthetic metaobject IDs."
+      },
+      {
+        "path": "$.detail.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metaobjects at replay time."
+      },
+      {
+        "path": "$.byHandle.id",
+        "matcher": "shopify-gid:Metaobject",
+        "reason": "The local proxy returns staged synthetic metaobject IDs."
+      },
+      {
+        "path": "$.byHandle.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metaobjects at replay time."
+      },
+      {
+        "path": "$.catalog.nodes[*].id",
+        "matcher": "shopify-gid:Metaobject",
+        "reason": "The local proxy returns staged synthetic metaobject IDs."
+      },
+      {
+        "path": "$.catalog.nodes[*].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "The local proxy timestamps staged metaobjects at replay time."
+      },
+      {
+        "path": "$.catalog.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify cursors are opaque while local metaobject cursors are stable synthetic values."
+      },
+      {
+        "path": "$.catalog.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify cursors are opaque while local metaobject cursors are stable synthetic values."
+      }
+    ],
+    "targets": [
+      {
+        "name": "metaobject-create-type-matrix-1",
+        "capturePath": "$.metaobjectMatrices[0].create.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate"
+      },
+      {
+        "name": "metaobject-read-type-matrix-1",
+        "capturePath": "$.metaobjectMatrices[0].downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-read.graphql",
+          "variables": {
+            "id": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.id" },
+            "handle": {
+              "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" },
+              "handle": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.handle" }
+            },
+            "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metaobject-create-type-matrix-2",
+        "capturePath": "$.metaobjectMatrices[1].create.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-create.graphql",
+          "variablesCapturePath": "$.metaobjectMatrices[1].create.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metaobject-read-type-matrix-2",
+        "capturePath": "$.metaobjectMatrices[1].downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-read.graphql",
+          "variables": {
+            "id": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.id" },
+            "handle": {
+              "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" },
+              "handle": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.handle" }
+            },
+            "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metaobject-create-type-matrix-3",
+        "capturePath": "$.metaobjectMatrices[2].create.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-create.graphql",
+          "variablesCapturePath": "$.metaobjectMatrices[2].create.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "metaobject-read-type-matrix-3",
+        "capturePath": "$.metaobjectMatrices[2].downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/custom-data-metaobject-field-type-matrix-read.graphql",
+          "variables": {
+            "id": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.id" },
+            "handle": {
+              "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" },
+              "handle": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.handle" }
+            },
+            "type": { "fromPreviousProxyPath": "$.data.metaobjectCreate.metaobject.type" }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

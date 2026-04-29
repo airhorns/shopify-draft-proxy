@@ -16,6 +16,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'admin-platform');
 const outputPath = path.join(outputDir, 'admin-platform-utility-roots.json');
+const taxonomyHierarchyOutputPath = path.join(outputDir, 'admin-platform-taxonomy-hierarchy-node-reads.json');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -291,6 +292,185 @@ const taxonomySearchApparelOverflowSeedQuery = `#graphql
   query TaxonomySearchApparelOverflowSeedRead {
     taxonomy {
       categories(first: 5, search: "apparel") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const taxonomyHierarchyAndNodeReadsQuery = `#graphql
+  query TaxonomyHierarchyAndNodeReads {
+    taxonomy {
+      children: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/ap-2") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      descendants: categories(first: 5, descendantsOf: "gid://shopify/TaxonomyCategory/ap") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      siblings: categories(first: 5, siblingsOf: "gid://shopify/TaxonomyCategory/ap-2-6") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+      missingChildren: categories(first: 5, childrenOf: "gid://shopify/TaxonomyCategory/missing") {
+        nodes {
+          id
+          name
+          fullName
+          isRoot
+          isLeaf
+          level
+          parentId
+          ancestorIds
+          childrenIds
+          isArchived
+        }
+        edges {
+          cursor
+          node {
+            id
+            name
+          }
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+    node(id: "gid://shopify/TaxonomyCategory/aa") {
+      __typename
+      id
+      ... on TaxonomyCategory {
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+    }
+    nodes(ids: ["gid://shopify/TaxonomyCategory/ap-2-6", "gid://shopify/TaxonomyCategory/missing"]) {
+      __typename
+      id
+      ... on TaxonomyCategory {
+        name
+        fullName
+        isRoot
+        isLeaf
+        level
+        parentId
+        ancestorIds
+        childrenIds
+        isArchived
+      }
+    }
+  }
+`;
+
+const taxonomyHierarchySiblingOverflowSeedQuery = `#graphql
+  query TaxonomyHierarchySiblingOverflowSeed {
+    taxonomy {
+      siblings: categories(first: 6, siblingsOf: "gid://shopify/TaxonomyCategory/ap-2-6") {
         nodes {
           id
           name
@@ -613,6 +793,14 @@ const captures = {
     query: taxonomySearchApparelOverflowSeedQuery,
     result: await runGraphqlCapture(taxonomySearchApparelOverflowSeedQuery),
   },
+  taxonomyHierarchyAndNodeReads: {
+    query: taxonomyHierarchyAndNodeReadsQuery,
+    result: await runGraphqlCapture(taxonomyHierarchyAndNodeReadsQuery),
+  },
+  taxonomyHierarchySiblingOverflowSeed: {
+    query: taxonomyHierarchySiblingOverflowSeedQuery,
+    result: await runGraphqlCapture(taxonomyHierarchySiblingOverflowSeedQuery),
+  },
   supportedNodeSeeds: supportedNodeSeed,
   supportedNodes: {
     query: supportedNodesQuery,
@@ -658,32 +846,38 @@ const captures = {
   },
 };
 
+const capturedAt = new Date().toISOString();
+const captureOutput = {
+  capturedAt,
+  storeDomain,
+  apiVersion,
+  introspection: {
+    status: introspection.status,
+    nodeInterface: introspection.payload.data?.nodeInterface ?? null,
+    nodeCandidateRootFields,
+    rootTypes,
+  },
+  nodeSeeds: {
+    products: supportedNodeSeedData.products?.nodes ?? [],
+    collections: supportedNodeSeedData.collections?.nodes ?? [],
+    customers: supportedNodeSeedData.customers?.nodes ?? [],
+    locations: supportedNodeSeedData.locations?.nodes ?? [],
+  },
+  captures,
+};
+const taxonomyHierarchyOutput = {
+  capturedAt,
+  storeDomain,
+  apiVersion,
+  captures: {
+    taxonomyHierarchyAndNodeReads: captures.taxonomyHierarchyAndNodeReads,
+    taxonomyHierarchySiblingOverflowSeed: captures.taxonomyHierarchySiblingOverflowSeed,
+  },
+};
+
 await mkdir(outputDir, { recursive: true });
-await writeFile(
-  outputPath,
-  `${JSON.stringify(
-    {
-      capturedAt: new Date().toISOString(),
-      storeDomain,
-      apiVersion,
-      introspection: {
-        status: introspection.status,
-        nodeInterface: introspection.payload.data?.nodeInterface ?? null,
-        nodeCandidateRootFields,
-        rootTypes,
-      },
-      nodeSeeds: {
-        products: supportedNodeSeedData.products?.nodes ?? [],
-        collections: supportedNodeSeedData.collections?.nodes ?? [],
-        customers: supportedNodeSeedData.customers?.nodes ?? [],
-        locations: supportedNodeSeedData.locations?.nodes ?? [],
-      },
-      captures,
-    },
-    null,
-    2,
-  )}\n`,
-  'utf8',
-);
+await writeFile(outputPath, `${JSON.stringify(captureOutput, null, 2)}\n`, 'utf8');
+await writeFile(taxonomyHierarchyOutputPath, `${JSON.stringify(taxonomyHierarchyOutput, null, 2)}\n`, 'utf8');
 
 console.log(`Wrote ${outputPath}`);
+console.log(`Wrote ${taxonomyHierarchyOutputPath}`);

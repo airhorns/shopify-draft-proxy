@@ -390,6 +390,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'custom-data-field-types',
+    scriptPath: 'scripts/capture-custom-data-field-type-conformance.ts',
+    purpose: 'Metafield and metaobject custom-data field type value/jsonValue set-and-read matrix.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}custom-data-field-type-matrix.json`,
+      'config/parity-specs/metafields/custom-data-metafield-type-matrix.json',
+      'config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, collection, metaobject definitions, and metaobjects, then deletes all created resources during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metaobjects',
     captureId: 'metaobjects',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -801,7 +816,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['active Admin API token; staff/utility roots may require plan or staff permissions'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-utility-roots.json`,
+      `${CAPTURE_ROOT}admin-platform-taxonomy-hierarchy-node-reads.json`,
       'config/parity-specs/admin-platform/admin-platform-utility-reads.json',
+      'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
     cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
