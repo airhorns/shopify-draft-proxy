@@ -540,4 +540,219 @@ describe('selling plan group flow', () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('keeps selling-plan association validation branches local and side-effect free', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('selling plan validation branches must not fetch upstream'));
+    const app = createApp(config).callback();
+
+    const productCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id variants(first: 1) { nodes { id } } }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          product: {
+            title: 'Validation coffee',
+          },
+        },
+      });
+    expect(productCreateResponse.status).toBe(200);
+    const productId = productCreateResponse.body.data.productCreate.product.id as string;
+    const variantId = productCreateResponse.body.data.productCreate.product.variants.nodes[0].id as string;
+
+    const groupCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation CreateSellingPlanGroup($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup { id name productsCount { count precision } productVariantsCount { count precision } }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          input: {
+            name: 'Validation subscription',
+            merchantCode: 'validation-subscription',
+            options: ['Frequency'],
+            sellingPlansToCreate: [
+              {
+                name: 'Every month',
+                options: ['Monthly'],
+                billingPolicy: { recurring: { interval: 'MONTH', intervalCount: 1 } },
+                deliveryPolicy: { recurring: { interval: 'MONTH', intervalCount: 1 } },
+                pricingPolicies: [],
+              },
+            ],
+          },
+        },
+      });
+    expect(groupCreateResponse.status).toBe(200);
+    const groupId = groupCreateResponse.body.data.sellingPlanGroupCreate.sellingPlanGroup.id as string;
+    const unknownGroupId = 'gid://shopify/SellingPlanGroup/999999999999';
+    const unknownProductId = 'gid://shopify/Product/999999999999';
+    const unknownVariantId = 'gid://shopify/ProductVariant/999999999999';
+
+    const unknownProductJoinResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinMissingProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) { productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { product { id } userErrors { field message code } } }',
+        variables: {
+          id: unknownProductId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(unknownProductJoinResponse.body.data.productJoinSellingPlanGroups).toEqual({
+      product: null,
+      userErrors: [{ field: ['id'], message: 'Product does not exist.', code: 'PRODUCT_DOES_NOT_EXIST' }],
+    });
+
+    const unknownVariantJoinResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinMissingVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) { productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { productVariant { id } userErrors { field message code } } }',
+        variables: {
+          id: unknownVariantId,
+          sellingPlanGroupIds: [groupId],
+        },
+      });
+    expect(unknownVariantJoinResponse.body.data.productVariantJoinSellingPlanGroups).toEqual({
+      productVariant: null,
+      userErrors: [
+        {
+          field: ['id'],
+          message: 'Product variant does not exist.',
+          code: 'PRODUCT_VARIANT_DOES_NOT_EXIST',
+        },
+      ],
+    });
+
+    const unknownGroupProductJoinResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinUnknownGroupToProduct($id: ID!, $sellingPlanGroupIds: [ID!]!) { productJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { product { id sellingPlanGroupsCount { count precision } sellingPlanGroups(first: 5) { nodes { id } } } userErrors { field message code } } }',
+        variables: {
+          id: productId,
+          sellingPlanGroupIds: [unknownGroupId],
+        },
+      });
+    expect(unknownGroupProductJoinResponse.body.data.productJoinSellingPlanGroups).toEqual({
+      product: {
+        id: productId,
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+        sellingPlanGroups: { nodes: [] },
+      },
+      userErrors: [{ field: ['id'], message: 'Selling plan group does not exist.', code: 'GROUP_DOES_NOT_EXIST' }],
+    });
+
+    const unknownGroupVariantJoinResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation JoinUnknownGroupToVariant($id: ID!, $sellingPlanGroupIds: [ID!]!) { productVariantJoinSellingPlanGroups(id: $id, sellingPlanGroupIds: $sellingPlanGroupIds) { productVariant { id sellingPlanGroupsCount { count precision } sellingPlanGroups(first: 5) { nodes { id } } } userErrors { field message code } } }',
+        variables: {
+          id: variantId,
+          sellingPlanGroupIds: [unknownGroupId],
+        },
+      });
+    expect(unknownGroupVariantJoinResponse.body.data.productVariantJoinSellingPlanGroups).toEqual({
+      productVariant: {
+        id: variantId,
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+        sellingPlanGroups: { nodes: [] },
+      },
+      userErrors: [{ field: ['id'], message: 'Selling plan group does not exist.', code: 'GROUP_DOES_NOT_EXIST' }],
+    });
+
+    const unknownGroupAddProductsResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AddProductsToUnknownGroup($id: ID!, $productIds: [ID!]!) {
+          sellingPlanGroupAddProducts(id: $id, productIds: $productIds) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: unknownGroupId,
+          productIds: [productId],
+        },
+      });
+    expect(unknownGroupAddProductsResponse.body.data.sellingPlanGroupAddProducts).toEqual({
+      sellingPlanGroup: null,
+      userErrors: [{ field: ['id'], message: 'Selling plan group does not exist.', code: 'GROUP_DOES_NOT_EXIST' }],
+    });
+
+    const unknownGroupAddVariantsResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation AddVariantsToUnknownGroup($id: ID!, $productVariantIds: [ID!]!) {
+          sellingPlanGroupAddProductVariants(id: $id, productVariantIds: $productVariantIds) {
+            sellingPlanGroup { id }
+            userErrors { field message code }
+          }
+        }`,
+        variables: {
+          id: unknownGroupId,
+          productVariantIds: [variantId],
+        },
+      });
+    expect(unknownGroupAddVariantsResponse.body.data.sellingPlanGroupAddProductVariants).toEqual({
+      sellingPlanGroup: null,
+      userErrors: [{ field: ['id'], message: 'Selling plan group does not exist.', code: 'GROUP_DOES_NOT_EXIST' }],
+    });
+
+    const downstreamRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadUnchangedMembership($groupId: ID!, $productId: ID!, $variantId: ID!) {
+          sellingPlanGroup(id: $groupId) {
+            id
+            productsCount { count precision }
+            productVariantsCount { count precision }
+            products(first: 5) { nodes { id } }
+            productVariants(first: 5) { nodes { id } }
+          }
+          product(id: $productId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 5) { nodes { id } }
+          }
+          productVariant(id: $variantId) {
+            sellingPlanGroupsCount { count precision }
+            sellingPlanGroups(first: 5) { nodes { id } }
+          }
+        }`,
+        variables: {
+          groupId,
+          productId,
+          variantId,
+        },
+      });
+    expect(downstreamRead.body.data).toEqual({
+      sellingPlanGroup: {
+        id: groupId,
+        productsCount: { count: 0, precision: 'EXACT' },
+        productVariantsCount: { count: 0, precision: 'EXACT' },
+        products: { nodes: [] },
+        productVariants: { nodes: [] },
+      },
+      product: {
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+        sellingPlanGroups: { nodes: [] },
+      },
+      productVariant: {
+        sellingPlanGroupsCount: { count: 0, precision: 'EXACT' },
+        sellingPlanGroups: { nodes: [] },
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

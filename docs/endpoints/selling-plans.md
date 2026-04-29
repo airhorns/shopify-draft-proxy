@@ -1,6 +1,8 @@
 # Selling Plans
 
-HAR-308 adds local support for the selling-plan group roots that product subscription flows need:
+HAR-308 adds local support for the selling-plan group roots that product subscription flows need, and HAR-432
+reviewed that support against the current Shopify Admin docs, public reference examples, existing recordings, and
+local runtime behavior:
 
 - `sellingPlanGroup(id:)`
 - `sellingPlanGroups(...)`
@@ -18,6 +20,11 @@ HAR-308 adds local support for the selling-plan group roots that product subscri
 
 Selling-plan group state is normalized in memory with group scalar fields, nested selling-plan payload data, product membership IDs, and product-variant membership IDs. Supported mutations stage locally and are retained in the mutation log with the original raw GraphQL request for commit replay; they do not write to Shopify at runtime.
 
+The current Shopify Admin docs and public examples continue to present these roots as product/purchase-option-scoped
+Admin operations: group-centric add/remove roots take a selling-plan-group ID plus product or product-variant IDs,
+while product-centric join/leave roots take a product or variant ID plus selling-plan-group IDs. The local model mirrors
+that bidirectional association surface with one normalized group record rather than response-only patching.
+
 ## Current support and limitations
 
 ### Runtime behavior
@@ -28,9 +35,19 @@ Product membership and product-variant membership are tracked independently, mat
 
 HAR-299 also supports Shopify's product-centric membership roots. `productJoinSellingPlanGroups` / `productLeaveSellingPlanGroups` mutate the selected groups' `productIds` membership lists and return the selected `Product` payload. `productVariantJoinSellingPlanGroups` / `productVariantLeaveSellingPlanGroups` mutate `productVariantIds` and return the selected `ProductVariant` payload. These roots share the same normalized membership model as the group-centric add/remove mutations, so downstream product, variant, and selling-plan group reads stay consistent without runtime Shopify writes.
 
-Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch.
+Unknown group IDs for update/delete/add/remove return Shopify-like `GROUP_DOES_NOT_EXIST` userErrors with `field: ["id"]`; remove payloads return `removedProductIds: null` or `removedProductVariantIds: null` on that branch. HAR-432 adds explicit local runtime coverage that unknown product, unknown product variant, and unknown selling-plan group association attempts stay side-effect free, return local userErrors, and never runtime-proxy to Shopify.
 
 Shopify's Admin docs describe selling-plan groups as app-scoped purchase options that can be associated directly with products or product variants. The local model keeps those association lists explicit instead of deriving variant membership from product membership, because the captured 2026-04 lifecycle showed those read paths diverging.
+
+### Known gaps
+
+The checked-in 2026-04 captures cover lifecycle, direct product and variant association updates, unknown-group
+validation branches, and downstream read-after-write behavior for staged products and variants. Broader Shopify
+validation semantics are not yet exhaustively modeled: invalid nested selling-plan policy combinations, app ownership
+or permission failures, and `sellingPlanGroups(query:, sortKey:, reverse:)` filtering/sorting beyond the staged
+catalog shape should be treated as unsupported fidelity gaps until live conformance evidence is added. Do not expand
+the supported contract for those branches without a capture or a focused runtime test that models the downstream
+behavior.
 
 ## Historical and developer notes
 
@@ -40,7 +57,7 @@ Shopify's Admin docs describe selling-plan groups as app-scoped purchase options
 
 Validation entry points:
 
-- `corepack pnpm conformance:capture-selling-plan-groups`
+- `corepack pnpm conformance:capture -- --run selling-plan-groups`
 - `corepack pnpm vitest run tests/integration/selling-plan-group-flow.test.ts`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
