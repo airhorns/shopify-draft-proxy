@@ -1,0 +1,113 @@
+{
+  "fixtureKind": "local-runtime-product-feedback-lifecycle",
+  "apiVersion": "2026-04",
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/7001",
+      "title": "Feedback Product",
+      "handle": "feedback-product",
+      "status": "ACTIVE"
+    }
+  ],
+  "create": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7001",
+          "state": "REQUIRES_ACTION",
+          "feedbackGeneratedAt": "2024-02-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-31T00:00:00Z",
+          "messages": ["Needs a description."]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [
+            {
+              "productId": "gid://shopify/Product/7001",
+              "state": "REQUIRES_ACTION",
+              "messages": ["Needs a description."],
+              "feedbackGeneratedAt": "2024-02-01T00:00:00Z",
+              "productUpdatedAt": "2024-01-31T00:00:00Z"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "read": {
+    "response": {
+      "data": {
+        "productResourceFeedback": {
+          "productId": "gid://shopify/Product/7001",
+          "state": "REQUIRES_ACTION",
+          "messages": ["Needs a description."],
+          "feedbackGeneratedAt": "2024-02-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-31T00:00:00Z"
+        }
+      }
+    }
+  },
+  "missingProductValidation": {
+    "variables": {
+      "feedbackInput": [
+        {
+          "productId": "gid://shopify/Product/7999",
+          "state": "REQUIRES_ACTION",
+          "feedbackGeneratedAt": "2024-02-01T00:00:00Z",
+          "productUpdatedAt": "2024-01-31T00:00:00Z",
+          "messages": ["Needs a description."]
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "bulkProductResourceFeedbackCreate": {
+          "feedback": [],
+          "userErrors": [
+            {
+              "field": ["feedbackInput", "0", "productId"],
+              "message": "Product does not exist",
+              "code": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "missingProductRead": {
+    "response": {
+      "data": {
+        "productResourceFeedback": null
+      }
+    }
+  },
+  "shopCreate": {
+    "variables": {
+      "input": {
+        "state": "ACCEPTED",
+        "feedbackGeneratedAt": "2024-02-02T00:00:00Z",
+        "messages": ["Ready."]
+      }
+    },
+    "response": {
+      "data": {
+        "shopResourceFeedbackCreate": {
+          "feedback": {
+            "state": "ACCEPTED",
+            "feedbackGeneratedAt": "2024-02-02T00:00:00Z",
+            "messages": [
+              {
+                "message": "Ready."
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  }
+}

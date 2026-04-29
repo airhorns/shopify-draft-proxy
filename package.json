@@ -30,6 +30,7 @@
     "conformance:refresh-auth": "tsx ./scripts/refresh-conformance-auth.mts",
     "conformance:capture": "tsx ./scripts/conformance-capture-index.ts",
     "conformance:capture:index": "tsx ./scripts/conformance-capture-index.ts",
+    "conformance:capture-custom-data-field-types": "tsx ./scripts/capture-custom-data-field-type-conformance.ts",
     "conformance:probe-product-variant-compatibility-roots": "tsx ./scripts/probe-product-variant-compatibility-roots.mts"
   },
   "dependencies": {
