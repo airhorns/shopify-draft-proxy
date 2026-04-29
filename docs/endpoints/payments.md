@@ -6,6 +6,23 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 
 ## Current support and limitations
 
+### HAR-439 payment-sensitive order review
+
+HAR-439 reviewed the order-adjacent payment roots in this ticket alongside the
+payments endpoint group. `orderCapture`, `transactionVoid`,
+`orderCreateManualPayment`, and `orderCreateMandatePayment` remain intentionally
+owned by the order graph because their observable effects are order financial
+status, capturable balance, received/outstanding/net payment totals, payment
+gateway names, transactions, and mutation-log replay. The current executable
+evidence is local runtime coverage plus order parity specs, not real gateway or
+mandate-service execution.
+
+The review also kept `paymentReminderSend` in the sensitive side-effect bucket:
+the proxy records local reminder intent for `PaymentSchedule` IDs and never
+sends customer email at runtime. Live success capture still needs a safe
+disposable-customer/no-recipient plan before expanding beyond local intent and
+validation behavior.
+
 ### HAR-456 fidelity review
 
 The HAR-456 audit reviewed the scoped payment terms, payment customization,

@@ -74,6 +74,53 @@ Local staged mutations:
 - `orderEditSetQuantity`
 - `orderEditCommit`
 
+### HAR-439 order lifecycle/payment/refund fidelity review
+
+The HAR-439 review rechecked the order catalog, lifecycle, payment, refund,
+abandoned checkout, and abandonment roots against Shopify Admin GraphQL docs,
+public GraphQL examples, existing parity specs, and the integration tests listed
+below. The strongest executable coverage is still the local-runtime order graph:
+`orderCreate` seeds realistic staged orders, lifecycle mutations update the same
+order rows, payment mutations derive downstream financial fields from staged
+transactions, and `refundCreate` projects refund records, refund transactions,
+shipping refunds, and downstream order totals without runtime Shopify writes.
+
+High-risk paths with executable evidence:
+
+- `orderCancel` now mirrors Shopify's asynchronous cancellation payload more
+  closely when `job` is selected: successful local cancellation returns a
+  synthetic `Job` with `done: false`, exposes both `orderCancelUserErrors` and
+  `userErrors`, and still stages `closed`, `closedAt`, `cancelledAt`, and
+  `cancelReason` locally without upstream calls.
+- `orderCapture`, `transactionVoid`, `orderCreateManualPayment`, and
+  `orderCreateMandatePayment` remain local/synthetic payment models. They cover
+  downstream order financial fields, transaction reads, idempotent mandate
+  payment behavior, validation branches, mutation-log preservation, and no
+  payment-service calls.
+- `refundCreate` covers staged line-item and shipping refunds, refund
+  transactions, downstream `Order.refunds`, `Order.transactions`,
+  `totalRefundedSet`, `totalRefundedShippingSet`, and over-refund validation.
+- Abandoned checkout empty/no-data reads and local seeded reads are executable.
+  `abandonmentUpdateActivitiesDeliveryStatuses` stages known local records and
+  preserves raw mutation order; unknown abandonments mirror the captured
+  `abandonment_not_found` branch.
+
+Remaining gaps that should not be overclaimed:
+
+- Non-empty abandoned checkout capture is still not live-fixture-backed because
+  the conformance store had no abandoned checkout records during capture.
+- Direct `orderCreate` has a representative rich local/create parity slice, but
+  broad live business-validation expansion remains constrained by observed
+  Shopify throttling and should be added only with fresh captures.
+- `orderCreateManualPayment` success with amount remains Plus/permission
+  sensitive on the current conformance store; local success coverage is a
+  synthetic-order runtime model, not live Plus-store evidence.
+- `orderCreateMandatePayment` does not validate real mandate ownership or
+  payment-service behavior; it models only local order/idempotency/amount
+  effects.
+- `orderInvoiceSend` and other customer-visible email roots remain local intent
+  only unless explicitly committed later.
+
 ### Declared Gaps
 
 - `orderRiskAssessmentCreate` is a registry-only HAR-316 scaffold. The 2025-01 `finance-risk-access-read` capture records only an unknown-order validation branch returning `userErrors[{ field: ["orderRiskAssessmentInput", "orderId"], code: "NOT_FOUND" }]`. Do not mark this mutation supported until local risk assessment staging, downstream order risk reads, Shopify-like userErrors, and raw commit replay are modeled end to end.
@@ -112,7 +159,7 @@ Local staged mutations:
   until conformance-backed local models exist.
 - Shipping refunds staged through `refundCreate(input.shipping)` are retained on the refund record and rolled into downstream `Order.totalRefundedShippingSet`; the broader refund amount still follows the captured transaction total / line-item plus shipping fallback behavior.
 - Order shipping-line tax lines contribute to total tax calculations for staged `orderCreate`, and staged shipping lines remain visible through downstream `Order.shippingLines` reads.
-- State-specific lifecycle/customer validation is modeled locally for the staged order roots covered by HAR-278. Repeated `orderClose`, repeated `orderOpen`, `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log.
+- State-specific lifecycle/customer validation is modeled locally for the staged order roots covered by HAR-278. Repeated `orderClose`, repeated `orderOpen`, `orderOpen` after cancellation, repeated `orderMarkAsPaid`, unknown or duplicate `orderCustomerSet`, empty `orderCustomerRemove`, and repeated `orderCancel` return concrete `userErrors` and do not mutate downstream order reads, meta state, or the mutation log. Successful local `orderCancel` returns a synthetic async `Job` when selected, with `done: false`, matching the captured shape used by Shopify cleanup flows while keeping the actual cancellation state local.
 - `orderCustomerSet` and `orderCustomerRemove` own the order-domain relationship on `OrderRecord.customer`. Customer reads consume that normalized relationship only for the immediate `Customer.orders` connection; captured HAR-288 evidence showed the customer-owned `numberOfOrders`, `amountSpent`, and `lastOrder` fields do not update in the immediate read-after-set/remove slice.
 - HAR-278 order lifecycle/payment guardrails append mutation-log entries only when the handler stages a successful local effect. The scoped validation branches with `userErrors` or top-level GraphQL `errors`, including the `taxSummaryCreate` access-denied branch and the unhydrated-order `orderCreateManualPayment` access-denied branch, leave the mutation log unchanged. Other established safety handlers such as draft-order invoice send still retain their existing observability log entries.
 - Create-time validation coverage now includes executable parity specs for `orderCreate` no-line-items and a grouped `draftOrderCreate` validation matrix. Rejected create requests return captured mutation-scoped `userErrors` locally without staging orders/draft orders or appending staged-write log entries.
