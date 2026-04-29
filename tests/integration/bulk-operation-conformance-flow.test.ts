@@ -507,7 +507,7 @@ describe('BulkOperation conformance fixture and local model', () => {
             mutation RunBulkProductExport($query: String!, $groupObjects: Boolean!) {
               bulkOperationRunQuery(query: $query, groupObjects: $groupObjects) {
                 bulkOperation { id }
-                userErrors { field message }
+                userErrors { field message code }
               }
             }
           `,
@@ -519,11 +519,15 @@ describe('BulkOperation conformance fixture and local model', () => {
 
     await expect(runBulkQuery('#graphql\n{ shop { id } }')).resolves.toEqual({
       bulkOperation: null,
-      userErrors: [{ field: ['query'], message: 'Bulk queries must contain at least one connection.' }],
+      userErrors: [
+        { field: ['query'], message: 'Bulk queries must contain at least one connection.', code: 'INVALID' },
+      ],
     });
     await expect(runBulkQuery('#graphql\n{ orders { edges { node { id } } } }')).resolves.toEqual({
       bulkOperation: null,
-      userErrors: [{ field: ['query'], message: "Bulk query root 'orders' is not supported locally." }],
+      userErrors: [
+        { field: ['query'], message: "Bulk query root 'orders' is not supported locally.", code: 'INVALID' },
+      ],
     });
     await expect(
       runBulkQuery('#graphql\n{ products { edges { node { id media { edges { node { id } } } } } } }'),
@@ -533,6 +537,7 @@ describe('BulkOperation conformance fixture and local model', () => {
         {
           field: ['query'],
           message: "Nested connection 'media' is not supported by the local bulk query executor.",
+          code: 'INVALID',
         },
       ],
     });
@@ -542,6 +547,7 @@ describe('BulkOperation conformance fixture and local model', () => {
         {
           field: ['query'],
           message: expect.stringContaining('Invalid bulk query: Syntax Error:'),
+          code: 'INVALID',
         },
       ],
     });
@@ -551,6 +557,7 @@ describe('BulkOperation conformance fixture and local model', () => {
         {
           field: ['groupObjects'],
           message: 'groupObjects is not supported by the local bulk query executor.',
+          code: 'INVALID',
         },
       ],
     });

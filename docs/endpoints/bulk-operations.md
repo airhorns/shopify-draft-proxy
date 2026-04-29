@@ -120,6 +120,7 @@ Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` a
 - multiple top-level fields, top-level `node`/`nodes`, unsupported roots, more than five detected connections, and connections deeper than two levels
 - unsupported nested connections other than product `variants`
 - `groupObjects: true`; grouped JSONL output is an explicit unsupported boundary for now
+- selected `BulkOperationUserError.code` values are serialized for these local validation branches as `INVALID`, matching the documented error-code surface instead of dropping the selected field
 
 Local `bulkOperationCancel` supports:
 

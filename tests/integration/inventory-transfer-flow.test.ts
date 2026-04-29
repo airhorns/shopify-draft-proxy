@@ -368,7 +368,7 @@ describe('inventory transfer lifecycle roots', () => {
         query: `mutation($input: InventoryTransferCreateInput!) {
           inventoryTransferCreate(input: $input) {
             inventoryTransfer { id }
-            userErrors { field message }
+            userErrors { field message code }
           }
         }`,
         variables: {
@@ -416,7 +416,7 @@ describe('inventory transfer lifecycle roots', () => {
         query: `mutation($input: InventoryTransferCreateInput!) {
           inventoryTransferCreate(input: $input) {
             inventoryTransfer { id }
-            userErrors { field message }
+            userErrors { field message code }
           }
         }`,
         variables: {
@@ -434,6 +434,7 @@ describe('inventory transfer lifecycle roots', () => {
         {
           field: ['input', 'lineItems', '0', 'inventoryItemId'],
           message: 'The inventory item does not track inventory.',
+          code: 'UNTRACKED_ITEM',
         },
       ],
     });
@@ -444,7 +445,7 @@ describe('inventory transfer lifecycle roots', () => {
         query: `mutation($id: ID!) {
           inventoryTransferCancel(id: $id) {
             inventoryTransfer { id status }
-            userErrors { field message }
+            userErrors { field message code }
           }
         }`,
         variables: { id: 'gid://shopify/InventoryTransfer/0' },
@@ -452,7 +453,7 @@ describe('inventory transfer lifecycle roots', () => {
 
     expect(cancelResponse.body.data.inventoryTransferCancel).toEqual({
       inventoryTransfer: null,
-      userErrors: [{ field: ['id'], message: "The inventory transfer can't be found." }],
+      userErrors: [{ field: ['id'], message: "The inventory transfer can't be found.", code: 'TRANSFER_NOT_FOUND' }],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

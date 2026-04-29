@@ -5647,6 +5647,7 @@ function serializeInventoryLevelsConnection(
 type InventoryTransferUserError = {
   field: string[] | null;
   message: string;
+  code?: string | null;
 };
 
 type InventoryTransferLineItemInput = {
@@ -5713,6 +5714,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
         message: "The inventory item can't be found.",
+        code: 'ITEM_NOT_FOUND',
       });
       return;
     }
@@ -5722,6 +5724,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'inventoryItemId'],
         message: 'The inventory item does not track inventory.',
+        code: 'UNTRACKED_ITEM',
       });
     }
 
@@ -5729,6 +5732,7 @@ function validateInventoryTransferLineItems(
       errors.push({
         field: ['input', 'lineItems', `${index}`, 'quantity'],
         message: 'Quantity must be greater than 0.',
+        code: 'INVALID_QUANTITY',
       });
     }
   });
@@ -5810,6 +5814,7 @@ function applyInventoryTransferReservation(
         field: ['id'],
         message:
           'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
       });
       continue;
     }
@@ -5824,6 +5829,7 @@ function applyInventoryTransferReservation(
         field: ['id'],
         message:
           'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
       });
       continue;
     }
@@ -5887,6 +5893,9 @@ function serializeInventoryTransferUserErrors(
           break;
         case 'message':
           result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
           break;
         default:
           result[key] = null;
@@ -6160,7 +6169,7 @@ function inventoryTransferNotFoundPayload(rootName: string, field: FieldNode): R
       inventoryTransfer: rootName === 'inventoryTransferDelete' ? undefined : null,
       deletedId: rootName === 'inventoryTransferDelete' ? null : undefined,
       userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), [
-        { field: ['id'], message: "The inventory transfer can't be found." },
+        { field: ['id'], message: "The inventory transfer can't be found.", code: 'TRANSFER_NOT_FOUND' },
       ]),
     },
   };
