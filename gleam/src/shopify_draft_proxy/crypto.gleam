@@ -14,5 +14,5 @@
 
 /// Compute the lowercase hex sha256 of a string.
 @external(erlang, "crypto_ffi", "sha256_hex")
-@external(javascript, "./crypto_ffi.mjs", "sha256_hex")
+@external(javascript, "./crypto_ffi.js", "sha256_hex")
 pub fn sha256_hex(input: String) -> String

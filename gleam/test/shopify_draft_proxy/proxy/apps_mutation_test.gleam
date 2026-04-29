@@ -467,5 +467,5 @@ pub fn usage_record_create_unknown_line_item_emits_user_error_test() {
 // Bridge into the package's sha256 helper so tests can construct the same
 // hash the handler stores.
 @external(erlang, "crypto_ffi", "sha256_hex")
-@external(javascript, "../../shopify_draft_proxy/crypto_ffi.mjs", "sha256_hex")
+@external(javascript, "../../shopify_draft_proxy/crypto_ffi.js", "sha256_hex")
 fn shopify_sha256_of(input: String) -> String

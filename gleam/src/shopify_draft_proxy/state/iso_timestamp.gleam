@@ -12,14 +12,14 @@
 /// Format `ms` (milliseconds since the Unix epoch) as
 /// `YYYY-MM-DDTHH:MM:SS.sssZ`.
 @external(erlang, "iso_timestamp_ffi", "format_iso")
-@external(javascript, "./iso_timestamp_ffi.mjs", "format_iso")
+@external(javascript, "./iso_timestamp_ffi.js", "format_iso")
 pub fn format_iso(ms: Int) -> String
 
 /// Parse an ISO 8601 timestamp string back to milliseconds since epoch.
 /// Returns `Error(Nil)` if the input is not a valid timestamp the
 /// underlying platform can parse.
 @external(erlang, "iso_timestamp_ffi", "parse_iso")
-@external(javascript, "./iso_timestamp_ffi.mjs", "parse_iso")
+@external(javascript, "./iso_timestamp_ffi.js", "parse_iso")
 pub fn parse_iso(iso: String) -> Result(Int, Nil)
 
 /// Wall-clock current time, formatted as `YYYY-MM-DDTHH:MM:SS.sssZ`.
@@ -27,5 +27,5 @@ pub fn parse_iso(iso: String) -> Result(Int, Nil)
 /// This is non-deterministic; callers that want a fixed timestamp
 /// should pass one explicitly to `dump_state`.
 @external(erlang, "iso_timestamp_ffi", "now_iso")
-@external(javascript, "./iso_timestamp_ffi.mjs", "now_iso")
+@external(javascript, "./iso_timestamp_ffi.js", "now_iso")
 pub fn now_iso() -> String
