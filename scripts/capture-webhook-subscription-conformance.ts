@@ -22,7 +22,7 @@ const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, api
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'webhooks');
 const outputPath = path.join(outputDir, 'webhook-subscription-conformance.json');
 
-const requestDir = path.join('config', 'parity-requests');
+const requestDir = path.join('config', 'parity-requests', 'webhooks');
 const catalogRequestPath = path.join(requestDir, 'webhook-subscription-catalog-read.graphql');
 const catalogVariablesPath = path.join(requestDir, 'webhook-subscription-catalog-read.variables.json');
 const detailRequestPath = path.join(requestDir, 'webhook-subscription-detail-read.graphql');
@@ -33,6 +33,8 @@ const updateVariablesPath = path.join(requestDir, 'webhookSubscriptionUpdate-par
 const deleteRequestPath = path.join(requestDir, 'webhookSubscriptionDelete-parity.graphql');
 const validationRequestPath = path.join(requestDir, 'webhook-subscription-validation-branches.graphql');
 const validationVariablesPath = path.join(requestDir, 'webhook-subscription-validation-branches.variables.json');
+const missingCreateTopicRequestPath = path.join(requestDir, 'webhook-subscription-missing-create-topic.graphql');
+const nullUpdateInputRequestPath = path.join(requestDir, 'webhook-subscription-null-update-input.graphql');
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -66,6 +68,21 @@ async function capture(documentPath: string, variables: Record<string, unknown>)
   return {
     documentPath,
     variables,
+    response,
+  };
+}
+
+async function captureGraphqlValidation(documentPath: string): Promise<CapturedRequest> {
+  const document = await readText(documentPath);
+  const response = await runGraphqlRequest(document, {});
+
+  if (response.status < 200 || response.status >= 300 || !response.payload.errors) {
+    throw new Error(`${documentPath} did not capture GraphQL validation errors: ${JSON.stringify(response.payload)}`);
+  }
+
+  return {
+    documentPath,
+    variables: {},
     response,
   };
 }
@@ -206,6 +223,10 @@ const catalog = await capture(catalogRequestPath, {
   unknownId,
 });
 const validation = await capture(validationRequestPath, validationVariables);
+const graphqlValidation = {
+  missingCreateTopic: await captureGraphqlValidation(missingCreateTopicRequestPath),
+  nullUpdateInput: await captureGraphqlValidation(nullUpdateInputRequestPath),
+};
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(
@@ -235,6 +256,7 @@ await writeFile(
       catalog,
       lifecycle,
       validation,
+      graphqlValidation,
       cleanup,
     },
     null,

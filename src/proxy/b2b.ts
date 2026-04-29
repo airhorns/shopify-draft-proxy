@@ -1,5 +1,5 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
-import { type FieldNode } from 'graphql';
+import { Kind, type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import type { JsonValue } from '../json-schemas.js';
@@ -162,6 +162,24 @@ function serializeCompanyRole(role: B2BCompanyContactRoleRecord, field: FieldNod
   );
 }
 
+function nodeField(selectedFields: readonly FieldNode[]): FieldNode {
+  return {
+    kind: Kind.FIELD,
+    name: {
+      kind: Kind.NAME,
+      value: 'node',
+    },
+    selectionSet: {
+      kind: Kind.SELECTION_SET,
+      selections: [...selectedFields],
+    },
+  };
+}
+
+function objectOrNull(value: unknown): Record<string, unknown> | null {
+  return isPlainObject(value) ? value : null;
+}
+
 function serializeLocationTaxSettings(location: B2BCompanyLocationRecord, field: FieldNode): unknown {
   const storedTaxSettings = isPlainObject(location.data['taxSettings']) ? location.data['taxSettings'] : {};
   return projectGraphqlObject(
@@ -212,6 +230,30 @@ function serializeRoleAssignment(
   });
 }
 
+export function serializeCompanyContactRoleAssignmentNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  for (const contact of runtime.store.listEffectiveB2BCompanyContacts()) {
+    const assignment =
+      readPlainObjectArray(contact.data['roleAssignments']).find((item) => readStringValue(item['id']) === id) ?? null;
+    if (assignment) {
+      return objectOrNull(serializeRoleAssignment(runtime, assignment, nodeField(selectedFields)));
+    }
+  }
+
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
+    const assignment =
+      readPlainObjectArray(location.data['roleAssignments']).find((item) => readStringValue(item['id']) === id) ?? null;
+    if (assignment) {
+      return objectOrNull(serializeRoleAssignment(runtime, assignment, nodeField(selectedFields)));
+    }
+  }
+
+  return null;
+}
+
 function serializeStaffAssignment(
   runtime: ProxyRuntimeContext,
   assignment: Record<string, unknown>,
@@ -233,6 +275,23 @@ function serializeStaffAssignment(
       return { handled: false };
     },
   });
+}
+
+export function serializeCompanyAddressNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  for (const location of runtime.store.listEffectiveB2BCompanyLocations()) {
+    for (const key of ['billingAddress', 'shippingAddress']) {
+      const address = isPlainObject(location.data[key]) ? location.data[key] : null;
+      if (address?.['id'] === id) {
+        return projectGraphqlObject(address, selectedFields, new Map());
+      }
+    }
+  }
+
+  return null;
 }
 
 function serializeCompanyContact(

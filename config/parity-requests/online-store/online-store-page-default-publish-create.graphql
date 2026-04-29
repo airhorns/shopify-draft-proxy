@@ -1,0 +1,18 @@
+mutation OnlineStorePageDefaultPublishCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+      body
+      bodySummary
+      isPublished
+      publishedAt
+      templateSuffix
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

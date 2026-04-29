@@ -1521,7 +1521,7 @@ function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | 
 
   const rawEdges = Array.isArray(raw['edges']) ? raw['edges'] : [];
   const levels = rawEdges
-    .map((edge) => {
+    .map((edge): InventoryLevelRecord | null => {
       if (!isObject(edge)) {
         return null;
       }
@@ -1566,13 +1566,11 @@ function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | 
         id: rawNode['id'],
         cursor,
         location,
+        isActive: typeof rawNode['isActive'] === 'boolean' ? rawNode['isActive'] : true,
         quantities,
       };
     })
-    .filter(
-      (level): level is NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] =>
-        level !== null,
-    );
+    .filter((level): level is InventoryLevelRecord => level !== null);
 
   return levels.length > 0 ? levels : null;
 }
@@ -3938,11 +3936,13 @@ function applyInventoryMoveQuantities(
 function findInventoryLevelTarget(
   runtime: ProxyRuntimeContext,
   inventoryLevelId: string,
+  options: { includeInactive?: boolean } = {},
 ): InventoryLevelTargetRecord | null {
   for (const product of runtime.store.listEffectiveProducts()) {
     for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
       const level =
-        getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.id === inventoryLevelId) ?? null;
+        getEffectiveInventoryLevels(runtime, variant, options).find((candidate) => candidate.id === inventoryLevelId) ??
+        null;
       if (level) {
         return { variant, level };
       }
@@ -3961,8 +3961,10 @@ function stageVariantInventoryLevels(
   variant: ProductVariantRecord,
   nextLevels: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>,
 ): ProductVariantRecord {
+  const activeLevels = nextLevels.filter((level) => level.isActive !== false);
   const nextVariant: ProductVariantRecord = {
     ...structuredClone(variant),
+    inventoryQuantity: sumAvailableInventoryLevels(activeLevels),
     inventoryItem: variant.inventoryItem
       ? {
           ...structuredClone(variant.inventoryItem),
@@ -3992,6 +3994,7 @@ function buildActivatedInventoryLevel(
 
   return {
     ...syntheticLevel,
+    isActive: true,
     location: {
       id: location.id,
       name: location.name,
@@ -5466,6 +5469,7 @@ function buildSyntheticInventoryLevel(
     id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, locationId),
     cursor: existingLevel?.cursor ?? null,
     location: existingLevel?.location ?? { id: locationId, name: null },
+    isActive: existingLevel?.isActive ?? true,
     quantities: [
       {
         name: 'available',
@@ -5507,13 +5511,18 @@ function buildSyntheticInventoryLevels(
 function getEffectiveInventoryLevels(
   runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
+  options: { includeInactive?: boolean } = {},
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
   const hydratedLevels = variant.inventoryItem?.inventoryLevels;
   if (!hydratedLevels || hydratedLevels.length === 0) {
     return buildSyntheticInventoryLevels(runtime, variant);
   }
 
-  return structuredClone(hydratedLevels).filter((level) => !runtime.store.isLocationDeleted(level.location?.id ?? ''));
+  return structuredClone(hydratedLevels).filter(
+    (level) =>
+      !runtime.store.isLocationDeleted(level.location?.id ?? '') &&
+      (options.includeInactive === true || level.isActive !== false),
+  );
 }
 
 function serializeInventoryLevelQuantities(
@@ -5582,6 +5591,9 @@ function serializeInventoryLevelNode(
       case 'id':
         nodeResult[levelKey] = level.id;
         break;
+      case 'isActive':
+        nodeResult[levelKey] = level.isActive !== false;
+        break;
       case 'location': {
         if (!level.location) {
           nodeResult[levelKey] = null;
@@ -5627,7 +5639,10 @@ function serializeInventoryLevelsConnection(
   const getLevelCursor = (
     level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   ): string => level.cursor ?? `cursor:${level.id}`;
-  const allLevels = getEffectiveInventoryLevels(runtime, variant);
+  const connectionArgs = getFieldArguments(field, variables);
+  const allLevels = getEffectiveInventoryLevels(runtime, variant, {
+    includeInactive: connectionArgs['includeInactive'] === true,
+  });
   const {
     items: levels,
     hasNextPage,
@@ -6394,6 +6409,9 @@ function serializeInventoryLevelObject(
       case 'id':
         result[key] = level.id;
         break;
+      case 'isActive':
+        result[key] = level.isActive !== false;
+        break;
       case 'location': {
         if (!level.location) {
           result[key] = null;
@@ -6551,9 +6569,9 @@ function serializeInventoryItemSelectionSet(
             const inventoryArgs = getFieldArguments(inventorySelection, variables);
             const locationId = typeof inventoryArgs['locationId'] === 'string' ? inventoryArgs['locationId'] : null;
             const level = locationId
-              ? (getEffectiveInventoryLevels(runtime, variant).find(
-                  (candidate) => candidate.location?.id === locationId,
-                ) ?? null)
+              ? (getEffectiveInventoryLevels(runtime, variant, {
+                  includeInactive: inventoryArgs['includeInactive'] === true,
+                }).find((candidate) => candidate.location?.id === locationId) ?? null)
               : null;
             return [
               inventoryKey,
@@ -14276,20 +14294,22 @@ export function handleProductMutation(
       const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
-            null)
+          ? (getEffectiveInventoryLevels(runtime, variant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === locationId,
+            ) ?? null)
           : null;
+      const activationLocation = knownLocation ?? (level?.location ? { ...level.location, isActive: true } : null);
       const hasAvailableArg = hasOwnField(args, 'available');
       const userErrors: InventoryMutationUserError[] = [];
 
-      if (variant && locationId && !level && !knownLocation) {
+      if (variant && locationId && !level && !activationLocation) {
         userErrors.push({
           field: ['locationId'],
           message: "The product couldn't be stocked because the location wasn't found.",
         });
       }
 
-      if (hasAvailableArg && level) {
+      if (hasAvailableArg && level && level.isActive !== false) {
         userErrors.push({
           field: ['available'],
           message: 'Not allowed to set available quantity when the item is already active at the location.',
@@ -14298,16 +14318,34 @@ export function handleProductMutation(
 
       let resolvedVariant = variant;
       let resolvedLevel = level;
-      if (variant && knownLocation && !level) {
-        const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
+      if (variant && activationLocation && (!level || level.isActive === false) && userErrors.length === 0) {
+        const nextLevel = level
+          ? {
+              ...structuredClone(level),
+              isActive: true,
+              quantities: level.quantities.map((quantity) =>
+                quantity.name === 'available'
+                  ? { ...quantity, updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp() }
+                  : structuredClone(quantity),
+              ),
+              location: {
+                id: activationLocation.id,
+                name: activationLocation.name,
+              },
+            }
+          : buildActivatedInventoryLevel(runtime, variant, activationLocation);
         if (nextLevel) {
-          resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
-            ...getEffectiveInventoryLevels(runtime, variant),
-            nextLevel,
-          ]);
+          const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
+          resolvedVariant = stageVariantInventoryLevels(
+            runtime,
+            variant,
+            level
+              ? allLevels.map((candidate) => (candidate.id === level.id ? nextLevel : candidate))
+              : [...allLevels, nextLevel],
+          );
           resolvedLevel =
-            getEffectiveInventoryLevels(runtime, resolvedVariant).find(
-              (candidate) => candidate.location?.id === knownLocation.id,
+            getEffectiveInventoryLevels(runtime, resolvedVariant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === activationLocation.id,
             ) ?? nextLevel;
         }
       }
@@ -14335,6 +14373,9 @@ export function handleProductMutation(
       const inventoryLevelId = typeof rawInventoryLevelId === 'string' ? rawInventoryLevelId : null;
       const target = inventoryLevelId ? findInventoryLevelTarget(runtime, inventoryLevelId) : null;
       const allLevels = target ? getEffectiveInventoryLevels(runtime, target.variant) : [];
+      const allLevelsIncludingInactive = target
+        ? getEffectiveInventoryLevels(runtime, target.variant, { includeInactive: true })
+        : [];
       const userErrors: InventoryMutationUserError[] = [];
 
       if (target && allLevels.length <= 1) {
@@ -14348,7 +14389,9 @@ export function handleProductMutation(
         stageVariantInventoryLevels(
           runtime,
           target.variant,
-          allLevels.filter((candidate) => candidate.id !== target.level.id),
+          allLevelsIncludingInactive.map((candidate) =>
+            candidate.id === target.level.id ? { ...candidate, isActive: false } : candidate,
+          ),
         );
       }
 
@@ -14373,12 +14416,14 @@ export function handleProductMutation(
       const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
-            null)
+          ? (getEffectiveInventoryLevels(runtime, variant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === locationId,
+            ) ?? null)
           : null;
+      const activationLocation = knownLocation ?? (level?.location ? { ...level.location, isActive: true } : null);
       const userErrors: InventoryMutationUserError[] = [];
 
-      if (variant && locationId && !level && !knownLocation) {
+      if (variant && locationId && !level && !activationLocation) {
         userErrors.push({
           field: ['inventoryItemUpdates', '0', 'locationId'],
           message: "The quantity couldn't be updated because the location was not found.",
@@ -14397,16 +14442,34 @@ export function handleProductMutation(
       let resolvedVariant = variant;
       let responseLevels: Record<string, unknown>[] | null = null;
       if (variant && userErrors.length === 0 && locationId) {
-        if (activate === true && !level && knownLocation) {
-          const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
+        if (activate === true && (!level || level.isActive === false) && activationLocation) {
+          const nextLevel = level
+            ? {
+                ...structuredClone(level),
+                isActive: true,
+                quantities: level.quantities.map((quantity) =>
+                  quantity.name === 'available'
+                    ? { ...quantity, updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp() }
+                    : structuredClone(quantity),
+                ),
+                location: {
+                  id: activationLocation.id,
+                  name: activationLocation.name,
+                },
+              }
+            : buildActivatedInventoryLevel(runtime, variant, activationLocation);
           if (nextLevel) {
-            resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
-              ...getEffectiveInventoryLevels(runtime, variant),
-              nextLevel,
-            ]);
+            const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
+            resolvedVariant = stageVariantInventoryLevels(
+              runtime,
+              variant,
+              level
+                ? allLevels.map((candidate) => (candidate.id === level.id ? nextLevel : candidate))
+                : [...allLevels, nextLevel],
+            );
             const resolvedLevel =
-              getEffectiveInventoryLevels(runtime, resolvedVariant).find(
-                (candidate) => candidate.location?.id === knownLocation.id,
+              getEffectiveInventoryLevels(runtime, resolvedVariant, { includeInactive: true }).find(
+                (candidate) => candidate.location?.id === activationLocation.id,
               ) ?? nextLevel;
             responseLevels = [
               serializeInventoryLevelObject(
@@ -14419,13 +14482,14 @@ export function handleProductMutation(
             ];
           }
         } else if (activate === false && level) {
+          const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
           resolvedVariant = stageVariantInventoryLevels(
             runtime,
             variant,
-            getEffectiveInventoryLevels(runtime, variant).filter((candidate) => candidate.id !== level.id),
+            allLevels.map((candidate) => (candidate.id === level.id ? { ...candidate, isActive: false } : candidate)),
           );
           responseLevels = [];
-        } else if (level) {
+        } else if (level && level.isActive !== false) {
           responseLevels = [
             serializeInventoryLevelObject(
               runtime,
@@ -15222,7 +15286,7 @@ export function handleProductQuery(
       case 'inventoryLevel': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const target = id ? findInventoryLevelTarget(runtime, id) : null;
+        const target = id ? findInventoryLevelTarget(runtime, id, { includeInactive: true }) : null;
         data[responseKey] = target
           ? serializeInventoryLevelObject(
               runtime,

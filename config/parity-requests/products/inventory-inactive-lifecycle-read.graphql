@@ -1,0 +1,57 @@
+query InventoryInactiveLifecycleRead($inventoryItemId: ID!, $inventoryLevelId: ID!, $inactiveLocationId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    id
+    tracked
+    variant {
+      id
+      inventoryQuantity
+      product {
+        id
+        totalInventory
+        tracksInventory
+      }
+    }
+    inventoryLevels(first: 5, includeInactive: true) {
+      nodes {
+        id
+        isActive
+        location {
+          id
+          name
+        }
+        quantities(names: ["available", "on_hand", "incoming"]) {
+          name
+          quantity
+        }
+      }
+    }
+    inactiveLevel: inventoryLevel(locationId: $inactiveLocationId, includeInactive: true) {
+      id
+      isActive
+      location {
+        id
+        name
+      }
+      quantities(names: ["available", "on_hand", "incoming"]) {
+        name
+        quantity
+      }
+    }
+  }
+  inventoryLevel(id: $inventoryLevelId) {
+    id
+    isActive
+    location {
+      id
+      name
+    }
+    quantities(names: ["available", "on_hand", "incoming"]) {
+      name
+      quantity
+    }
+    item {
+      id
+      tracked
+    }
+  }
+}

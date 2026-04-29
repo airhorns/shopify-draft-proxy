@@ -38,6 +38,14 @@ Billing and delegated-token mutation handlers synthesize local confirmation URLs
 
 Live-hybrid app installation reads can hydrate this local app model from upstream read responses. Snapshot and local-only reads return Shopify-like null/empty structures when no app installation state has been staged or hydrated.
 
+Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves app-domain records
+that already exist in the local app model: `App`, `AppInstallation`,
+`AppSubscription`, `AppPurchaseOneTime`, and `AppUsageRecord`. Missing IDs
+return `null`, and subscription line items remain nested under
+`AppSubscription.lineItems` rather than being claimed as standalone Node
+implementors because Shopify's captured Node implementor inventory does not list
+`AppSubscriptionLineItem`.
+
 Current modeled behavior:
 
 - `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL.
@@ -89,6 +97,7 @@ The capture records:
 - `tests/integration/app-billing-access-flow.test.ts`
 - `tests/integration/proxy-capability-classification.test.ts`
 - `tests/unit/app-billing-conformance-fixture.test.ts`
-- `config/parity-specs/apps/app-billing-access-local-staging.json`
+- `config/parity-specs/apps/app-billing-access-local-staging.json`, including
+  app-domain generic Node read targets
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

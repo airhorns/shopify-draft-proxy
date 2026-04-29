@@ -7,7 +7,7 @@ import { createApp, resetSyntheticIdentity, store } from '../support/runtime.js'
 const config: AppConfig = {
   port: 3000,
   shopifyAdminOrigin: 'https://billing-test.myshopify.com',
-  readMode: 'passthrough',
+  readMode: 'snapshot',
 };
 
 describe('app billing, access, and delegated token local staging', () => {
@@ -207,6 +207,7 @@ describe('app billing, access, and delegated token local staging', () => {
           query CurrentBilling {
             currentAppInstallation {
               id
+              app { id handle }
               activeSubscriptions { id }
               allSubscriptions(first: 5) {
                 nodes {
@@ -228,6 +229,9 @@ describe('app billing, access, and delegated token local staging', () => {
           }
         `,
       });
+    const currentInstallation = readResponse.body.data.currentAppInstallation;
+    const oneTimePurchase = oneTimeResponse.body.data.appPurchaseOneTimeCreate.appPurchaseOneTime;
+    const usageRecord = usageResponse.body.data.appUsageRecordCreate.appUsageRecord;
     expect(readResponse.body.data.currentAppInstallation.activeSubscriptions).toEqual([]);
     expect(readResponse.body.data.currentAppInstallation.allSubscriptions.nodes[0]).toMatchObject({
       id: subscription.id,
@@ -246,6 +250,88 @@ describe('app billing, access, and delegated token local staging', () => {
       name: 'Import package',
       status: 'PENDING',
     });
+
+    const nodeResponse = await agent
+      .post('/admin/api/2026-04/graphql.json')
+      .set('x-shopify-access-token', 'shpat_test')
+      .send({
+        query: `#graphql
+          query BillingNodes($ids: [ID!]!) {
+            nodes(ids: $ids) {
+              ... on App {
+                id
+                handle
+              }
+              ... on AppInstallation {
+                id
+                app { id handle }
+              }
+              ... on AppSubscription {
+                id
+                status
+                trialDays
+                lineItems {
+                  id
+                  usageRecords(first: 5) {
+                    nodes { description price { amount currencyCode } }
+                  }
+                }
+              }
+              ... on AppPurchaseOneTime {
+                id
+                name
+                status
+                price { amount currencyCode }
+              }
+              ... on AppUsageRecord {
+                id
+                description
+                price { amount currencyCode }
+                subscriptionLineItem { id }
+              }
+            }
+          }
+        `,
+        variables: {
+          ids: [
+            currentInstallation.app.id,
+            currentInstallation.id,
+            subscription.id,
+            oneTimePurchase.id,
+            usageRecord.id,
+            'gid://shopify/AppSubscription/missing',
+          ],
+        },
+      });
+
+    expect(nodeResponse.body.data.nodes).toEqual([
+      currentInstallation.app,
+      {
+        id: currentInstallation.id,
+        app: currentInstallation.app,
+      },
+      {
+        id: subscription.id,
+        status: 'CANCELLED',
+        trialDays: 10,
+        lineItems: [
+          {
+            id: lineItemId,
+            usageRecords: {
+              nodes: [{ description: 'metered import', price: { amount: '12.5', currencyCode: 'USD' } }],
+            },
+          },
+        ],
+      },
+      {
+        id: oneTimePurchase.id,
+        name: 'Import package',
+        status: 'PENDING',
+        price: { amount: '10', currencyCode: 'USD' },
+      },
+      usageRecord,
+      null,
+    ]);
 
     const metaState = await agent.get('/__meta/state').expect(200);
     expect(Object.keys(metaState.body.stagedState.appSubscriptions)).toContain(subscription.id);

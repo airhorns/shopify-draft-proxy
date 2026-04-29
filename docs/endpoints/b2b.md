@@ -83,7 +83,11 @@ assignment, rejects attempts to assign a second role to the same contact/locatio
 pair with Shopify's `LIMIT_REACHED` userError, and resolves nested
 `CompanyContactRoleAssignment.companyContact` / `.companyLocation` fields from
 the current normalized contact/location records so later contact or location
-updates are reflected in downstream assignment reads.
+updates are reflected in downstream assignment reads. Generic Admin
+`node(id:)` / `nodes(ids:)` dispatch now resolves staged or captured
+`CompanyContactRoleAssignment` IDs through the same assignment serializer and
+`CompanyAddress` IDs from effective company-location billing/shipping address
+payloads.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
@@ -108,7 +112,10 @@ stored by ID for downstream B2B reads, but the proxy does not synthesize broader
 customer or staff catalog side effects from B2B assignment mutations.
 The HAR-446 live capture records that the current conformance token receives
 `ACCESS_DENIED` for `staffMembers(first:)`, so staff assignment remains covered
-by executable runtime tests instead of live staff-catalog parity.
+by executable runtime tests instead of live staff-catalog parity. Generic Node
+dispatch therefore keeps `CompanyLocationStaffMemberAssignment` and
+`CompanyLocationCatalog` unsupported until staff/catalog behavior has
+conformance-backed local modeling.
 
 ## Historical and developer notes
 

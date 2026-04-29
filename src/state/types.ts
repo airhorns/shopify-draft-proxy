@@ -107,6 +107,7 @@ export const inventoryLevelRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema,
   location: inventoryLevelLocationRecordSchema.nullable(),
+  isActive: z.boolean().optional(),
   quantities: z.array(inventoryLevelQuantityRecordSchema),
 });
 export type InventoryLevelRecord = z.infer<typeof inventoryLevelRecordSchema>;
@@ -745,6 +746,7 @@ export const giftCardRecordSchema = z.strictObject({
   balance: moneyV2RecordSchema,
   customerId: nullableStringSchema,
   recipientId: nullableStringSchema,
+  source: nullableStringSchema.optional(),
   recipientAttributes: giftCardRecipientAttributesRecordSchema.nullable().optional(),
   transactions: z.array(giftCardTransactionRecordSchema),
 });

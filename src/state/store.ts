@@ -3264,6 +3264,11 @@ export class InMemoryStore {
     return structuredClone(record);
   }
 
+  getEffectiveAppUsageRecordById(recordId: string): AppUsageRecord | null {
+    const record = this.stagedState.appUsageRecords[recordId] ?? this.baseState.appUsageRecords[recordId] ?? null;
+    return record ? structuredClone(record) : null;
+  }
+
   listEffectiveAppUsageRecordsForLineItem(lineItemId: string): AppUsageRecord[] {
     return Object.values({ ...this.baseState.appUsageRecords, ...this.stagedState.appUsageRecords })
       .filter((record) => record.subscriptionLineItemId === lineItemId)
