@@ -1320,8 +1320,8 @@ describe('Markets lifecycle staging', () => {
       subfolderSuffix: 'ca',
       domain: null,
       rootUrls: [
-        { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-ca' },
-        { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-ca' },
+        { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-ca/' },
+        { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-ca/' },
       ],
       defaultLocale: {
         locale: 'en',
@@ -1418,8 +1418,8 @@ describe('Markets lifecycle staging', () => {
         id: webPresenceId,
         subfolderSuffix: 'frca',
         rootUrls: [
-          { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-frca' },
-          { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-frca' },
+          { locale: 'fr', url: 'https://very-big-test-store.myshopify.com/fr-frca/' },
+          { locale: 'en', url: 'https://very-big-test-store.myshopify.com/en-frca/' },
         ],
         markets: {
           nodes: [

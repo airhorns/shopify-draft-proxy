@@ -1,0 +1,48 @@
+fragment MarketWebPresenceLifecycleFields on MarketWebPresence {
+  id
+  subfolderSuffix
+  domain {
+    id
+    host
+    url
+    sslEnabled
+  }
+  rootUrls {
+    locale
+    url
+  }
+  defaultLocale {
+    locale
+    name
+    primary
+    published
+  }
+  alternateLocales {
+    locale
+    name
+    primary
+    published
+  }
+  markets(first: 5) {
+    nodes {
+      id
+      name
+      handle
+      status
+      type
+    }
+  }
+}
+
+mutation MarketWebPresenceLifecycleUpdate($id: ID!, $input: WebPresenceUpdateInput!) {
+  webPresenceUpdate(id: $id, input: $input) {
+    webPresence {
+      ...MarketWebPresenceLifecycleFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

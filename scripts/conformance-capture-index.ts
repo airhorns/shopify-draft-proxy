@@ -563,6 +563,44 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'markets',
+    captureId: 'market-localization-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
+    purpose:
+      'MarketLocalizableResource default product-metafield behavior plus marketLocalizationsRegister/remove validation.',
+    requiredAuthScopes: [
+      'read_markets',
+      'write_markets',
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-localization-metafield-lifecycle-parity.json`,
+      'config/parity-specs/markets/market-localization-metafield-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product with a product metafield, probes market localization behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'market-web-presence-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
+    purpose: 'Web presence create/update/delete lifecycle and downstream top-level webPresences reads.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
+      'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable subfolder web presence, updates it, deletes it, and verifies the baseline read after cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',

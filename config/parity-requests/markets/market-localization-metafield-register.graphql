@@ -1,0 +1,22 @@
+mutation MarketLocalizationMetafieldRegister(
+  $resourceId: ID!
+  $marketLocalizations: [MarketLocalizationRegisterInput!]!
+) {
+  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+    marketLocalizations {
+      key
+      value
+      updatedAt
+      outdated
+      market {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

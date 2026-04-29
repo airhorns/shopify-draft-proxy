@@ -6346,7 +6346,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports product metafield-backed MarketLocalizableResource reads for the current 2026-04 METAFIELD resource type."
+    "supportNotes": "Supports product metafield-backed MarketLocalizableResource identity/empty-content reads and explicitly seeded market-localizable content; default ad hoc product metafields do not invent marketLocalizableContent."
   },
   {
     "name": "marketLocalizableResources",
@@ -6359,7 +6359,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports resourceType: METAFIELD over product metafields; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
+    "supportNotes": "Supports resourceType: METAFIELD over product metafield resource identities while preserving empty marketLocalizableContent unless content is explicitly seeded; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
   },
   {
     "name": "marketLocalizableResourcesByIds",
@@ -6372,7 +6372,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports product metafield resource IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+    "supportNotes": "Supports product metafield resource IDs, including default empty marketLocalizableContent behavior, and ignores unknown IDs with Shopify-like empty connection behavior."
   },
   {
     "name": "marketCreate",
@@ -6472,7 +6472,7 @@
     "implemented": true,
     "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
-    "supportNotes": "Stages market-specific values for product metafield resources only; validates market ID, key, digest, blank value, and missing input without upstream writes."
+    "supportNotes": "Stages market-specific values only for product metafield resources whose marketLocalizableContent is explicitly seeded; validates default ad hoc metafields as INVALID_KEY_FOR_MODEL without upstream writes."
   },
   {
     "name": "marketLocalizationsRemove",
@@ -6482,7 +6482,7 @@
     "implemented": true,
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
-    "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+    "supportNotes": "Removes staged market-specific product metafield values locally when marketLocalizableContent is explicitly seeded; default ad hoc metafields return Shopify-like null localization payloads without upstream writes."
   },
   {
     "name": "availableLocales",
