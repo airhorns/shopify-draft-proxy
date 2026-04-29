@@ -1,0 +1,16 @@
+mutation StorefrontAccessTokenLocalCreate($input: StorefrontAccessTokenInput!) {
+  storefrontAccessTokenCreate(input: $input) {
+    storefrontAccessToken {
+      id
+      title
+      accessToken
+      accessScopes {
+        handle
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
