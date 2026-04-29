@@ -6,6 +6,44 @@ Order payment transaction mutations such as `orderCapture`, `transactionVoid`, a
 
 ## Current support and limitations
 
+### HAR-456 fidelity review
+
+The HAR-456 audit reviewed the scoped payment terms, payment customization,
+Shopify Payments, dispute, POS cash, and Shop Pay payment-request roots against
+the checked-in registry, executable parity specs, integration tests, Shopify
+Admin docs/examples, and public query examples. Existing coverage is strongest
+where the proxy has either scrubbed local lifecycle modeling or captured
+empty/no-data fixtures:
+
+- Payment terms now have live captured lifecycle evidence for
+  `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` on a
+  disposable draft order, plus downstream `draftOrder.paymentTerms` reads.
+- Payment customizations have local lifecycle tests and captured validation plus
+  empty read parity, but full live happy-path parity still depends on an
+  install/grant that exposes a released `payment_customization` Shopify
+  Function to the conformance store.
+- Shopify Payments account support is intentionally limited to access-denied or
+  no-account parity plus fixture-backed safe scalar fields and empty account
+  activity connections. Balance, bank-account, payout, statement descriptor,
+  dispute, payout, and balance-transaction details remain sensitive
+  scrubbed-fixture gaps.
+- Dispute, POS cash tracking, and Shop Pay payment-request receipt reads are
+  supported only for captured null/empty behavior. Non-empty support requires
+  disposable-store fixtures with minimized financial/customer-visible data and
+  a normalized local state model before the roots can be treated as lifecycle
+  complete.
+- Public examples for POS, Shopify Payments, Shop Pay receipts, and disputes are
+  mostly shape/access examples rather than safe lifecycle recipes. Do not
+  promote them into parity specs unless they are backed by a real captured
+  interaction and an executable proxy comparison.
+
+External processor, POS, and customer-visible side effects remain intentionally
+unemulated at runtime: Shopify Functions are not executed, POS cash sessions and
+hardware state are not invented, Shopify Payments balances/payouts/bank details
+are not synthesized, disputes/evidence are not fabricated, Shop Pay payment
+requests are not sent, and payment-reminder emails are recorded only as local
+intent unless the original raw mutation is later committed explicitly.
+
 ### Supported roots
 
 - `paymentCustomization(id:)`
