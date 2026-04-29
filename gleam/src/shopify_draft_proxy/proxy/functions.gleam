@@ -22,7 +22,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
-  ConnectionWindow, SerializeConnectionConfig, SelectedFieldOptions, SrcBool,
+  ConnectionWindow, SelectedFieldOptions, SerializeConnectionConfig, SrcBool,
   SrcList, SrcNull, SrcString, default_connection_page_info_options,
   default_connection_window_options, get_document_fragments,
   get_field_response_key, paginate_connection_items, project_graphql_value,
@@ -33,9 +33,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CartTransformRecord, type ShopifyFunctionRecord,
-  type TaxAppConfigurationRecord, type ValidationRecord, CartTransformRecord,
-  ShopifyFunctionRecord, TaxAppConfigurationRecord, ValidationRecord,
+  type CartTransformRecord, type ShopifyFunctionAppRecord,
+  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
+  type ValidationRecord, CartTransformRecord, ShopifyFunctionRecord,
+  TaxAppConfigurationRecord, ValidationRecord,
 }
 
 // ---------------------------------------------------------------------------
@@ -247,13 +248,15 @@ fn serialize_validations_connection(
   _variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let items = store.list_effective_validations(store)
-  serialize_record_connection(items, field, fragments, validation_cursor, fn(
-    item,
-    node_field,
-    _index,
-  ) {
-    project_validation(store, item, node_field, fragments)
-  })
+  serialize_record_connection(
+    items,
+    field,
+    fragments,
+    validation_cursor,
+    fn(item, node_field, _index) {
+      project_validation(store, item, node_field, fragments)
+    },
+  )
 }
 
 fn serialize_cart_transforms_connection(
@@ -263,13 +266,15 @@ fn serialize_cart_transforms_connection(
   _variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let items = store.list_effective_cart_transforms(store)
-  serialize_record_connection(items, field, fragments, cart_transform_cursor, fn(
-    item,
-    node_field,
-    _index,
-  ) {
-    project_cart_transform(item, node_field, fragments)
-  })
+  serialize_record_connection(
+    items,
+    field,
+    fragments,
+    cart_transform_cursor,
+    fn(item, node_field, _index) {
+      project_cart_transform(item, node_field, fragments)
+    },
+  )
 }
 
 fn serialize_shopify_functions_connection(
@@ -465,8 +470,24 @@ fn shopify_function_to_source(record: ShopifyFunctionRecord) -> SourceValue {
     #("apiType", optional_string_to_source(record.api_type)),
     #("description", optional_string_to_source(record.description)),
     #("appKey", optional_string_to_source(record.app_key)),
-    #("app", SrcNull),
+    #("app", shopify_function_app_to_source(record.app)),
   ])
+}
+
+fn shopify_function_app_to_source(
+  app: Option(ShopifyFunctionAppRecord),
+) -> SourceValue {
+  case app {
+    None -> SrcNull
+    Some(record) ->
+      src_object([
+        #("__typename", optional_string_to_source(record.typename)),
+        #("id", optional_string_to_source(record.id)),
+        #("title", optional_string_to_source(record.title)),
+        #("handle", optional_string_to_source(record.handle)),
+        #("apiKey", optional_string_to_source(record.api_key)),
+      ])
+  }
 }
 
 fn tax_app_configuration_to_source(
@@ -548,7 +569,7 @@ type MutationFieldResult {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
+  request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(MutationOutcome, FunctionsError) {
@@ -556,7 +577,15 @@ pub fn process_mutation(
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      Ok(handle_mutation_fields(
+        store,
+        identity,
+        request_path,
+        document,
+        fields,
+        fragments,
+        variables,
+      ))
     }
   }
 }
@@ -564,6 +593,8 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -638,11 +669,79 @@ fn handle_mutation_fields(
         _ -> acc
       }
     })
+  let root_names = mutation_root_names(fields)
+  let primary_root = case list.first(root_names) {
+    Ok(name) -> Some(name)
+    Error(_) -> None
+  }
+  let #(log_id, identity_after_log) =
+    synthetic_identity.make_synthetic_gid(final_identity, "MutationLogEntry")
+  let #(received_at, identity_after_entry) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_log)
+  let entry =
+    build_log_entry(
+      primary_root,
+      root_names,
+      log_id,
+      received_at,
+      request_path,
+      document,
+      all_staged,
+    )
+  let logged_store = store.record_mutation_log_entry(final_store, entry)
   MutationOutcome(
     data: json.object([#("data", json.object(data_entries))]),
-    store: final_store,
-    identity: final_identity,
+    store: logged_store,
+    identity: identity_after_entry,
     staged_resource_ids: all_staged,
+  )
+}
+
+fn mutation_root_names(fields: List(Selection)) -> List(String) {
+  list.filter_map(fields, fn(field) {
+    case field {
+      Field(name: name, ..) -> Ok(name.value)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn build_log_entry(
+  primary_root: Option(String),
+  root_fields: List(String),
+  log_id: String,
+  received_at: String,
+  request_path: String,
+  document: String,
+  staged_ids: List(String),
+) -> store.MutationLogEntry {
+  let notes = case primary_root {
+    Some("taxAppConfigure") ->
+      "Staged locally in the in-memory tax app configuration metadata store; no tax calculation app callbacks are invoked."
+    _ ->
+      "Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed."
+  }
+  store.MutationLogEntry(
+    id: log_id,
+    received_at: received_at,
+    operation_name: primary_root,
+    path: request_path,
+    query: document,
+    variables: dict.new(),
+    staged_resource_ids: staged_ids,
+    status: store.Staged,
+    interpreted: store.InterpretedMetadata(
+      operation_type: store.Mutation,
+      operation_name: primary_root,
+      root_fields: root_fields,
+      primary_root_field: primary_root,
+      capability: store.Capability(
+        operation_name: primary_root,
+        domain: "functions",
+        execution: "stage-locally",
+      ),
+    ),
+    notes: Some(notes),
   )
 }
 
@@ -699,19 +798,11 @@ fn handle_validation_create(
   case reference.function_id, reference.function_handle {
     None, None -> {
       let payload =
-        validation_mutation_payload(
-          store,
-          field,
-          fragments,
-          None,
-          [missing_function_error(["validation", "functionHandle"])],
-        )
+        validation_mutation_payload(store, field, fragments, None, [
+          missing_function_error(["validation", "functionHandle"]),
+        ])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
@@ -773,11 +864,9 @@ fn handle_validation_create(
           [],
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [validation.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          validation.id,
+        ]),
         store_final,
         identity_final,
       )
@@ -801,19 +890,11 @@ fn handle_validation_update(
   case store.get_effective_validation_by_id(store, id) {
     None -> {
       let payload =
-        validation_mutation_payload(
-          store,
-          field,
-          fragments,
-          None,
-          [not_found_error("id", id)],
-        )
+        validation_mutation_payload(store, field, fragments, None, [
+          not_found_error("id", id),
+        ])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
@@ -824,7 +905,10 @@ fn handle_validation_update(
         None -> dict.new()
       }
       let reference = read_function_reference(input)
-      let has_function_input = case reference.function_id, reference.function_handle {
+      let has_function_input = case
+        reference.function_id,
+        reference.function_handle
+      {
         None, None -> False
         _, _ -> True
       }
@@ -921,11 +1005,9 @@ fn handle_validation_update(
           [],
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [updated.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          updated.id,
+        ]),
         store_final,
         identity_after_ts,
       )
@@ -951,11 +1033,7 @@ fn handle_validation_delete(
       let payload =
         delete_payload(field, fragments, None, [not_found_error("id", id)])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
@@ -964,11 +1042,9 @@ fn handle_validation_delete(
       let next_store = store.delete_staged_validation(store, id)
       let payload = delete_payload(field, fragments, Some(id), [])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          id,
+        ]),
         next_store,
         identity,
       )
@@ -993,18 +1069,11 @@ fn handle_cart_transform_create(
   case reference.function_id, reference.function_handle {
     None, None -> {
       let payload =
-        cart_transform_mutation_payload(
-          field,
-          fragments,
-          None,
-          [missing_function_error(["functionHandle"])],
-        )
+        cart_transform_mutation_payload(field, fragments, None, [
+          missing_function_error(["functionHandle"]),
+        ])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
@@ -1063,11 +1132,9 @@ fn handle_cart_transform_create(
           [],
         )
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [cart_transform.id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          cart_transform.id,
+        ]),
         store_final,
         identity_final,
       )
@@ -1093,11 +1160,7 @@ fn handle_cart_transform_delete(
       let payload =
         delete_payload(field, fragments, None, [not_found_error("id", id)])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
@@ -1106,11 +1169,9 @@ fn handle_cart_transform_delete(
       let next_store = store.delete_staged_cart_transform(store, id)
       let payload = delete_payload(field, fragments, Some(id), [])
       #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [id],
-        ),
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
+          id,
+        ]),
         next_store,
         identity,
       )
@@ -1138,7 +1199,9 @@ fn handle_tax_app_configure(
     ]
     Some(_) -> []
   }
-  let #(configuration_after, next_store, next_identity, staged_id) = case ready {
+  let #(configuration_after, next_store, next_identity, staged_id) = case
+    ready
+  {
     Some(value) -> {
       let #(timestamp, identity_after_ts) =
         synthetic_identity.make_synthetic_timestamp(identity)
@@ -1155,7 +1218,9 @@ fn handle_tax_app_configure(
         )
       let updated_store =
         store.set_staged_tax_app_configuration(store, configuration)
-      #(Some(configuration), updated_store, identity_after_ts, [configuration.id])
+      #(Some(configuration), updated_store, identity_after_ts, [
+        configuration.id,
+      ])
     }
     None -> #(
       store.get_effective_tax_app_configuration(store),
@@ -1265,10 +1330,7 @@ fn user_error_to_source(error: UserError) -> SourceValue {
   }
   src_object([
     #("__typename", SrcString("UserError")),
-    #(
-      "field",
-      SrcList(list.map(error.field, fn(part) { SrcString(part) })),
-    ),
+    #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
     #("message", SrcString(error.message)),
     #("code", code_source),
   ])
@@ -1363,6 +1425,10 @@ fn ensure_shopify_function(
     Some(record) -> record.app_key
     None -> None
   }
+  let app = case existing {
+    Some(record) -> record.app
+    None -> None
+  }
   let record =
     ShopifyFunctionRecord(
       id: id,
@@ -1371,6 +1437,7 @@ fn ensure_shopify_function(
       api_type: Some(api_type),
       description: description,
       app_key: app_key,
+      app: app,
     )
   let #(_, next_store) = store.upsert_staged_shopify_function(store, record)
   #(record, next_store, identity_after_id)
@@ -1457,8 +1524,7 @@ fn split_on_handle_separators(
             [],
             list.append(acc, [list.reverse(current)]),
           )
-        False ->
-          split_on_handle_separators(rest, [char, ..current], acc)
+        False -> split_on_handle_separators(rest, [char, ..current], acc)
       }
   }
 }
@@ -1473,8 +1539,7 @@ fn is_handle_separator(char: String) -> Bool {
 fn capitalize_segment(segment: String) -> String {
   case string.to_graphemes(segment) {
     [] -> ""
-    [first, ..rest] ->
-      string.uppercase(first) <> string.join(rest, "")
+    [first, ..rest] -> string.uppercase(first) <> string.join(rest, "")
   }
 }
 
@@ -1484,4 +1549,3 @@ fn result_to_option(result: Result(a, b)) -> Option(a) {
     Error(_) -> None
   }
 }
-

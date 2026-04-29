@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-29 — Pass 28: function owner metadata parity seeding
+
+Enables `functions-owner-metadata-local-staging` as executable Gleam
+parity evidence. The scenario's capture carries explicit
+`seedShopifyFunctions` records for installed validation and cart
+transform Functions, including owner `appKey`, `description`, and
+selected `app` fields. The runner now hydrates those records before
+the primary mutation and mirrors the local-runtime seed counter
+advance so the captured synthetic ids and timestamps line up.
+
+This pass also closes a Functions-domain substrate gap: handled
+Functions mutations now record a staged mutation-log entry after the
+domain response is built, matching the TS runtime's supported-mutation
+observability and preserving commit replay metadata.
+
+| Module | Change |
+| --- | --- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam` | Adds `ShopifyFunctionAppRecord` and threads optional owner app metadata through `ShopifyFunctionRecord`. |
+| `gleam/src/shopify_draft_proxy/proxy/functions.gleam` | Projects seeded Function owner app fields, preserves app metadata when reusing known Functions, and records staged Functions mutation-log entries. |
+| `gleam/test/parity/runner.gleam` | Adds capture seeding for `functions-owner-metadata-local-staging` from `seedShopifyFunctions`. |
+| `gleam/test/parity_test.gleam` | Enables the owner metadata parity scenario. |
+| `gleam/test/shopify_draft_proxy/proxy/functions_mutation_test.gleam` | Adds a direct mutation-log assertion for Functions mutations. |
+
+Validation: `gleam test --target javascript` is green at 643 tests.
+`gleam test --target erlang` is green at 636 tests via the
+`erlang:27` container fallback because the host lacks `escript`. The
+targeted touched-file `gleam format --check ...` invocation is green.
+The TypeScript `gleam-interop` Vitest smoke is green.
+
+### Findings
+
+- Function owner metadata belongs on `ShopifyFunctionRecord`, not on
+  each validation/cart-transform record. Reusing a known Function now
+  preserves the app owner payload for all downstream projections.
+- The owner metadata fixture expects the local-runtime seed phase to
+  have advanced the synthetic counters once before the primary request.
+  Keeping that fixture-specific behavior in the parity runner avoids
+  mutating checked-in specs or captures.
+- Functions mutations were missing the same staged mutation-log
+  observability that the TS route adds after supported local handling.
+
+### Risks / open items
+
+- `functions-metadata-local-staging` remains intentionally disabled
+  because its fixture was previously verified as divergent from both
+  TS and Gleam output.
+- The host workspace still lacks local Erlang tooling (`escript`), so
+  BEAM validation depends on the `erlang:27` container fallback.
+
+### Pass 29 candidates
+
+- Continue bulk-operations beyond the empty-read stub by porting the
+  state slice and real catalog reads.
+- Continue marketing beyond the empty-read stub by porting the activity
+  and engagement state slices.
+- Revisit the divergent `functions-metadata-local-staging` fixture
+  only if the capture is regenerated or its comparison contract is
+  corrected.
+
+---
+
 ## 2026-04-29 — Pass 27: gift-card search parity seeding
 
 Promotes the `gift-card-search-filters` parity spec from a documented

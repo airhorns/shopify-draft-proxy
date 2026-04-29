@@ -71,12 +71,14 @@ pub fn gift_card_search_filters_test() {
 // `shopify-gid:Validation` + `iso-timestamp` matchers. Tracked as a
 // fixture-correctness follow-up, not a port gap.
 
-// NOTE: functions-owner-metadata-local-staging needs snapshot
-// seeding — its capture starts from a store with pre-installed
-// Function records that carry `appKey`, `description`, and `app`
-// metadata. With an empty store the proxy correctly returns
-// minimal-metadata records; the test will be enabled once the
-// runner gains seeding support (Pass 22b).
+// This scenario relies on runner seeding from the capture's
+// `seedShopifyFunctions` records so known owner/app metadata can be
+// preserved across staged validation and cart-transform writes.
+pub fn functions_owner_metadata_local_staging_test() {
+  check(
+    "config/parity-specs/functions/functions-owner-metadata-local-staging.json",
+  )
+}
 
 // ----------- apps -----------
 

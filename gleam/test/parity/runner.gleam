@@ -34,11 +34,14 @@ import shopify_draft_proxy/proxy/draft_proxy.{
   type DraftProxy, type Response, Request,
 }
 import shopify_draft_proxy/state/store as store_mod
+import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
   type GiftCardRecord, type GiftCardTransactionRecord, type Money,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord,
   GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, Money,
+  GiftCardTransactionRecord, Money, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord,
 }
 import simplifile
 
@@ -132,8 +135,75 @@ fn seed_capture_preconditions(
   case parsed.scenario_id {
     "gift-card-search-filters" ->
       seed_gift_card_lifecycle_preconditions(capture, proxy)
+    "functions-owner-metadata-local-staging" ->
+      seed_shopify_function_preconditions(capture, proxy)
     _ -> proxy
   }
+}
+
+fn seed_shopify_function_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let records = case jsonpath.lookup(capture, "$.seedShopifyFunctions") {
+    Some(JArray(nodes)) -> list.filter_map(nodes, make_seed_shopify_function)
+    _ -> []
+  }
+
+  let seeded_store =
+    list.fold(records, proxy.store, fn(current_store, record) {
+      let #(_, next_store) =
+        store_mod.upsert_staged_shopify_function(current_store, record)
+      next_store
+    })
+
+  // The local-runtime fixture was captured after the function metadata
+  // seed step had advanced the synthetic counters once.
+  let #(_, identity_after_id) =
+    synthetic_identity.make_synthetic_gid(
+      proxy.synthetic_identity,
+      "MutationLogEntry",
+    )
+  let #(_, identity_after_seed) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+
+  draft_proxy.DraftProxy(
+    ..proxy,
+    store: seeded_store,
+    synthetic_identity: identity_after_seed,
+  )
+}
+
+fn make_seed_shopify_function(
+  source: JsonValue,
+) -> Result(ShopifyFunctionRecord, Nil) {
+  use id <- result.try(required_string_field(source, "id"))
+  Ok(
+    ShopifyFunctionRecord(
+      id: id,
+      title: read_string_field(source, "title"),
+      handle: read_string_field(source, "handle"),
+      api_type: read_string_field(source, "apiType"),
+      description: read_string_field(source, "description"),
+      app_key: read_string_field(source, "appKey"),
+      app: case read_object_field(source, "app") {
+        Some(app) -> Some(make_seed_shopify_function_app(app))
+        None -> None
+      },
+    ),
+  )
+}
+
+fn make_seed_shopify_function_app(
+  source: JsonValue,
+) -> ShopifyFunctionAppRecord {
+  ShopifyFunctionAppRecord(
+    typename: read_string_field(source, "__typename"),
+    id: read_string_field(source, "id"),
+    title: read_string_field(source, "title"),
+    handle: read_string_field(source, "handle"),
+    api_key: read_string_field(source, "apiKey"),
+  )
 }
 
 fn seed_gift_card_lifecycle_preconditions(

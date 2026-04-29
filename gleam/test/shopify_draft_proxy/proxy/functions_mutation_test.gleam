@@ -51,6 +51,7 @@ fn shopify_fn(
     api_type: Some(api_type),
     description: None,
     app_key: None,
+    app: None,
   )
 }
 
@@ -94,6 +95,25 @@ pub fn process_mutation_returns_data_envelope_test() {
   // Always wraps in `{"data": {...}}`.
   assert body
     == "{\"data\":{\"validationCreate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"title\":\"My validator\"},\"userErrors\":[]}}}"
+}
+
+pub fn process_mutation_records_staged_log_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { taxAppConfigure(ready: true) { taxAppConfiguration { id } userErrors { field message code } } }",
+    )
+
+  let assert [entry] = store.get_log(outcome.store)
+  assert entry.operation_name == Some("taxAppConfigure")
+  assert entry.path == "/admin/api/2025-01/graphql.json"
+  assert entry.status == store.Staged
+  assert entry.staged_resource_ids
+    == [
+      "gid://shopify/TaxAppConfiguration/local",
+    ]
+  assert entry.interpreted.capability.domain == "functions"
+  assert entry.interpreted.capability.execution == "stage-locally"
 }
 
 // ----------- validationCreate -----------

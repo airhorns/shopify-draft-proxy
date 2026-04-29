@@ -210,11 +210,21 @@ pub type AppInstallationRecord {
 // Functions domain (Pass 18)
 // ---------------------------------------------------------------------------
 
-/// Mirrors `ShopifyFunctionRecord`. The TS schema also carries an
-/// `app: jsonObjectSchema.optional()` field for upstream-hydrated
-/// functions; the Gleam port omits it because the proxy never mints
-/// app metadata locally — `app` always projects to `null` until
-/// upstream hydration lands.
+/// Mirrors the selected `App` object carried by upstream-hydrated
+/// `ShopifyFunctionRecord.app` metadata.
+pub type ShopifyFunctionAppRecord {
+  ShopifyFunctionAppRecord(
+    typename: Option(String),
+    id: Option(String),
+    title: Option(String),
+    handle: Option(String),
+    api_key: Option(String),
+  )
+}
+
+/// Mirrors `ShopifyFunctionRecord`. Locally minted records do not
+/// invent app metadata, but captured/upstream-seeded records preserve
+/// their owner app shape for downstream reads.
 pub type ShopifyFunctionRecord {
   ShopifyFunctionRecord(
     id: String,
@@ -223,6 +233,7 @@ pub type ShopifyFunctionRecord {
     api_type: Option(String),
     description: Option(String),
     app_key: Option(String),
+    app: Option(ShopifyFunctionAppRecord),
   )
 }
 

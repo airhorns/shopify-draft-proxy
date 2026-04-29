@@ -31,6 +31,7 @@ fn shopify_fn(
     api_type: Some(api_type),
     description: None,
     app_key: None,
+    app: None,
   )
 }
 
@@ -158,8 +159,7 @@ pub fn validation_enable_and_enabled_alias_test() {
       "{ validation(id: \"gid://shopify/Validation/2\") { enable enabled } }",
     )
   // Both fields project the same boolean — the proxy aliases `enabled`.
-  assert result
-    == "{\"validation\":{\"enable\":true,\"enabled\":true}}"
+  assert result == "{\"validation\":{\"enable\":true,\"enabled\":true}}"
 }
 
 pub fn validation_embedded_shopify_function_test() {
@@ -209,8 +209,7 @@ pub fn validation_function_id_falls_back_to_shopify_function_id_test() {
 // ----------- validations connection -----------
 
 pub fn validations_connection_empty_test() {
-  let result =
-    run(store.new(), "{ validations(first: 5) { nodes { id } } }")
+  let result = run(store.new(), "{ validations(first: 5) { nodes { id } } }")
   assert result == "{\"validations\":{\"nodes\":[]}}"
 }
 
@@ -228,8 +227,7 @@ pub fn validations_connection_returns_seeded_test() {
     |> seed_function(fn_record)
     |> seed_validation(v1)
     |> seed_validation(v2)
-  let result =
-    run(s, "{ validations(first: 5) { nodes { id title } } }")
+  let result = run(s, "{ validations(first: 5) { nodes { id title } } }")
   assert result
     == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/10\",\"title\":\"Some validation\"},{\"id\":\"gid://shopify/Validation/11\",\"title\":\"Some validation\"}]}}"
 }
@@ -237,8 +235,7 @@ pub fn validations_connection_returns_seeded_test() {
 // ----------- cartTransforms connection -----------
 
 pub fn cart_transforms_connection_empty_test() {
-  let result =
-    run(store.new(), "{ cartTransforms(first: 5) { nodes { id } } }")
+  let result = run(store.new(), "{ cartTransforms(first: 5) { nodes { id } } }")
   assert result == "{\"cartTransforms\":{\"nodes\":[]}}"
 }
 
@@ -318,11 +315,7 @@ pub fn shopify_functions_connection_returns_all_test() {
     store.new()
     |> seed_function(v_fn)
     |> seed_function(ct_fn)
-  let result =
-    run(
-      s,
-      "{ shopifyFunctions(first: 5) { nodes { id apiType } } }",
-    )
+  let result = run(s, "{ shopifyFunctions(first: 5) { nodes { id apiType } } }")
   assert result
     == "{\"shopifyFunctions\":{\"nodes\":[{\"id\":\"gid://shopify/ShopifyFunction/checkout-validator\",\"apiType\":\"VALIDATION\"},{\"id\":\"gid://shopify/ShopifyFunction/cart-transformer\",\"apiType\":\"CART_TRANSFORM\"}]}}"
 }
@@ -372,8 +365,7 @@ pub fn shopify_function_id_from_handle_test() {
 pub fn title_from_handle_test() {
   assert functions.title_from_handle("checkout-validator")
     == "Checkout Validator"
-  assert functions.title_from_handle("snake_case_handle")
-    == "Snake Case Handle"
+  assert functions.title_from_handle("snake_case_handle") == "Snake Case Handle"
   assert functions.title_from_handle("Spaces  In   Between")
     == "Spaces In Between"
 }
