@@ -9,7 +9,7 @@ import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } fro
 import { handleB2BQuery } from './b2b.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
-import { handleDeliveryProfileQuery } from './delivery-profiles.js';
+import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
 import { handleDiscountQuery } from './discounts.js';
 import { handleFunctionQuery } from './functions.js';
 import { handleGiftCardQuery } from './gift-cards.js';
@@ -29,10 +29,20 @@ import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
 import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
-import { handleProductQuery, serializeProductOptionNodeById, serializeProductOptionValueNodeById } from './products.js';
+import {
+  handleProductQuery,
+  serializeProductOptionNodeById,
+  serializeProductOptionValueNodeById,
+  serializeSellingPlanNodeById,
+} from './products.js';
 import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
-import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
+import {
+  handleStorePropertiesQuery,
+  serializeShopAddressNodeById,
+  serializeShopNodeById,
+  serializeShopPolicyNodeById,
+} from './store-properties.js';
 import { handleWebhookSubscriptionQuery } from './webhooks.js';
 
 interface GraphQLResponseError {
@@ -720,6 +730,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     handler: handleProductNodeQuery,
     typeConditions: ['ProductOperation'],
   },
+  SellingPlan: {
+    typename: 'SellingPlan',
+    serialize: (runtime, id, selectedFields) =>
+      serializeSellingPlanNodeById(runtime, id, syntheticNodeField(selectedFields)),
+  },
   SellingPlanGroup: { rootField: 'sellingPlanGroup', typename: 'SellingPlanGroup', handler: handleProductNodeQuery },
 
   Customer: { rootField: 'customer', typename: 'Customer', handler: handleCustomerQuery },
@@ -740,6 +755,14 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Shop: {
     typename: 'Shop',
     serialize: (runtime, id, selectedFields) => serializeShopNodeById(runtime, id, selectedFields),
+  },
+  ShopAddress: {
+    typename: 'ShopAddress',
+    serialize: (runtime, id, selectedFields) => serializeShopAddressNodeById(runtime, id, selectedFields),
+  },
+  ShopPolicy: {
+    typename: 'ShopPolicy',
+    serialize: (runtime, id, selectedFields) => serializeShopPolicyNodeById(runtime, id, selectedFields),
   },
   DeliveryCarrierService: {
     rootField: 'carrierService',
@@ -812,6 +835,46 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
 
   GiftCard: { rootField: 'giftCard', typename: 'GiftCard', handler: handleGiftCardQuery },
   DeliveryProfile: { rootField: 'deliveryProfile', typename: 'DeliveryProfile', handler: handleDeliveryProfileQuery },
+  DeliveryCondition: {
+    typename: 'DeliveryCondition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryCondition', selectedFields, variables),
+  },
+  DeliveryCountry: {
+    typename: 'DeliveryCountry',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryCountry', selectedFields, variables),
+  },
+  DeliveryLocationGroup: {
+    typename: 'DeliveryLocationGroup',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryLocationGroup', selectedFields, variables),
+  },
+  DeliveryMethodDefinition: {
+    typename: 'DeliveryMethodDefinition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryMethodDefinition', selectedFields, variables),
+  },
+  DeliveryParticipant: {
+    typename: 'DeliveryParticipant',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryParticipant', selectedFields, variables),
+  },
+  DeliveryProvince: {
+    typename: 'DeliveryProvince',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryProvince', selectedFields, variables),
+  },
+  DeliveryRateDefinition: {
+    typename: 'DeliveryRateDefinition',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryRateDefinition', selectedFields, variables),
+  },
+  DeliveryZone: {
+    typename: 'DeliveryZone',
+    serialize: (runtime, id, selectedFields, variables) =>
+      serializeDeliveryProfileNestedNodeById(runtime, id, 'DeliveryZone', selectedFields, variables),
+  },
 
   DiscountCodeNode: { rootField: 'codeDiscountNode', typename: 'DiscountCodeNode', handler: handleDiscountQuery },
   DiscountAutomaticNode: {
