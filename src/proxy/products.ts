@@ -354,7 +354,7 @@ interface CollectionProductMove {
   newPosition: number;
 }
 
-type CollectionReorderUserError = { field: string[]; message: string };
+type CollectionReorderUserError = { field: string[]; message: string; code?: string | null };
 type ProductReorderUserError = { field: string[]; message: string };
 
 interface ProductVariantPosition {
@@ -408,17 +408,17 @@ function readCollectionProductMoves(rawMoves: unknown): {
   if (rawMoveList.length === 0) {
     return {
       moves,
-      userErrors: [{ field: ['moves'], message: 'At least one move is required' }],
+      userErrors: [{ field: ['moves'], message: 'At least one move is required', code: 'INVALID_MOVE' }],
     };
   }
 
   if (rawMoveList.length > 250) {
-    userErrors.push({ field: ['moves'], message: 'Too many moves were provided' });
+    userErrors.push({ field: ['moves'], message: 'Too many moves were provided', code: 'INVALID_MOVE' });
   }
 
   for (const [index, rawMove] of rawMoveList.entries()) {
     if (!isObject(rawMove)) {
-      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid' });
+      userErrors.push({ field: ['moves', `${index}`], message: 'Move is invalid', code: 'INVALID_MOVE' });
       continue;
     }
 
@@ -426,10 +426,14 @@ function readCollectionProductMoves(rawMoves: unknown): {
     const newPosition = readCollectionReorderPosition(rawMove['newPosition']);
 
     if (!productId) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required' });
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product id is required', code: 'INVALID_MOVE' });
     }
     if (newPosition === null) {
-      userErrors.push({ field: ['moves', `${index}`, 'newPosition'], message: 'Position is invalid' });
+      userErrors.push({
+        field: ['moves', `${index}`, 'newPosition'],
+        message: 'Position is invalid',
+        code: 'INVALID_MOVE',
+      });
     }
     if (productId && newPosition !== null) {
       moves.push({ id: productId, newPosition });
@@ -476,6 +480,44 @@ function readProductVariantPositions(rawPositions: unknown): {
   return { positions, userErrors };
 }
 
+function serializeCollectionReorderUserErrors(
+  field: FieldNode | null,
+  errors: CollectionReorderUserError[],
+): Array<Record<string, unknown>> {
+  if (!field) {
+    return errors.map((error) => ({
+      field: error.field,
+      message: error.message,
+      code: error.code ?? null,
+    }));
+  }
+
+  return errors.map((error) => {
+    const result: Record<string, unknown> = {};
+    for (const selection of field.selectionSet?.selections ?? []) {
+      if (selection.kind !== Kind.FIELD) {
+        continue;
+      }
+
+      const key = selection.alias?.value ?? selection.name.value;
+      switch (selection.name.value) {
+        case 'field':
+          result[key] = error.field;
+          break;
+        case 'message':
+          result[key] = error.message;
+          break;
+        case 'code':
+          result[key] = error.code ?? null;
+          break;
+        default:
+          result[key] = null;
+      }
+    }
+    return result;
+  });
+}
+
 function applySequentialReorder<T>(
   items: T[],
   moves: Array<{ id: string; position: number }>,
@@ -510,7 +552,13 @@ function reorderCollectionProducts(
   ) {
     return {
       job: null,
-      userErrors: [{ field: ['id'], message: "Can't reorder products unless collection is manually sorted" }],
+      userErrors: [
+        {
+          field: ['id'],
+          message: "Can't reorder products unless collection is manually sorted",
+          code: 'MANUALLY_SORTED_COLLECTION',
+        },
+      ],
     };
   }
 
@@ -520,9 +568,13 @@ function reorderCollectionProducts(
 
   for (const [index, move] of moves.entries()) {
     if (!runtime.store.getEffectiveProductById(move.id)) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist' });
+      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product does not exist', code: 'INVALID_MOVE' });
     } else if (!productIdsInCollection.has(move.id)) {
-      userErrors.push({ field: ['moves', `${index}`, 'id'], message: 'Product is not in the collection' });
+      userErrors.push({
+        field: ['moves', `${index}`, 'id'],
+        message: 'Product is not in the collection',
+        code: 'INVALID_MOVE',
+      });
     }
   }
 
@@ -13151,7 +13203,9 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               job: null,
-              userErrors: [{ field: ['id'], message: 'Collection id is required' }],
+              userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), [
+                { field: ['id'], message: 'Collection id is required' },
+              ]),
             },
           },
         };
@@ -13163,7 +13217,9 @@ export function handleProductMutation(
           data: {
             [responseKey]: {
               job: null,
-              userErrors: [{ field: ['id'], message: 'Collection not found' }],
+              userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), [
+                { field: ['id'], message: 'Collection not found', code: 'COLLECTION_NOT_FOUND' },
+              ]),
             },
           },
         };
@@ -13176,7 +13232,7 @@ export function handleProductMutation(
             job: result.job
               ? serializeJobSelectionSet(result.job, getChildField(field, 'job')?.selectionSet?.selections ?? [])
               : null,
-            userErrors: result.userErrors,
+            userErrors: serializeCollectionReorderUserErrors(getChildField(field, 'userErrors'), result.userErrors),
           },
         },
       };
