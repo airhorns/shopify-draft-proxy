@@ -933,6 +933,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-input-inline-consent',
+    scriptPath: 'scripts/capture-customer-input-consent-conformance.ts',
+    purpose: 'CustomerInput inline marketing consent create semantics and update rejection behavior.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-input-inline-consent-parity.json`,
+      'config/parity-specs/customers/customerInputInlineConsent-parity.json',
+      'config/parity-requests/customers/customerInputInlineConsent-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable customer, records inline consent create/update behavior, then deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-addresses',
     scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
     purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
