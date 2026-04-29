@@ -116,6 +116,33 @@ describe('product merchandising and feedback flow', () => {
       });
     expect(deleteResponse.body.data.productFeedDelete).toEqual({ deletedId: feedId, userErrors: [] });
 
+    const readAfterDeleteResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query FeedsAfterDelete($id: ID!) {
+            productFeed(id: $id) { id status }
+            productFeeds(first: 10) {
+              nodes { id country language status }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        `,
+        variables: { id: feedId },
+      });
+    expect(readAfterDeleteResponse.body.data).toEqual({
+      productFeed: null,
+      productFeeds: {
+        nodes: [],
+        pageInfo: {
+          hasNextPage: false,
+          hasPreviousPage: false,
+          startCursor: null,
+          endCursor: null,
+        },
+      },
+    });
+
     const stateResponse = await request(app).get('/__meta/state');
     expect(stateResponse.body.stagedState.productFeeds).toEqual({});
     expect(stateResponse.body.stagedState.deletedProductFeedIds).toEqual({ [feedId]: true });
@@ -212,6 +239,66 @@ describe('product merchandising and feedback flow', () => {
       state: 'REQUIRES_ACTION',
     });
     expect(Object.values(stateResponse.body.stagedState.shopResourceFeedback)).toHaveLength(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns local product feedback validation errors without staging partial feedback', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('feedback roots should stay local'));
+    const app = createApp(config).callback();
+    const missingProductId = 'gid://shopify/Product/7999';
+
+    const feedbackResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          mutation ProductFeedback($feedbackInput: [ProductResourceFeedbackInput!]!) {
+            bulkProductResourceFeedbackCreate(feedbackInput: $feedbackInput) {
+              feedback { productId state messages feedbackGeneratedAt productUpdatedAt }
+              userErrors { field message code }
+            }
+          }
+        `,
+        variables: {
+          feedbackInput: [
+            {
+              productId: missingProductId,
+              state: 'REQUIRES_ACTION',
+              feedbackGeneratedAt: '2024-02-01T00:00:00Z',
+              productUpdatedAt: '2024-01-31T00:00:00Z',
+              messages: ['Needs a description.'],
+            },
+          ],
+        },
+      });
+
+    expect(feedbackResponse.body.data.bulkProductResourceFeedbackCreate).toEqual({
+      feedback: [],
+      userErrors: [
+        {
+          field: ['feedbackInput', '0', 'productId'],
+          message: 'Product does not exist',
+          code: null,
+        },
+      ],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `#graphql
+          query ProductFeedback($id: ID!) {
+            productResourceFeedback(id: $id) {
+              productId
+              state
+              messages
+              feedbackGeneratedAt
+              productUpdatedAt
+            }
+          }
+        `,
+        variables: { id: missingProductId },
+      });
+    expect(readResponse.body.data.productResourceFeedback).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

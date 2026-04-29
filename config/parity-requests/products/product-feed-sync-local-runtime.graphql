@@ -1,0 +1,10 @@
+mutation ProductFeedSyncLocalRuntime($id: ID!) {
+  productFullSync(id: $id) {
+    id
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

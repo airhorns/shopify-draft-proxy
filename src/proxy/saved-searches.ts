@@ -2,6 +2,7 @@ import type { ProxyRuntimeContext } from './runtime-context.js';
 import { type FieldNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
+import { parseSearchQueryTerm, searchQueryTermValue, stripSearchQueryValueQuotes } from '../search-query-parser.js';
 import type { SavedSearchRecord } from '../state/types.js';
 import {
   getDocumentFragments,
@@ -97,16 +98,120 @@ function escapeSavedSearchTermForStoredQuery(term: string): string {
   return term.replace(/-/gu, '\\-');
 }
 
+function normalizeSavedSearchQuotedValues(value: string): string {
+  let normalized = '';
+  let quoteCharacter: '"' | "'" | null = null;
+
+  for (const character of value) {
+    if (character === '"' || character === "'") {
+      if (quoteCharacter === character) {
+        quoteCharacter = null;
+        normalized += '"';
+        continue;
+      }
+
+      if (quoteCharacter === null) {
+        quoteCharacter = character;
+        normalized += '"';
+        continue;
+      }
+    }
+
+    normalized += character;
+  }
+
+  return normalized;
+}
+
+function splitSavedSearchTopLevelTokens(rawQuery: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quoteCharacter: '"' | "'" | null = null;
+  let groupDepth = 0;
+
+  const flushCurrent = (): void => {
+    const value = current.trim();
+    if (value) {
+      tokens.push(value);
+    }
+    current = '';
+  };
+
+  for (const character of rawQuery.trim()) {
+    if (character === '"' || character === "'") {
+      quoteCharacter = quoteCharacter === character ? null : quoteCharacter === null ? character : quoteCharacter;
+      current += character;
+      continue;
+    }
+
+    if (quoteCharacter === null) {
+      if (character === '(') {
+        groupDepth += 1;
+      } else if (character === ')' && groupDepth > 0) {
+        groupDepth -= 1;
+      } else if (groupDepth === 0 && /\s/u.test(character)) {
+        flushCurrent();
+        continue;
+      }
+    }
+
+    current += character;
+  }
+
+  flushCurrent();
+  return tokens;
+}
+
+function isGroupedToken(token: string): boolean {
+  return token.includes('(') || token.includes(')');
+}
+
+function isBooleanToken(token: string): boolean {
+  return token.toUpperCase() === 'OR';
+}
+
+function isFilterCandidate(token: string): boolean {
+  return !isBooleanToken(token) && !isGroupedToken(token);
+}
+
+function filterValueForTerm(token: string): string {
+  const term = parseSearchQueryTerm(token);
+  return stripSearchQueryValueQuotes(searchQueryTermValue(term));
+}
+
+function renderSavedSearchFilter(filter: SavedSearchRecord['filters'][number]): string {
+  const negated = filter.key.endsWith('_not');
+  const key = negated ? (filter.key.slice(0, -4) ?? filter.key) : filter.key;
+  const value = /\s/u.test(filter.value) ? `"${filter.value}"` : filter.value;
+  return `${negated ? '-' : ''}${key}:${value}`;
+}
+
+function normalizeSavedSearchTerm(token: string): string {
+  const normalized = normalizeSavedSearchQuotedValues(token);
+  if (
+    normalized.includes(':') ||
+    normalized.includes('"') ||
+    isBooleanToken(normalized) ||
+    isGroupedToken(normalized)
+  ) {
+    return normalized;
+  }
+
+  return escapeSavedSearchTermForStoredQuery(normalized);
+}
+
 function parseSavedSearchQuery(rawQuery: string): Pick<SavedSearchRecord, 'filters' | 'query' | 'searchTerms'> {
   const filters: SavedSearchRecord['filters'] = [];
   const searchTerms: string[] = [];
+  const tokens = splitSavedSearchTopLevelTokens(rawQuery);
+  const hasBooleanExpression = tokens.some((token) => isBooleanToken(token) || isGroupedToken(token));
 
-  for (const token of rawQuery.trim().split(/\s+/u).filter(Boolean)) {
-    const separatorIndex = token.indexOf(':');
-    if (separatorIndex > 0 && separatorIndex < token.length - 1) {
+  for (const token of tokens) {
+    const term = parseSearchQueryTerm(token);
+    if (term.field && term.value && isFilterCandidate(token) && (term.negated || !hasBooleanExpression)) {
       filters.push({
-        key: token.slice(0, separatorIndex),
-        value: token.slice(separatorIndex + 1),
+        key: term.negated ? `${term.field}_not` : term.field,
+        value: filterValueForTerm(token),
       });
     } else {
       searchTerms.push(token);
@@ -114,14 +219,13 @@ function parseSavedSearchQuery(rawQuery: string): Pick<SavedSearchRecord, 'filte
   }
 
   const searchTermsText = searchTerms.join(' ');
-  const storedSearchTermsText = searchTerms.map(escapeSavedSearchTermForStoredQuery).join(' ');
+  const storedSearchTermsText = searchTerms.map(normalizeSavedSearchTerm).join(' ');
   return {
     filters,
-    searchTerms: searchTermsText,
-    query: [
-      ...(storedSearchTermsText ? [storedSearchTermsText] : []),
-      ...filters.map((filter) => `${filter.key}:${filter.value}`),
-    ].join(' '),
+    searchTerms: normalizeSavedSearchQuotedValues(searchTermsText),
+    query: [...(storedSearchTermsText ? [storedSearchTermsText] : []), ...filters.map(renderSavedSearchFilter)].join(
+      ' ',
+    ),
   };
 }
 

@@ -3372,6 +3372,43 @@ function buildCreatedCustomer(runtime: ProxyRuntimeContext, input: Record<string
   const taxExempt = input['taxExempt'] === true;
   const taxExemptions = normalizeCustomerTaxExemptions(input['taxExemptions'], []);
   const tags = normalizeCustomerTags(input['tags'], []);
+  const emailMarketingConsentInput = readConsentPayload(input, 'emailMarketingConsent');
+  const hasEmailMarketingConsentInput = isObject(input['emailMarketingConsent']);
+  const smsMarketingConsentInput = readConsentPayload(input, 'smsMarketingConsent');
+  const hasSmsMarketingConsentInput = isObject(input['smsMarketingConsent']);
+  const emailMarketingConsent = email
+    ? {
+        marketingState:
+          hasEmailMarketingConsentInput && typeof emailMarketingConsentInput['marketingState'] === 'string'
+            ? emailMarketingConsentInput['marketingState']
+            : 'NOT_SUBSCRIBED',
+        marketingOptInLevel:
+          hasEmailMarketingConsentInput && typeof emailMarketingConsentInput['marketingOptInLevel'] === 'string'
+            ? emailMarketingConsentInput['marketingOptInLevel']
+            : 'SINGLE_OPT_IN',
+        consentUpdatedAt:
+          hasEmailMarketingConsentInput && typeof emailMarketingConsentInput['consentUpdatedAt'] === 'string'
+            ? emailMarketingConsentInput['consentUpdatedAt']
+            : null,
+      }
+    : null;
+  const smsMarketingConsent = phone
+    ? {
+        marketingState:
+          hasSmsMarketingConsentInput && typeof smsMarketingConsentInput['marketingState'] === 'string'
+            ? smsMarketingConsentInput['marketingState']
+            : 'NOT_SUBSCRIBED',
+        marketingOptInLevel:
+          hasSmsMarketingConsentInput && typeof smsMarketingConsentInput['marketingOptInLevel'] === 'string'
+            ? smsMarketingConsentInput['marketingOptInLevel']
+            : 'SINGLE_OPT_IN',
+        consentUpdatedAt:
+          hasSmsMarketingConsentInput && typeof smsMarketingConsentInput['consentUpdatedAt'] === 'string'
+            ? smsMarketingConsentInput['consentUpdatedAt']
+            : null,
+        consentCollectedFrom: hasSmsMarketingConsentInput ? 'OTHER' : null,
+      }
+    : null;
 
   return {
     id,
@@ -3394,35 +3431,22 @@ function buildCreatedCustomer(runtime: ProxyRuntimeContext, input: Record<string
     defaultEmailAddress: email
       ? {
           emailAddress: email,
-          marketingState: 'NOT_SUBSCRIBED',
-          marketingOptInLevel: 'SINGLE_OPT_IN',
-          marketingUpdatedAt: null,
+          marketingState: emailMarketingConsent?.marketingState ?? 'NOT_SUBSCRIBED',
+          marketingOptInLevel: emailMarketingConsent?.marketingOptInLevel ?? 'SINGLE_OPT_IN',
+          marketingUpdatedAt: emailMarketingConsent?.consentUpdatedAt ?? null,
         }
       : null,
     defaultPhoneNumber: phone
       ? {
           phoneNumber: maskPhoneNumber(phone),
-          marketingState: 'NOT_SUBSCRIBED',
-          marketingOptInLevel: 'SINGLE_OPT_IN',
-          marketingUpdatedAt: null,
-          marketingCollectedFrom: null,
+          marketingState: smsMarketingConsent?.marketingState ?? 'NOT_SUBSCRIBED',
+          marketingOptInLevel: smsMarketingConsent?.marketingOptInLevel ?? 'SINGLE_OPT_IN',
+          marketingUpdatedAt: smsMarketingConsent?.consentUpdatedAt ?? null,
+          marketingCollectedFrom: smsMarketingConsent?.consentCollectedFrom ?? null,
         }
       : null,
-    emailMarketingConsent: email
-      ? {
-          marketingState: 'NOT_SUBSCRIBED',
-          marketingOptInLevel: 'SINGLE_OPT_IN',
-          consentUpdatedAt: null,
-        }
-      : null,
-    smsMarketingConsent: phone
-      ? {
-          marketingState: 'NOT_SUBSCRIBED',
-          marketingOptInLevel: 'SINGLE_OPT_IN',
-          consentUpdatedAt: null,
-          consentCollectedFrom: null,
-        }
-      : null,
+    emailMarketingConsent,
+    smsMarketingConsent,
     defaultAddress: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -4118,6 +4142,31 @@ function buildConsentMarketingOptInLevelUserError(
   };
 }
 
+function buildCustomerInputConsentUpdateUserError(
+  consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
+): CustomerMutationUserError {
+  return {
+    field: [consentKey],
+    message: `To update ${consentKey}, please use the ${
+      consentKey === 'emailMarketingConsent'
+        ? 'customerEmailMarketingConsentUpdate'
+        : 'customerSmsMarketingConsentUpdate'
+    } Mutation instead`,
+  };
+}
+
+function validateCustomerUpdateInputConsentFields(input: Record<string, unknown>): CustomerMutationUserError[] {
+  if (hasOwnField(input, 'smsMarketingConsent')) {
+    return [buildCustomerInputConsentUpdateUserError('smsMarketingConsent')];
+  }
+
+  if (hasOwnField(input, 'emailMarketingConsent')) {
+    return [buildCustomerInputConsentUpdateUserError('emailMarketingConsent')];
+  }
+
+  return [];
+}
+
 function buildConsentUpdatedAtFutureUserError(
   consentKey: 'emailMarketingConsent' | 'smsMarketingConsent',
 ): CustomerMutationUserError {
@@ -4713,6 +4762,7 @@ export function handleCustomerMutation(
       }
 
       const userErrors = [
+        ...validateCustomerUpdateInputConsentFields(input),
         ...validateCustomerInputLongTail(runtime, input, existingCustomer.id),
         ...validateCustomerTaxExemptionInput(input),
         ...validateCustomerInputAddresses(input),

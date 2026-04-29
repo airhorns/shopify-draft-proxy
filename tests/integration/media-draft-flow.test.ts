@@ -874,6 +874,130 @@ describe('media draft flow', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('attaches a Files API media image to product media through fileUpdate references', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('fileUpdate product reference attach should not hit upstream fetch');
+    });
+    const app = createApp(config).callback();
+
+    const productResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'mutation { productCreate(product: { title: "File reference product" }) { product { id } userErrors { field message } } }',
+    });
+    const productId = productResponse.body.data.productCreate.product.id as string;
+
+    const createFileResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileCreate($files: [FileCreateInput!]!) { fileCreate(files: $files) { files { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              alt: 'Reference source',
+              contentType: 'IMAGE',
+              filename: 'reference-source.jpg',
+              originalSource: 'https://cdn.example.com/reference-source.jpg',
+            },
+          ],
+        },
+      });
+
+    expect(createFileResponse.status).toBe(200);
+    expect(createFileResponse.body.data.fileCreate.userErrors).toEqual([]);
+    const fileId = createFileResponse.body.data.fileCreate.files[0].id as string;
+
+    const updateFileResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query:
+          'mutation FileReferenceAttach($files: [FileUpdateInput!]!) { fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } } }',
+        variables: {
+          files: [
+            {
+              id: fileId,
+              alt: 'Attached file media',
+              originalSource: 'https://cdn.example.com/file-reference-ready.jpg',
+              referencesToAdd: [productId],
+            },
+          ],
+        },
+      });
+
+    expect(updateFileResponse.status).toBe(200);
+    expect(updateFileResponse.body.data.fileUpdate).toEqual({
+      files: [
+        {
+          id: fileId,
+          alt: 'Attached file media',
+          fileStatus: 'READY',
+          image: {
+            url: 'https://cdn.example.com/file-reference-ready.jpg',
+          },
+        },
+      ],
+      userErrors: [],
+    });
+
+    const productReadResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'query FileReferenceProductRead($productId: ID!) { product(id: $productId) { id title media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }',
+      variables: {
+        productId,
+      },
+    });
+    const filesReadResponse = await request(app).post('/admin/api/2026-04/graphql.json').send({
+      query:
+        'query FileReferenceFilesRead { files(first: 10) { nodes { id alt createdAt fileStatus filename ... on MediaImage { image { url width height } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }',
+    });
+
+    expect(productReadResponse.body.data.product.media).toEqual({
+      nodes: [
+        {
+          id: fileId,
+          alt: 'Attached file media',
+          mediaContentType: 'IMAGE',
+          status: 'READY',
+          preview: {
+            image: {
+              url: 'https://cdn.example.com/file-reference-ready.jpg',
+            },
+          },
+          image: {
+            url: 'https://cdn.example.com/file-reference-ready.jpg',
+          },
+        },
+      ],
+      pageInfo: {
+        hasNextPage: false,
+        hasPreviousPage: false,
+        startCursor: `cursor:${productId}:media:0`,
+        endCursor: `cursor:${productId}:media:0`,
+      },
+    });
+    expect(filesReadResponse.body.data.files.pageInfo).toEqual({
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: `cursor:${fileId}`,
+      endCursor: `cursor:${fileId}`,
+    });
+    expect(filesReadResponse.body.data.files.nodes).toEqual([
+      {
+        id: fileId,
+        alt: 'Attached file media',
+        createdAt: createFileResponse.body.data.fileCreate.files[0].createdAt,
+        fileStatus: 'READY',
+        filename: 'reference-source.jpg',
+        image: {
+          url: 'https://cdn.example.com/file-reference-ready.jpg',
+          width: null,
+          height: null,
+        },
+      },
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('stages fileDelete locally for Files API records without proxying upstream', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('fileDelete should not hit upstream fetch');
