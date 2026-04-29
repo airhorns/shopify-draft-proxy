@@ -1,0 +1,130 @@
+{
+  "kind": "local-runtime-fixture",
+  "apiVersion": "2026-04",
+  "scenarioId": "file-update-product-reference-local-staging",
+  "issue": "HAR-429",
+  "runtimeTestFiles": ["tests/integration/media-draft-flow.test.ts"],
+  "coveredOperations": ["fileCreate", "fileUpdate", "files", "product"],
+  "liveEvidenceFiles": [
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-update-parity.json"
+  ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/429001",
+      "title": "File reference target",
+      "handle": "file-reference-target",
+      "status": "ACTIVE"
+    }
+  ],
+  "evidence": [
+    "Snapshot-mode fileCreate stages a Files API MediaImage record without upstream fetch.",
+    "fileUpdate.referencesToAdd attaches the file to an existing product as product media.",
+    "The attached file remains visible through top-level files reads and becomes visible through downstream product.media reads.",
+    "No external staged-upload byte transfer is required for this local lifecycle slice."
+  ],
+  "create": {
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Reference source",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "filename": "reference-source.jpg",
+              "image": null
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "attach": {
+    "response": {
+      "data": {
+        "fileUpdate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Attached file media",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.example.com/file-reference-ready.jpg"
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "productReadAfterAttach": {
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/429001",
+          "title": "File reference target",
+          "media": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/2",
+                "alt": "Attached file media",
+                "mediaContentType": "IMAGE",
+                "status": "READY",
+                "preview": {
+                  "image": {
+                    "url": "https://cdn.example.com/file-reference-ready.jpg"
+                  }
+                },
+                "image": {
+                  "url": "https://cdn.example.com/file-reference-ready.jpg"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "cursor:gid://shopify/Product/429001:media:0",
+              "endCursor": "cursor:gid://shopify/Product/429001:media:0"
+            }
+          }
+        }
+      }
+    }
+  },
+  "filesReadAfterAttach": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Attached file media",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "READY",
+              "filename": "reference-source.jpg",
+              "image": {
+                "url": "https://cdn.example.com/file-reference-ready.jpg",
+                "width": null,
+                "height": null
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/MediaImage/2",
+            "endCursor": "cursor:gid://shopify/MediaImage/2"
+          }
+        }
+      }
+    }
+  },
+  "unsupportedExternalSideEffects": [
+    "The proxy does not upload bytes to Shopify storage in this local-runtime fixture.",
+    "The fixture exercises the local product-reference lifecycle after a file source URL is already known."
+  ]
+}

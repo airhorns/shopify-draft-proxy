@@ -1,0 +1,20 @@
+mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {
+  companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {
+    companyContact {
+      id
+      isMainContact
+      customer {
+        id
+      }
+      company {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

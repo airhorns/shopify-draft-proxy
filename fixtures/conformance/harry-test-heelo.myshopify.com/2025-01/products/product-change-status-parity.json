@@ -1,0 +1,123 @@
+{
+  "seedProduct": {
+    "id": "gid://shopify/Product/10173064872242",
+    "title": "Hermes Product State Conformance 1777416213315",
+    "handle": "hermes-product-state-conformance-1777416213315",
+    "status": "DRAFT",
+    "tags": ["existing", "hermes-state-1777416213315"]
+  },
+  "mutation": {
+    "variables": {
+      "productId": "gid://shopify/Product/10173064872242",
+      "status": "ARCHIVED"
+    },
+    "response": {
+      "data": {
+        "productChangeStatus": {
+          "product": {
+            "id": "gid://shopify/Product/10173064872242",
+            "status": "ARCHIVED",
+            "updatedAt": "2026-04-28T22:43:34Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "unknownProduct": {
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "status": "ARCHIVED"
+      },
+      "response": {
+        "data": {
+          "productChangeStatus": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["productId"],
+                "message": "Product does not exist"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nullLiteralProductId": {
+      "query": "#graphql\n  mutation ProductChangeStatusNullLiteralConformance {\n    productChangeStatus(productId: null, status: ARCHIVED) {\n      product {\n        id\n        status\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'productId' on Field 'productChangeStatus' has an invalid value (null). Expected type 'ID!'.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["mutation ProductChangeStatusNullLiteralConformance", "productChangeStatus", "productId"],
+            "extensions": {
+              "code": "argumentLiteralsIncompatible",
+              "typeName": "Field",
+              "argumentName": "productId"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "downstreamReadVariables": {
+    "id": "gid://shopify/Product/10173064872242",
+    "query": "status:archived tag:hermes-state-1777416213315"
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10173064872242",
+        "status": "ARCHIVED",
+        "updatedAt": "2026-04-28T22:43:34Z"
+      },
+      "products": {
+        "nodes": []
+      },
+      "productsCount": {
+        "count": 0,
+        "precision": "EXACT"
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 17,
+        "actualQueryCost": 17,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1983,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

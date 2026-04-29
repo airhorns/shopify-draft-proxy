@@ -249,10 +249,7 @@ describe('B2B company lifecycle mutations', () => {
         variables: { companyId },
       });
 
-    expect(revokeMainContactResponse.body.data.companyRevokeMainContact.company.mainContact).toEqual({
-      id: contactId,
-      isMainContact: false,
-    });
+    expect(revokeMainContactResponse.body.data.companyRevokeMainContact.company.mainContact).toBeNull();
 
     const extraLifecycleResponse = await request(app)
       .post('/admin/api/2026-04/graphql.json')
