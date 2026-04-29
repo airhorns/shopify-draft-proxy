@@ -1,0 +1,83 @@
+{
+  "scenarioId": "product-feed-lifecycle-local-runtime",
+  "operationNames": ["productFeed", "productFeeds", "productFeedCreate", "productFeedDelete", "productFullSync"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "delete-read-parity",
+    "no-upstream-passthrough",
+    "captured-vs-proxy-request"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/products/product-feed-lifecycle-local-runtime.json"],
+  "runtimeTestFiles": ["tests/integration/product-merchandising-feedback-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-feed-create-local-runtime.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "productFeedCreate payload",
+        "capturePath": "$.create.response.data.productFeedCreate",
+        "proxyPath": "$.data.productFeedCreate"
+      },
+      {
+        "name": "productFullSync payload",
+        "capturePath": "$.sync.response.data.productFullSync",
+        "proxyPath": "$.data.productFullSync",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-sync-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "product feed downstream read",
+        "capturePath": "$.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-read-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "productFeedDelete payload",
+        "capturePath": "$.delete.response.data.productFeedDelete",
+        "proxyPath": "$.data.productFeedDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-delete-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "product feed read after delete",
+        "capturePath": "$.afterDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feed-read-local-runtime.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productFeedCreate.productFeed.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-431 local-runtime parity evidence for the product feed lifecycle. The live harry-test-heelo shop still blocks productFeedCreate success with channel configuration errors, so this fixture records the executable local contract: create an ACTIVE feed, acknowledge productFullSync, expose productFeed/productFeeds read-after-write, delete the staged feed, and preserve null/empty reads afterward without runtime Shopify writes."
+}

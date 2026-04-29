@@ -5,12 +5,20 @@ import { createApp } from '../support/runtime.js';
 import type { AppConfig } from '../../src/config.js';
 import { resetSyntheticIdentity } from '../support/runtime.js';
 import { store } from '../support/runtime.js';
+import type { ShopRecord } from '../../src/state/types.js';
 
 const config: AppConfig = {
   port: 3000,
   shopifyAdminOrigin: 'https://example.myshopify.com',
   readMode: 'snapshot',
 };
+
+function makeLocalShop(): ShopRecord {
+  return {
+    id: 'gid://shopify/Shop/1',
+    name: 'Local draft shop',
+  } as ShopRecord;
+}
 
 describe('online-store integration flow', () => {
   beforeEach(() => {
@@ -23,6 +31,7 @@ describe('online-store integration flow', () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockRejectedValue(new Error('online-store integration mutations must not fetch upstream'));
+    store.upsertBaseShop(makeLocalShop());
     const app = createApp(config).callback();
 
     const emptyRead = await request(app)
@@ -212,6 +221,41 @@ describe('online-store integration flow', () => {
       accessToken: 'shpat_redacted',
     });
     expect(JSON.stringify(stateAfterTokenCreate.body)).not.toContain('shpat_headless-preview');
+
+    const tokenRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadStorefrontTokens {
+          shop {
+            id
+            storefrontAccessTokens(first: 5) {
+              nodes { id title accessToken accessScopes { handle } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }`,
+      });
+    expect(tokenRead.body.data).toEqual({
+      shop: {
+        id: 'gid://shopify/Shop/1',
+        storefrontAccessTokens: {
+          nodes: [
+            {
+              id: tokenId,
+              title: 'Headless preview',
+              accessToken: 'shpat_redacted',
+              accessScopes: [],
+            },
+          ],
+          pageInfo: {
+            hasNextPage: false,
+            hasPreviousPage: false,
+            startCursor: `cursor:${tokenId}`,
+            endCursor: `cursor:${tokenId}`,
+          },
+        },
+      },
+    });
 
     const mobileCreate = await request(app)
       .post('/admin/api/2026-04/graphql.json')
@@ -592,6 +636,17 @@ describe('online-store integration flow', () => {
       serverPixel: null,
       mobilePlatformApplication: null,
       mobilePlatformApplications: { nodes: [] },
+    });
+
+    const tokenDeletedRead = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReadDeletedStorefrontTokens {
+          shop { storefrontAccessTokens(first: 5) { nodes { id } } }
+        }`,
+      });
+    expect(tokenDeletedRead.body.data).toEqual({
+      shop: { storefrontAccessTokens: { nodes: [] } },
     });
 
     const unknownUpdate = await request(app)

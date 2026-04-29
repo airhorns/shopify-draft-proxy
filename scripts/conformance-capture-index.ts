@@ -87,6 +87,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-contact-location-assignments-tax',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-location-assignment-conformance.mts',
+    purpose:
+      'B2B contact/location role assignments, automatic main-contact role assignment, address assignment/delete, tax settings, and downstream relationship reads.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-location-assignments-tax.json`,
+      'config/parity-specs/b2b/b2b-contact-location-assignments-tax.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with additional disposable company locations; revokes explicit assignments, deletes the staged billing address, and deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      '`staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains runtime-test-backed rather than live-parity-backed.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
@@ -458,6 +476,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/metaobjects/metaobject-reference-lifecycle.json',
     ],
     cleanupBehavior: 'Deletes seeded parent/target metaobjects and definitions after reference capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-conformance.ts',
+    purpose: 'Metaobject bulk delete by type plus downstream deleted-row and definition-count reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-type-lifecycle.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-type-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

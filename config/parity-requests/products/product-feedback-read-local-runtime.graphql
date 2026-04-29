@@ -1,0 +1,9 @@
+query ProductFeedbackReadLocalRuntime($id: ID!) {
+  productResourceFeedback(id: $id) {
+    productId
+    state
+    messages
+    feedbackGeneratedAt
+    productUpdatedAt
+  }
+}
