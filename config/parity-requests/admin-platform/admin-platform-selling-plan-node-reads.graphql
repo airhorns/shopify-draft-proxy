@@ -1,0 +1,24 @@
+query AdminPlatformSellingPlanNodeReads {
+  sellingPlanNode: node(id: "gid://shopify/SellingPlan/7026999602") {
+    ... on SellingPlan {
+      id
+      name
+      description
+      options
+      position
+      category
+      createdAt
+    }
+  }
+  nodes(ids: ["gid://shopify/SellingPlan/7026999602", "gid://shopify/SellingPlan/999999999999"]) {
+    ... on SellingPlan {
+      id
+      name
+      description
+      options
+      position
+      category
+      createdAt
+    }
+  }
+}

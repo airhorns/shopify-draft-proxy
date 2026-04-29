@@ -1541,6 +1541,25 @@ function serializeShopPolicy(policy: ShopPolicyRecord, selections: readonly Sele
   return result;
 }
 
+export function serializeShopAddressNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const shop = runtime.store.getEffectiveShop();
+  return shop?.shopAddress.id === id ? serializeShopAddress(shop.shopAddress, selectedFields) : null;
+}
+
+export function serializeShopPolicyNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  selectedFields: readonly FieldNode[],
+): Record<string, unknown> | null {
+  const shop = runtime.store.getEffectiveShop();
+  const policy = shop?.shopPolicies.find((candidate) => candidate.id === id) ?? null;
+  return policy ? serializeShopPolicy(policy, selectedFields) : null;
+}
+
 function serializeShopPolicyUserError(
   userError: ShopPolicyUserErrorRecord,
   selections: readonly SelectionNode[],

@@ -15,6 +15,7 @@ import type {
   ProductMetafieldRecord,
   ProductRecord,
   SavedSearchRecord,
+  SellingPlanGroupRecord,
   ShopRecord,
   TaxonomyCategoryRecord,
 } from '../../src/state/types.js';
@@ -577,6 +578,54 @@ function makeShopForCountry(myshopifyDomain: string, countryCode: string, countr
       formattedArea: `${baseShop.shopAddress.city}, ${country}`,
     },
   });
+}
+
+function makeSellingPlanGroup(): SellingPlanGroupRecord {
+  return {
+    id: 'gid://shopify/SellingPlanGroup/9100',
+    appId: null,
+    name: 'Relay selling plan group',
+    merchantCode: 'relay-selling-plan-group',
+    description: 'Relay subscription group',
+    options: ['Delivery cadence'],
+    position: 1,
+    summary: '1 delivery cadence',
+    createdAt: '2026-04-01T00:00:00Z',
+    productIds: [],
+    productVariantIds: [],
+    sellingPlans: [
+      {
+        id: 'gid://shopify/SellingPlan/9100',
+        data: {
+          __typename: 'SellingPlan',
+          id: 'gid://shopify/SellingPlan/9100',
+          name: 'Monthly relay',
+          description: 'Ships every month',
+          options: ['Monthly'],
+          position: 1,
+          category: 'SUBSCRIPTION',
+          createdAt: '2026-04-01T00:00:00Z',
+          billingPolicy: {
+            __typename: 'SellingPlanRecurringBillingPolicy',
+            interval: 'MONTH',
+            intervalCount: 1,
+            minCycles: null,
+            maxCycles: null,
+          },
+          deliveryPolicy: {
+            __typename: 'SellingPlanRecurringDeliveryPolicy',
+            interval: 'MONTH',
+            intervalCount: 1,
+            cutoff: null,
+            intent: 'FULFILLMENT_BEGIN',
+            preAnchorBehavior: 'ASAP',
+          },
+          inventoryPolicy: { reserve: 'ON_FULFILLMENT' },
+          pricingPolicies: [],
+        },
+      },
+    ],
+  };
 }
 
 describe('admin platform utility query shapes', () => {
@@ -1629,7 +1678,21 @@ describe('admin platform utility query shapes', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
       throw new Error('direct admin platform node serializers should resolve locally in snapshot mode');
     });
-    store.upsertBaseShop(makeShop());
+    store.upsertBaseShop(
+      makeShop({
+        shopPolicies: [
+          {
+            id: 'gid://shopify/ShopPolicy/9100',
+            title: 'Contact',
+            body: '<p>Relay contact policy</p>',
+            type: 'CONTACT_INFORMATION',
+            url: 'https://node-test-shop.myshopify.com/policies/contact-information',
+            createdAt: '2026-04-01T00:00:00Z',
+            updatedAt: '2026-04-01T00:00:00Z',
+          },
+        ],
+      }),
+    );
     store.upsertBaseCustomers([makeCustomer('gid://shopify/Customer/9100', 'relay-node-owner@example.com')]);
     store.upsertBaseCustomerPaymentMethods([
       makeCustomerPaymentMethod('gid://shopify/CustomerPaymentMethod/9100', 'gid://shopify/Customer/9100'),
@@ -1639,6 +1702,7 @@ describe('admin platform utility query shapes', () => {
       makeProductMetafield('gid://shopify/Metafield/9100', 'gid://shopify/Product/9100'),
     ]);
     store.upsertBaseSavedSearches([makeSavedSearch('gid://shopify/SavedSearch/9100')]);
+    store.upsertBaseSellingPlanGroups([makeSellingPlanGroup()]);
     store.upsertBasePaymentTermsTemplates([makePaymentTermsTemplate('gid://shopify/PaymentTermsTemplate/14')]);
     store.stageCreateFiles([
       makeFile('gid://shopify/GenericFile/9100', 'FILE', 'relay.pdf'),
@@ -1685,8 +1749,37 @@ describe('admin platform utility query shapes', () => {
               name
               myshopifyDomain
             }
+            ... on ShopAddress {
+              address1
+              city
+              countryCodeV2
+              formatted
+            }
+            ... on ShopPolicy {
+              title
+              body
+              type
+              url
+            }
             ... on CustomerPaymentMethod {
               revokedAt
+            }
+            ... on SellingPlan {
+              name
+              description
+              options
+              position
+              category
+              createdAt
+              billingPolicy {
+                __typename
+                ... on SellingPlanRecurringBillingPolicy {
+                  interval
+                  intervalCount
+                  minCycles
+                  maxCycles
+                }
+              }
             }
             ... on SavedSearch {
               name
@@ -1733,7 +1826,10 @@ describe('admin platform utility query shapes', () => {
         variables: {
           ids: [
             'gid://shopify/Shop/400',
+            'gid://shopify/ShopAddress/400',
+            'gid://shopify/ShopPolicy/9100',
             'gid://shopify/CustomerPaymentMethod/9100',
+            'gid://shopify/SellingPlan/9100',
             'gid://shopify/SavedSearch/9100',
             'gid://shopify/Metafield/9100',
             'gid://shopify/PaymentTermsTemplate/14',
@@ -1756,9 +1852,42 @@ describe('admin platform utility query shapes', () => {
             myshopifyDomain: 'node-test-shop.myshopify.com',
           },
           {
+            __typename: 'ShopAddress',
+            nodeId: 'gid://shopify/ShopAddress/400',
+            address1: '1 Main Street',
+            city: 'New York',
+            countryCodeV2: 'US',
+            formatted: ['1 Main Street', 'New York NY 10001', 'United States'],
+          },
+          {
+            __typename: 'ShopPolicy',
+            nodeId: 'gid://shopify/ShopPolicy/9100',
+            title: 'Contact',
+            body: '<p>Relay contact policy</p>',
+            type: 'CONTACT_INFORMATION',
+            url: 'https://node-test-shop.myshopify.com/policies/contact-information',
+          },
+          {
             __typename: 'CustomerPaymentMethod',
             nodeId: 'gid://shopify/CustomerPaymentMethod/9100',
             revokedAt: null,
+          },
+          {
+            __typename: 'SellingPlan',
+            nodeId: 'gid://shopify/SellingPlan/9100',
+            name: 'Monthly relay',
+            description: 'Ships every month',
+            options: ['Monthly'],
+            position: 1,
+            category: 'SUBSCRIPTION',
+            createdAt: '2026-04-01T00:00:00Z',
+            billingPolicy: {
+              __typename: 'SellingPlanRecurringBillingPolicy',
+              interval: 'MONTH',
+              intervalCount: 1,
+              minCycles: null,
+              maxCycles: null,
+            },
           },
           {
             __typename: 'SavedSearch',

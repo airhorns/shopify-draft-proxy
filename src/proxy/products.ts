@@ -6594,6 +6594,22 @@ function serializeSellingPlanRecord(plan: SellingPlanRecord, field: FieldNode | 
   return projectGraphqlObject(plan.data, field.selectionSet?.selections ?? [], new Map());
 }
 
+export function serializeSellingPlanNodeById(
+  runtime: ProxyRuntimeContext,
+  id: string,
+  field: FieldNode,
+): Record<string, unknown> | null {
+  for (const group of runtime.store.listEffectiveSellingPlanGroups()) {
+    const plan = group.sellingPlans.find((candidate) => candidate.id === id) ?? null;
+    const serialized = plan ? serializeSellingPlanRecord(plan, field) : null;
+    if (serialized && typeof serialized === 'object' && !Array.isArray(serialized)) {
+      return serialized as Record<string, unknown>;
+    }
+  }
+
+  return null;
+}
+
 function serializeSellingPlanConnection(
   plans: SellingPlanRecord[],
   field: FieldNode,

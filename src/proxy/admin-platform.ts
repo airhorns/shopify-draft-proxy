@@ -29,10 +29,20 @@ import { handleMetaobjectDefinitionQuery } from './metaobject-definitions.js';
 import { handleOnlineStoreQuery } from './online-store.js';
 import { handleOrderQuery } from './orders/query.js';
 import { handlePaymentQuery, serializePaymentTermsTemplateNodeById } from './payments.js';
-import { handleProductQuery, serializeProductOptionNodeById, serializeProductOptionValueNodeById } from './products.js';
+import {
+  handleProductQuery,
+  serializeProductOptionNodeById,
+  serializeProductOptionValueNodeById,
+  serializeSellingPlanNodeById,
+} from './products.js';
 import { serializeSavedSearchNodeById } from './saved-searches.js';
 import { handleSegmentsQuery } from './segments.js';
-import { handleStorePropertiesQuery, serializeShopNodeById } from './store-properties.js';
+import {
+  handleStorePropertiesQuery,
+  serializeShopAddressNodeById,
+  serializeShopNodeById,
+  serializeShopPolicyNodeById,
+} from './store-properties.js';
 import { handleWebhookSubscriptionQuery } from './webhooks.js';
 
 interface GraphQLResponseError {
@@ -720,6 +730,11 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     handler: handleProductNodeQuery,
     typeConditions: ['ProductOperation'],
   },
+  SellingPlan: {
+    typename: 'SellingPlan',
+    serialize: (runtime, id, selectedFields) =>
+      serializeSellingPlanNodeById(runtime, id, syntheticNodeField(selectedFields)),
+  },
   SellingPlanGroup: { rootField: 'sellingPlanGroup', typename: 'SellingPlanGroup', handler: handleProductNodeQuery },
 
   Customer: { rootField: 'customer', typename: 'Customer', handler: handleCustomerQuery },
@@ -740,6 +755,14 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   Shop: {
     typename: 'Shop',
     serialize: (runtime, id, selectedFields) => serializeShopNodeById(runtime, id, selectedFields),
+  },
+  ShopAddress: {
+    typename: 'ShopAddress',
+    serialize: (runtime, id, selectedFields) => serializeShopAddressNodeById(runtime, id, selectedFields),
+  },
+  ShopPolicy: {
+    typename: 'ShopPolicy',
+    serialize: (runtime, id, selectedFields) => serializeShopPolicyNodeById(runtime, id, selectedFields),
   },
   DeliveryCarrierService: {
     rootField: 'carrierService',
