@@ -1,0 +1,18 @@
+mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {
+  marketLocalizationsRemove(resourceId: $resourceId, marketLocalizationKeys: $keys, marketIds: $marketIds) {
+    marketLocalizations {
+      key
+      value
+      outdated
+      market {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

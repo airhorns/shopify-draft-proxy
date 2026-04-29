@@ -1350,15 +1350,19 @@ function findMarketLocalizableMetafield(
 }
 
 function localizableResourceFromMetafield(metafield: ProductMetafieldRecord): MarketLocalizableResourceRecord {
+  const content = Array.isArray(metafield.marketLocalizableContent)
+    ? metafield.marketLocalizableContent
+        .filter((entry) => typeof entry.key === 'string' && entry.key.length > 0)
+        .map((entry) => ({
+          key: entry.key,
+          value: entry.value,
+          digest: entry.digest,
+        }))
+    : [];
+
   return {
     resourceId: metafield.id,
-    content: [
-      {
-        key: 'value',
-        value: metafield.value,
-        digest: metafield.compareDigest ?? null,
-      },
-    ],
+    content,
   };
 }
 
@@ -2276,7 +2280,7 @@ function buildRootUrls(
   return [defaultLocale, ...alternateLocales].map((locale, index) => ({
     locale,
     url: subfolderSuffix
-      ? `${baseUrl}/${locale}-${subfolderSuffix}`
+      ? `${baseUrl}/${locale}-${subfolderSuffix}/`
       : index === 0
         ? `${baseUrl}/`
         : `${baseUrl}/${locale}`,
@@ -4505,16 +4509,14 @@ function validateMarketLocalizationKey(
   const key = typeof rawKey === 'string' ? rawKey : '';
   const content = resource.content.find((entry) => entry.key === key) ?? null;
   if (!content) {
+    const message =
+      resource.content.length === 0
+        ? `Key ${key || String(rawKey)} is not a valid market localizable field`
+        : `Key ${key || String(rawKey)} is not market localizable for this resource`;
     return {
       key: key || null,
       contentDigest: null,
-      errors: [
-        translationError(
-          fieldPrefix,
-          `Key ${key || String(rawKey)} is not market localizable for this resource`,
-          'INVALID_KEY_FOR_MODEL',
-        ),
-      ],
+      errors: [translationError(fieldPrefix, message, 'INVALID_KEY_FOR_MODEL')],
     };
   }
 
@@ -4681,14 +4683,22 @@ function handleMarketLocalizationsRemove(
   const keys: string[] = [];
   const marketIds: string[] = [];
   const resource = resourceValidation.resource;
+  const hasNoLocalizableContent = resource !== null && resource.content.length === 0;
   if (resource) {
-    rawKeys.forEach((rawKey, index) => {
-      const keyValidation = validateMarketLocalizationKey(resource, rawKey, ['marketLocalizationKeys', String(index)]);
-      errors.push(...keyValidation.errors);
-      if (keyValidation.key) {
-        keys.push(keyValidation.key);
-      }
-    });
+    if (hasNoLocalizableContent) {
+      keys.push(...rawKeys.filter((rawKey): rawKey is string => typeof rawKey === 'string' && rawKey.length > 0));
+    } else {
+      rawKeys.forEach((rawKey, index) => {
+        const keyValidation = validateMarketLocalizationKey(resource, rawKey, [
+          'marketLocalizationKeys',
+          String(index),
+        ]);
+        errors.push(...keyValidation.errors);
+        if (keyValidation.key) {
+          keys.push(keyValidation.key);
+        }
+      });
+    }
 
     rawMarketIds.forEach((rawMarketId, index) => {
       const marketValidation = validateMarketId(runtime, rawMarketId, ['marketIds', String(index)]);
@@ -4714,7 +4724,7 @@ function handleMarketLocalizationsRemove(
   return projectMarketLocalizationMutationPayload(
     runtime,
     {
-      marketLocalizations: errors.length === 0 ? removedLocalizations : null,
+      marketLocalizations: errors.length === 0 && !hasNoLocalizableContent ? removedLocalizations : null,
       userErrors: errors,
     },
     field,

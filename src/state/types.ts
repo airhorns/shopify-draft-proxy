@@ -540,6 +540,15 @@ export const productMetafieldRecordSchema = z.strictObject({
   createdAt: nullableStringSchema.optional(),
   updatedAt: nullableStringSchema.optional(),
   ownerType: nullableStringSchema.optional(),
+  marketLocalizableContent: z
+    .array(
+      z.strictObject({
+        key: z.string(),
+        value: nullableStringSchema,
+        digest: nullableStringSchema,
+      }),
+    )
+    .optional(),
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 

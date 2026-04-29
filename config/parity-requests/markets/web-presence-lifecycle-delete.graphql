@@ -1,0 +1,10 @@
+mutation MarketWebPresenceLifecycleDelete($id: ID!) {
+  webPresenceDelete(id: $id) {
+    deletedId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

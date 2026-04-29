@@ -1,0 +1,353 @@
+{
+  "capturedAt": "2026-04-29T11:47:45.755Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "disposableProductHandle": "har-market-localization-o49bpv0s",
+  "scope": "HAR-448 default product-metafield market localization validation parity",
+  "data": {
+    "markets": {
+      "nodes": [
+        {
+          "id": "gid://shopify/Market/92276719922",
+          "name": "Canada",
+          "handle": "ca",
+          "status": "ACTIVE",
+          "type": "REGION"
+        }
+      ]
+    }
+  },
+  "response": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10173649322290",
+        "handle": "har-market-localization-o49bpv0s",
+        "title": "HAR market localization o49bpv0s",
+        "status": "DRAFT",
+        "metafields": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metafield/42994289180978",
+              "namespace": "custom",
+              "key": "market_material",
+              "type": "single_line_text_field",
+              "value": "Maple o49bpv0s",
+              "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
+              "createdAt": "2026-04-29T11:47:44Z",
+              "updatedAt": "2026-04-29T11:47:44Z",
+              "ownerType": "PRODUCT"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "setup": {
+    "productCreate": {
+      "query": "#graphql\n  mutation MarketLocalizationProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        handle\n        title\n        status\n        metafields(first: 5, namespace: \"custom\") {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            createdAt\n            updatedAt\n            ownerType\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "HAR market localization o49bpv0s",
+          "handle": "har-market-localization-o49bpv0s",
+          "status": "DRAFT",
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "market_material",
+              "type": "single_line_text_field",
+              "value": "Maple o49bpv0s"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10173649322290",
+                "handle": "har-market-localization-o49bpv0s",
+                "title": "HAR market localization o49bpv0s",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/42994289180978",
+                      "namespace": "custom",
+                      "key": "market_material",
+                      "type": "single_line_text_field",
+                      "value": "Maple o49bpv0s",
+                      "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
+                      "createdAt": "2026-04-29T11:47:44Z",
+                      "updatedAt": "2026-04-29T11:47:44Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productRead": {
+      "query": "#graphql\n  query MarketLocalizationProductRead($id: ID!) {\n    product(id: $id) {\n      id\n      handle\n      title\n      status\n      metafields(first: 5, namespace: \"custom\") {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Product/10173649322290"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10173649322290",
+              "handle": "har-market-localization-o49bpv0s",
+              "title": "HAR market localization o49bpv0s",
+              "status": "DRAFT",
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/42994289180978",
+                    "namespace": "custom",
+                    "key": "market_material",
+                    "type": "single_line_text_field",
+                    "value": "Maple o49bpv0s",
+                    "compareDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af",
+                    "createdAt": "2026-04-29T11:47:44Z",
+                    "updatedAt": "2026-04-29T11:47:44Z",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "marketLocalizableMetafieldReadBeforeRegister",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketId": "gid://shopify/Market/92276719922"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRegisterDefaultMetafieldValidation",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRegister(\n    $resourceId: ID!\n    $marketLocalizations: [MarketLocalizationRegisterInput!]!\n  ) {\n    marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "Erable o49bpv0s",
+            "marketId": "gid://shopify/Market/92276719922",
+            "marketLocalizableContentDigest": "421f737f44d276635c97759ec4fc6e91349e84248c759dac6a892df221c3a9af"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRegister": {
+              "marketLocalizations": null,
+              "userErrors": [
+                {
+                  "field": ["marketLocalizations", "0", "key"],
+                  "message": "Key value is not a valid market localizable field",
+                  "code": "INVALID_KEY_FOR_MODEL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizableMetafieldReadAfterRejectedRegister",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketId": "gid://shopify/Market/92276719922"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizationsRemoveDefaultMetafieldValidation",
+      "query": "#graphql\n  mutation MarketLocalizationMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276719922"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "marketLocalizableMetafieldReadAfterEmptyRemove",
+      "query": "#graphql\n  query MarketLocalizationMetafieldRead($resourceId: ID!, $marketId: ID!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/42994289180978",
+        "marketId": "gid://shopify/Market/92276719922"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/42994289180978",
+              "marketLocalizableContent": [],
+              "marketLocalizations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 4,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "productDelete": {
+      "query": "#graphql\n  mutation MarketLocalizationProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10173649322290"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10173649322290",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

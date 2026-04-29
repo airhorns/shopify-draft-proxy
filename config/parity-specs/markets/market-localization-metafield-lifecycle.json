@@ -1,0 +1,64 @@
+{
+  "scenarioId": "market-localization-metafield-default-validation",
+  "operationNames": ["marketLocalizableResource", "marketLocalizationsRegister", "marketLocalizationsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "user-errors-parity", "market-localization-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-localization-metafield-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/markets-localization-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-localization-metafield-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "market-localizable-metafield-read-before-register",
+        "capturePath": "$.cases[0].response.payload.data.marketLocalizableResource",
+        "upstreamCapturePath": "$.cases[0].response.payload",
+        "proxyPath": "$.data.marketLocalizableResource"
+      },
+      {
+        "name": "market-localizations-register-default-metafield-validation",
+        "capturePath": "$.cases[1].response.payload.data.marketLocalizationsRegister",
+        "proxyPath": "$.data.marketLocalizationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-metafield-register.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        }
+      },
+      {
+        "name": "market-localizable-metafield-read-after-rejected-register",
+        "capturePath": "$.cases[2].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[2].variables"
+        }
+      },
+      {
+        "name": "market-localizations-remove-default-metafield-validation",
+        "capturePath": "$.cases[3].response.payload.data.marketLocalizationsRemove",
+        "proxyPath": "$.data.marketLocalizationsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-metafield-remove.graphql",
+          "variablesCapturePath": "$.cases[3].variables"
+        }
+      },
+      {
+        "name": "market-localizable-metafield-read-after-empty-remove",
+        "capturePath": "$.cases[4].response.payload.data.marketLocalizableResource",
+        "proxyPath": "$.data.marketLocalizableResource",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-localization-metafield-read.graphql",
+          "variablesCapturePath": "$.cases[4].variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-448 live Admin GraphQL 2026-04 capture creates a disposable draft product with a product-scoped metafield and proves that a default ad hoc product metafield can resolve as a MarketLocalizableResource while still returning empty marketLocalizableContent. Shopify rejects marketLocalizationsRegister key `value` with INVALID_KEY_FOR_MODEL, marketLocalizationsRemove returns a null localization payload with no userErrors for the same key, and downstream reads remain empty. The local proxy now only exposes product-metafield marketLocalizableContent when that content is explicitly seeded instead of assuming every product metafield supports market localization."
+}
