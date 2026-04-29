@@ -38,6 +38,16 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 
 Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
 
+## `src/proxy/products/metafield-values.ts`
+
+Shared custom-data value normalization helpers for metafields and metaobject fields.
+
+- `parseMetafieldJsonValue(type, value)` projects Shopify-like `jsonValue` for scalar, JSON-object, measurement, rating, date-time, decimal, reference-list, and other `list.*` custom-data field types.
+- `normalizeMetafieldValue(type, value)` canonicalizes staged custom-data `value` strings where Shopify rewrites input values, including date-time offsets, decimal list stringification, measurement unit/value JSON, and rating key order.
+- `isMeasurementMetafieldType(type)` identifies scalar and list measurement types for serializers that need measurement-specific display behavior.
+
+Use this module before adding resource-local custom-data parsers or serializers for metafield/metaobject value payloads. Owner-specific validation and resource setup should stay in the owning endpoint module.
+
 ## `src/search-query-parser.ts`
 
 Shared helpers for Shopify Admin `query:` parsing, query execution, and common term matching.

@@ -5757,13 +5757,17 @@ function seedBulkVariantValidationAtomicityPreconditions(runtime: ProxyRuntimeCo
   );
   const firstCase = readArrayField(capture as Record<string, unknown>, 'cases').find(isPlainObject) ?? null;
   const beforeProduct = readRecordField(readRecordField(firstCase, 'before'), 'product');
+  const productSource = beforeProduct ?? setupProduct;
+  if (!productSource) {
+    return false;
+  }
+
   const productId = seedProductId ?? readStringField(setupProduct, 'id') ?? readStringField(beforeProduct, 'id');
 
   if (!productId?.startsWith('gid://shopify/Product/')) {
     return false;
   }
 
-  const productSource = beforeProduct ?? setupProduct;
   runtime.store.upsertBaseProducts([makeSeedProduct(productId, productSource)]);
 
   const optionsSource = readStringField(setupProduct, 'id') === productId ? setupProduct : beforeProduct;
@@ -6583,6 +6587,31 @@ function seedProductMetafieldsReadPreconditions(runtime: ProxyRuntimeContext, ca
   runtime.store.upsertBaseProducts([makeSeedProduct(productId, product)]);
   runtime.store.replaceBaseMetafieldsForProduct(productId, readCapturedProductMetafields(productId, product));
   return true;
+}
+
+function seedCustomDataFieldTypeMatrixPreconditions(runtime: ProxyRuntimeContext, capture: unknown): void {
+  const hasCustomDataMatrix =
+    readArrayField(capture as Record<string, unknown>, 'metafieldBatches').length > 0 ||
+    readArrayField(capture as Record<string, unknown>, 'metaobjectMatrices').length > 0;
+  if (!hasCustomDataMatrix) {
+    return;
+  }
+
+  const seed = readRecordField(capture as Record<string, unknown>, 'seed');
+  const productId = readStringField(seed, 'productId');
+  if (productId?.startsWith('gid://shopify/Product/')) {
+    runtime.store.upsertBaseProducts([makeSeedProduct(productId, null, 'Custom data field type matrix seed product')]);
+
+    const variantId = readStringField(seed, 'variantId');
+    if (variantId?.startsWith('gid://shopify/ProductVariant/')) {
+      runtime.store.replaceBaseVariantsForProduct(productId, [{ ...makeSeedVariant(productId), id: variantId }]);
+    }
+  }
+
+  const collectionId = readStringField(seed, 'collectionId');
+  if (collectionId?.startsWith('gid://shopify/Collection/')) {
+    runtime.store.upsertBaseCollections([makeSeedCollection(collectionId)]);
+  }
 }
 
 function seedMetaobjectReadPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
@@ -7483,6 +7512,7 @@ function seedPreconditionsFromCapture(
       runtime.store.replaceBaseOptionsForProduct(productId, options);
     }
   }
+  seedCustomDataFieldTypeMatrixPreconditions(runtime, capture);
   if (seedProductContextualPricingReadPreconditions(runtime, capture)) {
     return;
   }

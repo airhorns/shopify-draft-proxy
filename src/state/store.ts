@@ -5538,11 +5538,7 @@ export class InMemoryStore {
         return leftAppNamespace ? 1 : -1;
       }
 
-      return (
-        left.namespace.localeCompare(right.namespace) ||
-        left.key.localeCompare(right.key) ||
-        left.id.localeCompare(right.id)
-      );
+      return 0;
     });
   }
 
