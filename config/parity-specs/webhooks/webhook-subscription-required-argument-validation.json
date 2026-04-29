@@ -1,0 +1,36 @@
+{
+  "scenarioId": "webhook-subscription-required-argument-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/webhook-subscription-mutation-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-missing-create-topic.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for GraphQL validation branches that fail before webhook resolver side effects: missing webhookSubscriptionCreate topic and null webhookSubscriptionUpdate input. These requests are recorded against live Shopify 2026-04 but do not create, update, delete, or deliver webhook subscriptions.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-create-topic-errors",
+        "capturePath": "$.graphqlValidation.missingCreateTopic.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "null-update-input-errors",
+        "capturePath": "$.graphqlValidation.nullUpdateInput.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-null-update-input.graphql"
+        }
+      }
+    ]
+  }
+}

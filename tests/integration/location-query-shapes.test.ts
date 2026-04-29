@@ -498,6 +498,11 @@ describe('location query shapes', () => {
           unknownIdentifier: locationByIdentifier(identifier: { id: $unknownId }) {
             id
           }
+          unknownCustomIdentifier: locationByIdentifier(
+            identifier: { customId: { namespace: "custom", key: "location_code", value: "missing" } }
+          ) {
+            id
+          }
         }`,
         variables: {
           knownId: 'gid://shopify/Location/2',
@@ -518,7 +523,18 @@ describe('location query shapes', () => {
         },
         unknownLocation: null,
         unknownIdentifier: null,
+        unknownCustomIdentifier: null,
       },
+      errors: [
+        {
+          message: "Metafield definition of type 'id' is required when using custom ids.",
+          locations: [{ line: 16, column: 11 }],
+          path: ['unknownCustomIdentifier'],
+          extensions: {
+            code: 'NOT_FOUND',
+          },
+        },
+      ],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });

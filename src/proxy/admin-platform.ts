@@ -6,7 +6,18 @@ import { getLocation, Kind, print, type FieldNode, type SelectionNode } from 'gr
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import { applySearchQueryTerms, matchesSearchQueryText, type SearchQueryTerm } from '../search-query-parser.js';
 import type { BackupRegionRecord, ShopDomainRecord, TaxonomyCategoryRecord } from '../state/types.js';
-import { handleB2BQuery } from './b2b.js';
+import {
+  handleB2BQuery,
+  serializeCompanyAddressNodeById,
+  serializeCompanyContactRoleAssignmentNodeById,
+} from './b2b.js';
+import {
+  serializeAppInstallationNodeById,
+  serializeAppNodeById,
+  serializeAppOneTimePurchaseNodeById,
+  serializeAppSubscriptionNodeById,
+  serializeAppUsageRecordNodeById,
+} from './apps.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
 import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
@@ -746,8 +757,17 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
   StoreCreditAccount: { rootField: 'storeCreditAccount', typename: 'StoreCreditAccount', handler: handleCustomerQuery },
 
   Company: { rootField: 'company', typename: 'Company', handler: handleB2BQuery },
+  CompanyAddress: {
+    typename: 'CompanyAddress',
+    serialize: (runtime, id, selectedFields) => serializeCompanyAddressNodeById(runtime, id, selectedFields),
+  },
   CompanyContact: { rootField: 'companyContact', typename: 'CompanyContact', handler: handleB2BQuery },
   CompanyContactRole: { rootField: 'companyContactRole', typename: 'CompanyContactRole', handler: handleB2BQuery },
+  CompanyContactRoleAssignment: {
+    typename: 'CompanyContactRoleAssignment',
+    serialize: (runtime, id, selectedFields) =>
+      serializeCompanyContactRoleAssignmentNodeById(runtime, id, selectedFields),
+  },
   CompanyLocation: { rootField: 'companyLocation', typename: 'CompanyLocation', handler: handleB2BQuery },
 
   BusinessEntity: { rootField: 'businessEntity', typename: 'BusinessEntity', handler: handleStorePropertiesQuery },
@@ -950,6 +970,27 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
     typename: 'SavedSearch',
     serialize: (runtime, id, selectedFields, _variables, fragments) =>
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
+  },
+
+  App: {
+    typename: 'App',
+    serialize: (runtime, id, selectedFields) => serializeAppNodeById(runtime, id, selectedFields),
+  },
+  AppInstallation: {
+    typename: 'AppInstallation',
+    serialize: (runtime, id, selectedFields) => serializeAppInstallationNodeById(runtime, id, selectedFields),
+  },
+  AppPurchaseOneTime: {
+    typename: 'AppPurchaseOneTime',
+    serialize: (runtime, id, selectedFields) => serializeAppOneTimePurchaseNodeById(runtime, id, selectedFields),
+  },
+  AppSubscription: {
+    typename: 'AppSubscription',
+    serialize: (runtime, id, selectedFields) => serializeAppSubscriptionNodeById(runtime, id, selectedFields),
+  },
+  AppUsageRecord: {
+    typename: 'AppUsageRecord',
+    serialize: (runtime, id, selectedFields) => serializeAppUsageRecordNodeById(runtime, id, selectedFields),
   },
 };
 const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];

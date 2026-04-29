@@ -1,5 +1,5 @@
 import type { ProxyRuntimeContext } from './runtime-context.js';
-import { Kind, type FieldNode } from 'graphql';
+import { Kind, parse, type FieldNode, type OperationDefinitionNode } from 'graphql';
 
 import { getFieldArguments, getRootFields } from '../graphql/root-field.js';
 import {
@@ -60,10 +60,29 @@ function webhookSubscriptionUserError(field: string[], message: string): Webhook
   return { field, message };
 }
 
-function buildMissingRequiredArgumentError(operationName: string, argumentName: string): Record<string, unknown> {
+function getOperationPathLabel(document: string): string {
+  const operation = parse(document).definitions.find(
+    (definition): definition is OperationDefinitionNode => definition.kind === Kind.OPERATION_DEFINITION,
+  );
+  const operationType = operation?.operation ?? 'mutation';
+  return operation?.name ? `${operationType} ${operation.name.value}` : operationType;
+}
+
+function getFieldLocation(field: FieldNode): Array<{ line: number; column: number }> | undefined {
+  return field.loc ? [{ line: field.loc.startToken.line, column: field.loc.startToken.column }] : undefined;
+}
+
+function buildMissingRequiredArgumentError(
+  operationName: string,
+  argumentName: string,
+  field?: FieldNode,
+  operationPath?: string,
+): Record<string, unknown> {
+  const locations = field ? getFieldLocation(field) : undefined;
   return {
     message: `Field '${operationName}' is missing required arguments: ${argumentName}`,
-    path: ['mutation', operationName],
+    ...(locations ? { locations } : {}),
+    path: [operationPath ?? 'mutation', operationName],
     extensions: {
       code: 'missingRequiredArguments',
       className: 'Field',
@@ -77,10 +96,14 @@ function buildNullArgumentError(
   operationName: string,
   argumentName: string,
   expectedType: string,
+  field?: FieldNode,
+  operationPath?: string,
 ): Record<string, unknown> {
+  const locations = field ? getFieldLocation(field) : undefined;
   return {
     message: `Argument '${argumentName}' on Field '${operationName}' has an invalid value (null). Expected type '${expectedType}'.`,
-    path: ['mutation', operationName, argumentName],
+    ...(locations ? { locations } : {}),
+    path: [operationPath ?? 'mutation', operationName, argumentName],
     extensions: {
       code: 'argumentLiteralsIncompatible',
       typeName: 'Field',
@@ -98,6 +121,59 @@ function buildMissingVariableError(variableName: string, variableType: string): 
       problems: [{ path: [], explanation: 'Expected value to not be null' }],
     },
   };
+}
+
+type RequiredArgumentSpec = {
+  name: string;
+  expectedType: string;
+};
+
+function validateRequiredFieldArguments(
+  field: FieldNode,
+  variables: Record<string, unknown>,
+  operationName: string,
+  requiredArguments: RequiredArgumentSpec[],
+  operationPath: string,
+): Record<string, unknown>[] {
+  const missingArgumentNames: string[] = [];
+  const errors: Record<string, unknown>[] = [];
+
+  for (const requiredArgument of requiredArguments) {
+    const argument = field.arguments?.find((candidate) => candidate.name.value === requiredArgument.name) ?? null;
+    if (!argument) {
+      missingArgumentNames.push(requiredArgument.name);
+      continue;
+    }
+
+    if (argument.value.kind === Kind.NULL) {
+      errors.push(
+        buildNullArgumentError(
+          operationName,
+          requiredArgument.name,
+          requiredArgument.expectedType,
+          field,
+          operationPath,
+        ),
+      );
+      continue;
+    }
+
+    if (argument.value.kind === Kind.VARIABLE) {
+      const variableName = argument.value.name.value;
+      const value = variables[variableName];
+      if (value === null || value === undefined) {
+        errors.push(buildMissingVariableError(variableName, requiredArgument.expectedType));
+      }
+    }
+  }
+
+  if (missingArgumentNames.length > 0) {
+    errors.unshift(
+      buildMissingRequiredArgumentError(operationName, missingArgumentNames.join(', '), field, operationPath),
+    );
+  }
+
+  return errors;
 }
 
 function readWebhookSubscriptionInput(args: Record<string, unknown>): Record<string, unknown> | null {
@@ -230,7 +306,26 @@ function handleWebhookSubscriptionCreate(
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): { payload: unknown; stagedResourceIds: string[] } {
+  operationPath: string,
+): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
+  const validationErrors = validateRequiredFieldArguments(
+    field,
+    variables,
+    'webhookSubscriptionCreate',
+    [
+      { name: 'topic', expectedType: 'WebhookSubscriptionTopic!' },
+      { name: 'webhookSubscription', expectedType: 'WebhookSubscriptionInput!' },
+    ],
+    operationPath,
+  );
+  if (validationErrors.length > 0) {
+    return {
+      payload: null,
+      stagedResourceIds: [],
+      errors: validationErrors,
+    };
+  }
+
   const args = getFieldArguments(field, variables);
   const input = readWebhookSubscriptionInput(args);
   const errors: WebhookSubscriptionUserError[] = [];
@@ -256,6 +351,7 @@ function handleWebhookSubscriptionCreate(
       fragments,
     ),
     stagedResourceIds: webhookSubscription ? [webhookSubscription.id] : [],
+    errors: [],
   };
 }
 
@@ -264,7 +360,26 @@ function handleWebhookSubscriptionUpdate(
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
-): { payload: unknown; stagedResourceIds: string[] } {
+  operationPath: string,
+): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
+  const validationErrors = validateRequiredFieldArguments(
+    field,
+    variables,
+    'webhookSubscriptionUpdate',
+    [
+      { name: 'id', expectedType: 'ID!' },
+      { name: 'webhookSubscription', expectedType: 'WebhookSubscriptionInput!' },
+    ],
+    operationPath,
+  );
+  if (validationErrors.length > 0) {
+    return {
+      payload: null,
+      stagedResourceIds: [],
+      errors: validationErrors,
+    };
+  }
+
   const args = getFieldArguments(field, variables);
   const id = typeof args['id'] === 'string' ? args['id'] : null;
   const input = readWebhookSubscriptionInput(args);
@@ -292,25 +407,27 @@ function handleWebhookSubscriptionUpdate(
       fragments,
     ),
     stagedResourceIds: webhookSubscription ? [webhookSubscription.id] : [],
+    errors: [],
   };
 }
 
 function validateWebhookSubscriptionDeleteId(
   field: FieldNode,
   variables: Record<string, unknown>,
+  operationPath: string,
 ): { id: string | null; errors: Record<string, unknown>[] } {
   const idArgument = field.arguments?.find((argument) => argument.name.value === 'id') ?? null;
   if (!idArgument) {
     return {
       id: null,
-      errors: [buildMissingRequiredArgumentError('webhookSubscriptionDelete', 'id')],
+      errors: [buildMissingRequiredArgumentError('webhookSubscriptionDelete', 'id', field, operationPath)],
     };
   }
 
   if (idArgument.value.kind === Kind.NULL) {
     return {
       id: null,
-      errors: [buildNullArgumentError('webhookSubscriptionDelete', 'id', 'ID!')],
+      errors: [buildNullArgumentError('webhookSubscriptionDelete', 'id', 'ID!', field, operationPath)],
     };
   }
 
@@ -342,8 +459,9 @@ function handleWebhookSubscriptionDelete(
   field: FieldNode,
   variables: Record<string, unknown>,
   fragments: FragmentMap,
+  operationPath: string,
 ): { payload: unknown; stagedResourceIds: string[]; errors: Record<string, unknown>[] } {
-  const validatedId = validateWebhookSubscriptionDeleteId(field, variables);
+  const validatedId = validateWebhookSubscriptionDeleteId(field, variables, operationPath);
   if (validatedId.errors.length > 0) {
     return {
       payload: null,
@@ -730,6 +848,7 @@ export function handleWebhookSubscriptionMutation(
   variables: Record<string, unknown>,
 ): WebhookSubscriptionMutationResult | null {
   const fragments = getDocumentFragments(document);
+  const operationPath = getOperationPathLabel(document);
   const data: Record<string, unknown> = {};
   const stagedResourceIds = new Set<string>();
   const errors: Record<string, unknown>[] = [];
@@ -738,7 +857,12 @@ export function handleWebhookSubscriptionMutation(
     const key = getFieldResponseKey(field);
     switch (field.name.value) {
       case 'webhookSubscriptionCreate': {
-        const result = handleWebhookSubscriptionCreate(runtime, field, variables, fragments);
+        const result = handleWebhookSubscriptionCreate(runtime, field, variables, fragments, operationPath);
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+          break;
+        }
+
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);
@@ -746,7 +870,12 @@ export function handleWebhookSubscriptionMutation(
         break;
       }
       case 'webhookSubscriptionUpdate': {
-        const result = handleWebhookSubscriptionUpdate(runtime, field, variables, fragments);
+        const result = handleWebhookSubscriptionUpdate(runtime, field, variables, fragments, operationPath);
+        if (result.errors.length > 0) {
+          errors.push(...result.errors);
+          break;
+        }
+
         data[key] = result.payload;
         for (const id of result.stagedResourceIds) {
           stagedResourceIds.add(id);
@@ -754,7 +883,7 @@ export function handleWebhookSubscriptionMutation(
         break;
       }
       case 'webhookSubscriptionDelete': {
-        const result = handleWebhookSubscriptionDelete(runtime, field, variables, fragments);
+        const result = handleWebhookSubscriptionDelete(runtime, field, variables, fragments, operationPath);
         if (result.errors.length > 0) {
           errors.push(...result.errors);
           break;

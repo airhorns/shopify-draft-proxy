@@ -36,6 +36,7 @@ import type {
 } from '../state/types.js';
 import {
   buildMissingIdempotencyKeyError,
+  getNodeLocation,
   paginateConnectionItems,
   readIdempotencyKey,
   serializeConnection,
@@ -4265,6 +4266,17 @@ function invalidLocationIdentifierError(field: FieldNode): GraphQLResponseError 
   };
 }
 
+function buildLocationCustomIdDefinitionMissingError(field: FieldNode): GraphQLResponseError {
+  return {
+    message: "Metafield definition of type 'id' is required when using custom ids.",
+    locations: getNodeLocation(field),
+    path: [responseKey(field)],
+    extensions: {
+      code: 'NOT_FOUND',
+    },
+  };
+}
+
 function resolveLocationIdentifier(
   runtime: ProxyRuntimeContext,
   field: FieldNode,
@@ -4289,6 +4301,11 @@ function resolveLocationIdentifier(
 
   if (typeof identifierRecord['id'] === 'string' && identifierRecord['id'].length > 0) {
     return findEffectiveLocationById(runtime, identifierRecord['id']);
+  }
+
+  if (identifierRecord['customId'] !== undefined && identifierRecord['customId'] !== null) {
+    context.errors.push(buildLocationCustomIdDefinitionMissingError(field));
+    return null;
   }
 
   return null;

@@ -1,0 +1,25 @@
+query B2BContactLocationAssignmentsNodeRead($id: ID!) {
+  node(id: $id) {
+    ... on CompanyAddress {
+      id
+      address1
+      city
+      countryCode
+    }
+    ... on CompanyContactRoleAssignment {
+      id
+      companyContact {
+        id
+        title
+      }
+      role {
+        id
+        name
+      }
+      companyLocation {
+        id
+        name
+      }
+    }
+  }
+}

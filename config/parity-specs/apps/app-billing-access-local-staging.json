@@ -10,7 +10,8 @@
     "appRevokeAccessScopes",
     "appUninstall",
     "delegateAccessTokenCreate",
-    "delegateAccessTokenDestroy"
+    "delegateAccessTokenDestroy",
+    "node"
   ],
   "scenarioStatus": "captured",
   "assertionKinds": [
@@ -210,6 +211,109 @@
         ]
       },
       {
+        "name": "app-installation-node-read",
+        "capturePath": "$.evidence.parity.expected.billingRead.data.currentAppInstallation",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "billing-read-after-write",
+              "path": "$.data.currentAppInstallation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:AppInstallation",
+            "reason": "The proxy reads the same locally staged installation through generic Node dispatch."
+          },
+          {
+            "path": "$.allSubscriptions.nodes[*].id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy reads back the locally staged subscription ID through generic Node dispatch."
+          },
+          {
+            "path": "$.allSubscriptions.nodes[*].lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy reads back the locally staged subscription line-item ID through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "app-subscription-node-read",
+        "capturePath": "$.evidence.parity.expected.billingRead.data.currentAppInstallation.allSubscriptions.nodes[0]",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy reads the locally staged subscription through generic Node dispatch."
+          },
+          {
+            "path": "$.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy reads the locally staged subscription line-item through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "app-one-time-purchase-node-read",
+        "capturePath": "$.evidence.parity.expected.oneTimeCreate.data.appPurchaseOneTimeCreate.appPurchaseOneTime",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "one-time-purchase-create-payload",
+              "path": "$.data.appPurchaseOneTimeCreate.appPurchaseOneTime.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:AppPurchaseOneTime",
+            "reason": "The proxy reads the locally staged one-time purchase through generic Node dispatch."
+          }
+        ]
+      },
+      {
+        "name": "app-usage-record-node-read",
+        "capturePath": "$.evidence.parity.expected.usageCreate.data.appUsageRecordCreate.appUsageRecord",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "usage-record-create-payload",
+              "path": "$.data.appUsageRecordCreate.appUsageRecord.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:AppUsageRecord",
+            "reason": "The proxy reads the locally staged usage record through generic Node dispatch."
+          },
+          {
+            "path": "$.subscriptionLineItem.id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy links the generic Node usage record to the locally staged subscription line-item ID."
+          }
+        ]
+      },
+      {
         "name": "access-scope-revoke-payload",
         "capturePath": "$.evidence.parity.expected.revoke.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
@@ -298,6 +402,27 @@
         ]
       },
       {
+        "name": "app-node-read",
+        "capturePath": "$.evidence.parity.expected.uninstall.data.appUninstall.app",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-billing-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "app-uninstall-payload",
+              "path": "$.data.appUninstall.app.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:App",
+            "reason": "The proxy reads the staged app identity through generic Node dispatch."
+          }
+        ]
+      },
+      {
         "name": "app-installation-read-after-uninstall",
         "capturePath": "$.evidence.parity.expected.afterUninstallRead.data.currentAppInstallation",
         "proxyPath": "$.data.currentAppInstallation",
@@ -307,5 +432,5 @@
       }
     ]
   },
-  "notes": "The generic parity request sequence now executes every mutation root listed in operationNames against the local app-domain proxy harness, including strict payload comparisons and downstream reads. Live success-path captures for real billing approval, uninstall, access-scope revocation, and delegated-token side effects remain blocked without an explicitly disposable app/store credential, so this local-runtime fixture documents those blockers while the executable proxy request sequence enforces no-upstream local staging and secret-safe delegated-token behavior."
+  "notes": "The generic parity request sequence now executes every mutation root listed in operationNames against the local app-domain proxy harness, including strict payload comparisons, downstream reads, and generic Node reads for App, AppInstallation, AppSubscription, AppPurchaseOneTime, and AppUsageRecord records already present in local app state. Live success-path captures for real billing approval, uninstall, access-scope revocation, and delegated-token side effects remain blocked without an explicitly disposable app/store credential, so this local-runtime fixture documents those blockers while the executable proxy request sequence enforces no-upstream local staging and secret-safe delegated-token behavior."
 }

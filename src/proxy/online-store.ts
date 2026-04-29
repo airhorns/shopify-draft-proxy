@@ -662,9 +662,10 @@ function makePage(
   const now = runtime.syntheticIdentity.makeSyntheticTimestamp();
   const title = readOptionalString(input, 'title') ?? String(existing?.data['title'] ?? '');
   const body = readOptionalString(input, 'body') ?? String(existing?.data['body'] ?? '');
-  const isPublished = readOptionalBoolean(input, 'isPublished') ?? Boolean(existing?.data['isPublished'] ?? false);
-  const publishedAt =
-    readOptionalString(input, 'publishDate') ?? (isPublished ? (existing?.data['publishedAt'] ?? now) : null);
+  const isPublished =
+    readOptionalBoolean(input, 'isPublished') ?? (existing ? Boolean(existing.data['isPublished'] ?? false) : true);
+  const publishDate = readOptionalString(input, 'publishDate');
+  const publishedAt = isPublished ? (publishDate ?? existing?.data['publishedAt'] ?? now) : null;
   const id = existing?.id ?? runtime.syntheticIdentity.makeProxySyntheticGid('Page');
   const createdAt = String(existing?.data['createdAt'] ?? now);
   const updatedAt = existing ? now : createdAt;
