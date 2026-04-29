@@ -1,0 +1,68 @@
+{
+  "scenarioId": "selling-plan-product-variant-associations",
+  "operationNames": [
+    "productJoinSellingPlanGroups",
+    "productLeaveSellingPlanGroups",
+    "productVariantJoinSellingPlanGroups",
+    "productVariantLeaveSellingPlanGroups"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/selling-plan-group-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-relationship-product-join-selling-plan-groups.graphql",
+    "variablesCapturePath": "$.productJoinSellingPlanGroups.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-join-selling-plan-groups",
+        "capturePath": "$.productJoinSellingPlanGroups.response.data.productJoinSellingPlanGroups",
+        "proxyPath": "$.data.productJoinSellingPlanGroups"
+      },
+      {
+        "name": "product-variant-join-selling-plan-groups",
+        "capturePath": "$.productVariantJoinSellingPlanGroups.response.data.productVariantJoinSellingPlanGroups",
+        "proxyPath": "$.data.productVariantJoinSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-variant-join-selling-plan-groups.graphql",
+          "variablesCapturePath": "$.productVariantJoinSellingPlanGroups.variables"
+        }
+      },
+      {
+        "name": "product-leave-selling-plan-groups",
+        "capturePath": "$.productLeaveSellingPlanGroups.response.data.productLeaveSellingPlanGroups",
+        "proxyPath": "$.data.productLeaveSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-product-leave-selling-plan-groups.graphql",
+          "variablesCapturePath": "$.productLeaveSellingPlanGroups.variables"
+        }
+      },
+      {
+        "name": "product-variant-leave-selling-plan-groups",
+        "capturePath": "$.productVariantLeaveSellingPlanGroups.response.data.productVariantLeaveSellingPlanGroups",
+        "proxyPath": "$.data.productVariantLeaveSellingPlanGroups",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-variant-leave-selling-plan-groups.graphql",
+          "variablesCapturePath": "$.productVariantLeaveSellingPlanGroups.variables"
+        }
+      },
+      {
+        "name": "selling-plan-downstream-read",
+        "capturePath": "$.sellingPlanDownstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql",
+          "variablesCapturePath": "$.sellingPlanDownstreamRead.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-432 executable parity for product-centric and variant-centric selling-plan association roots captured against a disposable 2026-04 product and selling-plan group. The parity runner seeds the captured product, variant, and selling-plan group, then replays product join, variant join, product leave, variant leave, and downstream product/ProductVariant read-after-write checks against the local proxy with strict JSON targets."
+}

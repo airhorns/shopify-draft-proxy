@@ -319,5 +319,5 @@
       }
     ]
   },
-  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors."
+  "notes": "HAR-308 captures Admin GraphQL 2026-04 selling-plan group lifecycle, group-centric membership, unknown-id userErrors, and downstream product/ProductVariant read-after-write behavior. HAR-432 keeps this as the executable parity proof for sellingPlanGroupCreate/update/delete plus group-centric add/remove roots, while product-centric and variant-centric association roots are enforced by selling-plan-product-variant-associations. The parity runner replays the captured lifecycle locally with seeded product/variant preconditions and compares whole deterministic payloads, excluding only generated IDs, timestamps, and opaque connection cursors."
 }
