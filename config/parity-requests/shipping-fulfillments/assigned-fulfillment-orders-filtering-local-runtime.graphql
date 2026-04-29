@@ -1,0 +1,146 @@
+query AssignedFulfillmentOrdersFiltering($locationIds: [ID!]) {
+  requested: assignedFulfillmentOrders(
+    first: 10
+    assignmentStatus: FULFILLMENT_REQUESTED
+    locationIds: $locationIds
+    sortKey: ID
+  ) {
+    nodes {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          id
+          kind
+          message
+          requestOptions
+          responseData
+          sentAt
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  accepted: assignedFulfillmentOrders(
+    first: 10
+    assignmentStatus: FULFILLMENT_ACCEPTED
+    locationIds: $locationIds
+    sortKey: ID
+  ) {
+    nodes {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          id
+          kind
+          message
+          requestOptions
+          responseData
+          sentAt
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  cancellationRequested: assignedFulfillmentOrders(
+    first: 10
+    assignmentStatus: CANCELLATION_REQUESTED
+    locationIds: $locationIds
+    sortKey: ID
+  ) {
+    nodes {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+      merchantRequests(first: 10) {
+        nodes {
+          id
+          kind
+          message
+          requestOptions
+          responseData
+          sentAt
+        }
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

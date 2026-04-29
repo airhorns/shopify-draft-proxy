@@ -1,0 +1,55 @@
+{
+  "scenarioId": "assigned-fulfillment-orders-filtering-local-runtime",
+  "operationNames": ["assignedFulfillmentOrders"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "local-state-parity",
+    "no-upstream-passthrough",
+    "pagination-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/order-query-shapes.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.graphql",
+    "variablesCapturePath": "$.locationA.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-444 rework adds explicit executable parity evidence for the assignedFulfillmentOrders assignmentStatus and locationIds filtering touched by PR #378. The strict replay seeds open and closed fulfillment orders across UNSUBMITTED, SUBMITTED, ACCEPTED, and accepted-with-cancellation-request states, then compares selected local-runtime recordings for location A, location B, and no location filter. The current live credential is valid, but the 2026-04 fulfillment-top-level-reads fixture records Shopify's assignedFulfillmentOrders access blocker because the app is not associated with a fulfillment service.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "assigned-fulfillment-orders-location-a",
+        "capturePath": "$.expected.locationA",
+        "proxyPath": "$"
+      },
+      {
+        "name": "assigned-fulfillment-orders-location-b",
+        "capturePath": "$.expected.locationB",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.graphql",
+          "variablesCapturePath": "$.locationB.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "assigned-fulfillment-orders-all-locations",
+        "capturePath": "$.expected.allLocations",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.graphql",
+          "variablesCapturePath": "$.allLocations.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

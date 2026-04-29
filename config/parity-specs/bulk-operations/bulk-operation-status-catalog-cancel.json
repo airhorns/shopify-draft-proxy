@@ -89,6 +89,15 @@
         }
       },
       {
+        "name": "run-query-without-connection-validation",
+        "capturePath": "$.validations.bulkOperationRunQueryWithoutConnection.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-parity.graphql",
+          "variablesCapturePath": "$.validations.bulkOperationRunQueryWithoutConnection.variables"
+        }
+      },
+      {
         "name": "run-query-completed-operation",
         "capturePath": "$.lifecycle.queryExportToTerminal.terminalOperation",
         "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",

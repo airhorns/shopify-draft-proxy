@@ -2136,6 +2136,7 @@ function makeSeedGiftCard(runtime: ProxyRuntimeContext, source: Record<string, u
     balance,
     customerId: readNullableStringField(readRecordField(source, 'customer'), 'id'),
     recipientId,
+    source: readNullableStringField(source, 'source'),
     recipientAttributes: recipientAttributesSource
       ? {
           id: recipientId,
@@ -2172,18 +2173,25 @@ function makeSeedGiftCardConfiguration(
 
 function seedGiftCardLifecyclePreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
   const recordsById = new Map<string, GiftCardRecord>();
-  const addGiftCard = (source: unknown): void => {
+  const addGiftCard = (source: unknown, options: { source?: string | null } = {}): void => {
     if (!isPlainObject(source)) {
       return;
     }
     const record = makeSeedGiftCard(runtime, source);
     if (record) {
+      if (options.source !== undefined) {
+        record.source = options.source;
+      }
       recordsById.set(record.id, record);
     }
   };
 
-  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'));
-  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'));
+  addGiftCard(readJsonPath(capture, '$.operations.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
+  addGiftCard(readJsonPath(capture, '$.create.response.payload.data.giftCardCreate.giftCard'), {
+    source: 'api_client',
+  });
 
   const emptyReadNodes = readJsonPath(capture, '$.operations.emptyRead.response.payload.data.giftCards.nodes');
   for (const node of (Array.isArray(emptyReadNodes) ? emptyReadNodes : []).filter(isPlainObject)) {
@@ -4794,6 +4802,7 @@ function readCapturedOrderFulfillmentOrders(order: Record<string, unknown> | nul
               locationId: readStringField(nestedLocation, 'id'),
             }
           : null,
+        merchantRequests: readCapturedFulfillmentOrderMerchantRequests(fulfillmentOrder),
         lineItems: readCapturedFulfillmentOrderLineItems(fulfillmentOrder),
       };
     });
@@ -6367,6 +6376,7 @@ function readCapturedInventoryLevel(source: Record<string, unknown>): InventoryL
     id,
     cursor: readStringField(source, 'cursor'),
     location: locationId ? { id: locationId, name: readStringField(location, 'name') } : null,
+    isActive: readBooleanField(source, 'isActive') ?? true,
     quantities: readArrayField(source, 'quantities')
       .filter(isPlainObject)
       .map((quantity) => ({
@@ -6425,7 +6435,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
     !(
       'inventoryActivateNoOp' in captureObject ||
       'inventoryDeactivateOnlyLocationError' in captureObject ||
-      'inventoryBulkToggleActivateNoOp' in captureObject
+      'inventoryBulkToggleActivateNoOp' in captureObject ||
+      'inventoryInactiveLifecycleDeactivate' in captureObject
     )
   ) {
     return false;
@@ -6446,8 +6457,8 @@ function seedInventoryLinkagePreconditions(runtime: ProxyRuntimeContext, capture
   runtime.store.upsertBaseProducts([
     makeSeedProduct(productId, {
       ...product,
-      totalInventory: firstVariant?.inventoryQuantity ?? null,
-      tracksInventory: firstVariant?.inventoryItem?.tracked ?? null,
+      totalInventory: readNumberField(product, 'totalInventory') ?? firstVariant?.inventoryQuantity ?? null,
+      tracksInventory: readBooleanField(product, 'tracksInventory') ?? firstVariant?.inventoryItem?.tracked ?? null,
     }),
   ]);
   if (variants.length > 0) {
@@ -6482,7 +6493,7 @@ function seedInventoryQuantityRootPreconditions(runtime: ProxyRuntimeContext, ca
   const variantId = readStringField(setup, 'variantId');
   const inventoryItemId = readStringField(setup, 'inventoryItemId');
   if (!productId || !variantId || !inventoryItemId) {
-    return false;
+    return seedInventoryQuantityContractPreconditions(runtime, capture);
   }
 
   const setEvidence = readRecordField(mutationEvidence, 'inventorySetQuantitiesAvailable');
@@ -6549,6 +6560,76 @@ function seedInventoryQuantityRootPreconditions(runtime: ProxyRuntimeContext, ca
         inventoryLevels: [...locationsById.values()].map((location) =>
           makeInventoryQuantityRootSeedLevel(inventoryItemId, location),
         ),
+      },
+    },
+  ]);
+
+  return true;
+}
+
+function seedInventoryQuantityContractPreconditions(runtime: ProxyRuntimeContext, capture: unknown): boolean {
+  const setup = readRecordField(capture as Record<string, unknown>, 'setup');
+  const productSetup = readRecordField(setup, 'product');
+  const productId = readStringField(productSetup, 'productId');
+  const variantId = readStringField(productSetup, 'variantId');
+  const inventoryItemId = readStringField(productSetup, 'inventoryItemId');
+  const location = readRecordField(setup, 'location');
+  const locationId = readStringField(location, 'id');
+  if (!productId || !variantId || !inventoryItemId || !locationId) {
+    return false;
+  }
+
+  const createdProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(setup, 'create'), 'data'), 'productCreate'),
+    'product',
+  );
+  const trackedProduct = readRecordField(
+    readRecordField(readRecordField(readRecordField(setup, 'track'), 'data'), 'productVariantsBulkUpdate'),
+    'product',
+  );
+  const downstreamProduct = readRecordField(
+    readRecordField(readRecordField(capture as Record<string, unknown>, 'downstreamRead'), 'data'),
+    'product',
+  );
+  const locationRecord = { id: locationId, name: readStringField(location, 'name') };
+  runtime.store.upsertBaseLocations([locationRecord]);
+  runtime.store.upsertBaseProducts([
+    makeSeedProduct(
+      productId,
+      {
+        id: productId,
+        title: readStringField(createdProduct, 'title') ?? 'Inventory quantity contract conformance seed',
+        totalInventory:
+          readNumberField(trackedProduct, 'totalInventory') ??
+          readNumberField(downstreamProduct, 'totalInventory') ??
+          0,
+        tracksInventory: true,
+      },
+      'Inventory quantity contract conformance seed',
+    ),
+  ]);
+  runtime.store.replaceBaseVariantsForProduct(productId, [
+    {
+      id: variantId,
+      productId,
+      title: 'Default Title',
+      sku: null,
+      barcode: null,
+      price: null,
+      compareAtPrice: null,
+      taxable: null,
+      inventoryPolicy: null,
+      inventoryQuantity: 0,
+      selectedOptions: [],
+      inventoryItem: {
+        id: inventoryItemId,
+        tracked: true,
+        requiresShipping: true,
+        measurement: null,
+        countryCodeOfOrigin: null,
+        provinceCodeOfOrigin: null,
+        harmonizedSystemCode: null,
+        inventoryLevels: [makeInventoryQuantityRootSeedLevel(inventoryItemId, locationRecord)],
       },
     },
   ]);

@@ -1,0 +1,24 @@
+mutation InventoryTransferCreateReadyParity($input: InventoryTransferCreateAsReadyToShipInput!) {
+  inventoryTransferCreateAsReadyToShip(input: $input) {
+    inventoryTransfer {
+      id
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

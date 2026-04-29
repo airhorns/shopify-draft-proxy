@@ -3183,7 +3183,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryActivate", "InventoryActivate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Stages activation locally, including 2026-04 same item/location reactivation that preserves inactive inventory-level id and quantity rows without runtime Shopify writes."
   },
   {
     "name": "inventoryDeactivate",
@@ -3192,7 +3193,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["inventoryDeactivate", "InventoryDeactivate"],
-    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"]
+    "runtimeTests": ["tests/integration/product-draft-flow.test.ts"],
+    "supportNotes": "Stages deactivation locally by marking product-backed inventory levels inactive, preserving them for includeInactive reads and later reactivation while retaining the captured minimum-one-active-location guard."
   },
   {
     "name": "inventoryBulkToggleActivation",
@@ -4292,7 +4294,7 @@
     "implemented": true,
     "matchNames": ["assignedFulfillmentOrders", "AssignedFulfillmentOrders"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot support is intentionally limited to Shopify-like empty connections for local data with no fulfillment-service assignment model; captured live evidence records the current credential blocker when the app is not associated with a fulfillment service."
+    "supportNotes": "Admin GraphQL 2026-04 fulfillment-order assignment catalog root. Snapshot/local support exposes order-backed fulfillment orders for staged request and cancellation-request workflows, filters assignmentStatus for the locally modeled request states, filters locationIds against stored assigned-location IDs, and keeps the captured live credential blocker documented for app-to-fulfillment-service association gaps."
   },
   {
     "name": "fulfillmentOrder",
@@ -4302,7 +4304,7 @@
     "implemented": true,
     "matchNames": ["fulfillmentOrder", "FulfillmentOrder"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders. Stored fixture deliveryMethod data is serialized when present and returns null when absent; holds and lifecycle replacement semantics remain out of scope."
+    "supportNotes": "Admin GraphQL 2026-04 FulfillmentOrder ID lookup root. Snapshot reads resolve from fulfillment-order records already present on the local order graph, return null for missing IDs, and keep detail serialization aligned with nested Order.fulfillmentOrders, including staged hold/request/lifecycle replacement records when those were created by local supported mutations."
   },
   {
     "name": "fulfillmentOrders",
@@ -4322,7 +4324,7 @@
     "implemented": true,
     "matchNames": ["manualHoldsFulfillmentOrders", "ManualHoldsFulfillmentOrders"],
     "runtimeTests": ["tests/integration/order-query-shapes.test.ts"],
-    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot support is currently limited to captured no-hold empty connection behavior because the local fulfillment-order model does not yet store hold records or hold-specific filters."
+    "supportNotes": "Admin GraphQL 2026-04 held fulfillment-order catalog root. Snapshot/local support returns Shopify-like empty connections when no held local work exists and lists order-backed fulfillment orders with locally staged fulfillmentHolds after fulfillmentOrderHold."
   },
   {
     "name": "fulfillmentOrderAcceptCancellationRequest",
@@ -5203,7 +5205,7 @@
     "implemented": true,
     "matchNames": ["reverseDeliveryCreateWithShipping", "ReverseDeliveryCreateWithShipping"],
     "runtimeTests": ["tests/integration/order-return-flow.test.ts"],
-    "supportNotes": "HAR-370 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items and local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
+    "supportNotes": "HAR-370/HAR-442 local reverse delivery support. Creates reverse deliveries on order-backed reverse fulfillment orders with selected line items, expands an empty line-item input to all reverse fulfillment order line work, and stores local tracking/label metadata; carrier labels, notifications, and external shipping side effects are not invoked."
   },
   {
     "name": "reverseDeliveryShippingUpdate",
@@ -6344,7 +6346,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports product metafield-backed MarketLocalizableResource reads for the current 2026-04 METAFIELD resource type."
+    "supportNotes": "Supports product metafield-backed MarketLocalizableResource identity/empty-content reads and explicitly seeded market-localizable content; default ad hoc product metafields do not invent marketLocalizableContent."
   },
   {
     "name": "marketLocalizableResources",
@@ -6357,7 +6359,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports resourceType: METAFIELD over product metafields; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
+    "supportNotes": "Supports resourceType: METAFIELD over product metafield resource identities while preserving empty marketLocalizableContent unless content is explicitly seeded; METAOBJECT returns the Shopify-like empty local slice until metaobject state exists."
   },
   {
     "name": "marketLocalizableResourcesByIds",
@@ -6370,7 +6372,7 @@
       "tests/integration/markets-localization-flow.test.ts",
       "tests/unit/conformance-parity-scenarios.test.ts"
     ],
-    "supportNotes": "Supports product metafield resource IDs and ignores unknown IDs with Shopify-like empty connection behavior."
+    "supportNotes": "Supports product metafield resource IDs, including default empty marketLocalizableContent behavior, and ignores unknown IDs with Shopify-like empty connection behavior."
   },
   {
     "name": "marketCreate",
@@ -6470,7 +6472,7 @@
     "implemented": true,
     "matchNames": ["marketLocalizationsRegister", "MarketLocalizationsRegister"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
-    "supportNotes": "Stages market-specific values for product metafield resources only; validates market ID, key, digest, blank value, and missing input without upstream writes."
+    "supportNotes": "Stages market-specific values only for product metafield resources whose marketLocalizableContent is explicitly seeded; validates default ad hoc metafields as INVALID_KEY_FOR_MODEL without upstream writes."
   },
   {
     "name": "marketLocalizationsRemove",
@@ -6480,7 +6482,7 @@
     "implemented": true,
     "matchNames": ["marketLocalizationsRemove", "MarketLocalizationsRemove"],
     "runtimeTests": ["tests/integration/markets-localization-flow.test.ts"],
-    "supportNotes": "Removes staged market-specific product metafield values locally and returns removed localization payloads."
+    "supportNotes": "Removes staged market-specific product metafield values locally when marketLocalizableContent is explicitly seeded; default ad hoc metafields return Shopify-like null localization payloads without upstream writes."
   },
   {
     "name": "availableLocales",

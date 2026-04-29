@@ -1,0 +1,503 @@
+{
+  "capturedAt": "2026-04-29T09:27:43.197Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scopeEvidence": {
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "handle": "hermes-conformance-products",
+      "title": "hermes-conformance-products"
+    },
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
+  },
+  "schema": {
+    "mutationArgs": {
+      "marketingEngagementCreate": ["marketingActivityId", "remoteId", "channelHandle", "marketingEngagement"],
+      "marketingEngagementsDelete": ["channelHandle", "deleteEngagementsForAllChannels"]
+    },
+    "inputFields": [
+      "occurredOn",
+      "impressionsCount",
+      "viewsCount",
+      "clicksCount",
+      "sharesCount",
+      "favoritesCount",
+      "commentsCount",
+      "unsubscribesCount",
+      "complaintsCount",
+      "failsCount",
+      "sendsCount",
+      "uniqueViewsCount",
+      "uniqueClicksCount",
+      "adSpend",
+      "isCumulative",
+      "utcOffset",
+      "sales",
+      "sessionsCount",
+      "orders",
+      "firstTimeCustomers",
+      "returningCustomers",
+      "primaryConversions",
+      "allConversions"
+    ],
+    "downstreamReadTargets": {
+      "MarketingActivity": ["adSpend"],
+      "MarketingEvent": []
+    }
+  },
+  "operations": {
+    "createActivity": {
+      "request": {
+        "query": "#graphql\n  mutation CreateMarketingActivity($input: MarketingActivityCreateExternalInput!) {\n    marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n        adSpend {\n          amount\n          currencyCode\n        }\n        marketingEvent {\n          id\n          remoteId\n          channelHandle\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "HAR-463 Engagement Campaign",
+            "remoteId": "har-463-engagement-mojuqctq",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/har-463-engagement-mojuqctq",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "har-463-engagement-mojuqctq",
+              "source": "newsletter",
+              "medium": "email"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/196896325938",
+              "adSpend": null,
+              "marketingEvent": {
+                "id": "gid://shopify/MarketingEvent/242253103410",
+                "remoteId": "har-463-engagement-mojuqctq",
+                "channelHandle": null
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "createByRemoteId": {
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-26",
+              "utcOffset": "+00:00",
+              "isCumulative": false,
+              "impressionsCount": 7,
+              "viewsCount": 5,
+              "clicksCount": 2,
+              "uniqueClicksCount": 1,
+              "adSpend": {
+                "amount": "3.21",
+                "currencyCode": "USD"
+              },
+              "sales": {
+                "amount": "12.34",
+                "currencyCode": "USD"
+              },
+              "orders": "1.5",
+              "primaryConversions": "0.75",
+              "allConversions": "2.25",
+              "firstTimeCustomers": "1.0",
+              "returningCustomers": "0.5",
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/196896325938",
+                "adSpend": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "duplicateSameDay": {
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-26",
+              "impressionsCount": 9,
+              "clicksCount": 4,
+              "adSpend": {
+                "amount": "4.56",
+                "currencyCode": "USD"
+              },
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/196896325938",
+                "adSpend": null
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "downstreamReadAfterCreate": {
+      "request": {
+        "query": "#graphql\n  query MarketingEngagementDownstream($activityId: ID!) {\n    marketingActivity(id: $activityId) {\n      id\n      adSpend {\n        amount\n        currencyCode\n      }\n    }\n  }\n",
+        "variables": {
+          "activityId": "gid://shopify/MarketingActivity/196896325938"
+        }
+      },
+      "response": {
+        "data": {
+          "marketingActivity": {
+            "id": "gid://shopify/MarketingActivity/196896325938",
+            "adSpend": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1917,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "deleteAllChannels": {
+      "response": {
+        "data": {
+          "marketingEngagementsDelete": {
+            "result": "Engagement data marked for deletion for 0 channel(s)",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "validation": {
+      "missingIdentifier": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "No identifier found. For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENT_MISSING"
+              }
+            ]
+          }
+        }
+      },
+      "invalidRemoteId": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        }
+      },
+      "multipleIdentifiers": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "For activity level engagement, either the marketing activity ID or remote ID must be provided. For channel level engagement, the channel handle must be provided.",
+                "code": "INVALID_MARKETING_ENGAGEMENT_ARGUMENTS"
+              }
+            ]
+          }
+        }
+      },
+      "invalidChannel": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["channelHandle"],
+                "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                "code": "INVALID_CHANNEL_HANDLE"
+              }
+            ]
+          }
+        }
+      },
+      "negativeMetric": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": {
+              "occurredOn": "2026-04-25",
+              "impressionsCount": -1,
+              "clicksCount": -2
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "deleteMissingSelector": {
+        "data": {
+          "marketingEngagementsDelete": {
+            "result": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
+                "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "deleteActivity": {
+        "request": {
+          "query": "#graphql\n  mutation DeleteMarketingActivity($remoteId: String) {\n    marketingActivityDeleteExternal(remoteId: $remoteId) {\n      deletedMarketingActivityId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "remoteId": "har-463-engagement-mojuqctq"
+          }
+        },
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/196896325938",
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "blockers": {
+    "channelHandleSuccess": {
+      "existingLiveChannelHandles": [],
+      "candidateProbeResults": [
+        {
+          "channelHandle": "hermes-conformance-products",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "shopify_email",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "email",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "online_store",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "shop_app",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "facebook",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "google",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "google_shopping",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "pinterest",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "instagram",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        },
+        {
+          "channelHandle": "tiktok",
+          "response": {
+            "data": {
+              "marketingEngagementCreate": {
+                "marketingEngagement": null,
+                "userErrors": [
+                  {
+                    "field": ["channelHandle"],
+                    "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                    "code": "INVALID_CHANNEL_HANDLE"
+                  }
+                ]
+              }
+            }
+          },
+          "cleanup": null
+        }
+      ],
+      "summary": "The current conformance shop exposes no marketing events with non-null channelHandle, and common app/channel handles are rejected with INVALID_CHANNEL_HANDLE. Recognized channelHandle success remains blocked until the disposable shop exposes a valid handle."
+    }
+  },
+  "notes": [
+    "Activity-level engagement creates were captured against a disposable external marketing activity and cleaned up afterward.",
+    "Admin GraphQL 2026-04 exposes primaryConversions and allConversions on MarketingEngagementInput/MarketingEngagement; both fields are captured in the createByRemoteId success payload.",
+    "Immediate downstream marketingActivity.adSpend remained null after activity-level engagement writes; the proxy therefore records engagement state without inventing aggregate attribution.",
+    "No recognized channel handle was available in the conformance shop; unrecognized channelHandle branches return INVALID_CHANNEL_HANDLE."
+  ]
+}

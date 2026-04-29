@@ -26,6 +26,7 @@ type ShipmentMutationResult = {
 
 const DEFAULT_INVENTORY_LEVEL_LOCATION_ID = 'gid://shopify/Location/1';
 const SHIPMENT_STATUS_TERMINAL = new Set(['RECEIVED']);
+const SHIPMENT_STATUS_HAS_INCOMING = new Set(['IN_TRANSIT', 'PARTIALLY_RECEIVED']);
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -64,6 +65,10 @@ function findVariantByInventoryItemId(
 
 function getShipmentLineItemUnreceivedQuantity(lineItem: InventoryShipmentLineItemRecord): number {
   return Math.max(0, lineItem.quantity - lineItem.acceptedQuantity - lineItem.rejectedQuantity);
+}
+
+function shipmentHasUnreceivedIncoming(status: InventoryShipmentRecord['status']): boolean {
+  return SHIPMENT_STATUS_HAS_INCOMING.has(status);
 }
 
 function shipmentTotals(shipment: InventoryShipmentRecord): {
@@ -641,7 +646,7 @@ export function handleInventoryShipmentMutation(
             lineItems: [...existing.lineItems, ...addedItems],
           })
         : existing;
-    if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
+    if (userErrors.length === 0 && shipmentHasUnreceivedIncoming(existing.status)) {
       for (const lineItem of addedItems) {
         adjustInventoryQuantities(runtime, lineItem.inventoryItemId, { incoming: lineItem.quantity });
       }
@@ -681,7 +686,7 @@ export function handleInventoryShipmentMutation(
         ? [{ field: ['id'], message: 'Received shipments cannot be updated.', code: 'INVALID_STATUS' }]
         : [];
     const removed = existing.lineItems.filter((lineItem) => ids.includes(lineItem.id));
-    if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
+    if (userErrors.length === 0 && shipmentHasUnreceivedIncoming(existing.status)) {
       for (const lineItem of removed) {
         adjustInventoryQuantities(runtime, lineItem.inventoryItemId, {
           incoming: -getShipmentLineItemUnreceivedQuantity(lineItem),
@@ -743,7 +748,7 @@ export function handleInventoryShipmentMutation(
       }
       const next = nextLineItems.find((candidate) => candidate.id === lineItem.id);
       if (next) {
-        if (existing.status === 'IN_TRANSIT') {
+        if (shipmentHasUnreceivedIncoming(existing.status)) {
           inventoryDeltas.push({ inventoryItemId: next.inventoryItemId, incoming: quantity - next.quantity });
         }
         next.quantity = quantity;
@@ -889,7 +894,7 @@ export function handleInventoryShipmentMutation(
       existing.status === 'RECEIVED'
         ? [{ field: ['id'], message: 'Received shipments cannot be deleted.', code: 'INVALID_STATUS' }]
         : [];
-    if (userErrors.length === 0 && existing.status === 'IN_TRANSIT') {
+    if (userErrors.length === 0 && shipmentHasUnreceivedIncoming(existing.status)) {
       for (const lineItem of existing.lineItems) {
         adjustInventoryQuantities(runtime, lineItem.inventoryItemId, {
           incoming: -getShipmentLineItemUnreceivedQuantity(lineItem),

@@ -1,0 +1,12 @@
+#graphql
+mutation InventoryQuantityContractAdjustMissingChangeFrom($input: InventoryAdjustQuantitiesInput!) {
+  inventoryAdjustQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

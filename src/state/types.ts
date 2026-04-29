@@ -107,6 +107,7 @@ export const inventoryLevelRecordSchema = z.strictObject({
   id: z.string(),
   cursor: nullableStringSchema,
   location: inventoryLevelLocationRecordSchema.nullable(),
+  isActive: z.boolean().optional(),
   quantities: z.array(inventoryLevelQuantityRecordSchema),
 });
 export type InventoryLevelRecord = z.infer<typeof inventoryLevelRecordSchema>;
@@ -539,6 +540,15 @@ export const productMetafieldRecordSchema = z.strictObject({
   createdAt: nullableStringSchema.optional(),
   updatedAt: nullableStringSchema.optional(),
   ownerType: nullableStringSchema.optional(),
+  marketLocalizableContent: z
+    .array(
+      z.strictObject({
+        key: z.string(),
+        value: nullableStringSchema,
+        digest: nullableStringSchema,
+      }),
+    )
+    .optional(),
 });
 export type ProductMetafieldRecord = z.infer<typeof productMetafieldRecordSchema>;
 
@@ -745,6 +755,7 @@ export const giftCardRecordSchema = z.strictObject({
   balance: moneyV2RecordSchema,
   customerId: nullableStringSchema,
   recipientId: nullableStringSchema,
+  source: nullableStringSchema.optional(),
   recipientAttributes: giftCardRecipientAttributesRecordSchema.nullable().optional(),
   transactions: z.array(giftCardTransactionRecordSchema),
 });

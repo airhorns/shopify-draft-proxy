@@ -79,6 +79,7 @@ import {
 } from './products/options.js';
 import { serializeCountValue, serializeJobSelectionSet } from './products/serializers.js';
 import { serializeLocation as serializeStorePropertiesLocation } from './store-properties.js';
+import { listMarketPriceListContextsForCountry } from './markets.js';
 import {
   normalizeOwnerMetafield,
   readMetafieldInputObjects,
@@ -1520,7 +1521,7 @@ function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | 
 
   const rawEdges = Array.isArray(raw['edges']) ? raw['edges'] : [];
   const levels = rawEdges
-    .map((edge) => {
+    .map((edge): InventoryLevelRecord | null => {
       if (!isObject(edge)) {
         return null;
       }
@@ -1565,13 +1566,11 @@ function normalizeInventoryLevelRecords(raw: unknown): InventoryLevelRecord[] | 
         id: rawNode['id'],
         cursor,
         location,
+        isActive: typeof rawNode['isActive'] === 'boolean' ? rawNode['isActive'] : true,
         quantities,
       };
     })
-    .filter(
-      (level): level is NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number] =>
-        level !== null,
-    );
+    .filter((level): level is InventoryLevelRecord => level !== null);
 
   return levels.length > 0 ? levels : null;
 }
@@ -3937,11 +3936,13 @@ function applyInventoryMoveQuantities(
 function findInventoryLevelTarget(
   runtime: ProxyRuntimeContext,
   inventoryLevelId: string,
+  options: { includeInactive?: boolean } = {},
 ): InventoryLevelTargetRecord | null {
   for (const product of runtime.store.listEffectiveProducts()) {
     for (const variant of runtime.store.getEffectiveVariantsByProductId(product.id)) {
       const level =
-        getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.id === inventoryLevelId) ?? null;
+        getEffectiveInventoryLevels(runtime, variant, options).find((candidate) => candidate.id === inventoryLevelId) ??
+        null;
       if (level) {
         return { variant, level };
       }
@@ -3960,8 +3961,10 @@ function stageVariantInventoryLevels(
   variant: ProductVariantRecord,
   nextLevels: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>,
 ): ProductVariantRecord {
+  const activeLevels = nextLevels.filter((level) => level.isActive !== false);
   const nextVariant: ProductVariantRecord = {
     ...structuredClone(variant),
+    inventoryQuantity: sumAvailableInventoryLevels(activeLevels),
     inventoryItem: variant.inventoryItem
       ? {
           ...structuredClone(variant.inventoryItem),
@@ -3991,6 +3994,7 @@ function buildActivatedInventoryLevel(
 
   return {
     ...syntheticLevel,
+    isActive: true,
     location: {
       id: location.id,
       name: location.name,
@@ -5465,6 +5469,7 @@ function buildSyntheticInventoryLevel(
     id: existingLevel?.id ?? buildStableSyntheticInventoryLevelId(variant.inventoryItem.id, locationId),
     cursor: existingLevel?.cursor ?? null,
     location: existingLevel?.location ?? { id: locationId, name: null },
+    isActive: existingLevel?.isActive ?? true,
     quantities: [
       {
         name: 'available',
@@ -5506,13 +5511,18 @@ function buildSyntheticInventoryLevels(
 function getEffectiveInventoryLevels(
   runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
+  options: { includeInactive?: boolean } = {},
 ): NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']> {
   const hydratedLevels = variant.inventoryItem?.inventoryLevels;
   if (!hydratedLevels || hydratedLevels.length === 0) {
     return buildSyntheticInventoryLevels(runtime, variant);
   }
 
-  return structuredClone(hydratedLevels).filter((level) => !runtime.store.isLocationDeleted(level.location?.id ?? ''));
+  return structuredClone(hydratedLevels).filter(
+    (level) =>
+      !runtime.store.isLocationDeleted(level.location?.id ?? '') &&
+      (options.includeInactive === true || level.isActive !== false),
+  );
 }
 
 function serializeInventoryLevelQuantities(
@@ -5581,6 +5591,9 @@ function serializeInventoryLevelNode(
       case 'id':
         nodeResult[levelKey] = level.id;
         break;
+      case 'isActive':
+        nodeResult[levelKey] = level.isActive !== false;
+        break;
       case 'location': {
         if (!level.location) {
           nodeResult[levelKey] = null;
@@ -5626,7 +5639,10 @@ function serializeInventoryLevelsConnection(
   const getLevelCursor = (
     level: NonNullable<NonNullable<ProductVariantRecord['inventoryItem']>['inventoryLevels']>[number],
   ): string => level.cursor ?? `cursor:${level.id}`;
-  const allLevels = getEffectiveInventoryLevels(runtime, variant);
+  const connectionArgs = getFieldArguments(field, variables);
+  const allLevels = getEffectiveInventoryLevels(runtime, variant, {
+    includeInactive: connectionArgs['includeInactive'] === true,
+  });
   const {
     items: levels,
     hasNextPage,
@@ -5846,6 +5862,89 @@ function applyInventoryTransferReservation(
       quantitiesWithAvailable,
       'reserved',
       reserved + quantity,
+    );
+    const nextLevel = { ...level, quantities: nextQuantities };
+    const nextLevels = levels.map((candidate, index) => (index === levelIndex ? nextLevel : candidate));
+    nextLevelsByVariantId.set(target.variant.id, nextLevels);
+  }
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  for (const [variantId, nextLevels] of nextLevelsByVariantId.entries()) {
+    const variant = runtime.store.getEffectiveVariantById(variantId);
+    if (!variant) {
+      continue;
+    }
+
+    const nextVariant = stageVariantInventoryLevels(runtime, variant, nextLevels);
+    const inventoryQuantity = sumAvailableInventoryLevels(getEffectiveInventoryLevels(runtime, nextVariant));
+    runtime.store.replaceStagedVariantsForProduct(
+      nextVariant.productId,
+      runtime.store
+        .getEffectiveVariantsByProductId(nextVariant.productId)
+        .map((candidate) => (candidate.id === nextVariant.id ? { ...nextVariant, inventoryQuantity } : candidate)),
+    );
+  }
+
+  return [];
+}
+
+function transferHasReservedOriginInventory(status: InventoryTransferRecord['status']): boolean {
+  return status === 'READY_TO_SHIP' || status === 'IN_PROGRESS';
+}
+
+function applyInventoryTransferReservationDeltas(
+  runtime: ProxyRuntimeContext,
+  transfer: InventoryTransferRecord,
+  deltas: Array<{ lineItem: InventoryTransferLineItemRecord; deltaQuantity: number }>,
+): InventoryTransferUserError[] {
+  const errors: InventoryTransferUserError[] = [];
+  const nextLevelsByVariantId = new Map<string, InventoryLevelRecord[]>();
+
+  for (const { lineItem, deltaQuantity } of deltas) {
+    if (deltaQuantity === 0) {
+      continue;
+    }
+
+    const target = findInventoryTransferOriginLevel(runtime, transfer, lineItem);
+    if (!target) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
+      });
+      continue;
+    }
+
+    const levels = nextLevelsByVariantId.get(target.variant.id) ?? getEffectiveInventoryLevels(runtime, target.variant);
+    const levelIndex = levels.findIndex((level) => level.id === target.level.id);
+    const level = levels[levelIndex] ?? target.level;
+    const available = readInventoryQuantityAmount(level.quantities, 'available', 0);
+    const reserved = readInventoryQuantityAmount(level.quantities, 'reserved', 0);
+    if (deltaQuantity > 0 && available < deltaQuantity) {
+      errors.push({
+        field: ['id'],
+        message:
+          'Cannot mark the transfer as ready to ship as the line items contain following errors: The item is not stocked at the origin location.',
+        code: 'INVENTORY_STATE_NOT_ACTIVE',
+      });
+      continue;
+    }
+
+    const quantitiesWithAvailable = writeInventoryQuantityAmount(
+      runtime,
+      level.quantities,
+      'available',
+      available - deltaQuantity,
+    );
+    const nextQuantities = writeInventoryQuantityAmount(
+      runtime,
+      quantitiesWithAvailable,
+      'reserved',
+      reserved + deltaQuantity,
     );
     const nextLevel = { ...level, quantities: nextQuantities };
     const nextLevels = levels.map((candidate, index) => (index === levelIndex ? nextLevel : candidate));
@@ -6393,6 +6492,9 @@ function serializeInventoryLevelObject(
       case 'id':
         result[key] = level.id;
         break;
+      case 'isActive':
+        result[key] = level.isActive !== false;
+        break;
       case 'location': {
         if (!level.location) {
           result[key] = null;
@@ -6550,9 +6652,9 @@ function serializeInventoryItemSelectionSet(
             const inventoryArgs = getFieldArguments(inventorySelection, variables);
             const locationId = typeof inventoryArgs['locationId'] === 'string' ? inventoryArgs['locationId'] : null;
             const level = locationId
-              ? (getEffectiveInventoryLevels(runtime, variant).find(
-                  (candidate) => candidate.location?.id === locationId,
-                ) ?? null)
+              ? (getEffectiveInventoryLevels(runtime, variant, {
+                  includeInactive: inventoryArgs['includeInactive'] === true,
+                }).find((candidate) => candidate.location?.id === locationId) ?? null)
               : null;
             return [
               inventoryKey,
@@ -6872,6 +6974,189 @@ function serializeSellingPlanGroupConnection(
   });
 }
 
+type ObjectConnectionEdge = {
+  cursor: string;
+  node: Record<string, unknown>;
+};
+
+type DerivedVariantContextualPricing = {
+  payload: Record<string, unknown>;
+  priceAmount: number;
+  hasFixedQuantityRule: boolean;
+};
+
+function readContextCountryCode(field: FieldNode, variables: Record<string, unknown>): string | null {
+  const args = getFieldArguments(field, variables);
+  const context = args['context'];
+  if (!isObject(context) || typeof context['country'] !== 'string') {
+    return null;
+  }
+
+  const countryCode = context['country'].toUpperCase();
+  return /^[A-Z]{2}$/u.test(countryCode) ? countryCode : null;
+}
+
+function readObjectConnectionEdges(value: unknown): ObjectConnectionEdge[] {
+  if (!isObject(value) || !Array.isArray(value['edges'])) {
+    return [];
+  }
+
+  return value['edges'].flatMap((edge): ObjectConnectionEdge[] => {
+    if (!isObject(edge) || !isObject(edge['node'])) {
+      return [];
+    }
+
+    const node = edge['node'];
+    const nodeId = typeof node['id'] === 'string' ? node['id'] : null;
+    const cursor = typeof edge['cursor'] === 'string' && edge['cursor'].length > 0 ? edge['cursor'] : nodeId;
+    return cursor ? [{ cursor, node }] : [];
+  });
+}
+
+function emptyContextualPricingConnection(): Record<string, unknown> {
+  return {
+    edges: [],
+    pageInfo: {
+      hasNextPage: false,
+      hasPreviousPage: false,
+      startCursor: null,
+      endCursor: null,
+    },
+  };
+}
+
+function readPriceListPriceVariantId(node: Record<string, unknown>): string | null {
+  const variant = node['variant'];
+  return isObject(variant) && typeof variant['id'] === 'string' ? variant['id'] : null;
+}
+
+function readQuantityRuleVariantId(node: Record<string, unknown>): string | null {
+  const productVariant = node['productVariant'];
+  return isObject(productVariant) && typeof productVariant['id'] === 'string' ? productVariant['id'] : null;
+}
+
+function findFixedPriceNodeForVariant(
+  priceListData: Record<string, unknown>,
+  variantId: string,
+): Record<string, unknown> | null {
+  for (const edge of readObjectConnectionEdges(priceListData['prices'])) {
+    if (edge.node['originType'] === 'FIXED' && readPriceListPriceVariantId(edge.node) === variantId) {
+      return edge.node;
+    }
+  }
+
+  return null;
+}
+
+function quantityRuleForVariant(
+  priceListData: Record<string, unknown>,
+  variantId: string,
+): { payload: Record<string, unknown>; isFixed: boolean } {
+  for (const edge of readObjectConnectionEdges(priceListData['quantityRules'])) {
+    if (readQuantityRuleVariantId(edge.node) === variantId) {
+      return {
+        payload: {
+          minimum: edge.node['minimum'] ?? null,
+          maximum: edge.node['maximum'] ?? null,
+          increment: edge.node['increment'] ?? null,
+        },
+        isFixed: true,
+      };
+    }
+  }
+
+  return {
+    payload: {
+      minimum: 1,
+      maximum: null,
+      increment: 1,
+    },
+    isFixed: false,
+  };
+}
+
+function readMoneyAmountNumber(money: unknown): number | null {
+  if (!isObject(money)) {
+    return null;
+  }
+
+  const rawAmount = money['amount'];
+  const amount = typeof rawAmount === 'number' ? rawAmount : typeof rawAmount === 'string' ? Number(rawAmount) : NaN;
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function derivedVariantContextualPricing(
+  runtime: ProxyRuntimeContext,
+  variant: ProductVariantRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): DerivedVariantContextualPricing | null {
+  const countryCode = readContextCountryCode(field, variables);
+  const priceLists = countryCode
+    ? listMarketPriceListContextsForCountry(runtime, countryCode).map((context) => context.priceList)
+    : [];
+  const match =
+    priceLists
+      .map((priceList) => ({ priceList, priceNode: findFixedPriceNodeForVariant(priceList.data, variant.id) }))
+      .find(({ priceNode }) => priceNode !== null) ?? null;
+  const priceList = match?.priceList ?? null;
+  const priceNode = match?.priceNode ?? null;
+  if (!priceList || !priceNode || !isObject(priceNode['price'])) {
+    return null;
+  }
+
+  const priceAmount = readMoneyAmountNumber(priceNode['price']);
+  if (priceAmount === null) {
+    return null;
+  }
+
+  const quantityRule = quantityRuleForVariant(priceList.data, variant.id);
+  return {
+    payload: {
+      price: structuredClone(priceNode['price']),
+      compareAtPrice: isObject(priceNode['compareAtPrice']) ? structuredClone(priceNode['compareAtPrice']) : null,
+      unitPrice: null,
+      quantityRule: quantityRule.payload,
+      quantityPriceBreaks: isObject(priceNode['quantityPriceBreaks'])
+        ? structuredClone(priceNode['quantityPriceBreaks'])
+        : emptyContextualPricingConnection(),
+    },
+    priceAmount,
+    hasFixedQuantityRule: quantityRule.isFixed,
+  };
+}
+
+function derivedProductContextualPricing(
+  runtime: ProxyRuntimeContext,
+  product: ProductRecord,
+  field: FieldNode,
+  variables: Record<string, unknown>,
+): Record<string, unknown> | null {
+  const variantPricing = runtime.store
+    .getEffectiveVariantsByProductId(product.id)
+    .flatMap((variant) => {
+      const pricing = derivedVariantContextualPricing(runtime, variant, field, variables);
+      return pricing ? [pricing] : [];
+    })
+    .sort((left, right) => left.priceAmount - right.priceAmount);
+
+  const minVariantPricing = variantPricing[0] ?? null;
+  const maxVariantPricing = variantPricing.at(-1) ?? null;
+  if (!minVariantPricing || !maxVariantPricing) {
+    return null;
+  }
+
+  return {
+    fixedQuantityRulesCount: variantPricing.filter((pricing) => pricing.hasFixedQuantityRule).length,
+    priceRange: {
+      minVariantPrice: minVariantPricing.payload['price'],
+      maxVariantPrice: maxVariantPricing.payload['price'],
+    },
+    minVariantPricing: minVariantPricing.payload,
+    maxVariantPricing: maxVariantPricing.payload,
+  };
+}
+
 function serializeVariantSelectionSet(
   runtime: ProxyRuntimeContext,
   variant: ProductVariantRecord,
@@ -6951,7 +7236,7 @@ function serializeVariantSelectionSet(
         break;
       case 'contextualPricing':
         result[key] = projectGraphqlValue(
-          variant.contextualPricing,
+          derivedVariantContextualPricing(runtime, variant, selection, variables)?.payload ?? variant.contextualPricing,
           selection.selectionSet?.selections ?? [],
           new Map(),
         );
@@ -8812,7 +9097,11 @@ function serializeProductField(
     case 'metafields':
       return serializeOwnerMetafieldsConnection(getEffectiveMetafieldsForOwner(runtime, product.id), field, variables);
     case 'contextualPricing':
-      return projectGraphqlValue(product.contextualPricing, field.selectionSet?.selections ?? [], new Map());
+      return projectGraphqlValue(
+        derivedProductContextualPricing(runtime, product, field, variables) ?? product.contextualPricing,
+        field.selectionSet?.selections ?? [],
+        new Map(),
+      );
     case 'sellingPlanGroups':
       return serializeSellingPlanGroupConnection(
         runtime,
@@ -13748,7 +14037,7 @@ export function handleProductMutation(
       }
 
       const lineItemInputs = readInventoryTransferLineItemInputs(input['lineItems']);
-      const userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
+      let userErrors = validateInventoryTransferLineItems(runtime, lineItemInputs);
       const priorByItemId = new Map(transfer.lineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
       const updatedLineItems = lineItemInputs
         .map((lineItemInput) => {
@@ -13765,7 +14054,20 @@ export function handleProductMutation(
           deltaQuantity: lineItem.totalQuantity - priorQuantity,
         };
       });
+      const updatedByItemId = new Map(updatedLineItems.map((lineItem) => [lineItem.inventoryItemId, lineItem]));
+      const reservationDeltas = [
+        ...updatedLineItems.map((lineItem) => ({
+          lineItem,
+          deltaQuantity: lineItem.totalQuantity - (priorByItemId.get(lineItem.inventoryItemId)?.totalQuantity ?? 0),
+        })),
+        ...transfer.lineItems
+          .filter((lineItem) => !updatedByItemId.has(lineItem.inventoryItemId))
+          .map((lineItem) => ({ lineItem, deltaQuantity: -lineItem.totalQuantity })),
+      ];
       const nextTransfer = { ...transfer, lineItems: updatedLineItems };
+      if (userErrors.length === 0 && transferHasReservedOriginInventory(transfer.status)) {
+        userErrors = applyInventoryTransferReservationDeltas(runtime, transfer, reservationDeltas);
+      }
       if (userErrors.length === 0) {
         runtime.store.upsertStagedInventoryTransfer(nextTransfer);
       }
@@ -13799,6 +14101,16 @@ export function handleProductMutation(
       const removeIds = Array.isArray(input['transferLineItemIds'])
         ? input['transferLineItemIds'].filter((value): value is string => typeof value === 'string')
         : [];
+      const knownLineItemIds = new Set(transfer.lineItems.map((lineItem) => lineItem.id));
+      let userErrors: InventoryTransferUserError[] = removeIds.some((lineItemId) => !knownLineItemIds.has(lineItemId))
+        ? [
+            {
+              field: ['input', 'transferLineItemIds'],
+              message: "The inventory transfer line item can't be found.",
+              code: 'LINE_ITEM_NOT_FOUND',
+            },
+          ]
+        : [];
       const removedItems = transfer.lineItems.filter((lineItem) => removeIds.includes(lineItem.id));
       const nextTransfer = {
         ...transfer,
@@ -13809,21 +14121,30 @@ export function handleProductMutation(
         newQuantity: 0,
         deltaQuantity: -lineItem.totalQuantity,
       }));
-      runtime.store.upsertStagedInventoryTransfer(nextTransfer);
+      if (userErrors.length === 0 && transferHasReservedOriginInventory(transfer.status)) {
+        userErrors = applyInventoryTransferReservationDeltas(
+          runtime,
+          transfer,
+          removedItems.map((lineItem) => ({ lineItem, deltaQuantity: -lineItem.totalQuantity })),
+        );
+      }
+      if (userErrors.length === 0) {
+        runtime.store.upsertStagedInventoryTransfer(nextTransfer);
+      }
       return {
         data: {
           [responseKey]: {
             inventoryTransfer: serializeInventoryTransfer(
               runtime,
-              nextTransfer,
+              userErrors.length === 0 ? nextTransfer : transfer,
               getChildField(field, 'inventoryTransfer'),
               variables,
             ),
             removedQuantities: serializeInventoryTransferLineItemUpdates(
               getChildField(field, 'removedQuantities'),
-              updates,
+              userErrors.length === 0 ? updates : null,
             ),
-            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), []),
+            userErrors: serializeInventoryTransferUserErrors(getChildField(field, 'userErrors'), userErrors),
           },
         },
       };
@@ -14088,20 +14409,22 @@ export function handleProductMutation(
       const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
-            null)
+          ? (getEffectiveInventoryLevels(runtime, variant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === locationId,
+            ) ?? null)
           : null;
+      const activationLocation = knownLocation ?? (level?.location ? { ...level.location, isActive: true } : null);
       const hasAvailableArg = hasOwnField(args, 'available');
       const userErrors: InventoryMutationUserError[] = [];
 
-      if (variant && locationId && !level && !knownLocation) {
+      if (variant && locationId && !level && !activationLocation) {
         userErrors.push({
           field: ['locationId'],
           message: "The product couldn't be stocked because the location wasn't found.",
         });
       }
 
-      if (hasAvailableArg && level) {
+      if (hasAvailableArg && level && level.isActive !== false) {
         userErrors.push({
           field: ['available'],
           message: 'Not allowed to set available quantity when the item is already active at the location.',
@@ -14110,16 +14433,34 @@ export function handleProductMutation(
 
       let resolvedVariant = variant;
       let resolvedLevel = level;
-      if (variant && knownLocation && !level) {
-        const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
+      if (variant && activationLocation && (!level || level.isActive === false) && userErrors.length === 0) {
+        const nextLevel = level
+          ? {
+              ...structuredClone(level),
+              isActive: true,
+              quantities: level.quantities.map((quantity) =>
+                quantity.name === 'available'
+                  ? { ...quantity, updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp() }
+                  : structuredClone(quantity),
+              ),
+              location: {
+                id: activationLocation.id,
+                name: activationLocation.name,
+              },
+            }
+          : buildActivatedInventoryLevel(runtime, variant, activationLocation);
         if (nextLevel) {
-          resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
-            ...getEffectiveInventoryLevels(runtime, variant),
-            nextLevel,
-          ]);
+          const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
+          resolvedVariant = stageVariantInventoryLevels(
+            runtime,
+            variant,
+            level
+              ? allLevels.map((candidate) => (candidate.id === level.id ? nextLevel : candidate))
+              : [...allLevels, nextLevel],
+          );
           resolvedLevel =
-            getEffectiveInventoryLevels(runtime, resolvedVariant).find(
-              (candidate) => candidate.location?.id === knownLocation.id,
+            getEffectiveInventoryLevels(runtime, resolvedVariant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === activationLocation.id,
             ) ?? nextLevel;
         }
       }
@@ -14147,6 +14488,9 @@ export function handleProductMutation(
       const inventoryLevelId = typeof rawInventoryLevelId === 'string' ? rawInventoryLevelId : null;
       const target = inventoryLevelId ? findInventoryLevelTarget(runtime, inventoryLevelId) : null;
       const allLevels = target ? getEffectiveInventoryLevels(runtime, target.variant) : [];
+      const allLevelsIncludingInactive = target
+        ? getEffectiveInventoryLevels(runtime, target.variant, { includeInactive: true })
+        : [];
       const userErrors: InventoryMutationUserError[] = [];
 
       if (target && allLevels.length <= 1) {
@@ -14160,7 +14504,9 @@ export function handleProductMutation(
         stageVariantInventoryLevels(
           runtime,
           target.variant,
-          allLevels.filter((candidate) => candidate.id !== target.level.id),
+          allLevelsIncludingInactive.map((candidate) =>
+            candidate.id === target.level.id ? { ...candidate, isActive: false } : candidate,
+          ),
         );
       }
 
@@ -14185,12 +14531,14 @@ export function handleProductMutation(
       const knownLocation = locationId ? findKnownLocationById(runtime, locationId) : null;
       const level =
         variant && locationId
-          ? (getEffectiveInventoryLevels(runtime, variant).find((candidate) => candidate.location?.id === locationId) ??
-            null)
+          ? (getEffectiveInventoryLevels(runtime, variant, { includeInactive: true }).find(
+              (candidate) => candidate.location?.id === locationId,
+            ) ?? null)
           : null;
+      const activationLocation = knownLocation ?? (level?.location ? { ...level.location, isActive: true } : null);
       const userErrors: InventoryMutationUserError[] = [];
 
-      if (variant && locationId && !level && !knownLocation) {
+      if (variant && locationId && !level && !activationLocation) {
         userErrors.push({
           field: ['inventoryItemUpdates', '0', 'locationId'],
           message: "The quantity couldn't be updated because the location was not found.",
@@ -14209,16 +14557,34 @@ export function handleProductMutation(
       let resolvedVariant = variant;
       let responseLevels: Record<string, unknown>[] | null = null;
       if (variant && userErrors.length === 0 && locationId) {
-        if (activate === true && !level && knownLocation) {
-          const nextLevel = buildActivatedInventoryLevel(runtime, variant, knownLocation);
+        if (activate === true && (!level || level.isActive === false) && activationLocation) {
+          const nextLevel = level
+            ? {
+                ...structuredClone(level),
+                isActive: true,
+                quantities: level.quantities.map((quantity) =>
+                  quantity.name === 'available'
+                    ? { ...quantity, updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp() }
+                    : structuredClone(quantity),
+                ),
+                location: {
+                  id: activationLocation.id,
+                  name: activationLocation.name,
+                },
+              }
+            : buildActivatedInventoryLevel(runtime, variant, activationLocation);
           if (nextLevel) {
-            resolvedVariant = stageVariantInventoryLevels(runtime, variant, [
-              ...getEffectiveInventoryLevels(runtime, variant),
-              nextLevel,
-            ]);
+            const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
+            resolvedVariant = stageVariantInventoryLevels(
+              runtime,
+              variant,
+              level
+                ? allLevels.map((candidate) => (candidate.id === level.id ? nextLevel : candidate))
+                : [...allLevels, nextLevel],
+            );
             const resolvedLevel =
-              getEffectiveInventoryLevels(runtime, resolvedVariant).find(
-                (candidate) => candidate.location?.id === knownLocation.id,
+              getEffectiveInventoryLevels(runtime, resolvedVariant, { includeInactive: true }).find(
+                (candidate) => candidate.location?.id === activationLocation.id,
               ) ?? nextLevel;
             responseLevels = [
               serializeInventoryLevelObject(
@@ -14231,13 +14597,14 @@ export function handleProductMutation(
             ];
           }
         } else if (activate === false && level) {
+          const allLevels = getEffectiveInventoryLevels(runtime, variant, { includeInactive: true });
           resolvedVariant = stageVariantInventoryLevels(
             runtime,
             variant,
-            getEffectiveInventoryLevels(runtime, variant).filter((candidate) => candidate.id !== level.id),
+            allLevels.map((candidate) => (candidate.id === level.id ? { ...candidate, isActive: false } : candidate)),
           );
           responseLevels = [];
-        } else if (level) {
+        } else if (level && level.isActive !== false) {
           responseLevels = [
             serializeInventoryLevelObject(
               runtime,
@@ -15034,7 +15401,7 @@ export function handleProductQuery(
       case 'inventoryLevel': {
         const rawId = args['id'];
         const id = typeof rawId === 'string' ? rawId : null;
-        const target = id ? findInventoryLevelTarget(runtime, id) : null;
+        const target = id ? findInventoryLevelTarget(runtime, id, { includeInactive: true }) : null;
         data[responseKey] = target
           ? serializeInventoryLevelObject(
               runtime,

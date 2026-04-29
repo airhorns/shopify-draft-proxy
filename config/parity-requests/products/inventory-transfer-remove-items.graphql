@@ -1,0 +1,24 @@
+mutation InventoryTransferRemoveItemsParity($input: InventoryTransferRemoveItemsInput!) {
+  inventoryTransferRemoveItems(input: $input) {
+    inventoryTransfer {
+      id
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+        }
+      }
+    }
+    removedQuantities {
+      inventoryItemId
+      newQuantity
+      deltaQuantity
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

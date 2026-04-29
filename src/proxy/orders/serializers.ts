@@ -2577,6 +2577,59 @@ export function sortFulfillmentOrdersForConnection(
   return reverse ? sorted.reverse() : sorted;
 }
 
+function readStringListArgumentValue(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function hasPendingCancellationRequest(fulfillmentOrder: OrderFulfillmentOrderRecord): boolean {
+  return (
+    fulfillmentOrder.requestStatus === 'ACCEPTED' &&
+    (fulfillmentOrder.merchantRequests ?? []).some((merchantRequest) => merchantRequest.kind === 'CANCELLATION_REQUEST')
+  );
+}
+
+function matchesAssignedFulfillmentOrderStatus(
+  fulfillmentOrder: OrderFulfillmentOrderRecord,
+  assignmentStatus: unknown,
+): boolean {
+  if (typeof assignmentStatus !== 'string') {
+    return true;
+  }
+
+  switch (assignmentStatus) {
+    case 'FULFILLMENT_REQUESTED':
+      return fulfillmentOrder.requestStatus === 'SUBMITTED';
+    case 'FULFILLMENT_ACCEPTED':
+      return fulfillmentOrder.requestStatus === 'ACCEPTED' && !hasPendingCancellationRequest(fulfillmentOrder);
+    case 'CANCELLATION_REQUESTED':
+      return hasPendingCancellationRequest(fulfillmentOrder);
+    default:
+      return false;
+  }
+}
+
+export function prepareAssignedFulfillmentOrders(
+  field: FieldNode,
+  fulfillmentOrders: OrderFulfillmentOrderRecord[],
+  variables: Record<string, unknown>,
+): OrderFulfillmentOrderRecord[] {
+  const args = getFieldArguments(field, variables);
+  const locationIds = readStringListArgumentValue(args['locationIds']);
+  const visibleFulfillmentOrders = fulfillmentOrders.filter((fulfillmentOrder) => {
+    if (fulfillmentOrder.status === 'CLOSED') {
+      return false;
+    }
+
+    if (!matchesAssignedFulfillmentOrderStatus(fulfillmentOrder, args['assignmentStatus'])) {
+      return false;
+    }
+
+    return locationIds.length === 0 || locationIds.includes(fulfillmentOrder.assignedLocation?.locationId ?? '');
+  });
+
+  return sortFulfillmentOrdersForConnection(visibleFulfillmentOrders, field, variables);
+}
+
 export function prepareTopLevelFulfillmentOrders(
   field: FieldNode,
   fulfillmentOrders: OrderFulfillmentOrderRecord[],
@@ -2854,6 +2907,9 @@ function serializeReverseFulfillmentOrderLineItem(
       case 'dispositionType':
         result[key] = lineItem.dispositionType ?? null;
         break;
+      case 'dispositions':
+        result[key] = serializeReverseFulfillmentOrderLineItemDispositions(selection, lineItem);
+        break;
       default:
         result[key] = null;
         break;
@@ -2861,6 +2917,49 @@ function serializeReverseFulfillmentOrderLineItem(
   }
 
   return result;
+}
+
+function serializeReverseFulfillmentOrderLineItemDispositions(
+  field: FieldNode,
+  lineItem: OrderReverseFulfillmentOrderLineItemRecord,
+): Array<Record<string, unknown>> {
+  const quantity = lineItem.disposedQuantity ?? 0;
+  if (quantity <= 0 || !lineItem.dispositionType) {
+    return [];
+  }
+
+  const disposition: Record<string, unknown> = {};
+  for (const selection of getSelectedChildFields(field)) {
+    const key = getFieldResponseKey(selection);
+    switch (selection.name.value) {
+      case 'type':
+        disposition[key] = lineItem.dispositionType;
+        break;
+      case 'quantity':
+        disposition[key] = quantity;
+        break;
+      case 'location':
+        disposition[key] = lineItem.dispositionLocationId
+          ? Object.fromEntries(
+              getSelectedChildFields(selection).map((locationSelection) => {
+                const locationKey = getFieldResponseKey(locationSelection);
+                switch (locationSelection.name.value) {
+                  case 'id':
+                    return [locationKey, lineItem.dispositionLocationId];
+                  default:
+                    return [locationKey, null];
+                }
+              }),
+            )
+          : null;
+        break;
+      default:
+        disposition[key] = null;
+        break;
+    }
+  }
+
+  return [disposition];
 }
 
 function serializeReverseFulfillmentOrderLineItemsConnection(

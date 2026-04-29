@@ -59,15 +59,7 @@
               "fromProxyResponse": "return-approve-request",
               "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].id"
             },
-            "reverseDeliveryLineItems": [
-              {
-                "reverseFulfillmentOrderLineItemId": {
-                  "fromProxyResponse": "return-approve-request",
-                  "path": "$.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0].lineItems.nodes[0].id"
-                },
-                "quantity": 1
-              }
-            ],
+            "reverseDeliveryLineItems": [],
             "trackingInput": {
               "fromCapturePath": "$.reverseLogistics.trackingInput"
             },

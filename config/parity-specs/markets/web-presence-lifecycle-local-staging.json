@@ -1,0 +1,102 @@
+{
+  "scenarioId": "web-presence-lifecycle-local-staging",
+  "operationNames": ["webPresenceCreate", "webPresenceUpdate", "webPresenceDelete", "webPresences"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging", "market-web-presence-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/integration/markets-lifecycle-flow.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "web-presence-create-success",
+        "capturePath": "$.cases[0].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy creates a deterministic synthetic MarketWebPresence id while the capture stores Shopify's disposable live id."
+          }
+        ]
+      },
+      {
+        "name": "web-presence-update-success",
+        "capturePath": "$.cases[1].response.payload.data.webPresenceUpdate",
+        "proxyPath": "$.data.webPresenceUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[1].variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy updates the deterministic synthetic MarketWebPresence id created earlier in the parity replay."
+          }
+        ]
+      },
+      {
+        "name": "web-presence-read-after-update",
+        "capturePath": "$.cases[2].response.payload.data.webPresences",
+        "proxyPath": "$.data.webPresences",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-read.graphql",
+          "variablesCapturePath": "$.cases[2].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[*].id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The downstream read contains the locally staged synthetic web presence id instead of the disposable live Shopify id."
+          }
+        ]
+      },
+      {
+        "name": "web-presence-delete-success",
+        "capturePath": "$.cases[3].response.payload.data.webPresenceDelete",
+        "proxyPath": "$.data.webPresenceDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webPresenceCreate.webPresence.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy deletes the deterministic synthetic MarketWebPresence id created earlier in the parity replay."
+          }
+        ]
+      },
+      {
+        "name": "web-presence-read-after-delete",
+        "capturePath": "$.cases[4].response.payload.data.webPresences",
+        "proxyPath": "$.data.webPresences",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/web-presence-lifecycle-read.graphql",
+          "variablesCapturePath": "$.cases[4].variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-448 live Admin GraphQL 2026-04 capture creates a disposable subfolder web presence, updates its subfolder suffix, verifies the updated top-level webPresences read, deletes it, and verifies the downstream read returns to the captured baseline. The local proxy seeds the captured baseline web presences and replays create/update/delete without runtime Shopify writes."
+}

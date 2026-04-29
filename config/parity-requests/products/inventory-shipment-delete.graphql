@@ -1,0 +1,10 @@
+mutation InventoryShipmentDeleteParity($id: ID!) {
+  inventoryShipmentDelete(id: $id) {
+    id
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

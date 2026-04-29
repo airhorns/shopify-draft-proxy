@@ -3642,7 +3642,7 @@ function applyReturnProcess(
   }
 
   const allProcessed = nextLineItems.every((lineItem) => (lineItem.processedQuantity ?? 0) >= lineItem.quantity);
-  const updatedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
+  const persistedReturn = syncReverseFulfillmentLineItems(runtime, match.order, {
     ...ensureReturnReverseFulfillmentOrders(runtime, match.order, match.orderReturn),
     status: allProcessed ? 'CLOSED' : match.orderReturn.status,
     closedAt: allProcessed ? runtime.syntheticIdentity.makeSyntheticTimestamp() : match.orderReturn.closedAt,
@@ -3652,12 +3652,19 @@ function applyReturnProcess(
     ...match.order,
     updatedAt: runtime.syntheticIdentity.makeSyntheticTimestamp(),
     returns: match.order.returns.map((candidate) =>
-      candidate.id === match.orderReturn.id ? updatedReturn : candidate,
+      candidate.id === match.orderReturn.id ? persistedReturn : candidate,
     ),
   });
+  const responseReturn = allProcessed
+    ? {
+        ...persistedReturn,
+        status: match.orderReturn.status,
+        closedAt: match.orderReturn.closedAt,
+      }
+    : persistedReturn;
   return {
     order: updatedOrder,
-    orderReturn: updatedOrder.returns.find((candidate) => candidate.id === match.orderReturn.id) ?? updatedReturn,
+    orderReturn: responseReturn,
     userErrors: [],
   };
 }
@@ -3753,6 +3760,44 @@ function serializeReverseFulfillmentOrderDisposePayload(
                   return [lineItemKey, lineItem.remainingQuantity];
                 case 'dispositionType':
                   return [lineItemKey, lineItem.dispositionType ?? null];
+                case 'dispositions':
+                  return [
+                    lineItemKey,
+                    lineItem.disposedQuantity && lineItem.dispositionType
+                      ? [
+                          Object.fromEntries(
+                            getSelectedChildFields(lineItemSelection).map((dispositionSelection) => {
+                              const dispositionKey = getFieldResponseKey(dispositionSelection);
+                              switch (dispositionSelection.name.value) {
+                                case 'type':
+                                  return [dispositionKey, lineItem.dispositionType];
+                                case 'quantity':
+                                  return [dispositionKey, lineItem.disposedQuantity];
+                                case 'location':
+                                  return [
+                                    dispositionKey,
+                                    lineItem.dispositionLocationId
+                                      ? Object.fromEntries(
+                                          getSelectedChildFields(dispositionSelection).map((locationSelection) => {
+                                            const locationKey = getFieldResponseKey(locationSelection);
+                                            switch (locationSelection.name.value) {
+                                              case 'id':
+                                                return [locationKey, lineItem.dispositionLocationId];
+                                              default:
+                                                return [locationKey, null];
+                                            }
+                                          }),
+                                        )
+                                      : null,
+                                  ];
+                                default:
+                                  return [dispositionKey, null];
+                              }
+                            }),
+                          ),
+                        ]
+                      : [],
+                  ];
                 default:
                   return [lineItemKey, null];
               }
@@ -3805,12 +3850,27 @@ function normalizeReverseDeliveryLabel(raw: unknown): OrderReverseDeliveryRecord
   }
   return {
     publicFileUrl:
-      typeof input['publicFileUrl'] === 'string'
-        ? input['publicFileUrl']
-        : typeof input['url'] === 'string'
-          ? input['url']
-          : null,
+      typeof input['fileUrl'] === 'string'
+        ? input['fileUrl']
+        : typeof input['publicFileUrl'] === 'string'
+          ? input['publicFileUrl']
+          : typeof input['url'] === 'string'
+            ? input['url']
+            : null,
   };
+}
+
+function buildAllReverseDeliveryLineItems(
+  runtime: ProxyRuntimeContext,
+  reverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord,
+): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] {
+  return reverseFulfillmentOrder.lineItems
+    .filter((lineItem) => lineItem.totalQuantity > 0)
+    .map((lineItem) => ({
+      id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
+      reverseFulfillmentOrderLineItemId: lineItem.id,
+      quantity: lineItem.totalQuantity,
+    }));
 }
 
 function applyReverseDeliveryCreateWithShipping(
@@ -3841,61 +3901,55 @@ function applyReverseDeliveryCreateWithShipping(
   }
 
   const rawLineItems = Array.isArray(args['reverseDeliveryLineItems']) ? args['reverseDeliveryLineItems'] : [];
-  if (rawLineItems.length === 0) {
-    return {
-      order: match.order,
-      orderReturn: match.orderReturn,
-      reverseFulfillmentOrder: match.reverseFulfillmentOrder,
-      reverseDelivery: null,
-      userErrors: [{ field: ['reverseDeliveryLineItems'], message: 'Reverse delivery line items are required.' }],
-    };
-  }
-
   const userErrors: ReturnUserError[] = [];
-  const lineItems = rawLineItems.flatMap(
-    (rawLineItem, index): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] => {
-      const input =
-        typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
-      const lineItemId =
-        typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
-          ? input['reverseFulfillmentOrderLineItemId']
-          : null;
-      const quantity =
-        typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
-      const lineItem = lineItemId
-        ? (match.reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null)
-        : null;
-      if (!lineItem) {
-        userErrors.push({
-          field: ['reverseDeliveryLineItems', String(index), 'reverseFulfillmentOrderLineItemId'],
-          message: 'Reverse fulfillment order line item does not exist.',
+  const lineItems =
+    rawLineItems.length === 0
+      ? buildAllReverseDeliveryLineItems(runtime, match.reverseFulfillmentOrder)
+      : rawLineItems.flatMap((rawLineItem, index): OrderReverseDeliveryRecord['reverseDeliveryLineItems'] => {
+          const input =
+            typeof rawLineItem === 'object' && rawLineItem !== null ? (rawLineItem as Record<string, unknown>) : {};
+          const lineItemId =
+            typeof input['reverseFulfillmentOrderLineItemId'] === 'string'
+              ? input['reverseFulfillmentOrderLineItemId']
+              : null;
+          const quantity =
+            typeof input['quantity'] === 'number' && Number.isFinite(input['quantity']) ? input['quantity'] : 0;
+          const lineItem = lineItemId
+            ? (match.reverseFulfillmentOrder.lineItems.find((candidate) => candidate.id === lineItemId) ?? null)
+            : null;
+          if (!lineItem) {
+            userErrors.push({
+              field: ['reverseDeliveryLineItems', String(index), 'reverseFulfillmentOrderLineItemId'],
+              message: 'Reverse fulfillment order line item does not exist.',
+            });
+            return [];
+          }
+          if (quantity <= 0 || quantity > lineItem.totalQuantity) {
+            userErrors.push({
+              field: ['reverseDeliveryLineItems', String(index), 'quantity'],
+              message: 'Quantity is not available for reverse delivery.',
+            });
+            return [];
+          }
+          return [
+            {
+              id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
+              reverseFulfillmentOrderLineItemId: lineItem.id,
+              quantity,
+            },
+          ];
         });
-        return [];
-      }
-      if (quantity <= 0 || quantity > lineItem.totalQuantity) {
-        userErrors.push({
-          field: ['reverseDeliveryLineItems', String(index), 'quantity'],
-          message: 'Quantity is not available for reverse delivery.',
-        });
-        return [];
-      }
-      return [
-        {
-          id: runtime.syntheticIdentity.makeSyntheticGid('ReverseDeliveryLineItem'),
-          reverseFulfillmentOrderLineItemId: lineItem.id,
-          quantity,
-        },
-      ];
-    },
-  );
 
-  if (userErrors.length > 0) {
+  if (userErrors.length > 0 || lineItems.length === 0) {
     return {
       order: match.order,
       orderReturn: match.orderReturn,
       reverseFulfillmentOrder: match.reverseFulfillmentOrder,
       reverseDelivery: null,
-      userErrors,
+      userErrors:
+        userErrors.length > 0
+          ? userErrors
+          : [{ field: ['reverseDeliveryLineItems'], message: 'Reverse delivery line items are required.' }],
     };
   }
 
@@ -4084,11 +4138,6 @@ function applyReverseFulfillmentOrderDispose(
     };
     const updatedReverseFulfillmentOrder: OrderReverseFulfillmentOrderRecord = {
       ...update.match.reverseFulfillmentOrder,
-      status: update.match.reverseFulfillmentOrder.lineItems.every((lineItem) =>
-        lineItem.id === updatedLineItem.id ? updatedLineItem.remainingQuantity === 0 : lineItem.remainingQuantity === 0,
-      )
-        ? 'CLOSED'
-        : update.match.reverseFulfillmentOrder.status,
       lineItems: update.match.reverseFulfillmentOrder.lineItems.map((lineItem) =>
         lineItem.id === updatedLineItem.id ? updatedLineItem : lineItem,
       ),

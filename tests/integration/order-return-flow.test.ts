@@ -74,6 +74,36 @@ function makeFulfilledOrder(): OrderRecord {
   };
 }
 
+function makeMultiLineFulfilledOrder(): OrderRecord {
+  const order = makeFulfilledOrder();
+  return {
+    ...order,
+    lineItems: [
+      ...order.lineItems,
+      {
+        id: 'gid://shopify/LineItem/return-flow-second',
+        title: 'Return flow second item',
+        quantity: 2,
+        sku: null,
+        variantTitle: null,
+        originalUnitPriceSet: null,
+      },
+    ],
+    fulfillments: (order.fulfillments ?? []).map((fulfillment) => ({
+      ...fulfillment,
+      fulfillmentLineItems: [
+        ...(fulfillment.fulfillmentLineItems ?? []),
+        {
+          id: 'gid://shopify/FulfillmentLineItem/return-flow-second',
+          lineItemId: 'gid://shopify/LineItem/return-flow-second',
+          title: 'Return flow second item',
+          quantity: 2,
+        },
+      ],
+    })),
+  };
+}
+
 describe('order return flow', () => {
   beforeEach(() => {
     store.reset();
@@ -536,8 +566,7 @@ describe('order return flow', () => {
       });
     expect(processResponse.body.data.returnProcess.return).toMatchObject({
       id: returnId,
-      status: 'CLOSED',
-      closedAt: expect.any(String),
+      status: 'OPEN',
       returnLineItems: { nodes: [{ id: returnLineItemId, quantity: 1, processedQuantity: 1, unprocessedQuantity: 0 }] },
       reverseFulfillmentOrders: {
         nodes: [
@@ -614,7 +643,7 @@ describe('order return flow', () => {
       },
       reverseFulfillmentOrder: {
         id: reverseFulfillmentOrder.id,
-        status: 'CLOSED',
+        status: 'OPEN',
         lineItems: {
           nodes: [{ id: reverseFulfillmentOrderLineItem.id, remainingQuantity: 0, dispositionType: 'RESTOCKED' }],
         },
@@ -713,6 +742,191 @@ describe('order return flow', () => {
     expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
       'ReturnRequest',
       'ReturnDeclineRequest',
+    ]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('creates reverse delivery lines from an empty input array and accepts fileUrl labels', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('reverse delivery empty line expansion must not hit upstream in snapshot mode');
+    });
+    store.upsertBaseOrders([makeMultiLineFulfilledOrder()]);
+    const app = createApp(snapshotConfig).callback();
+
+    const requestResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ReturnRequest($input: ReturnRequestInput!) {
+          returnRequest(input: $input) { return { id } userErrors { field message } }
+        }`,
+        variables: {
+          input: {
+            orderId: 'gid://shopify/Order/return-flow',
+            returnLineItems: [
+              {
+                fulfillmentLineItemId: 'gid://shopify/FulfillmentLineItem/return-flow',
+                quantity: 1,
+                returnReason: 'OTHER',
+              },
+              {
+                fulfillmentLineItemId: 'gid://shopify/FulfillmentLineItem/return-flow-second',
+                quantity: 2,
+                returnReason: 'SIZE_TOO_SMALL',
+              },
+            ],
+          },
+        },
+      });
+    const returnId = requestResponse.body.data.returnRequest.return.id;
+
+    const approveResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ReturnApproveRequest($input: ReturnApproveRequestInput!) {
+          returnApproveRequest(input: $input) {
+            return {
+              reverseFulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) { nodes { id totalQuantity } }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: { input: { id: returnId } },
+      });
+    const reverseFulfillmentOrder =
+      approveResponse.body.data.returnApproveRequest.return.reverseFulfillmentOrders.nodes[0];
+    const reverseFulfillmentOrderLineItems = reverseFulfillmentOrder.lineItems.nodes;
+    expect(reverseFulfillmentOrderLineItems).toMatchObject([{ totalQuantity: 1 }, { totalQuantity: 2 }]);
+
+    const deliveryCreateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ReverseDeliveryCreate(
+          $reverseFulfillmentOrderId: ID!
+          $reverseDeliveryLineItems: [ReverseDeliveryLineItemInput!]!
+          $labelInput: ReverseDeliveryLabelInput
+        ) {
+          reverseDeliveryCreateWithShipping(
+            reverseFulfillmentOrderId: $reverseFulfillmentOrderId
+            reverseDeliveryLineItems: $reverseDeliveryLineItems
+            labelInput: $labelInput
+          ) {
+            reverseDelivery {
+              id
+              reverseDeliveryLineItems(first: 5) {
+                nodes {
+                  quantity
+                  reverseFulfillmentOrderLineItem { id totalQuantity }
+                }
+              }
+              deliverable {
+                __typename
+                ... on ReverseDeliveryShippingDeliverable { label { publicFileUrl } }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          reverseFulfillmentOrderId: reverseFulfillmentOrder.id,
+          reverseDeliveryLineItems: [],
+          labelInput: { fileUrl: 'https://labels.example/generated.pdf' },
+        },
+      });
+
+    const reverseDelivery = deliveryCreateResponse.body.data.reverseDeliveryCreateWithShipping.reverseDelivery;
+    expect(deliveryCreateResponse.body.data.reverseDeliveryCreateWithShipping).toEqual({
+      reverseDelivery: {
+        id: reverseDelivery.id,
+        reverseDeliveryLineItems: {
+          nodes: [
+            {
+              quantity: 1,
+              reverseFulfillmentOrderLineItem: {
+                id: reverseFulfillmentOrderLineItems[0].id,
+                totalQuantity: 1,
+              },
+            },
+            {
+              quantity: 2,
+              reverseFulfillmentOrderLineItem: {
+                id: reverseFulfillmentOrderLineItems[1].id,
+                totalQuantity: 2,
+              },
+            },
+          ],
+        },
+        deliverable: {
+          __typename: 'ReverseDeliveryShippingDeliverable',
+          label: { publicFileUrl: 'https://labels.example/generated.pdf' },
+        },
+      },
+      userErrors: [],
+    });
+
+    const updateResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `mutation ReverseDeliveryUpdate($reverseDeliveryId: ID!, $labelInput: ReverseDeliveryLabelInput) {
+          reverseDeliveryShippingUpdate(reverseDeliveryId: $reverseDeliveryId, labelInput: $labelInput) {
+            reverseDelivery {
+              id
+              deliverable {
+                __typename
+                ... on ReverseDeliveryShippingDeliverable { label { publicFileUrl } }
+              }
+            }
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          reverseDeliveryId: reverseDelivery.id,
+          labelInput: { fileUrl: 'https://labels.example/updated.pdf' },
+        },
+      });
+    expect(updateResponse.body.data.reverseDeliveryShippingUpdate).toEqual({
+      reverseDelivery: {
+        id: reverseDelivery.id,
+        deliverable: {
+          __typename: 'ReverseDeliveryShippingDeliverable',
+          label: { publicFileUrl: 'https://labels.example/updated.pdf' },
+        },
+      },
+      userErrors: [],
+    });
+
+    const readResponse = await request(app)
+      .post('/admin/api/2026-04/graphql.json')
+      .send({
+        query: `query ReverseDeliveryRead($id: ID!) {
+          reverseDelivery(id: $id) {
+            id
+            deliverable {
+              __typename
+              ... on ReverseDeliveryShippingDeliverable { label { publicFileUrl } }
+            }
+          }
+        }`,
+        variables: { id: reverseDelivery.id },
+      });
+    expect(readResponse.body.data.reverseDelivery).toEqual({
+      id: reverseDelivery.id,
+      deliverable: {
+        __typename: 'ReverseDeliveryShippingDeliverable',
+        label: { publicFileUrl: 'https://labels.example/updated.pdf' },
+      },
+    });
+
+    const logResponse = await request(app).get('/__meta/log');
+    expect(logResponse.body.entries.map((entry: { operationName: string }) => entry.operationName)).toEqual([
+      'ReturnRequest',
+      'ReturnApproveRequest',
+      'reverseDeliveryCreateWithShipping',
+      'reverseDeliveryShippingUpdate',
     ]);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

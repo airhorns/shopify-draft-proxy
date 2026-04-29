@@ -256,7 +256,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'inventoryActivate/inventoryDeactivate/inventoryBulkToggleActivation linkage behavior.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
-      `${CAPTURE_ROOT}inventory-linkage-mutation-*.json`,
+      `${CAPTURE_ROOT}inventory-linkage-parity.json`,
+      `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',
@@ -562,6 +563,44 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'markets',
+    captureId: 'market-localization-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
+    purpose:
+      'MarketLocalizableResource default product-metafield behavior plus marketLocalizationsRegister/remove validation.',
+    requiredAuthScopes: [
+      'read_markets',
+      'write_markets',
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-localization-metafield-lifecycle-parity.json`,
+      'config/parity-specs/markets/market-localization-metafield-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product with a product metafield, probes market localization behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'market-web-presence-lifecycle',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
+    purpose: 'Web presence create/update/delete lifecycle and downstream top-level webPresences reads.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
+      'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable subfolder web presence, updates it, deletes it, and verifies the baseline read after cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'marketing',
     captureId: 'marketing',
     scriptPath: 'scripts/capture-marketing-conformance.mts',
@@ -570,6 +609,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}marketing-*.json`],
     cleanupBehavior: 'Uses synthetic external IDs; cleanup depends on the branch captured.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
+    captureId: 'marketing-engagement',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-engagement-conformance.mts',
+    purpose:
+      'Marketing engagement activity-level success, 2026-04 conversion metrics, selector validation, delete branches, and recognized channel-handle probes.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [`${CAPTURE_ROOT}marketing-engagement-lifecycle.json`],
+    cleanupBehavior:
+      'Creates a disposable external marketing activity, writes activity-level engagement metrics, probes candidate channel handles with immediate channel cleanup if any succeeds, and deletes the disposable activity.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Recognized channel-handle success depends on the disposable shop exposing a valid marketing channel handle.',
   },
   {
     domain: 'segments',
@@ -912,6 +966,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'orders',
+    captureId: 'return-reverse-logistics',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-reverse-logistics-conformance.mts',
+    purpose:
+      'Return request approval, reverse delivery create/update, reverse fulfillment disposal, return processing, and downstream reverse-logistics reads.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}return-reverse-logistics-recorded.json`,
+      'config/parity-specs/orders/return-reverse-logistics-recorded.json',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills a disposable order, records return/reverse-logistics lifecycle evidence, then cancels the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -977,19 +1047,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'gift-cards',
     captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',
-    purpose: 'Gift-card read/configuration/count behavior plus create/update/credit/debit/deactivate lifecycle parity.',
+    purpose:
+      'Gift-card read/configuration/count behavior, advanced search filters, and create/update/credit/debit/deactivate lifecycle parity.',
     requiredAuthScopes: [
       'read_gift_cards',
       'write_gift_cards',
       'read_gift_card_transactions',
       'write_gift_card_transactions',
+      'read_customers',
+      'write_customers',
     ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-lifecycle.json`,
       'config/parity-specs/gift-cards/gift-card-lifecycle.json',
     ],
     cleanupBehavior:
-      'Creates a disposable gift card, records transaction lifecycle behavior, and deactivates it; notification roots are not executed.',
+      'Creates a disposable customer and gift card, records transaction/search lifecycle behavior, deletes the customer when possible, and deactivates the gift card; notification roots are not executed.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

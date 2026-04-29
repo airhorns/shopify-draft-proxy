@@ -1,0 +1,63 @@
+{
+  "scenarioId": "inventory-inactive-level-lifecycle-2026-04",
+  "operationNames": ["inventoryDeactivate", "inventoryItem", "inventoryLevel", "inventoryActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-inactive-level-lifecycle-2026-04.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-deactivate.graphql",
+    "variablesCapturePath": "$.inventoryInactiveLifecycleDeactivate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-468 2026-04 live lifecycle capture: a tracked disposable product is stocked at two locations, one level is deactivated, `inventoryLevels(includeInactive: true)` and `inventoryItem.inventoryLevel(..., includeInactive: true)` keep the inactive level readable with `isActive: false`, and reactivating the same item/location preserves its quantity rows.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.inventoryActivate.inventoryLevel.quantities[0].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Reactivation updates Shopify's available quantity timestamp; the proxy synthesizes a deterministic local timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "deactivate-mutation-data",
+        "capturePath": "$.inventoryInactiveLifecycleDeactivate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "read-after-deactivate-include-inactive",
+        "capturePath": "$.inventoryInactiveLifecycleReadAfterDeactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-read.graphql",
+          "variablesCapturePath": "$.inventoryInactiveLifecycleReadAfterDeactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "reactivate-mutation-preserves-quantities",
+        "capturePath": "$.inventoryInactiveLifecycleReactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-reactivate.graphql",
+          "variablesCapturePath": "$.inventoryInactiveLifecycleReactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-reactivate",
+        "capturePath": "$.inventoryInactiveLifecycleReadAfterReactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-read.graphql",
+          "variablesCapturePath": "$.inventoryInactiveLifecycleReadAfterReactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

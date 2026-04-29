@@ -1,0 +1,41 @@
+mutation ReturnProcessRecorded($input: ReturnProcessInput!) {
+  returnProcess(input: $input) {
+    return {
+      id
+      name
+      status
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+          processedQuantity
+          unprocessedQuantity
+        }
+      }
+      reverseFulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          lineItems(first: 5) {
+            nodes {
+              id
+              totalQuantity
+              dispositions {
+                type
+                quantity
+                location {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
