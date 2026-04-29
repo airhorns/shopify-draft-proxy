@@ -1,0 +1,11 @@
+mutation MissingCreateWebhookTopic {
+  webhookSubscriptionCreate(webhookSubscription: { uri: "https://example.com/no-topic" }) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
