@@ -1,13 +1,14 @@
 {
   "scenarioId": "inventory-quantity-contracts-2026-04",
-  "operationNames": ["inventorySetQuantities"],
+  "operationNames": ["inventorySetQuantities", "inventoryAdjustQuantities"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "schema-contract",
     "graphql-error-parity",
     "idempotency-parity",
     "payload-shape",
-    "route-version-parity"
+    "route-version-parity",
+    "downstream-read-parity"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
@@ -33,8 +34,89 @@
         "name": "set-missing-changeFromQuantity-data",
         "capturePath": "$.missingSetChangeFromQuantity.response.data",
         "proxyPath": "$.data"
+      },
+      {
+        "name": "set-success-payload",
+        "capturePath": "$.inventorySetQuantities.response.data.inventorySetQuantities",
+        "proxyPath": "$.data.inventorySetQuantities",
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.referenceDocumentUri",
+          "$.inventoryAdjustmentGroup.changes",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-set.graphql",
+          "variablesCapturePath": "$.inventorySetQuantities.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-success-payload",
+        "capturePath": "$.inventoryAdjustQuantities.response.data.inventoryAdjustQuantities",
+        "proxyPath": "$.data.inventoryAdjustQuantities",
+        "selectedPaths": [
+          "$.inventoryAdjustmentGroup.reason",
+          "$.inventoryAdjustmentGroup.referenceDocumentUri",
+          "$.inventoryAdjustmentGroup.changes",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-adjust.graphql",
+          "variablesCapturePath": "$.inventoryAdjustQuantities.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-missing-changeFromQuantity-errors",
+        "capturePath": "$.missingAdjustChangeFromQuantity.response.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-missing-adjust-change-from.graphql",
+          "variablesCapturePath": "$.missingAdjustChangeFromQuantity.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "adjust-missing-changeFromQuantity-data",
+        "capturePath": "$.missingAdjustChangeFromQuantity.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-missing-adjust-change-from.graphql",
+          "variablesCapturePath": "$.missingAdjustChangeFromQuantity.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "quantity-contract-downstream-read",
+        "capturePath": "$.downstreamRead.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.product",
+          "$.inventoryItem.id",
+          "$.inventoryItem.tracked",
+          "$.inventoryItem.variant",
+          "$.inventoryItem.inventoryLevels.nodes[0].location",
+          "$.inventoryItem.inventoryLevels.nodes[0].quantities[0].name",
+          "$.inventoryItem.inventoryLevels.nodes[0].quantities[0].quantity",
+          "$.inventoryItem.inventoryLevels.nodes[0].quantities[1].name",
+          "$.inventoryItem.inventoryLevels.nodes[0].quantities[1].quantity"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql",
+          "variables": {
+            "inventoryItemId": {
+              "fromCapturePath": "$.setup.product.inventoryItemId"
+            },
+            "productId": {
+              "fromCapturePath": "$.setup.product.productId"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
       }
     ]
   },
-  "notes": "HAR-408 captures Admin GraphQL 2026-04 inventory quantity mutation contract drift. The live fixture records InventoryChangeInput/InventorySetQuantityInput schema fields, missing @idempotent behavior for inventoryAdjustQuantities and inventorySetQuantities, changeFromQuantity-required validation for adjust/set quantity inputs, legacy ignoreCompareQuantity rejection, and successful changeFromQuantity set/adjust writes against a disposable product. The parity runner strictly replays the missing changeFromQuantity set branch through a 2026-04 proxy request, and committed runtime tests replay the remaining fixture-backed branches through /admin/api/2026-04/graphql.json without runtime Shopify writes."
+  "notes": "HAR-408 captures Admin GraphQL 2026-04 inventory quantity mutation contract drift. The live fixture records InventoryChangeInput/InventorySetQuantityInput schema fields, missing @idempotent behavior for inventoryAdjustQuantities and inventorySetQuantities, changeFromQuantity-required validation for adjust/set quantity inputs, legacy ignoreCompareQuantity rejection, and successful changeFromQuantity set/adjust writes against a disposable product. The parity runner strictly replays the missing changeFromQuantity set branch, successful set/adjust writes, the missing changeFromQuantity adjust branch, and downstream product/variant/inventory-item read effects through 2026-04 proxy requests without runtime Shopify writes; committed runtime tests replay the remaining fixture-backed branches through /admin/api/2026-04/graphql.json."
 }
