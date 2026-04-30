@@ -87,7 +87,10 @@ fn path_is_child_of(parent: String, child: String) -> Bool {
 fn path_matches(pattern: String, path: String) -> Bool {
   case pattern == path {
     True -> True
-    False -> wildcard_path_matches(pattern, path)
+    False ->
+      string.starts_with(path, pattern <> ".")
+      || string.starts_with(path, pattern <> "[")
+      || wildcard_path_matches(pattern, path)
   }
 }
 
