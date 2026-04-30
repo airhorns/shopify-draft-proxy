@@ -154,28 +154,32 @@ fn path_matches(pattern: String, path: String) -> Bool {
 }
 
 fn wildcard_path_matches(pattern: String, path: String) -> Bool {
-  case string.split(pattern, on: "[*]") {
-    [prefix, suffix] ->
+  case string.split_once(pattern, "[*]") {
+    Ok(#(prefix, suffix_pattern)) ->
       string.starts_with(path, prefix)
-      && string.ends_with(path, suffix)
-      && wildcard_index_segment(path, prefix, suffix)
-    _ -> False
+      && {
+        let rest = string.drop_start(path, string.length(prefix))
+        case consume_wildcard_index(rest) {
+          Some(suffix_path) ->
+            wildcard_path_matches(suffix_pattern, suffix_path)
+          None -> False
+        }
+      }
+    Error(_) -> pattern == path
   }
 }
 
-fn wildcard_index_segment(
-  path: String,
-  prefix: String,
-  suffix: String,
-) -> Bool {
-  let middle_start = string.length(prefix)
-  let middle_end = string.length(path) - string.length(suffix)
-  case middle_end > middle_start {
-    True -> {
-      let middle = string.slice(path, middle_start, middle_end - middle_start)
-      string.starts_with(middle, "[") && string.ends_with(middle, "]")
+fn consume_wildcard_index(path: String) -> Option(String) {
+  case path {
+    "[" <> tail -> {
+      let #(digits, after_digits) = take_digits(tail, "")
+      case digits, after_digits {
+        "", _ -> None
+        _, "]" <> suffix -> Some(suffix)
+        _, _ -> None
+      }
     }
-    False -> False
+    _ -> None
   }
 }
 
