@@ -9,6 +9,72 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 60: inventory adjust quantities lifecycle
+
+Adds local staging for `inventoryAdjustQuantities`. The Gleam Products mutation
+handler now routes the root locally, preserves the raw mutation request through
+the centralized draft-log path, applies captured available and non-available
+inventory quantity deltas, mirrors available adjustments into `on_hand`, returns
+Shopify-like `InventoryAdjustmentGroup` payloads, and exposes immediate
+downstream ProductVariant/InventoryItem inventory reads without runtime Shopify
+writes.
+
+The pass promotes `inventoryAdjustQuantities-parity-plan` into the Gleam parity
+suite. Runner seeding reconstructs the two captured tracked products, variants,
+inventory items, inventory level quantities, location name, and catalog products
+needed by the strict downstream read targets, then replays the captured primary
+and non-available mutations without changing any fixture, request, or comparison
+contract.
+
+| Module                                               | Change                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Adds inventory adjust routing, validation, quantity staging, adjustment payload projection, and drafts. |
+| `gleam/test/parity/runner.gleam`                     | Seeds the captured inventory adjust products, levels, app/location context, and matching catalog rows.  |
+| `gleam/test/parity_test.gleam`                       | Enables the strict inventory adjust quantities parity scenario.                                         |
+
+Validation: `gleam test --target javascript` is green at 758 tests on the host
+Node runtime. Host `gleam test --target erlang` still fails before tests execute
+on the local Erlang install with the known `undef` runner issue; after clearing
+host-built Erlang artifacts, the Docker Erlang fallback is green at 754 tests.
+Product parity inventory remains 115 checked-in specs, with 44 product specs
+executable in the Gleam parity suite plus the admin-platform ProductOption node
+scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a direct `draft_proxy.process_request`
+  request returning HTTP 400 for `inventoryAdjustQuantities` because the root
+  was not routed by the Gleam Products mutation dispatcher.
+- The captured success path mirrors `available` deltas into `on_hand` changes
+  in the mutation payload and inventory level quantities, while immediate
+  Product `totalInventory` and `inventory_total:` catalog search still lag.
+- The non-available `incoming` adjustment requires per-change ledger document
+  URIs and updates InventoryLevel quantities without changing available/on-hand
+  totals.
+
+### Risks / open items
+
+- This pass covers the captured adjust quantities slice, not the 2026-04
+  idempotent `changeFromQuantity` contract or the broader missing-field top-level
+  GraphQL validation matrix.
+- Collections, publication, product feeds/feedback, selling plans, product
+  metafields, inventory activation/deactivation/bulk toggle, inventory
+  shipment/transfer, and remaining variant relationship/media behavior remain
+  incomplete in Gleam.
+- Only 44 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 61 candidates
+
+- Port inventory activation/deactivation/bulk-toggle roots that build on the
+  staged InventoryItem/InventoryLevel helpers.
+- Port collection membership roots so the product relationship parity scenario
+  can move closer to full coverage.
+- Add product variant relationship/media update scenarios now that variant
+  family ordering and replacement helpers are in place.
+
+---
+
 ## 2026-04-30 — Pass 59: product variant bulk reorder lifecycle
 
 Adds local staging for `productVariantsBulkReorder`. The Gleam Products

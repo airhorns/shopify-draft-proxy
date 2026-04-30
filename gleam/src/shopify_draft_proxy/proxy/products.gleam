@@ -108,6 +108,7 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "productVariantsBulkUpdate"
     | "productVariantsBulkDelete"
     | "productVariantsBulkReorder"
+    | "inventoryAdjustQuantities"
     | "inventorySetQuantities"
     | "inventoryMoveQuantities"
     | "tagsAdd"
@@ -1549,6 +1550,16 @@ type InventoryAdjustmentChange {
   )
 }
 
+type InventoryAdjustmentChangeInput {
+  InventoryAdjustmentChangeInput(
+    inventory_item_id: Option(String),
+    location_id: Option(String),
+    ledger_document_uri: Option(String),
+    delta: Option(Int),
+    change_from_quantity: Option(Int),
+  )
+}
+
 type InventoryAdjustmentGroup {
   InventoryAdjustmentGroup(
     id: String,
@@ -2095,6 +2106,33 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some("Gleam staged productVariantsBulkReorder locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "inventoryAdjustQuantities" -> {
+              let result =
+                handle_inventory_adjust_quantities(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged inventoryAdjustQuantities locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -3436,6 +3474,132 @@ fn handle_product_variants_bulk_reorder(
           }
         }
       }
+  }
+}
+
+fn handle_inventory_adjust_quantities(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let quantity_name = read_non_empty_string_field(input, "name")
+  let reason = read_non_empty_string_field(input, "reason")
+  let changes = read_inventory_adjustment_change_inputs(input)
+  case quantity_name, reason, changes {
+    None, _, _ ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventoryAdjustQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "name"],
+            "Inventory quantity name is required",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    _, None, _ ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventoryAdjustQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "reason"],
+            "Inventory adjustment reason is required",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    _, _, [] ->
+      inventory_quantity_mutation_result(
+        key,
+        "InventoryAdjustQuantitiesPayload",
+        store,
+        identity,
+        None,
+        [
+          ProductUserError(
+            ["input", "changes"],
+            "At least one inventory adjustment is required",
+            None,
+          ),
+        ],
+        field,
+        fragments,
+        [],
+      )
+    Some(name), Some(reason), changes -> {
+      case validate_inventory_adjust_inputs(name, changes) {
+        [_, ..] as errors ->
+          inventory_quantity_mutation_result(
+            key,
+            "InventoryAdjustQuantitiesPayload",
+            store,
+            identity,
+            None,
+            errors,
+            field,
+            fragments,
+            [],
+          )
+        [] -> {
+          let result =
+            apply_inventory_adjust_quantities(
+              store,
+              identity,
+              input,
+              name,
+              reason,
+              changes,
+            )
+          case result {
+            Error(errors) ->
+              inventory_quantity_mutation_result(
+                key,
+                "InventoryAdjustQuantitiesPayload",
+                store,
+                identity,
+                None,
+                errors,
+                field,
+                fragments,
+                [],
+              )
+            Ok(applied) -> {
+              let #(next_store, next_identity, group, staged_ids) = applied
+              inventory_quantity_mutation_result(
+                key,
+                "InventoryAdjustQuantitiesPayload",
+                next_store,
+                next_identity,
+                Some(group),
+                [],
+                field,
+                fragments,
+                staged_ids,
+              )
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -4865,6 +5029,7 @@ fn inventory_adjustment_group_source(
           "referenceDocumentUri",
           optional_string_source(group.reference_document_uri),
         ),
+        #("app", inventory_adjustment_app_source()),
         #(
           "changes",
           SrcList(
@@ -4882,12 +5047,22 @@ fn inventory_adjustment_change_source(
   change: InventoryAdjustmentChange,
 ) -> SourceValue {
   let location = inventory_change_location(store, change)
+  let item = case
+    store.find_effective_variant_by_inventory_item_id(
+      store,
+      change.inventory_item_id,
+    )
+  {
+    Some(variant) -> inventory_item_source(store, variant)
+    None -> SrcNull
+  }
   src_object([
     #("__typename", SrcString("InventoryChange")),
     #("name", SrcString(change.name)),
     #("delta", SrcInt(change.delta)),
     #("quantityAfterChange", optional_int_source(change.quantity_after_change)),
     #("ledgerDocumentUri", optional_string_source(change.ledger_document_uri)),
+    #("item", item),
     #(
       "location",
       src_object([
@@ -4896,6 +5071,16 @@ fn inventory_adjustment_change_source(
         #("name", SrcString(location.name)),
       ]),
     ),
+  ])
+}
+
+fn inventory_adjustment_app_source() -> SourceValue {
+  src_object([
+    #("__typename", SrcString("App")),
+    #("id", SrcNull),
+    #("title", SrcString("hermes-conformance-products")),
+    #("apiKey", SrcNull),
+    #("handle", SrcString("hermes-conformance-products")),
   ])
 }
 
@@ -5127,6 +5312,31 @@ fn read_inventory_set_quantity_inputs(
               location_id: read_string_field(fields, "locationId"),
               quantity: read_int_field(fields, "quantity"),
               compare_quantity: read_int_field(fields, "compareQuantity"),
+            ))
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_inventory_adjustment_change_inputs(
+  input: Dict(String, ResolvedValue),
+) -> List(InventoryAdjustmentChangeInput) {
+  case dict.get(input, "changes") {
+    Ok(ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          ObjectVal(fields) ->
+            Ok(InventoryAdjustmentChangeInput(
+              inventory_item_id: read_string_field(fields, "inventoryItemId"),
+              location_id: read_string_field(fields, "locationId"),
+              ledger_document_uri: read_string_field(
+                fields,
+                "ledgerDocumentUri",
+              ),
+              delta: read_int_field(fields, "delta"),
+              change_from_quantity: read_int_field(fields, "changeFromQuantity"),
             ))
           _ -> Error(Nil)
         }
@@ -5944,6 +6154,57 @@ fn clone_default_inventory_item(
   }
 }
 
+fn apply_inventory_adjust_quantities(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, ResolvedValue),
+  name: String,
+  reason: String,
+  changes: List(InventoryAdjustmentChangeInput),
+) -> Result(
+  #(Store, SyntheticIdentityRegistry, InventoryAdjustmentGroup, List(String)),
+  List(ProductUserError),
+) {
+  let reference_document_uri = read_string_field(input, "referenceDocumentUri")
+  let result =
+    changes
+    |> enumerate_items()
+    |> list.try_fold(#([], [], store), fn(acc, pair) {
+      let #(change, index) = pair
+      let #(adjusted_changes, mirrored_changes, current_store) = acc
+      case stage_inventory_quantity_adjust(current_store, name, change, index) {
+        Error(error) -> Error([error])
+        Ok(applied) -> {
+          let #(next_store, adjusted_change, mirrored) = applied
+          Ok(#(
+            list.append(adjusted_changes, [adjusted_change]),
+            list.append(mirrored_changes, mirrored),
+            next_store,
+          ))
+        }
+      }
+    })
+  case result {
+    Error(errors) -> Error(errors)
+    Ok(done) -> {
+      let #(adjusted_changes, mirrored_changes, next_store) = done
+      let #(group, next_identity) =
+        make_inventory_adjustment_group(
+          identity,
+          reason,
+          reference_document_uri,
+          list.append(adjusted_changes, mirrored_changes),
+        )
+      Ok(#(
+        next_store,
+        next_identity,
+        group,
+        inventory_adjustment_staged_ids(group),
+      ))
+    }
+  }
+}
+
 fn apply_inventory_set_quantities(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -6034,6 +6295,132 @@ fn apply_inventory_set_quantities(
         group,
         inventory_adjustment_staged_ids(group),
       ))
+    }
+  }
+}
+
+fn validate_inventory_adjust_inputs(
+  name: String,
+  changes: List(InventoryAdjustmentChangeInput),
+) -> List(ProductUserError) {
+  let name_errors = case valid_inventory_adjust_quantity_name(name) {
+    True -> []
+    False -> [invalid_inventory_quantity_name_error(["input", "name"])]
+  }
+  let ledger_errors = case name {
+    "available" -> []
+    _ ->
+      changes
+      |> enumerate_items()
+      |> list.filter_map(fn(pair) {
+        let #(change, index) = pair
+        case change.ledger_document_uri {
+          Some(_) -> Error(Nil)
+          None ->
+            Ok(ProductUserError(
+              ["input", "changes", int.to_string(index), "ledgerDocumentUri"],
+              "A ledger document URI is required except when adjusting available.",
+              None,
+            ))
+        }
+      })
+  }
+  list.append(name_errors, ledger_errors)
+}
+
+fn stage_inventory_quantity_adjust(
+  store: Store,
+  name: String,
+  change: InventoryAdjustmentChangeInput,
+  index: Int,
+) -> Result(
+  #(Store, InventoryAdjustmentChange, List(InventoryAdjustmentChange)),
+  ProductUserError,
+) {
+  let path = ["input", "changes", int.to_string(index)]
+  case change.inventory_item_id, change.location_id, change.delta {
+    None, _, _ ->
+      Error(ProductUserError(
+        list.append(path, ["inventoryItemId"]),
+        "Inventory item id is required",
+        None,
+      ))
+    _, None, _ ->
+      Error(ProductUserError(
+        list.append(path, ["locationId"]),
+        "Inventory location id is required",
+        None,
+      ))
+    _, _, None ->
+      Error(ProductUserError(
+        list.append(path, ["delta"]),
+        "Inventory delta is required",
+        None,
+      ))
+    Some(inventory_item_id), Some(location_id), Some(delta) -> {
+      case
+        store.find_effective_variant_by_inventory_item_id(
+          store,
+          inventory_item_id,
+        )
+      {
+        None ->
+          Error(ProductUserError(
+            list.append(path, ["inventoryItemId"]),
+            "The specified inventory item could not be found.",
+            None,
+          ))
+        Some(variant) -> {
+          let current_levels = variant_inventory_levels(variant)
+          case find_inventory_level(current_levels, location_id) {
+            None ->
+              Error(ProductUserError(
+                list.append(path, ["locationId"]),
+                "The specified location could not be found.",
+                None,
+              ))
+            Some(level) -> {
+              let quantities =
+                level.quantities
+                |> add_inventory_quantity_amount(name, delta)
+                |> maybe_add_on_hand_component_delta(name, delta)
+              let next_store =
+                stage_variant_inventory_levels(
+                  store,
+                  variant,
+                  replace_inventory_level(
+                    current_levels,
+                    location_id,
+                    InventoryLevelRecord(..level, quantities: quantities),
+                  ),
+                )
+              let adjusted =
+                InventoryAdjustmentChange(
+                  inventory_item_id: inventory_item_id,
+                  location_id: location_id,
+                  name: name,
+                  delta: delta,
+                  quantity_after_change: None,
+                  ledger_document_uri: change.ledger_document_uri,
+                )
+              let mirrored = case is_on_hand_component_quantity_name(name) {
+                True -> [
+                  InventoryAdjustmentChange(
+                    inventory_item_id: inventory_item_id,
+                    location_id: location_id,
+                    name: "on_hand",
+                    delta: delta,
+                    quantity_after_change: None,
+                    ledger_document_uri: None,
+                  ),
+                ]
+                False -> []
+              }
+              Ok(#(next_store, adjusted, mirrored))
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -6594,6 +6981,18 @@ fn valid_staged_inventory_quantity_name(name: String) -> Bool {
   case name {
     "available"
     | "committed"
+    | "damaged"
+    | "incoming"
+    | "quality_control"
+    | "reserved"
+    | "safety_stock" -> True
+    _ -> False
+  }
+}
+
+fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
+  case name {
+    "available"
     | "damaged"
     | "incoming"
     | "quality_control"

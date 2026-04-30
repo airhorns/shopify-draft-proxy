@@ -195,6 +195,8 @@ fn seed_capture_preconditions(
       seed_product_variant_delete_preconditions(capture, proxy)
     "inventory-quantity-roots-parity" ->
       seed_inventory_quantity_roots_preconditions(capture, proxy)
+    "inventory-adjust-quantities-live-parity" ->
+      seed_inventory_adjust_quantities_preconditions(capture, proxy)
     "product-variants-bulk-reorder-live-parity" ->
       seed_product_variants_bulk_reorder_preconditions(capture, proxy)
     _ -> proxy
@@ -832,6 +834,210 @@ fn seed_inventory_quantity_roots_preconditions(
     |> store_mod.upsert_base_products([product])
     |> store_mod.upsert_base_product_variants([variant])
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_inventory_adjust_quantities_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let location_id =
+    jsonpath.lookup(capture, "$.setup.locationId")
+    |> json_string_or("gid://shopify/Location/68509171945")
+  let location_name =
+    jsonpath.lookup(
+      capture,
+      "$.mutation.response.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[0].location.name",
+    )
+    |> json_string_or("103 ossington")
+  let first_product_id =
+    jsonpath.lookup(capture, "$.setup.products[0].productId")
+    |> json_string_or("gid://shopify/Product/9257220145385")
+  let first_variant_id =
+    jsonpath.lookup(capture, "$.setup.products[0].variantId")
+    |> json_string_or("gid://shopify/ProductVariant/50897202381033")
+  let first_inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.products[0].inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53044947747049")
+  let second_product_id =
+    jsonpath.lookup(capture, "$.setup.products[1].productId")
+    |> json_string_or("gid://shopify/Product/9257220178153")
+  let second_variant_id =
+    jsonpath.lookup(capture, "$.setup.products[1].variantId")
+    |> json_string_or("gid://shopify/ProductVariant/50897202413801")
+  let second_inventory_item_id =
+    jsonpath.lookup(capture, "$.setup.products[1].inventoryItemId")
+    |> json_string_or("gid://shopify/InventoryItem/53044947779817")
+  let first_available =
+    jsonpath.lookup(
+      capture,
+      "$.setup.seedAdjustment.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[0].delta",
+    )
+    |> json_int_or(3)
+  let second_available =
+    jsonpath.lookup(
+      capture,
+      "$.setup.seedAdjustment.data.inventoryAdjustQuantities.inventoryAdjustmentGroup.changes[1].delta",
+    )
+    |> json_int_or(7)
+  let quantity_updated_at =
+    jsonpath.lookup(
+      capture,
+      "$.nonAvailableMutation.downstreamRead.data.firstInventoryItem.inventoryLevels.nodes[0].quantities[0].updatedAt",
+    )
+    |> json_string_or("2026-04-18T22:21:57Z")
+  let products = [
+    inventory_adjust_seed_product(
+      first_product_id,
+      "inventory-adjust-quantities-first",
+    ),
+    inventory_adjust_seed_product(
+      second_product_id,
+      "inventory-adjust-quantities-second",
+    ),
+  ]
+  let variants = [
+    inventory_adjust_seed_variant(
+      first_product_id,
+      first_variant_id,
+      first_inventory_item_id,
+      location_id,
+      location_name,
+      first_available,
+      quantity_updated_at,
+    ),
+    inventory_adjust_seed_variant(
+      second_product_id,
+      second_variant_id,
+      second_inventory_item_id,
+      location_id,
+      location_name,
+      second_available,
+      quantity_updated_at,
+    ),
+  ]
+  let matching_nodes = case
+    jsonpath.lookup(capture, "$.downstreamRead.data.matching.nodes")
+  {
+    Some(JArray(nodes)) -> nodes
+    _ -> []
+  }
+  let matching_products =
+    list.filter_map(matching_nodes, make_seed_product_relaxed)
+  let matching_variants =
+    list.flat_map(matching_nodes, seed_variants_for_product)
+  let store =
+    proxy.store
+    |> store_mod.upsert_base_products(list.append(products, matching_products))
+    |> store_mod.upsert_base_product_variants(list.append(
+      variants,
+      matching_variants,
+    ))
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn inventory_adjust_seed_product(id: String, handle: String) -> ProductRecord {
+  ProductRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: handle,
+    handle: handle,
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    total_inventory: Some(0),
+    tracks_inventory: Some(True),
+    created_at: None,
+    updated_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    cursor: None,
+  )
+}
+
+fn inventory_adjust_seed_variant(
+  product_id: String,
+  variant_id: String,
+  inventory_item_id: String,
+  location_id: String,
+  location_name: String,
+  available: Int,
+  quantity_updated_at: String,
+) -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: variant_id,
+    product_id: product_id,
+    title: "Default Title",
+    sku: None,
+    barcode: None,
+    price: None,
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(available),
+    selected_options: [],
+    inventory_item: Some(
+      InventoryItemRecord(
+        id: inventory_item_id,
+        tracked: Some(True),
+        requires_shipping: Some(True),
+        measurement: None,
+        country_code_of_origin: None,
+        province_code_of_origin: None,
+        harmonized_system_code: None,
+        inventory_levels: [
+          InventoryLevelRecord(
+            id: inventory_quantity_seed_level_id(inventory_item_id, location_id),
+            location: InventoryLocationRecord(
+              id: location_id,
+              name: location_name,
+            ),
+            quantities: inventory_adjust_seed_quantities(
+              available,
+              quantity_updated_at,
+            ),
+            cursor: None,
+          ),
+        ],
+      ),
+    ),
+    cursor: None,
+  )
+}
+
+fn inventory_adjust_seed_quantities(
+  available: Int,
+  quantity_updated_at: String,
+) -> List(InventoryQuantityRecord) {
+  [
+    InventoryQuantityRecord(
+      name: "available",
+      quantity: available,
+      updated_at: Some(quantity_updated_at),
+    ),
+    InventoryQuantityRecord(
+      name: "incoming",
+      quantity: 0,
+      updated_at: Some(quantity_updated_at),
+    ),
+    InventoryQuantityRecord(name: "reserved", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(name: "damaged", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(
+      name: "quality_control",
+      quantity: 0,
+      updated_at: None,
+    ),
+    InventoryQuantityRecord(name: "safety_stock", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(name: "committed", quantity: 0, updated_at: None),
+    InventoryQuantityRecord(
+      name: "on_hand",
+      quantity: available,
+      updated_at: None,
+    ),
+  ]
 }
 
 fn inventory_quantity_seed_level(
@@ -1873,6 +2079,13 @@ fn read_array_field(value: JsonValue, name: String) -> Option(List(JsonValue)) {
 fn json_string_or(value: Option(JsonValue), fallback: String) -> String {
   case value {
     Some(JString(value)) -> value
+    _ -> fallback
+  }
+}
+
+fn json_int_or(value: Option(JsonValue), fallback: Int) -> Int {
+  case value {
+    Some(JInt(value)) -> value
     _ -> fallback
   }
 }
