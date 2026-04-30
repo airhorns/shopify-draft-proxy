@@ -1,0 +1,1207 @@
+{
+  "expectedGleamParityFailures": [
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-delivery-profile-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-finance-risk-node-no-data.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-flow-generate-signature.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-flow-trigger-receive.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-market-region-node-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-market-web-presence-node-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-metafield-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-product-option-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-staff-access-blocker.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-supported-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/admin-platform/admin-platform-utility-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/apps/app-billing-access-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/b2b/b2b-company-contact-main-delete.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/b2b/b2b-company-create-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/b2b/b2b-company-roots-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/b2b/b2b-contact-location-assignments-tax.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-app-bulk-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-buyer-context-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-automatic-basic-nodes-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-bxgy-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-code-filter-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-non-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-catalog-status-filter-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-code-basic-buyer-context-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-code-basic-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-code-basic-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-free-shipping-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-redeem-code-bulk.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discount-validation-branches.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discountCodeBasicCreate-inline-null-input-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/discounts/discountCodeBasicCreate-missing-input-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/gift-cards/gift-card-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/localization/localization-disable-clears-translations.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/localization/localization-locale-translation-fixture.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/marketing/marketing-baseline-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/catalog-context-update-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/catalog-create-blank-title-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/catalog-delete-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/catalog-update-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-catalog-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-catalogs-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-create-blank-name-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-delete-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-localizable-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-localization-metafield-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-localizations-register-unknown-resource-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-localizations-remove-unknown-resource-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-update-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/market-web-presences-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/markets-catalog-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/markets-resolved-values-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/price-list-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/price-list-fixed-prices-by-product-update.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/price-list-mutation-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/price-list-prices-filtered-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/price-lists-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/quantity-pricing-rules-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/web-presence-create-invalid-routing-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/web-presence-delete-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/web-presence-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/markets/web-presence-update-unknown-id-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/fileCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/fileDelete-product-media-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/files-upload-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/fileUpdate-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/fileUpdate-product-reference-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/media/staged-upload-targets-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
+      "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
+      "targets": ["erlang"]
+    },
+    {
+      "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
+      "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
+      "targets": ["erlang"]
+    },
+    {
+      "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/online-store/online-store-content-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/online-store/online-store-content-search-filters.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/online-store/online-store-integrations-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/online-store/online-store-page-default-publish-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/online-store/storefront-access-token-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/abandoned-checkout-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/abandonment-delivery-status-unknown.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draft-order-by-id-not-found-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draft-order-residual-helper-roots.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrder-read-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderComplete-inline-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderComplete-inline-null-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderComplete-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderComplete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreate-inline-missing-input-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreate-inline-null-input-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreate-missing-input-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreate-validation-matrix.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderCreateFromOrder-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderDuplicate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderInvoiceSend-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrders-invalid-email-query-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrders-read-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrdersCount-read-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/draftOrderUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCancel-inline-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCancel-inline-null-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCancel-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCancel-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentCreate-invalid-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-inline-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-inline-null-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/fulfillmentTrackingInfoUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-catalog-count-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-edit-residual-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-empty-state-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-merchant-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-payment-mandate-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-payment-transaction-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/order-payment-transaction-void-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCancel-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderClose-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreate-inline-missing-order-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreate-inline-null-order-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreate-missing-order-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreate-validation-matrix.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCustomerRemove-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderCustomerSet-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditAddVariant-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditAddVariant-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditBegin-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditBegin-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditCommit-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditCommit-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditExistingOrder-happy-path.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditExistingOrder-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditExistingOrder-zero-removal.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditResidualWorkflow-calculated-edits.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditSetQuantity-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderEditSetQuantity-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderInvoiceSend-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderMarkAsPaid-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderOpen-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-expanded-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-inline-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-inline-null-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-live-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/orderUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/refundCreate-full-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/refundCreate-over-refund-user-errors.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/refundCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/removeFromReturn-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/return-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/return-request-decline-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/return-reverse-logistics-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/return-reverse-logistics-recorded.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/orders/taxSummaryCreate-access-denied-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/customer-payment-method-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/finance-risk-no-data-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/payment-customization-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/payment-customization-validation.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/payment-terms-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/payment-terms-templates-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/payments/shopify-payments-account-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/privacy/dataSaleOptOut-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collection-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collection-identifier-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionAddProducts-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionCreate-initial-products-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionRemoveProducts-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionReorderProducts-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collections-catalog-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/collectionUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-inactive-level-lifecycle-2026-04.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-level-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-quantity-contracts-2026-04.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-quantity-roots-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-shipment-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-shipment-partial-receive-update-delete-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-transfer-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventory-transfer-ready-item-adjustments-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryActivate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryAdjustQuantities-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryBulkToggleActivation-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryDeactivate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/inventoryItemUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/locations-catalog-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-cas-success.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-duplicate-input.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-key.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-namespace.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-owner.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-type.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-missing-value.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-null-create.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-over-limit.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-owner-expansion.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/metafieldsSet-stale-digest.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-contextual-pricing-price-list-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-detail-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-empty-state-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-feed-lifecycle-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-feedback-lifecycle-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-feeds-empty-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-helper-roots-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-media-validation-branches.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-merchandising-mutation-guardrails.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-metafields-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-relationship-roots-live-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-variants-bulk-validation-atomicity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/product-variants-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productChangeStatus-null-product-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productChangeStatus-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productChangeStatus-unknown-product-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreate-blank-title-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreate-inventory-read-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreate-too-long-handle-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productCreateMedia-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-inline-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-inline-null-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-unknown-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDelete-variable-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDeleteMedia-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDuplicate-async-missing.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDuplicate-async-success.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productDuplicate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-create-over-default-limit.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-create.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-leave-as-is.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsCreate-variant-strategy-null.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionsDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productOptionUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productPublish-aggregate-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productPublish-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productReorderMedia-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-advanced-search-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-catalog-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-or-precedence-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-relevance-search-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-grammar-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-pagination-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-search-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-sort-keys-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/products-variant-search-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productSet-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUnpublish-aggregate-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUnpublish-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-blank-title-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-missing-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-too-long-handle-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdate-unknown-id-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productUpdateMedia-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-inventory-read-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-default-custom-standalone.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-default-default-standalone.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkCreate-strategy-remove-default-standalone.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkDelete-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkReorder-parity.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/productVariantUpdate-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/publication-roots-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/publications-catalog-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/selling-plan-group-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/selling-plan-product-variant-associations.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/tagsAdd-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/products/tagsRemove-parity-plan.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/segments/segments-baseline-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/assigned-fulfillment-orders-filtering-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/delivery-profile-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/delivery-profile-read.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-service-lifecycle.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/shipping-package-default-lifecycle-local-runtime.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    },
+    {
+      "specPath": "config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json",
+      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
+    }
+  ],
+  "requiredWorkflowCommands": [
+    "corepack pnpm lint",
+    "corepack pnpm typecheck",
+    "corepack pnpm gleam:registry:check",
+    "corepack pnpm conformance:check",
+    "corepack pnpm conformance:parity",
+    "corepack pnpm conformance:capture:check",
+    "corepack pnpm conformance:status",
+    "corepack pnpm gleam:port:coverage",
+    "corepack pnpm build",
+    "corepack pnpm gleam:format:check",
+    "corepack pnpm gleam:test:js",
+    "corepack pnpm gleam:test:erlang",
+    "corepack pnpm gleam:smoke:js",
+    "corepack pnpm elixir:smoke"
+  ],
+  "captureToolingChecks": [
+    "tests/unit/conformance-capture-index.test.ts",
+    "tests/unit/conformance-script-config.test.ts",
+    "tests/unit/no-mjs-files.test.ts"
+  ]
+}
