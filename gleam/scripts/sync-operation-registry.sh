@@ -5,9 +5,10 @@
 # that returns the registry as a `List(RegistryEntry)` literal — no
 # JSON parsing at runtime, no FFI, target-portable.
 #
-# Run this whenever `config/operation-registry.json` changes (and once
-# the TS proxy is fully retired, the JSON file goes away and this
-# script with it).
+# Run this whenever `config/operation-registry.json` changes. Use
+# `--check` in CI to fail when the generated Gleam mirror is stale.
+# Once the TS proxy is fully retired, the JSON file goes away and this
+# script with it.
 
 set -euo pipefail
 
@@ -17,13 +18,27 @@ repo_root="$(dirname "$gleam_root")"
 
 src="$repo_root/config/operation-registry.json"
 dest="$gleam_root/src/shopify_draft_proxy/proxy/operation_registry_data.gleam"
+mode="${1:-write}"
 
 if [[ ! -f "$src" ]]; then
   echo "source not found: $src" >&2
   exit 1
 fi
 
-python3 - "$src" "$dest" <<'PYEOF'
+if [[ "$mode" != "write" && "$mode" != "--check" ]]; then
+  echo "usage: $0 [--check]" >&2
+  exit 2
+fi
+
+out="$dest"
+tmp=""
+if [[ "$mode" == "--check" ]]; then
+  tmp="$(mktemp --suffix=.gleam)"
+  out="$tmp"
+  trap 'rm -f "$tmp"' EXIT
+fi
+
+python3 - "$src" "$out" <<'PYEOF'
 import json
 import sys
 from pathlib import Path
@@ -168,3 +183,14 @@ with dest_path.open("w") as f:
 
 print(f"wrote {len(entries)} entries to {dest_path}")
 PYEOF
+
+(cd "$gleam_root" && gleam format "$out")
+
+if [[ "$mode" == "--check" ]]; then
+  if ! cmp -s "$tmp" "$dest"; then
+    echo "Gleam operation registry mirror is stale. Run gleam/scripts/sync-operation-registry.sh" >&2
+    diff -u "$dest" "$tmp" >&2 || true
+    exit 1
+  fi
+  echo "$dest is up to date"
+fi

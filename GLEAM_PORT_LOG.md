@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-04-30 — Pass 39: webhook parity evidence metadata with TS retained
+## 2026-04-30 — Pass 40: webhook parity evidence metadata with TS retained
 
 Records the completed Webhooks Gleam parity evidence in repository metadata
 while leaving the legacy TypeScript runtime, dispatcher hooks, and TypeScript
@@ -45,7 +45,7 @@ Validation: `gleam test --target javascript`, the Erlang target via
 - The TypeScript HTTP dispatcher still handles webhook roots until the final
   cleanup phase; Webhooks are also owned by the Gleam embeddable/parity path.
 
-### Pass 40 candidates
+### Pass 41 candidates
 
 - Add a fixture-bundle snapshot loader once parity runner scenarios need
   recorded GraphQL bundle startup state.
@@ -54,6 +54,69 @@ Validation: `gleam test --target javascript`, the Erlang target via
 - Add broader runtime smoke around `process_request_async` live-hybrid
   passthrough and commit replay once test transport injection is exposed through
   the JS shim.
+
+---
+
+## 2026-04-30 — Pass 39: operation registry and dispatcher support guards
+
+Locks the Gleam operation registry mirror and dispatcher classification around
+the TypeScript registry without overclaiming roots that the Gleam port cannot
+handle locally yet. Capability lookup still mirrors the TS registry for every
+implemented match name, while local dispatch is now gated by explicit
+Gleam-local query and mutation dispatch tables. In live-hybrid mode, an
+implemented TS root whose domain or specific root is not ported to Gleam falls
+through to upstream passthrough rather than returning a local "no dispatcher"
+error or claiming stage/overlay support.
+
+| Module                                                               | Change                                                                                                                                          |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`              | Separates TS capability classification from Gleam-local dispatch support and gates registry-driven routing with explicit local dispatch tables. |
+| `gleam/test/shopify_draft_proxy/proxy/operation_registry_test.gleam` | Adds generated-registry semantic coverage for every implemented match name, unimplemented fallback behavior, and local-dispatch support guards. |
+| `gleam/test/shopify_draft_proxy/proxy/passthrough_test.gleam`        | Proves an implemented-but-unported TS root uses the live-hybrid passthrough branch on JS instead of claiming local dispatch.                    |
+| `gleam/scripts/sync-operation-registry.sh`                           | Adds deterministic `--check` mode and formats generated output before comparing/writing.                                                        |
+| `tests/unit/operation-registry.test.ts`                              | Wires the sync `--check` into `conformance:check`, which already runs in CI.                                                                    |
+| `.agents/skills/gleam-port/SKILL.md`                                 | Documents the registry mirror, drift check command, and capability-vs-local-dispatch split for future porting agents.                           |
+
+Validation after merging `origin/main@cb46f01`: `corepack pnpm
+conformance:check` is green at 1402 tests, `gleam test --target javascript` is
+green at 719 tests, and `gleam test --target erlang` is green at 715 tests via
+the established `ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container.
+
+### Findings
+
+- The registry currently mirrors 601 implemented TS roots across all 25
+  implemented TS domains, but Gleam-local support is narrower and sometimes
+  root-specific inside a partially ported domain.
+- Domain-level capability mapping was too coarse for the port: roots such as
+  `orders` and `productCreate` classify correctly as TS-supported, but Gleam
+  has no local dispatcher for those roots yet. Live-hybrid now treats those as
+  passthrough until the owning domain is ported.
+- A broad capability-to-domain helper layer made the guard harder to review
+  than a direct dispatch table, so the final dispatcher uses flat local root
+  routing and lets unknown implemented roots fall through conservatively.
+- Formatting the generated registry is part of determinism; raw generator
+  output alone did not match the checked-in formatted file.
+
+### Risks / open items
+
+- This pass does not port any new endpoint family. Products, customers, orders,
+  B2B, discounts, markets, online-store, payments, privacy, and other unported
+  or partially ported roots still need their own domain passes.
+- The public `registry_entry_has_local_dispatch` helper is intentionally
+  conservative and should be kept aligned with root predicates as new domains
+  land.
+- The host still lacks a local Erlang `escript`; Erlang validation uses the
+  container fallback until the host toolchain is repaired.
+
+### Pass 40 candidates
+
+- Start Product read/mutation substrate work so the highest-volume implemented
+  TS roots can stop using live-hybrid passthrough in Gleam.
+- Start Shipping/Fulfillments substrate so fulfillment-service,
+  carrier-service, delivery-profile, and shipping-settings roots can consume
+  ported Location state without reaching back into the TypeScript module.
+- Add a small CI helper script for containerized Erlang validation in
+  workspaces that do not have `escript` installed locally.
 
 ---
 
