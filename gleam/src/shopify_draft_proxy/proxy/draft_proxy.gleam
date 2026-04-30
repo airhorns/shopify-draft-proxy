@@ -22,6 +22,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/graphql/ast.{Field}
 import shopify_draft_proxy/graphql/parse_operation.{
   type ParsedOperation, MutationOperation, QueryOperation,
 }
@@ -1014,109 +1015,119 @@ fn route_query(
         "Failed to handle products query",
       )
     False ->
-      case query_domain_for(proxy, parsed, primary_root_field) {
-        Ok(EventsDomain) ->
-          respond(proxy, events.process(query), "Failed to handle events query")
-        Ok(DeliverySettingsDomain) ->
-          respond(
-            proxy,
-            delivery_settings.process(query),
-            "Failed to handle delivery settings query",
-          )
-        Ok(SavedSearchesDomain) ->
-          respond(
-            proxy,
-            saved_searches.process(proxy.store, query, variables),
-            "Failed to handle saved searches query",
-          )
-        Ok(WebhooksDomain) ->
-          respond(
-            proxy,
-            webhooks.process(proxy.store, query, variables),
-            "Failed to handle webhooks query",
-          )
-        Ok(AppsDomain) ->
-          respond(
-            proxy,
-            apps.process(proxy.store, query, variables),
-            "Failed to handle apps query",
-          )
-        Ok(FunctionsDomain) ->
-          respond(
-            proxy,
-            functions.process(proxy.store, query, variables),
-            "Failed to handle functions query",
-          )
-        Ok(GiftCardsDomain) ->
-          respond(
-            proxy,
-            gift_cards.process(proxy.store, query, variables),
-            "Failed to handle gift cards query",
-          )
-        Ok(SegmentsDomain) ->
-          respond(
-            proxy,
-            segments.process(proxy.store, query, variables),
-            "Failed to handle segments query",
-          )
-        Ok(MetafieldDefinitionsDomain) ->
-          respond(
-            proxy,
-            metafield_definitions.process(proxy.store, query, variables),
-            "Failed to handle metafield definitions query",
-          )
-        Ok(LocalizationDomain) ->
-          respond(
-            proxy,
-            localization.process(proxy.store, query, variables),
-            "Failed to handle localization query",
-          )
-        Ok(MetaobjectDefinitionsDomain) ->
-          respond(
-            proxy,
-            metaobject_definitions.process(proxy.store, query, variables),
-            "Failed to handle metaobject definitions query",
-          )
-        Ok(MarketingDomain) ->
-          respond(
-            proxy,
-            marketing.process(proxy.store, query, variables),
-            "Failed to handle marketing query",
-          )
-        Ok(BulkOperationsDomain) ->
-          respond(
-            proxy,
-            bulk_operations.process(proxy.store, query, variables),
-            "Failed to handle bulk operations query",
-          )
-        Ok(MediaDomain) ->
-          respond(proxy, media.process(query), "Failed to handle media query")
-        Ok(AdminPlatformDomain) ->
-          respond(
-            proxy,
-            admin_platform.process(proxy.store, query, variables),
-            "Failed to handle admin platform query",
-          )
-        Ok(StorePropertiesDomain) ->
-          respond(
-            proxy,
-            store_properties.process(proxy.store, query, variables),
-            "Failed to handle store properties query",
-          )
-        Ok(ProductsDomain) ->
-          respond(
-            proxy,
-            products.process(proxy.store, query, variables),
-            "Failed to handle products query",
-          )
-        Error(_) -> #(
-          bad_request(
-            "No domain dispatcher implemented for root field: "
-            <> primary_root_field,
-          ),
-          proxy,
-        )
-      }
+      route_domain_query(proxy, parsed, query, primary_root_field, variables)
+  }
+}
+
+fn route_domain_query(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  query: String,
+  primary_root_field: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  case query_domain_for(proxy, parsed, query, primary_root_field) {
+    Ok(EventsDomain) ->
+      respond(proxy, events.process(query), "Failed to handle events query")
+    Ok(DeliverySettingsDomain) ->
+      respond(
+        proxy,
+        delivery_settings.process(query),
+        "Failed to handle delivery settings query",
+      )
+    Ok(SavedSearchesDomain) ->
+      respond(
+        proxy,
+        saved_searches.process(proxy.store, query, variables),
+        "Failed to handle saved searches query",
+      )
+    Ok(WebhooksDomain) ->
+      respond(
+        proxy,
+        webhooks.process(proxy.store, query, variables),
+        "Failed to handle webhooks query",
+      )
+    Ok(AppsDomain) ->
+      respond(
+        proxy,
+        apps.process(proxy.store, query, variables),
+        "Failed to handle apps query",
+      )
+    Ok(FunctionsDomain) ->
+      respond(
+        proxy,
+        functions.process(proxy.store, query, variables),
+        "Failed to handle functions query",
+      )
+    Ok(GiftCardsDomain) ->
+      respond(
+        proxy,
+        gift_cards.process(proxy.store, query, variables),
+        "Failed to handle gift cards query",
+      )
+    Ok(SegmentsDomain) ->
+      respond(
+        proxy,
+        segments.process(proxy.store, query, variables),
+        "Failed to handle segments query",
+      )
+    Ok(MetafieldDefinitionsDomain) ->
+      respond(
+        proxy,
+        metafield_definitions.process(proxy.store, query, variables),
+        "Failed to handle metafield definitions query",
+      )
+    Ok(LocalizationDomain) ->
+      respond(
+        proxy,
+        localization.process(proxy.store, query, variables),
+        "Failed to handle localization query",
+      )
+    Ok(MetaobjectDefinitionsDomain) ->
+      respond(
+        proxy,
+        metaobject_definitions.process(proxy.store, query, variables),
+        "Failed to handle metaobject definitions query",
+      )
+    Ok(MarketingDomain) ->
+      respond(
+        proxy,
+        marketing.process(proxy.store, query, variables),
+        "Failed to handle marketing query",
+      )
+    Ok(BulkOperationsDomain) ->
+      respond(
+        proxy,
+        bulk_operations.process(proxy.store, query, variables),
+        "Failed to handle bulk operations query",
+      )
+    Ok(MediaDomain) ->
+      respond(proxy, media.process(query), "Failed to handle media query")
+    Ok(AdminPlatformDomain) ->
+      respond(
+        proxy,
+        admin_platform.process(proxy.store, query, variables),
+        "Failed to handle admin platform query",
+      )
+    Ok(StorePropertiesDomain) ->
+      respond(
+        proxy,
+        store_properties.process(proxy.store, query, variables),
+        "Failed to handle store properties query",
+      )
+    Ok(ProductsDomain) ->
+      respond(
+        proxy,
+        products.process(proxy.store, query, variables),
+        "Failed to handle products query",
+      )
+    Error(_) -> #(
+      bad_request(
+        "No domain dispatcher implemented for root field: "
+        <> primary_root_field,
+      ),
+      proxy,
+    )
   }
 }
 
@@ -1147,11 +1158,12 @@ type Domain {
 fn query_domain_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
+  query: String,
   primary_root_field: String,
 ) -> Result(Domain, Nil) {
   case capability_to_query_domain(proxy, parsed) {
     Ok(d) -> Ok(d)
-    Error(_) -> legacy_query_domain_for(primary_root_field)
+    Error(_) -> legacy_query_domain_for(primary_root_field, query)
   }
 }
 
@@ -1225,7 +1237,7 @@ fn capability_to_mutation_domain(
   }
 }
 
-fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
+fn legacy_query_domain_for(name: String, query: String) -> Result(Domain, Nil) {
   case events.is_events_query_root(name) {
     True -> Ok(EventsDomain)
     False ->
@@ -1233,6 +1245,11 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
         "deliverySettings" | "deliveryPromiseSettings" ->
           Ok(DeliverySettingsDomain)
         "shop" -> Ok(StorePropertiesDomain)
+        "product" | "collection" ->
+          case store_publishable_owner_query(name, query) {
+            True -> Ok(StorePropertiesDomain)
+            False -> Ok(MetafieldDefinitionsDomain)
+          }
         _ ->
           case saved_searches.is_saved_search_query_root(name) {
             True -> Ok(SavedSearchesDomain)
@@ -1305,7 +1322,19 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
                                                               Ok(
                                                                 AdminPlatformDomain,
                                                               )
-                                                            False -> Error(Nil)
+                                                            False ->
+                                                              case
+                                                                store_properties.is_store_properties_query_root(
+                                                                  name,
+                                                                )
+                                                              {
+                                                                True ->
+                                                                  Ok(
+                                                                    StorePropertiesDomain,
+                                                                  )
+                                                                False ->
+                                                                  Error(Nil)
+                                                              }
                                                           }
                                                       }
                                                   }
@@ -1321,6 +1350,55 @@ fn legacy_query_domain_for(name: String) -> Result(Domain, Nil) {
           }
       }
   }
+}
+
+fn store_publishable_owner_query(name: String, query: String) -> Bool {
+  case root_field.get_root_fields(query) {
+    Error(_) -> False
+    Ok(fields) ->
+      fields
+      |> list.any(fn(field) {
+        case field {
+          Field(name: field_name, ..) if field_name.value == name ->
+            selection_names_request_store_publishable_fields(
+              root_field.get_selection_names(field),
+            )
+          _ -> False
+        }
+      })
+  }
+}
+
+fn selection_names_request_store_publishable_fields(
+  names: List(String),
+) -> Bool {
+  let has_publishable_field =
+    list.any(names, fn(name) {
+      case name {
+        "publishedOnCurrentPublication"
+        | "publishedOnPublication"
+        | "availablePublicationsCount"
+        | "resourcePublicationsCount" -> True
+        _ -> False
+      }
+    })
+  let has_store_identity_field =
+    list.any(names, fn(name) {
+      case name {
+        "title" | "handle" -> True
+        _ -> False
+      }
+    })
+  let has_metafield_owner_field =
+    list.any(names, fn(name) {
+      case name {
+        "metafield" | "metafields" | "variants" -> True
+        _ -> False
+      }
+    })
+
+  has_publishable_field
+  || { has_store_identity_field && !has_metafield_owner_field }
 }
 
 fn legacy_mutation_domain_for(name: String) -> Result(Domain, Nil) {
