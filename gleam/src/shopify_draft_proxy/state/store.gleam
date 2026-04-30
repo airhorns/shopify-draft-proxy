@@ -26,10 +26,11 @@ import shopify_draft_proxy/state/types.{
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
   type ProductCollectionRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
-  type SavedSearchRecord, type SegmentRecord, type ShopLocaleRecord,
-  type ShopRecord, type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
+  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
 /// Server-authoritative state. Mirrors the saved-search,
@@ -52,6 +53,8 @@ pub type BaseState {
     deleted_collection_ids: Dict(String, Bool),
     locations: Dict(String, LocationRecord),
     location_order: List(String),
+    publications: Dict(String, PublicationRecord),
+    publication_order: List(String),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -286,6 +289,8 @@ pub fn empty_base_state() -> BaseState {
     deleted_collection_ids: dict.new(),
     locations: dict.new(),
     location_order: [],
+    publications: dict.new(),
+    publication_order: [],
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -731,6 +736,55 @@ pub fn list_effective_locations(store: Store) -> List(LocationRecord) {
     |> list.sort(string_compare)
     |> list.filter_map(fn(id) {
       case get_effective_location_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered)
+}
+
+pub fn upsert_base_publications(
+  store: Store,
+  records: List(PublicationRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        publications: dict.insert(base.publications, record.id, record),
+        publication_order: append_unique_id(base.publication_order, record.id),
+      ),
+    )
+  })
+}
+
+pub fn get_effective_publication_by_id(
+  store: Store,
+  id: String,
+) -> Option(PublicationRecord) {
+  case dict.get(store.base_state.publications, id) {
+    Ok(record) -> Some(record)
+    Error(_) -> None
+  }
+}
+
+pub fn list_effective_publications(store: Store) -> List(PublicationRecord) {
+  let ordered_records =
+    list.filter_map(store.base_state.publication_order, fn(id) {
+      case get_effective_publication_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(store.base_state.publication_order)
+  let unordered =
+    dict.keys(store.base_state.publications)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+    |> list.filter_map(fn(id) {
+      case get_effective_publication_by_id(store, id) {
         Some(record) -> Ok(record)
         None -> Error(Nil)
       }

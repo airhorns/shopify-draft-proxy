@@ -146,6 +146,10 @@ pub fn locations_catalog_read_test() {
   check("config/parity-specs/products/locations-catalog-read.json")
 }
 
+pub fn publications_catalog_read_test() {
+  check("config/parity-specs/products/publications-catalog-read.json")
+}
+
 pub fn products_catalog_read_test() {
   check("config/parity-specs/products/products-catalog-read.json")
 }

@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 81: publications catalog read
+
+Completes the captured top-level `publications` catalog read in the Gleam
+Products handler. The pass adds a base publication catalog slice, routes
+`publications` through the Products dispatcher, serializes selected
+`Publication` fields through the shared connection helpers, and preserves
+captured opaque cursors/pageInfo for strict replay.
+
+The pass promotes `publications-catalog-read` into the Gleam parity suite. The
+checked-in fixture, request document, variables, and strict comparison contract
+stay unchanged.
+
+| Module                                               | Change                                                         |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds a top-level `PublicationRecord` with cursor preservation. |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base publication catalog storage/listing helpers.         |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Routes and serializes the top-level `publications` connection. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured publication catalog baselines for pure replay.  |
+| `gleam/test/parity_test.gleam`                       | Enables the strict publications catalog parity spec.           |
+
+Validation:
+`gleam test --target javascript publications_catalog_read_test` is green at
+780 tests, and full `gleam test --target javascript` is green at 780 tests on
+the host Node runtime. Host `gleam test --target erlang` still fails before
+tests execute on the local Erlang install with the known `undef` runner issue;
+after clearing host-built Erlang artifacts, the Docker Erlang fallback is green
+at 776 tests. Product parity inventory remains 115 checked-in specs, with 66
+product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was a strict parity replay returning HTTP 400
+  with `No domain dispatcher implemented for root field: publications`.
+- The captured fixture compares Shopify's opaque publication cursors exactly,
+  so the local record stores the captured cursor instead of deriving a synthetic
+  cursor from the publication ID.
+- The top-level `publications` root belongs to the Products registry domain in
+  this repo and can be represented as a read-only captured catalog baseline
+  until publication-related mutations/links are ported.
+
+### Risks / open items
+
+- Inventory shipment/transfer, publication links, product feeds/feedback,
+  selling plans, product metafields, media, advanced search, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 66 of 115 checked-in product parity specs are enabled by the Gleam parity
+  suite after this pass.
+
+### Pass 82 candidates
+
+- Continue publication-related collection/product roots if the captured
+  fixtures can be represented without weakening request shapes.
+- Port product metafield behavior now that Product, Product Option,
+  Product Variant, Inventory, Collection, Location, and Publication read slices
+  are locally staged or seeded.
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 80: locations catalog read
 
 Completes the captured top-level `locations` catalog read in the Gleam Products

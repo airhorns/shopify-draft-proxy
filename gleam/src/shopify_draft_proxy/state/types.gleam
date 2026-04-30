@@ -102,6 +102,10 @@ pub type LocationRecord {
   LocationRecord(id: String, name: String, cursor: Option(String))
 }
 
+pub type PublicationRecord {
+  PublicationRecord(id: String, name: String, cursor: Option(String))
+}
+
 pub type InventoryQuantityRecord {
   InventoryQuantityRecord(
     name: String,

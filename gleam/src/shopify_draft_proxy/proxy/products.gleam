@@ -54,12 +54,13 @@ import shopify_draft_proxy/state/types.{
   type ProductCategoryRecord, type ProductCollectionRecord,
   type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
   type ProductSeoRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, CollectionRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
-  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
-  InventoryWeightRecord, ProductCollectionRecord, ProductOptionRecord,
-  ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  type ProductVariantSelectedOptionRecord, type PublicationRecord,
+  CollectionRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
+  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
+  ProductCollectionRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -77,6 +78,7 @@ pub fn is_products_query_root(name: String) -> Bool {
     | "collectionByHandle"
     | "collections"
     | "locations"
+    | "publications"
     | "productVariant"
     | "productVariantByIdentifier"
     | "productVariants"
@@ -244,6 +246,13 @@ fn serialize_root_fields(
               )
             "locations" ->
               serialize_locations_connection(store, field, variables, fragments)
+            "publications" ->
+              serialize_publications_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
             "productFeeds" | "productSavedSearches" ->
               serialize_empty_connection(
                 field,
@@ -765,6 +774,62 @@ fn location_source(location: LocationRecord) -> SourceValue {
     #("__typename", SrcString("Location")),
     #("id", SrcString(location.id)),
     #("name", SrcString(location.name)),
+  ])
+}
+
+fn serialize_publications_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let publications = store.list_effective_publications(store)
+  let window =
+    paginate_connection_items(
+      publications,
+      field,
+      variables,
+      publication_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: publication_cursor,
+      serialize_node: fn(publication, node_field, _index) {
+        project_graphql_value(
+          publication_source(publication),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: ConnectionPageInfoOptions(
+        include_inline_fragments: False,
+        prefix_cursors: False,
+        include_cursors: True,
+        fallback_start_cursor: None,
+        fallback_end_cursor: None,
+      ),
+    ),
+  )
+}
+
+fn publication_cursor(publication: PublicationRecord, _index: Int) -> String {
+  publication.cursor |> option.unwrap(publication.id)
+}
+
+fn publication_source(publication: PublicationRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Publication")),
+    #("id", SrcString(publication.id)),
+    #("name", SrcString(publication.name)),
   ])
 }
 

@@ -49,9 +49,9 @@ import shopify_draft_proxy/state/types.{
   type ProductCollectionRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
   type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
-  type ShopAddressRecord, type ShopDomainRecord, type ShopFeaturesRecord,
-  type ShopPlanRecord, type ShopPolicyRecord, type ShopRecord,
-  type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
+  type PublicationRecord, type ShopAddressRecord, type ShopDomainRecord,
+  type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
+  type ShopRecord, type ShopResourceLimitsRecord, type ShopifyFunctionAppRecord,
   type ShopifyFunctionRecord, CollectionImageRecord, CollectionRecord,
   CollectionRuleRecord, CollectionRuleSetRecord, GiftCardConfigurationRecord,
   GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
@@ -60,11 +60,12 @@ import shopify_draft_proxy/state/types.{
   InventoryWeightInt, InventoryWeightRecord, LocationRecord, Money,
   PaymentSettingsRecord, ProductCategoryRecord, ProductCollectionRecord,
   ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
-  ShopifyFunctionAppRecord, ShopifyFunctionRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopPolicyRecord,
+  ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionAppRecord,
+  ShopifyFunctionRecord,
 }
 import simplifile
 
@@ -184,6 +185,8 @@ fn seed_capture_preconditions(
       seed_collection_create_initial_products_preconditions(capture, proxy)
     "locations-catalog-read" ->
       seed_locations_catalog_preconditions(capture, proxy)
+    "publications-catalog-read" ->
+      seed_publications_catalog_preconditions(capture, proxy)
     "products-catalog-read" ->
       seed_products_catalog_preconditions(capture, proxy)
     "products-search-read" ->
@@ -832,6 +835,36 @@ fn make_seed_location_from_edge(
   case read_string_field(node, "id"), read_string_field(node, "name") {
     Some(id), Some(name) ->
       Ok(LocationRecord(
+        id: id,
+        name: name,
+        cursor: read_string_field(edge, "cursor"),
+      ))
+    _, _ -> Error(Nil)
+  }
+}
+
+fn seed_publications_catalog_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let edges = case
+    jsonpath.lookup(capture, "$.payload.data.publications.edges")
+  {
+    Some(JArray(edges)) -> edges
+    _ -> []
+  }
+  let publications = list.filter_map(edges, make_seed_publication_from_edge)
+  let store = store_mod.upsert_base_publications(proxy.store, publications)
+  draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn make_seed_publication_from_edge(
+  edge: JsonValue,
+) -> Result(PublicationRecord, Nil) {
+  use node <- result.try(required_object_field(edge, "node"))
+  case read_string_field(node, "id"), read_string_field(node, "name") {
+    Some(id), Some(name) ->
+      Ok(PublicationRecord(
         id: id,
         name: name,
         cursor: read_string_field(edge, "cursor"),
