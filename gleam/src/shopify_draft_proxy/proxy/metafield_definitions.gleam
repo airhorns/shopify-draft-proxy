@@ -1,120 +1,156 @@
-//// Minimal port of `src/proxy/metafield-definitions.ts`.
+//// Stateful Gleam port of the metafields/metafield-definitions slice.
 ////
-//// The full TS module is ~1550 LOC and covers definition lifecycle
-//// (create/update/delete/pin/unpin), validation, capability
-//// inspection, and seeded catalog reads. This port only ships the
-//// branches the proxy needs for currently enabled parity scenarios:
-////
-//// Reads (`metafield-definitions-product-empty-read`):
-////   - `metafieldDefinition(identifier:)` / `metafieldDefinition(id:)`
-////     returns `null` when there is no matching record.
-////   - `metafieldDefinitions(...)` returns an empty connection
-////     (`nodes`/`edges` empty, `pageInfo` all-false-with-null-cursors).
-////
-//// Mutations (`standard-metafield-definition-enable-validation`):
-////   - `standardMetafieldDefinitionEnable(ownerType:, id?, namespace?, key?)`
-////     emits the `findStandardMetafieldDefinitionTemplate` validation
-////     errors. Without the standard-template catalog seeded, every
-////     request that gets past the required-args check falls through to
-////     `TEMPLATE_NOT_FOUND` (matching the captured branch). The success
-////     path that creates a real definition is deliberately deferred
-////     until the catalog ports.
-////
-//// Other roots in queries (`byIdentifier`, `metafieldDefinitions`,
-//// `filteredByQuery`, `seedCatalog`) still serialize, but because the
-//// parity spec doesn't compare them their (empty) shapes don't need
-//// to match the captured response. Lifecycle mutations and seeded reads
-//// will land in a later pass.
+//// The module intentionally keeps the owner-scoped metafield model narrow:
+//// Product, ProductVariant, Collection, and Customer owner IDs are accepted
+//// for local metafield staging/reads; broader HasMetafields families stay
+//// unsupported until their owning domains have evidence and state.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import gleam/string
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, SrcList, SrcNull, SrcString, default_selected_field_options,
-  get_document_fragments, get_field_response_key, project_graphql_value,
-  serialize_empty_connection, src_object,
+  ConnectionPageInfoOptions, SerializeConnectionConfig,
+  default_connection_page_info_options, default_connection_window_options,
+  default_selected_field_options, get_field_response_key,
+  get_selected_child_fields, paginate_connection_items, serialize_connection,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{read_optional_string}
+import shopify_draft_proxy/proxy/metafields
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, read_optional_string, single_root_log_draft,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
+import shopify_draft_proxy/state/types.{
+  type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionCapabilityRecord,
+  type MetafieldDefinitionConstraintValueRecord,
+  type MetafieldDefinitionConstraintsRecord, type MetafieldDefinitionRecord,
+  type MetafieldDefinitionTypeRecord, type MetafieldDefinitionValidationRecord,
+  type ProductMetafieldRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionConstraintsRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, ProductMetafieldRecord,
+}
 
-/// Errors specific to the metafield-definitions handler. Currently just
-/// propagates upstream parse errors.
 pub type MetafieldDefinitionsError {
   ParseFailed(root_field.RootFieldError)
 }
 
-/// User-error payload mirroring `StandardMetafieldDefinitionEnableUserError`.
-/// Unlike the bare `field`+`message` shape some other domains use, this
-/// payload carries a `code` (one of the `MetafieldDefinitionUserErrorCode`
-/// enum values).
 pub type UserError {
   UserError(field: Option(List(String)), message: String, code: String)
 }
 
-/// Outcome of a metafield-definitions mutation.
+pub type MetafieldsSetUserError {
+  MetafieldsSetUserError(
+    field: List(String),
+    message: String,
+    code: Option(String),
+    element_index: Option(Int),
+  )
+}
+
 pub type MutationOutcome {
   MutationOutcome(
     data: Json,
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
-/// Predicate matching the supported subset of metafield-definitions
-/// query roots. The full TS surface adds `metafieldDefinitionTypes`
-/// and `standardMetafieldDefinitionTemplates`; those are deliberately
-/// out-of-scope for this minimal port.
+type StandardMetafieldDefinitionTemplate {
+  StandardMetafieldDefinitionTemplate(
+    id: String,
+    namespace: String,
+    key: String,
+    name: String,
+    description: Option(String),
+    owner_types: List(String),
+    type_: MetafieldDefinitionTypeRecord,
+    validations: List(MetafieldDefinitionValidationRecord),
+    visible_to_storefront_api: Bool,
+  )
+}
+
 pub fn is_metafield_definitions_query_root(name: String) -> Bool {
   case name {
-    "metafieldDefinition" -> True
-    "metafieldDefinitions" -> True
+    "metafieldDefinition"
+    | "metafieldDefinitions"
+    | "product"
+    | "productVariant"
+    | "collection"
+    | "customer" -> True
     _ -> False
   }
 }
 
-/// Predicate matching the supported subset of metafield-definitions
-/// mutation roots. Currently just `standardMetafieldDefinitionEnable`
-/// — the four lifecycle mutations
-/// (`metafieldDefinitionCreate`/`Update`/`Delete`/`Pin`/`Unpin`) are
-/// deferred until parity scenarios exercise them.
 pub fn is_metafield_definitions_mutation_root(name: String) -> Bool {
   case name {
-    "standardMetafieldDefinitionEnable" -> True
+    "metafieldDefinitionCreate"
+    | "metafieldDefinitionUpdate"
+    | "metafieldDefinitionDelete"
+    | "standardMetafieldDefinitionEnable"
+    | "metafieldDefinitionPin"
+    | "metafieldDefinitionUnpin"
+    | "metafieldsSet" -> True
     _ -> False
   }
 }
 
-/// Handle a `query` operation against the metafield-definitions surface.
 pub fn handle_metafield_definitions_query(
+  store: Store,
   document: String,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MetafieldDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> Ok(serialize_root_fields(fields))
+    Ok(fields) -> Ok(serialize_root_fields(store, fields, variables))
   }
 }
 
-fn serialize_root_fields(fields: List(Selection)) -> Json {
+fn serialize_root_fields(
+  store: Store,
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
   let entries =
     list.map(fields, fn(field) {
       let key = get_field_response_key(field)
       let value = case field {
         Field(name: name, ..) ->
           case name.value {
-            "metafieldDefinition" -> json.null()
+            "metafieldDefinition" ->
+              serialize_metafield_definition_root(store, field, variables)
             "metafieldDefinitions" ->
-              serialize_empty_connection(
+              serialize_metafield_definitions_connection(
+                store,
                 field,
-                default_selected_field_options(),
+                variables,
               )
+            "product" ->
+              serialize_owner_root(store, field, variables, "PRODUCT", "id")
+            "productVariant" ->
+              serialize_owner_root(
+                store,
+                field,
+                variables,
+                "PRODUCTVARIANT",
+                "id",
+              )
+            "collection" ->
+              serialize_owner_root(store, field, variables, "COLLECTION", "id")
+            "customer" ->
+              serialize_owner_root(store, field, variables, "CUSTOMER", "id")
             _ -> json.null()
           }
         _ -> json.null()
@@ -124,20 +160,23 @@ fn serialize_root_fields(fields: List(Selection)) -> Json {
   json.object(entries)
 }
 
-/// Wrap a successful response in the standard GraphQL envelope.
 pub fn wrap_data(data: Json) -> Json {
   json.object([#("data", data)])
 }
 
-/// Convenience: parse + handle + wrap, for the dispatcher.
-pub fn process(document: String) -> Result(Json, MetafieldDefinitionsError) {
-  use data <- result.try(handle_metafield_definitions_query(document))
+pub fn process(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(Json, MetafieldDefinitionsError) {
+  use data <- result.try(handle_metafield_definitions_query(
+    store,
+    document,
+    variables,
+  ))
   Ok(wrap_data(data))
 }
 
-/// Process a metafield-definitions mutation document. Mirrors
-/// `handleMetafieldDefinitionsMutation` but only for the validation
-/// branch of `standardMetafieldDefinitionEnable`.
 pub fn process_mutation(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
@@ -147,16 +186,8 @@ pub fn process_mutation(
 ) -> Result(MutationOutcome, MetafieldDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> {
-      let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
-        store_in,
-        identity,
-        fields,
-        fragments,
-        variables,
-      ))
-    }
+    Ok(fields) ->
+      Ok(handle_mutation_fields(store_in, identity, fields, variables))
   }
 }
 
@@ -164,113 +195,2678 @@ fn handle_mutation_fields(
   store_in: Store,
   identity: SyntheticIdentityRegistry,
   fields: List(Selection),
-  fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let entries =
-    list.map(fields, fn(field) {
-      let key = get_field_response_key(field)
-      let payload = case field {
+  let initial = #(store_in, identity, [], [], [])
+  let #(store_out, identity_out, entries, drafts, staged_all) =
+    list.fold(fields, initial, fn(acc, field) {
+      let #(current_store, current_identity, entries, drafts, staged_all) = acc
+      case field {
+        Field(name: name, ..) -> {
+          let #(payload, next_store, next_identity, staged_ids) =
+            dispatch_mutation_field(
+              name.value,
+              current_store,
+              current_identity,
+              field,
+              variables,
+            )
+          let draft =
+            single_root_log_draft(
+              name.value,
+              staged_ids,
+              metafield_definitions_status_for(staged_ids),
+              "metafields",
+              "stage-locally",
+              Some(metafield_definitions_notes_for(name.value)),
+            )
+          #(
+            next_store,
+            next_identity,
+            list.append(entries, [#(get_field_response_key(field), payload)]),
+            list.append(drafts, [draft]),
+            list.append(staged_all, staged_ids),
+          )
+        }
+        _ -> acc
+      }
+    })
+  MutationOutcome(
+    data: wrap_data(json.object(entries)),
+    store: store_out,
+    identity: identity_out,
+    staged_resource_ids: staged_all,
+    log_drafts: drafts,
+  )
+}
+
+fn dispatch_mutation_field(
+  root_name: String,
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  case root_name {
+    "metafieldDefinitionCreate" ->
+      serialize_definition_create_root(store_in, identity, field, variables)
+    "metafieldDefinitionUpdate" ->
+      serialize_definition_update_root(store_in, identity, field, variables)
+    "metafieldDefinitionDelete" ->
+      serialize_definition_delete_root(store_in, identity, field, variables)
+    "standardMetafieldDefinitionEnable" ->
+      serialize_standard_metafield_definition_enable_mutation(
+        store_in,
+        identity,
+        field,
+        variables,
+      )
+    "metafieldDefinitionPin" ->
+      serialize_definition_pin_root(store_in, identity, field, variables)
+    "metafieldDefinitionUnpin" ->
+      serialize_definition_unpin_root(store_in, identity, field, variables)
+    "metafieldsSet" ->
+      serialize_metafields_set_root(store_in, identity, field, variables)
+    _ -> #(json.null(), store_in, identity, [])
+  }
+}
+
+fn metafield_definitions_status_for(
+  staged_resource_ids: List(String),
+) -> store.EntryStatus {
+  case staged_resource_ids {
+    [] -> store.Failed
+    [_, ..] -> store.Staged
+  }
+}
+
+fn metafield_definitions_notes_for(root_field_name: String) -> String {
+  case root_field_name {
+    "metafieldsSet" ->
+      "Staged locally in the in-memory owner-scoped metafield draft store."
+    _ -> "Staged locally in the in-memory metafield definition draft store."
+  }
+}
+
+fn read_args(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  root_field.get_field_arguments(field, variables)
+  |> result.unwrap(dict.new())
+}
+
+fn child_field(field: Selection, child_name: String) -> Option(Selection) {
+  list.find(
+    get_selected_child_fields(field, default_selected_field_options()),
+    fn(child) {
+      case child {
+        Field(name: name, ..) -> name.value == child_name
+        _ -> False
+      }
+    },
+  )
+  |> option.from_result
+}
+
+fn read_optional_bool(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Bool) {
+  case dict.get(input, key) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn read_object(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(input, key) {
+    Ok(root_field.ObjectVal(value)) -> value
+    _ -> dict.new()
+  }
+}
+
+fn has_field(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(input, key) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn read_input_objects(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          root_field.ObjectVal(obj) -> Ok(obj)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_definition_identifier(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(#(String, String, String)) {
+  let identifier = read_object(args, "identifier")
+  let owner_type = read_optional_string(identifier, "ownerType")
+  let namespace = read_optional_string(identifier, "namespace")
+  let key = read_optional_string(identifier, "key")
+  case owner_type, namespace, key {
+    Some(owner), Some(ns), Some(k) -> Some(#(owner, ns, k))
+    _, _, _ -> None
+  }
+}
+
+fn find_definition_from_args(
+  store_in: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(MetafieldDefinitionRecord) {
+  let id =
+    read_optional_string(args, "definitionId")
+    |> option.or(read_optional_string(args, "id"))
+  case id {
+    Some(definition_id) ->
+      store.get_effective_metafield_definition_by_id(store_in, definition_id)
+    None ->
+      case read_definition_identifier(args) {
+        Some(#(owner_type, namespace, key)) ->
+          store.find_effective_metafield_definition(
+            store_in,
+            owner_type,
+            namespace,
+            key,
+          )
+        None -> None
+      }
+  }
+}
+
+fn definition_reference_field(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case read_optional_string(args, "definitionId") {
+    Some(_) -> ["definitionId"]
+    None ->
+      case read_optional_string(args, "id") {
+        Some(_) -> ["id"]
+        None -> ["identifier"]
+      }
+  }
+}
+
+fn serialize_metafield_definition_root(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let id = read_optional_string(args, "id")
+  let definition = case id {
+    Some(definition_id) ->
+      store.get_effective_metafield_definition_by_id(store_in, definition_id)
+    None ->
+      case read_definition_identifier(args) {
+        Some(#(owner_type, namespace, key)) ->
+          store.find_effective_metafield_definition(
+            store_in,
+            owner_type,
+            namespace,
+            key,
+          )
+        None -> None
+      }
+  }
+  case definition {
+    Some(record) ->
+      serialize_definition_selection(store_in, record, field, variables)
+    None -> json.null()
+  }
+}
+
+fn serialize_metafield_definitions_connection(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let definitions =
+    store.list_effective_metafield_definitions(store_in)
+    |> apply_definition_filters(args)
+    |> sort_definitions(
+      read_optional_string(args, "sortKey"),
+      read_optional_bool(args, "reverse") |> option.unwrap(False),
+    )
+  let window =
+    paginate_connection_items(
+      definitions,
+      field,
+      variables,
+      fn(definition, _index) { definition.id },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(definition, _index) { definition.id },
+      serialize_node: fn(definition, node_field, _index) {
+        serialize_definition_selection(
+          store_in,
+          definition,
+          node_field,
+          variables,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn apply_definition_filters(
+  definitions: List(MetafieldDefinitionRecord),
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(MetafieldDefinitionRecord) {
+  let owner_type = read_optional_string(args, "ownerType")
+  let namespace = read_optional_string(args, "namespace")
+  let key = read_optional_string(args, "key")
+  let pinned_status =
+    read_optional_string(args, "pinnedStatus")
+    |> option.unwrap("ANY")
+  let query = read_optional_string(args, "query")
+  definitions
+  |> list.filter(fn(definition) {
+    option_matches(owner_type, definition.owner_type)
+    && option_matches(namespace, definition.namespace)
+    && option_matches(key, definition.key)
+    && pinned_status_matches(pinned_status, definition)
+    && definition_query_matches(query, definition)
+  })
+}
+
+fn option_matches(expected: Option(String), actual: String) -> Bool {
+  case expected {
+    Some(value) -> value == actual
+    None -> True
+  }
+}
+
+fn pinned_status_matches(
+  status: String,
+  definition: MetafieldDefinitionRecord,
+) -> Bool {
+  case status, definition.pinned_position {
+    "PINNED", Some(_) -> True
+    "PINNED", None -> False
+    "UNPINNED", None -> True
+    "UNPINNED", Some(_) -> False
+    _, _ -> True
+  }
+}
+
+fn definition_query_matches(
+  raw_query: Option(String),
+  definition: MetafieldDefinitionRecord,
+) -> Bool {
+  case raw_query {
+    Some("key:" <> expected_key) -> definition.key == expected_key
+    Some(query) ->
+      string.contains(
+        string.lowercase(definition.name),
+        string.lowercase(query),
+      )
+      || string.contains(
+        string.lowercase(definition.namespace),
+        string.lowercase(query),
+      )
+      || string.contains(
+        string.lowercase(definition.key),
+        string.lowercase(query),
+      )
+    None -> True
+  }
+}
+
+fn sort_definitions(
+  definitions: List(MetafieldDefinitionRecord),
+  sort_key: Option(String),
+  reverse: Bool,
+) -> List(MetafieldDefinitionRecord) {
+  let sorted =
+    definitions
+    |> list.sort(fn(left, right) {
+      case sort_key {
+        Some("NAME") ->
+          case string.compare(left.name, right.name) {
+            order.Eq -> string.compare(left.id, right.id)
+            other -> other
+          }
+        Some("PINNED_POSITION") -> {
+          let left_position = option.unwrap(left.pinned_position, -1)
+          let right_position = option.unwrap(right.pinned_position, -1)
+          case int.compare(right_position, left_position) {
+            order.Eq -> string.compare(right.id, left.id)
+            other -> other
+          }
+        }
+        _ -> string.compare(left.id, right.id)
+      }
+    })
+  case reverse {
+    True -> list.reverse(sorted)
+    False -> sorted
+  }
+}
+
+fn serialize_definition_selection(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let selections =
+    get_selected_child_fields(field, default_selected_field_options())
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
         Field(name: name, ..) ->
           case name.value {
-            "standardMetafieldDefinitionEnable" ->
-              handle_standard_metafield_definition_enable(
-                field,
-                fragments,
+            "id" -> json.string(definition.id)
+            "name" -> json.string(definition.name)
+            "namespace" -> json.string(definition.namespace)
+            "key" -> json.string(definition.key)
+            "ownerType" -> json.string(definition.owner_type)
+            "type" -> serialize_definition_type(definition.type_, selection)
+            "description" -> optional_string(definition.description)
+            "validations" ->
+              json.array(definition.validations, fn(validation) {
+                serialize_validation(validation, selection)
+              })
+            "access" -> serialize_json_object(definition.access, selection)
+            "capabilities" ->
+              serialize_capabilities(definition.capabilities, selection)
+            "constraints" ->
+              serialize_constraints(
+                definition.constraints,
+                selection,
+                variables,
+              )
+            "pinnedPosition" -> optional_int(definition.pinned_position)
+            "validationStatus" -> json.string(definition.validation_status)
+            "metafieldsCount" ->
+              json.int(
+                get_product_metafields_for_definition(store_in, definition)
+                |> list.length,
+              )
+            "metafields" ->
+              serialize_definition_metafields_connection(
+                store_in,
+                definition,
+                selection,
                 variables,
               )
             _ -> json.null()
           }
         _ -> json.null()
       }
-      #(key, payload)
-    })
-  MutationOutcome(
-    data: wrap_data(json.object(entries)),
-    store: store_in,
-    identity: identity,
-    staged_resource_ids: [],
+      #(key, value)
+    }),
   )
 }
 
-fn handle_standard_metafield_definition_enable(
+fn serialize_definition_type(
+  type_record: MetafieldDefinitionTypeRecord,
   field: Selection,
-  fragments: FragmentMap,
+) -> Json {
+  let selections =
+    get_selected_child_fields(field, default_selected_field_options())
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "name" -> json.string(type_record.name)
+            "category" -> optional_string(type_record.category)
+            _ -> json.null()
+          }
+        _ -> json.null()
+      }
+      #(key, value)
+    }),
+  )
+}
+
+fn serialize_validation(
+  validation: MetafieldDefinitionValidationRecord,
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "name" -> json.string(validation.name)
+              "value" -> optional_string(validation.value)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_json_object(values: Dict(String, Json), field: Selection) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            dict.get(values, name.value) |> result.unwrap(json.null())
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_capabilities(
+  capabilities: MetafieldDefinitionCapabilitiesRecord,
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let capability = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "adminFilterable" -> Some(capabilities.admin_filterable)
+              "smartCollectionCondition" ->
+                Some(capabilities.smart_collection_condition)
+              "uniqueValues" -> Some(capabilities.unique_values)
+              _ -> None
+            }
+          _ -> None
+        }
+        #(key, case capability {
+          Some(c) -> serialize_capability(c, selection)
+          None -> json.null()
+        })
+      },
+    ),
+  )
+}
+
+fn serialize_capability(
+  capability: MetafieldDefinitionCapabilityRecord,
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "enabled" -> json.bool(capability.enabled)
+              "eligible" -> json.bool(capability.eligible)
+              "status" -> optional_string(capability.status)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_constraints(
+  constraints: Option(MetafieldDefinitionConstraintsRecord),
+  field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
-  let args = case root_field.get_field_arguments(field, variables) {
-    Ok(d) -> d
-    Error(_) -> dict.new()
-  }
-  let user_errors = find_standard_template_user_errors(args)
-  let payload =
-    src_object([
-      #("createdDefinition", SrcNull),
-      #("userErrors", SrcList(list.map(user_errors, user_error_to_source))),
-    ])
-  case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      project_graphql_value(payload, selections, fragments)
-    _ -> json.object([])
+  case constraints {
+    None -> json.null()
+    Some(record) ->
+      json.object(
+        list.map(
+          get_selected_child_fields(field, default_selected_field_options()),
+          fn(selection) {
+            let key = get_field_response_key(selection)
+            let value = case selection {
+              Field(name: name, ..) ->
+                case name.value {
+                  "key" -> optional_string(record.key)
+                  "values" ->
+                    serialize_constraint_values_connection(
+                      record.values,
+                      selection,
+                      variables,
+                    )
+                  _ -> json.null()
+                }
+              _ -> json.null()
+            }
+            #(key, value)
+          },
+        ),
+      )
   }
 }
 
-/// Mirrors `findStandardMetafieldDefinitionTemplate` user-error branches.
-/// Without a standard-template catalog seeded, the success path is
-/// unreachable: any well-formed request falls through to the
-/// `TEMPLATE_NOT_FOUND` error matching the captured branch.
-fn find_standard_template_user_errors(
+fn serialize_constraint_values_connection(
+  values: List(MetafieldDefinitionConstraintValueRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let window =
+    paginate_connection_items(
+      values,
+      field,
+      variables,
+      fn(value, _index) { value.value },
+      default_connection_window_options(),
+    )
+  let page_info_options =
+    ConnectionPageInfoOptions(
+      ..default_connection_page_info_options(),
+      include_inline_fragments: False,
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(value, _index) { value.value },
+      serialize_node: fn(value, node_field, _index) {
+        json.object(
+          list.map(
+            get_selected_child_fields(
+              node_field,
+              default_selected_field_options(),
+            ),
+            fn(selection) {
+              let key = get_field_response_key(selection)
+              let output = case selection {
+                Field(name: name, ..) ->
+                  case name.value {
+                    "value" -> json.string(value.value)
+                    _ -> json.null()
+                  }
+                _ -> json.null()
+              }
+              #(key, output)
+            },
+          ),
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: page_info_options,
+    ),
+  )
+}
+
+fn get_product_metafields_for_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(ProductMetafieldRecord) {
+  case definition.owner_type {
+    "PRODUCT" ->
+      store_in
+      |> all_effective_metafields()
+      |> list.filter(fn(metafield) {
+        metafield.owner_type == Some("PRODUCT")
+        && metafield.namespace == definition.namespace
+        && metafield.key == definition.key
+      })
+      |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
+    _ -> []
+  }
+}
+
+fn all_effective_metafields(store_in: Store) -> List(ProductMetafieldRecord) {
+  let owner_ids =
+    list.append(
+      dict.values(store_in.base_state.product_metafields),
+      dict.values(store_in.staged_state.product_metafields),
+    )
+    |> list.map(fn(metafield) { metafield.owner_id })
+    |> dedupe_strings
+  list.flat_map(owner_ids, fn(owner_id) {
+    store.get_effective_metafields_by_owner_id(store_in, owner_id)
+  })
+}
+
+fn serialize_definition_metafields_connection(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let records = get_product_metafields_for_definition(store_in, definition)
+  let ordered = case read_optional_bool(args, "reverse") {
+    Some(True) -> list.reverse(records)
+    _ -> records
+  }
+  metafields.serialize_metafields_connection(
+    list.map(ordered, product_metafield_to_core),
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn product_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
+  )
+}
+
+fn serialize_owner_root(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  owner_type: String,
+  id_arg_name: String,
+) -> Json {
+  let args = read_args(field, variables)
+  case read_optional_string(args, id_arg_name) {
+    None -> json.null()
+    Some(owner_id) ->
+      serialize_owner_selection(
+        store_in,
+        field,
+        variables,
+        owner_id,
+        owner_type,
+      )
+  }
+}
+
+fn serialize_owner_selection(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  owner_id: String,
+  _owner_type: String,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "id" -> json.string(owner_id)
+              "title" -> json.null()
+              "handle" -> json.null()
+              "metafield" ->
+                serialize_owner_metafield(
+                  store_in,
+                  owner_id,
+                  selection,
+                  variables,
+                )
+              "metafields" ->
+                serialize_owner_metafields_connection(
+                  store_in,
+                  owner_id,
+                  selection,
+                  variables,
+                )
+              "variants" ->
+                serialize_product_variants_from_metafields(
+                  store_in,
+                  selection,
+                  variables,
+                )
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_owner_metafield(
+  store_in: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let namespace = read_optional_string(args, "namespace")
+  let key = read_optional_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store_in, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        product_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_owner_metafields_connection(
+  store_in: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = read_args(field, variables)
+  let namespace = read_optional_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store_in, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(product_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn serialize_product_variants_from_metafields(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let variant_ids =
+    all_effective_metafields(store_in)
+    |> list.filter(fn(metafield) {
+      metafield.owner_type == Some("PRODUCTVARIANT")
+    })
+    |> list.map(fn(metafield) { metafield.owner_id })
+    |> dedupe_strings
+  let window =
+    paginate_connection_items(
+      variant_ids,
+      field,
+      variables,
+      fn(id, _index) { id },
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: fn(id, _index) { id },
+      serialize_node: fn(id, node_field, _index) {
+        serialize_owner_selection(
+          store_in,
+          node_field,
+          variables,
+          id,
+          "PRODUCTVARIANT",
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn standard_templates() -> List(StandardMetafieldDefinitionTemplate) {
+  [
+    StandardMetafieldDefinitionTemplate(
+      id: "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+      namespace: "descriptors",
+      key: "subtitle",
+      name: "Product subtitle",
+      description: Some("Used as a shorthand for a product name"),
+      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
+      type_: MetafieldDefinitionTypeRecord(
+        name: "single_line_text_field",
+        category: Some("TEXT"),
+      ),
+      validations: [
+        MetafieldDefinitionValidationRecord(name: "max", value: Some("70")),
+      ],
+      visible_to_storefront_api: True,
+    ),
+    StandardMetafieldDefinitionTemplate(
+      id: "gid://shopify/StandardMetafieldDefinitionTemplate/2",
+      namespace: "descriptors",
+      key: "care_guide",
+      name: "Care guide",
+      description: Some("Instructions for taking care of a product or apparel"),
+      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
+      type_: MetafieldDefinitionTypeRecord(
+        name: "multi_line_text_field",
+        category: Some("TEXT"),
+      ),
+      validations: [
+        MetafieldDefinitionValidationRecord(name: "max", value: Some("500")),
+      ],
+      visible_to_storefront_api: True,
+    ),
+    StandardMetafieldDefinitionTemplate(
+      id: "gid://shopify/StandardMetafieldDefinitionTemplate/3",
+      namespace: "facts",
+      key: "isbn",
+      name: "ISBN",
+      description: Some("International Standard Book Number"),
+      owner_types: ["PRODUCT", "PRODUCTVARIANT"],
+      type_: MetafieldDefinitionTypeRecord(
+        name: "single_line_text_field",
+        category: Some("TEXT"),
+      ),
+      validations: [
+        MetafieldDefinitionValidationRecord(
+          name: "regex",
+          value: Some(
+            "^((\\d{3})?([\\-\\s])?(\\d{1,5})([\\-\\s])?(\\d{1,7})([\\-\\s])?(\\d{6})([\\-\\s])?(\\d{1}))$",
+          ),
+        ),
+      ],
+      visible_to_storefront_api: True,
+    ),
+  ]
+}
+
+fn find_standard_template(
   args: Dict(String, root_field.ResolvedValue),
-) -> List(UserError) {
+) -> #(Option(StandardMetafieldDefinitionTemplate), List(UserError)) {
   let owner_type = read_optional_string(args, "ownerType")
   let id = read_optional_string(args, "id")
   let namespace = read_optional_string(args, "namespace")
   let key = read_optional_string(args, "key")
-
-  case owner_type {
-    None -> [
+  case owner_type, id, namespace, key {
+    None, _, _, _ | Some(_), None, None, _ | Some(_), None, _, None -> #(None, [
       UserError(
         field: None,
         message: "A namespace and key or standard metafield definition template id must be provided.",
         code: "TEMPLATE_NOT_FOUND",
       ),
-    ]
-    Some(_) ->
-      case id, namespace, key {
-        None, None, _ | None, _, None -> [
-          UserError(
-            field: None,
-            message: "A namespace and key or standard metafield definition template id must be provided.",
-            code: "TEMPLATE_NOT_FOUND",
-          ),
-        ]
-        Some(_), _, _ -> [
+    ])
+    Some(owner), Some(template_id), _, _ -> {
+      let found =
+        standard_templates()
+        |> list.find(fn(template) {
+          template.id == template_id
+          && list.contains(template.owner_types, owner)
+        })
+        |> option.from_result
+      case found {
+        Some(template) -> #(Some(template), [])
+        None -> #(None, [
           UserError(
             field: Some(["id"]),
             message: "Id is not a valid standard metafield definition template id",
             code: "TEMPLATE_NOT_FOUND",
           ),
-        ]
-        None, Some(_), Some(_) -> [
+        ])
+      }
+    }
+    Some(owner), None, Some(ns), Some(k) -> {
+      let found =
+        standard_templates()
+        |> list.find(fn(template) {
+          list.contains(template.owner_types, owner)
+          && template.namespace == ns
+          && template.key == k
+        })
+        |> option.from_result
+      case found {
+        Some(template) -> #(Some(template), [])
+        None -> #(None, [
           UserError(
             field: None,
             message: "A standard definition wasn't found for the specified owner type, namespace, and key.",
             code: "TEMPLATE_NOT_FOUND",
           ),
-        ]
+        ])
+      }
+    }
+  }
+}
+
+fn serialize_standard_metafield_definition_enable_mutation(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let #(template, user_errors) = find_standard_template(args)
+  case template {
+    None -> #(
+      serialize_standard_enable_payload(
+        store_in,
+        field,
+        variables,
+        None,
+        user_errors,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    Some(template_record) -> {
+      let #(definition, next_identity) =
+        build_enabled_standard_definition(
+          store_in,
+          identity,
+          args,
+          template_record,
+        )
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, [definition])
+      #(
+        serialize_standard_enable_payload(
+          store_in,
+          field,
+          variables,
+          Some(definition),
+          [],
+        ),
+        next_store,
+        next_identity,
+        [definition.id],
+      )
+    }
+  }
+}
+
+fn build_enabled_standard_definition(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  args: Dict(String, root_field.ResolvedValue),
+  template: StandardMetafieldDefinitionTemplate,
+) -> #(MetafieldDefinitionRecord, SyntheticIdentityRegistry) {
+  let owner_type =
+    read_optional_string(args, "ownerType")
+    |> option.unwrap(
+      list.first(template.owner_types) |> result.unwrap("PRODUCT"),
+    )
+  let existing =
+    store.find_effective_metafield_definition(
+      store_in,
+      owner_type,
+      template.namespace,
+      template.key,
+    )
+  let #(id, next_identity) = case existing {
+    Some(definition) -> #(definition.id, identity)
+    None ->
+      synthetic_identity.make_synthetic_gid(identity, "MetafieldDefinition")
+  }
+  let pinned_position = case read_optional_bool(args, "pin") {
+    Some(True) -> Some(next_pinned_position(store_in, owner_type, existing))
+    _ -> None
+  }
+  #(
+    MetafieldDefinitionRecord(
+      id: id,
+      name: template.name,
+      namespace: template.namespace,
+      key: template.key,
+      owner_type: owner_type,
+      type_: template.type_,
+      description: template.description,
+      validations: template.validations,
+      access: build_standard_access(args, template),
+      capabilities: build_definition_capabilities(read_object(
+        args,
+        "capabilities",
+      )),
+      constraints: Some(
+        MetafieldDefinitionConstraintsRecord(key: None, values: []),
+      ),
+      pinned_position: pinned_position,
+      validation_status: "ALL_VALID",
+    ),
+    next_identity,
+  )
+}
+
+fn build_standard_access(
+  args: Dict(String, root_field.ResolvedValue),
+  template: StandardMetafieldDefinitionTemplate,
+) -> Dict(String, Json) {
+  let access = read_object(args, "access")
+  dict.from_list([
+    #(
+      "admin",
+      json.string(
+        read_optional_string(access, "admin")
+        |> option.unwrap("PUBLIC_READ_WRITE"),
+      ),
+    ),
+    #(
+      "storefront",
+      json.string(
+        read_optional_string(access, "storefront")
+        |> option.unwrap(case template.visible_to_storefront_api {
+          True -> "PUBLIC_READ"
+          False -> "NONE"
+        }),
+      ),
+    ),
+    #(
+      "customerAccount",
+      json.string(
+        read_optional_string(access, "customerAccount") |> option.unwrap("NONE"),
+      ),
+    ),
+  ])
+}
+
+fn build_input_access(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, Json) {
+  let access = read_object(input, "access")
+  dict.from_list([
+    #(
+      "admin",
+      json.string(
+        read_optional_string(access, "admin")
+        |> option.unwrap("PUBLIC_READ_WRITE"),
+      ),
+    ),
+    #(
+      "storefront",
+      json.string(
+        read_optional_string(access, "storefront") |> option.unwrap("NONE"),
+      ),
+    ),
+    #(
+      "customerAccount",
+      json.string(
+        read_optional_string(access, "customerAccount") |> option.unwrap("NONE"),
+      ),
+    ),
+  ])
+}
+
+fn build_definition_capabilities(
+  capabilities: Dict(String, root_field.ResolvedValue),
+) -> MetafieldDefinitionCapabilitiesRecord {
+  let admin_filterable = capability_enabled(capabilities, "adminFilterable")
+  let smart_collection =
+    capability_enabled(capabilities, "smartCollectionCondition")
+  let unique_values = capability_enabled(capabilities, "uniqueValues")
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: MetafieldDefinitionCapabilityRecord(
+      enabled: admin_filterable,
+      eligible: True,
+      status: Some(case admin_filterable {
+        True -> "FILTERABLE"
+        False -> "NOT_FILTERABLE"
+      }),
+    ),
+    smart_collection_condition: MetafieldDefinitionCapabilityRecord(
+      enabled: smart_collection,
+      eligible: True,
+      status: None,
+    ),
+    unique_values: MetafieldDefinitionCapabilityRecord(
+      enabled: unique_values,
+      eligible: True,
+      status: None,
+    ),
+  )
+}
+
+fn capability_enabled(
+  capabilities: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(capabilities, key) {
+    Ok(root_field.ObjectVal(value)) ->
+      read_optional_bool(value, "enabled") |> option.unwrap(False)
+    _ -> False
+  }
+}
+
+fn serialize_standard_enable_payload(
+  store_in: Store,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  created_definition: Option(MetafieldDefinitionRecord),
+  user_errors: List(UserError),
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "createdDefinition" ->
+                case created_definition {
+                  Some(definition) ->
+                    serialize_definition_selection(
+                      store_in,
+                      definition,
+                      selection,
+                      variables,
+                    )
+                  None -> json.null()
+                }
+              "userErrors" ->
+                json.array(user_errors, fn(error) {
+                  serialize_standard_user_error(error, selection)
+                })
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_standard_user_error(error: UserError, field: Selection) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "__typename" ->
+                json.string("StandardMetafieldDefinitionEnableUserError")
+              "field" -> optional_string_list(error.field)
+              "message" -> json.string(error.message)
+              "code" -> json.string(error.code)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_definition_create_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let input = read_object(args, "definition")
+  let errors = validate_product_owner_definition_input(input, True)
+  case errors {
+    [_, ..] -> #(
+      serialize_definition_mutation_payload(
+        store_in,
+        "createdDefinition",
+        None,
+        errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] -> {
+      let existing =
+        store.find_effective_metafield_definition(
+          store_in,
+          read_optional_string(input, "ownerType") |> option.unwrap("PRODUCT"),
+          read_optional_string(input, "namespace") |> option.unwrap(""),
+          read_optional_string(input, "key") |> option.unwrap(""),
+        )
+      case existing {
+        Some(_) -> #(
+          serialize_definition_mutation_payload(
+            store_in,
+            "createdDefinition",
+            None,
+            [
+              UserError(
+                field: Some(["definition"]),
+                message: "A metafield definition already exists for this owner type, namespace, and key.",
+                code: "TAKEN",
+              ),
+            ],
+            field,
+            variables,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        None -> {
+          let #(definition, next_identity) =
+            build_definition_from_input(store_in, identity, input)
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [definition])
+          #(
+            serialize_definition_mutation_payload(
+              store_in,
+              "createdDefinition",
+              Some(definition),
+              [],
+              field,
+              variables,
+            ),
+            next_store,
+            next_identity,
+            [definition.id],
+          )
+        }
+      }
+    }
+  }
+}
+
+fn serialize_definition_update_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let input = read_object(args, "definition")
+  let errors = validate_product_owner_definition_input(input, False)
+  case errors {
+    [_, ..] -> #(
+      serialize_definition_mutation_payload(
+        store_in,
+        "updatedDefinition",
+        None,
+        errors,
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    [] -> {
+      let existing =
+        store.find_effective_metafield_definition(
+          store_in,
+          read_optional_string(input, "ownerType") |> option.unwrap("PRODUCT"),
+          read_optional_string(input, "namespace") |> option.unwrap(""),
+          read_optional_string(input, "key") |> option.unwrap(""),
+        )
+      case existing {
+        None -> #(
+          serialize_definition_mutation_payload(
+            store_in,
+            "updatedDefinition",
+            None,
+            [
+              UserError(
+                field: Some(["definition"]),
+                message: "Definition not found.",
+                code: "NOT_FOUND",
+              ),
+            ],
+            field,
+            variables,
+          ),
+          store_in,
+          identity,
+          [],
+        )
+        Some(definition) -> {
+          let requested_type = read_optional_string(input, "type")
+          case requested_type {
+            Some(type_name) ->
+              case type_name != definition.type_.name {
+                True -> #(
+                  serialize_definition_mutation_payload(
+                    store_in,
+                    "updatedDefinition",
+                    None,
+                    [
+                      UserError(
+                        field: Some(["definition", "type"]),
+                        message: "Type can't be changed.",
+                        code: "IMMUTABLE",
+                      ),
+                    ],
+                    field,
+                    variables,
+                  ),
+                  store_in,
+                  identity,
+                  [],
+                )
+                False ->
+                  update_definition_success(
+                    store_in,
+                    identity,
+                    field,
+                    variables,
+                    input,
+                    definition,
+                  )
+              }
+            _ -> {
+              update_definition_success(
+                store_in,
+                identity,
+                field,
+                variables,
+                input,
+                definition,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn serialize_definition_delete_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let definition = find_definition_from_args(store_in, args)
+  case definition {
+    None -> #(
+      serialize_definition_delete_payload(
+        None,
+        [
+          UserError(
+            field: Some(definition_reference_field(args)),
+            message: "Definition not found.",
+            code: "NOT_FOUND",
+          ),
+        ],
+        field,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    Some(record) -> {
+      let store_after_metafields = case
+        read_optional_bool(args, "deleteAllAssociatedMetafields")
+      {
+        Some(True) ->
+          store.delete_product_metafields_for_definition(store_in, record)
+        _ -> store_in
+      }
+      let next_store = stage_delete_definition(store_after_metafields, record)
+      #(
+        serialize_definition_delete_payload(Some(record), [], field),
+        next_store,
+        identity,
+        [record.id],
+      )
+    }
+  }
+}
+
+fn update_definition_success(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  input: Dict(String, root_field.ResolvedValue),
+  definition: MetafieldDefinitionRecord,
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let updated =
+    MetafieldDefinitionRecord(
+      ..definition,
+      name: read_optional_string(input, "name")
+        |> option.unwrap(definition.name),
+      description: case has_field(input, "description") {
+        True -> read_optional_string(input, "description")
+        False -> definition.description
+      },
+      validations: case has_field(input, "validations") {
+        True -> read_validation_records(input)
+        False -> definition.validations
+      },
+      access: case has_field(input, "access") {
+        True -> build_input_access(input)
+        False -> definition.access
+      },
+      capabilities: case has_field(input, "capabilities") {
+        True ->
+          build_definition_capabilities(read_object(input, "capabilities"))
+        False -> definition.capabilities
+      },
+    )
+  let next_store =
+    store.upsert_staged_metafield_definitions(store_in, [updated])
+  #(
+    serialize_definition_mutation_payload(
+      store_in,
+      "updatedDefinition",
+      Some(updated),
+      [],
+      field,
+      variables,
+    ),
+    next_store,
+    identity,
+    [updated.id],
+  )
+}
+
+fn serialize_definition_pin_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  case find_definition_from_args(store_in, args) {
+    None -> #(
+      serialize_pinning_payload(
+        store_in,
+        "pinnedDefinition",
+        None,
+        [
+          UserError(
+            field: Some(definition_reference_field(args)),
+            message: "Definition not found.",
+            code: "NOT_FOUND",
+          ),
+        ],
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    Some(definition) -> {
+      let pinned = pin_definition(store_in, definition)
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, [pinned])
+      #(
+        serialize_pinning_payload(
+          store_in,
+          "pinnedDefinition",
+          Some(pinned),
+          [],
+          field,
+          variables,
+        ),
+        next_store,
+        identity,
+        [pinned.id],
+      )
+    }
+  }
+}
+
+fn serialize_definition_unpin_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  case find_definition_from_args(store_in, args) {
+    None -> #(
+      serialize_pinning_payload(
+        store_in,
+        "unpinnedDefinition",
+        None,
+        [
+          UserError(
+            field: Some(definition_reference_field(args)),
+            message: "Definition not found.",
+            code: "NOT_FOUND",
+          ),
+        ],
+        field,
+        variables,
+      ),
+      store_in,
+      identity,
+      [],
+    )
+    Some(definition) -> {
+      let #(unpinned, compacted) = unpin_definition(store_in, definition)
+      let next_store =
+        store.upsert_staged_metafield_definitions(store_in, compacted)
+      #(
+        serialize_pinning_payload(
+          store_in,
+          "unpinnedDefinition",
+          Some(unpinned),
+          [],
+          field,
+          variables,
+        ),
+        next_store,
+        identity,
+        [unpinned.id],
+      )
+    }
+  }
+}
+
+fn validate_product_owner_definition_input(
+  input: Dict(String, root_field.ResolvedValue),
+  create: Bool,
+) -> List(UserError) {
+  let required = case create {
+    True -> ["namespace", "key", "ownerType", "name", "type"]
+    False -> ["namespace", "key", "ownerType"]
+  }
+  let errors =
+    list.filter_map(required, fn(field_name) {
+      case read_optional_string(input, field_name) {
+        Some(value) ->
+          case string.trim(value) {
+            "" -> Ok(blank_definition_error(field_name))
+            _ -> Error(Nil)
+          }
+        None -> Ok(blank_definition_error(field_name))
+      }
+    })
+  let owner_type_error = case read_optional_string(input, "ownerType") {
+    Some("PRODUCT") | None -> []
+    Some(_) -> [
+      UserError(
+        field: Some(["definition", "ownerType"]),
+        message: "Only PRODUCT metafield definitions are supported locally.",
+        code: "UNSUPPORTED_OWNER_TYPE",
+      ),
+    ]
+  }
+  list.append(errors, owner_type_error)
+}
+
+fn blank_definition_error(field_name: String) -> UserError {
+  UserError(
+    field: Some(["definition", field_name]),
+    message: field_name <> " is required.",
+    code: "BLANK",
+  )
+}
+
+fn build_definition_from_input(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(MetafieldDefinitionRecord, SyntheticIdentityRegistry) {
+  let #(id, next_identity) =
+    synthetic_identity.make_synthetic_gid(identity, "MetafieldDefinition")
+  let type_name =
+    read_optional_string(input, "type")
+    |> option.unwrap("single_line_text_field")
+  let owner_type =
+    read_optional_string(input, "ownerType") |> option.unwrap("PRODUCT")
+  #(
+    MetafieldDefinitionRecord(
+      id: id,
+      name: read_optional_string(input, "name") |> option.unwrap(""),
+      namespace: read_optional_string(input, "namespace") |> option.unwrap(""),
+      key: read_optional_string(input, "key") |> option.unwrap(""),
+      owner_type: owner_type,
+      type_: MetafieldDefinitionTypeRecord(
+        name: type_name,
+        category: infer_definition_type_category(type_name),
+      ),
+      description: read_optional_string(input, "description"),
+      validations: read_validation_records(input),
+      access: build_input_access(input),
+      capabilities: build_definition_capabilities(read_object(
+        input,
+        "capabilities",
+      )),
+      constraints: Some(
+        MetafieldDefinitionConstraintsRecord(key: None, values: []),
+      ),
+      pinned_position: case read_optional_bool(input, "pin") {
+        Some(True) -> Some(next_pinned_position(store_in, owner_type, None))
+        _ -> None
+      },
+      validation_status: "ALL_VALID",
+    ),
+    next_identity,
+  )
+}
+
+fn infer_definition_type_category(type_name: String) -> Option(String) {
+  case type_name {
+    "url" | "color" -> Some("TEXT")
+    "rating" | "boolean" -> Some("NUMBER")
+    "dimension" | "volume" | "weight" -> Some("MEASUREMENT")
+    "date" | "date_time" -> Some("DATE_TIME")
+    _ ->
+      case string.contains(type_name, "text") {
+        True -> Some("TEXT")
+        False ->
+          case string.starts_with(type_name, "number_") {
+            True -> Some("NUMBER")
+            False ->
+              case string.contains(type_name, "reference") {
+                True -> Some("REFERENCE")
+                False -> None
+              }
+          }
       }
   }
 }
 
-fn user_error_to_source(error: UserError) -> graphql_helpers.SourceValue {
-  let field_value = case error.field {
-    Some(parts) -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
-    None -> SrcNull
+fn read_validation_records(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MetafieldDefinitionValidationRecord) {
+  read_input_objects(input, "validations")
+  |> list.filter_map(fn(record) {
+    case read_optional_string(record, "name") {
+      Some(name) ->
+        case name {
+          "" -> Error(Nil)
+          _ ->
+            Ok(MetafieldDefinitionValidationRecord(
+              name: name,
+              value: read_optional_string(record, "value"),
+            ))
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn serialize_definition_mutation_payload(
+  store_in: Store,
+  definition_field_name: String,
+  definition: Option(MetafieldDefinitionRecord),
+  user_errors: List(UserError),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value == definition_field_name, name.value {
+              True, _ ->
+                case definition {
+                  Some(record) ->
+                    serialize_definition_selection(
+                      store_in,
+                      record,
+                      selection,
+                      variables,
+                    )
+                  None -> json.null()
+                }
+              False, "userErrors" ->
+                json.array(user_errors, fn(error) {
+                  serialize_definition_user_error(error, selection)
+                })
+              False, "validationJob" -> json.null()
+              False, _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_definition_delete_payload(
+  deleted_definition: Option(MetafieldDefinitionRecord),
+  user_errors: List(UserError),
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "deletedDefinitionId" ->
+                case deleted_definition {
+                  Some(record) -> json.string(record.id)
+                  None -> json.null()
+                }
+              "deletedDefinition" ->
+                case deleted_definition {
+                  Some(record) ->
+                    serialize_deleted_definition_identifier(record, selection)
+                  None -> json.null()
+                }
+              "userErrors" ->
+                json.array(user_errors, fn(error) {
+                  serialize_definition_user_error(error, selection)
+                })
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_deleted_definition_identifier(
+  definition: MetafieldDefinitionRecord,
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "ownerType" -> json.string(definition.owner_type)
+              "namespace" -> json.string(definition.namespace)
+              "key" -> json.string(definition.key)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_pinning_payload(
+  store_in: Store,
+  payload_field_name: String,
+  definition: Option(MetafieldDefinitionRecord),
+  user_errors: List(UserError),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value == payload_field_name, name.value {
+              True, _ ->
+                case definition {
+                  Some(record) ->
+                    serialize_definition_selection(
+                      store_in,
+                      record,
+                      selection,
+                      variables,
+                    )
+                  None -> json.null()
+                }
+              False, "userErrors" ->
+                json.array(user_errors, fn(error) {
+                  serialize_definition_user_error(error, selection)
+                })
+              False, _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn serialize_definition_user_error(error: UserError, field: Selection) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "field" -> optional_string_list(error.field)
+              "message" -> json.string(error.message)
+              "code" -> json.string(error.code)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn list_pinned_definitions(
+  store_in: Store,
+  owner_type: String,
+) -> List(MetafieldDefinitionRecord) {
+  store.list_effective_metafield_definitions(store_in)
+  |> list.filter(fn(definition) {
+    definition.owner_type == owner_type && definition.pinned_position != None
+  })
+}
+
+fn next_pinned_position(
+  store_in: Store,
+  owner_type: String,
+  existing: Option(MetafieldDefinitionRecord),
+) -> Int {
+  case existing {
+    Some(definition) ->
+      case definition.pinned_position {
+        Some(pos) -> pos
+        None ->
+          highest_pinned_position(store_in, owner_type, Some(definition.id)) + 1
+      }
+    None -> highest_pinned_position(store_in, owner_type, None) + 1
   }
-  src_object([
-    #("__typename", SrcString("StandardMetafieldDefinitionEnableUserError")),
-    #("field", field_value),
-    #("message", SrcString(error.message)),
-    #("code", SrcString(error.code)),
-  ])
+}
+
+fn highest_pinned_position(
+  store_in: Store,
+  owner_type: String,
+  skip_id: Option(String),
+) -> Int {
+  list.fold(
+    list_pinned_definitions(store_in, owner_type),
+    0,
+    fn(highest, definition) {
+      case skip_id == Some(definition.id) {
+        True -> highest
+        False -> int.max(highest, option.unwrap(definition.pinned_position, 0))
+      }
+    },
+  )
+}
+
+fn pin_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> MetafieldDefinitionRecord {
+  case definition.pinned_position {
+    Some(_) -> definition
+    None ->
+      MetafieldDefinitionRecord(
+        ..definition,
+        pinned_position: Some(next_pinned_position(
+          store_in,
+          definition.owner_type,
+          None,
+        )),
+      )
+  }
+}
+
+fn unpin_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> #(MetafieldDefinitionRecord, List(MetafieldDefinitionRecord)) {
+  case definition.pinned_position {
+    None -> #(definition, [definition])
+    Some(removed_position) -> {
+      let unpinned =
+        MetafieldDefinitionRecord(..definition, pinned_position: None)
+      let compacted =
+        list_pinned_definitions(store_in, definition.owner_type)
+        |> list.filter(fn(candidate) {
+          candidate.id != definition.id
+          && option.unwrap(candidate.pinned_position, 0) > removed_position
+        })
+        |> list.map(fn(candidate) {
+          MetafieldDefinitionRecord(
+            ..candidate,
+            pinned_position: Some(
+              option.unwrap(candidate.pinned_position, 1) - 1,
+            ),
+          )
+        })
+      #(unpinned, [unpinned, ..compacted])
+    }
+  }
+}
+
+fn stage_delete_definition(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> Store {
+  let compacted_store = case definition.pinned_position {
+    None -> store_in
+    Some(removed_position) -> {
+      let compacted =
+        list_pinned_definitions(store_in, definition.owner_type)
+        |> list.filter(fn(candidate) {
+          candidate.id != definition.id
+          && option.unwrap(candidate.pinned_position, 0) > removed_position
+        })
+        |> list.map(fn(candidate) {
+          MetafieldDefinitionRecord(
+            ..candidate,
+            pinned_position: Some(
+              option.unwrap(candidate.pinned_position, 1) - 1,
+            ),
+          )
+        })
+      store.upsert_staged_metafield_definitions(store_in, compacted)
+    }
+  }
+  store.stage_delete_metafield_definition(compacted_store, definition.id)
+}
+
+fn serialize_metafields_set_root(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Json, Store, SyntheticIdentityRegistry, List(String)) {
+  let args = read_args(field, variables)
+  let inputs = read_input_objects(args, "metafields")
+  let errors = validate_metafields_set_inputs(store_in, inputs)
+  case errors {
+    [_, ..] -> #(
+      serialize_metafields_set_payload([], errors, field),
+      store_in,
+      identity,
+      [],
+    )
+    [] -> {
+      let #(created, next_store, next_identity) =
+        upsert_metafields_set_inputs(store_in, identity, inputs)
+      #(
+        serialize_metafields_set_payload(created, [], field),
+        next_store,
+        next_identity,
+        list.map(created, fn(record) { record.id }),
+      )
+    }
+  }
+}
+
+fn serialize_metafields_set_payload(
+  records: List(ProductMetafieldRecord),
+  errors: List(MetafieldsSetUserError),
+  field: Selection,
+) -> Json {
+  json.object(
+    list.map(
+      get_selected_child_fields(field, default_selected_field_options()),
+      fn(selection) {
+        let key = get_field_response_key(selection)
+        let value = case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "metafields" ->
+                case
+                  errors != []
+                  && list.any(errors, fn(error) {
+                    error.code == Some("LESS_THAN_OR_EQUAL_TO")
+                  })
+                {
+                  True -> json.null()
+                  False -> serialize_metafield_payload(records, field)
+                }
+              "userErrors" ->
+                serialize_metafields_set_user_errors(field, errors)
+              _ -> json.null()
+            }
+          _ -> json.null()
+        }
+        #(key, value)
+      },
+    ),
+  )
+}
+
+fn validate_metafields_set_inputs(
+  store_in: Store,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(MetafieldsSetUserError) {
+  let initial = case inputs {
+    [] -> [
+      make_metafields_set_user_error(
+        None,
+        None,
+        "At least one metafield input is required.",
+        "BLANK",
+      ),
+    ]
+    _ -> []
+  }
+  let initial = case list.length(inputs) > 25 {
+    True -> [
+      make_metafields_set_user_error(
+        None,
+        None,
+        "Exceeded the maximum metafields input limit of 25.",
+        "LESS_THAN_OR_EQUAL_TO",
+      ),
+      ..initial
+    ]
+    False -> initial
+  }
+  let indexed = enumerate(inputs)
+  list.fold(indexed, initial, fn(errors, pair) {
+    let #(index, input) = pair
+    list.append(errors, validate_metafields_set_input(store_in, input, index))
+  })
+}
+
+fn validate_metafields_set_input(
+  store_in: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  let owner_id = read_optional_string(input, "ownerId")
+  let namespace = read_metafields_set_namespace(input)
+  let key = read_optional_string(input, "key")
+  let value = read_optional_string(input, "value")
+  case owner_id {
+    None -> [
+      make_metafields_set_user_error(
+        Some(index),
+        Some("ownerId"),
+        "Owner id is required.",
+        "BLANK",
+      ),
+    ]
+    Some(owner) ->
+      case owner_type_from_id(owner) {
+        None -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("ownerId"),
+            "Owner does not exist.",
+            "INVALID",
+          ),
+        ]
+        Some(owner_type) -> {
+          let existing = find_owner_metafield(store_in, owner, namespace, key)
+          let definition = case key {
+            Some(k) ->
+              store.find_effective_metafield_definition(
+                store_in,
+                owner_type,
+                namespace,
+                k,
+              )
+            None -> None
+          }
+          let input_type = read_optional_string(input, "type")
+          let type_ =
+            input_type
+            |> option.or(case definition {
+              Some(d) -> Some(d.type_.name)
+              None -> None
+            })
+            |> option.or(case existing {
+              Some(m) -> m.type_
+              None -> None
+            })
+          let errors = []
+          let errors = case key {
+            Some(k) ->
+              case string.trim(k) {
+                "" -> [
+                  make_metafields_set_user_error(
+                    Some(index),
+                    Some("key"),
+                    "Key is required.",
+                    "BLANK",
+                  ),
+                  ..errors
+                ]
+                _ -> errors
+              }
+            None -> [
+              make_metafields_set_user_error(
+                Some(index),
+                Some("key"),
+                "Key is required.",
+                "BLANK",
+              ),
+              ..errors
+            ]
+          }
+          let errors = case type_ {
+            Some(_) -> errors
+            None -> [
+              MetafieldsSetUserError(
+                field: ["metafields", int.to_string(index), "type"],
+                message: "Type can't be blank",
+                code: Some("BLANK"),
+                element_index: None,
+              ),
+              ..errors
+            ]
+          }
+          let errors = case value {
+            Some(_) -> errors
+            None -> [
+              make_metafields_set_user_error(
+                Some(index),
+                Some("value"),
+                "Value is required.",
+                "BLANK",
+              ),
+              ..errors
+            ]
+          }
+          let errors = case definition, input_type {
+            Some(def), Some(input_type_name) ->
+              case input_type_name != def.type_.name {
+                True -> [
+                  make_metafields_set_user_error(
+                    Some(index),
+                    Some("type"),
+                    "Type must be "
+                      <> def.type_.name
+                      <> " for this metafield definition.",
+                    "INVALID_TYPE",
+                  ),
+                  ..errors
+                ]
+                False -> errors
+              }
+            _, _ -> errors
+          }
+          let errors =
+            list.append(
+              errors,
+              validate_definition_value(definition, value, index),
+            )
+          let errors =
+            list.append(errors, validate_compare_digest(input, existing, index))
+          errors
+        }
+      }
+  }
+}
+
+fn validate_definition_value(
+  definition: Option(MetafieldDefinitionRecord),
+  value: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case definition, value {
+    Some(def), Some(raw_value) ->
+      list.filter_map(def.validations, fn(validation) {
+        case validation.name, validation.value {
+          "max", Some(max_raw) ->
+            case int.parse(max_raw) {
+              Ok(max) ->
+                case string.length(raw_value) > max {
+                  True ->
+                    Ok(make_metafields_set_user_error(
+                      Some(index),
+                      Some("value"),
+                      "Value must be "
+                        <> int.to_string(max)
+                        <> " characters or fewer for this metafield definition.",
+                      "LESS_THAN_OR_EQUAL_TO",
+                    ))
+                  False -> Error(Nil)
+                }
+              Error(_) -> Error(Nil)
+            }
+          _, _ -> Error(Nil)
+        }
+      })
+    _, _ -> []
+  }
+}
+
+fn validate_compare_digest(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(ProductMetafieldRecord),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case has_field(input, "compareDigest") {
+    False -> []
+    True -> {
+      let provided = case dict.get(input, "compareDigest") {
+        Ok(root_field.NullVal) -> Some(None)
+        Ok(root_field.StringVal(value)) -> Some(Some(value))
+        _ -> None
+      }
+      case provided {
+        None -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("compareDigest"),
+            "Compare digest is invalid.",
+            "INVALID_COMPARE_DIGEST",
+          ),
+        ]
+        Some(value) -> {
+          let current = case existing {
+            Some(record) ->
+              record.compare_digest
+              |> option.or(
+                Some(
+                  metafields.make_metafield_compare_digest(
+                    product_metafield_to_core(record),
+                  ),
+                ),
+              )
+            None -> None
+          }
+          case value == current {
+            True -> []
+            False -> [
+              MetafieldsSetUserError(
+                field: ["metafields", int.to_string(index)],
+                message: "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                code: Some("STALE_OBJECT"),
+                element_index: None,
+              ),
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+
+fn upsert_metafields_set_inputs(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> #(List(ProductMetafieldRecord), Store, SyntheticIdentityRegistry) {
+  let grouped = group_metafields_by_owner(inputs)
+  list.fold(grouped, #([], store_in, identity), fn(acc, pair) {
+    let #(created_acc, current_store, current_identity) = acc
+    let #(owner_id, owner_inputs) = pair
+    let owner_type = owner_type_from_id(owner_id) |> option.unwrap("PRODUCT")
+    let existing =
+      store.get_effective_metafields_by_owner_id(current_store, owner_id)
+    let #(metafields_for_owner, created, next_identity) =
+      upsert_owner_metafields(
+        current_store,
+        current_identity,
+        owner_id,
+        owner_type,
+        owner_inputs,
+        existing,
+      )
+    let next_store =
+      store.replace_staged_metafields_for_owner(
+        current_store,
+        owner_id,
+        metafields_for_owner,
+      )
+    #(list.append(created_acc, created), next_store, next_identity)
+  })
+}
+
+fn group_metafields_by_owner(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(String, List(Dict(String, root_field.ResolvedValue)))) {
+  let grouped =
+    list.fold(inputs, dict.new(), fn(acc, input) {
+      case read_optional_string(input, "ownerId") {
+        Some(owner_id) -> {
+          let existing = dict.get(acc, owner_id) |> result.unwrap([])
+          dict.insert(acc, owner_id, list.append(existing, [input]))
+        }
+        None -> acc
+      }
+    })
+  dict.to_list(grouped)
+}
+
+fn upsert_owner_metafields(
+  store_in: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  owner_type: String,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  existing: List(ProductMetafieldRecord),
+) -> #(
+  List(ProductMetafieldRecord),
+  List(ProductMetafieldRecord),
+  SyntheticIdentityRegistry,
+) {
+  list.fold(inputs, #(existing, [], identity), fn(acc, input) {
+    let #(current, created, current_identity) = acc
+    let namespace = read_metafields_set_namespace(input)
+    let key = read_optional_string(input, "key") |> option.unwrap("")
+    let found =
+      current
+      |> list.find(fn(metafield) {
+        metafield.namespace == namespace && metafield.key == key
+      })
+      |> option.from_result
+    let definition =
+      store.find_effective_metafield_definition(
+        store_in,
+        owner_type,
+        namespace,
+        key,
+      )
+    let type_ =
+      read_optional_string(input, "type")
+      |> option.or(case definition {
+        Some(def) -> Some(def.type_.name)
+        None -> None
+      })
+      |> option.or(case found {
+        Some(m) -> m.type_
+        None -> None
+      })
+    let raw_value =
+      read_optional_string(input, "value")
+      |> option.or(case found {
+        Some(m) -> m.value
+        None -> None
+      })
+    let value = metafields.normalize_metafield_value(type_, raw_value)
+    let #(id, identity_after_id) = case found {
+      Some(record) -> #(record.id, current_identity)
+      None ->
+        synthetic_identity.make_synthetic_gid(current_identity, "Metafield")
+    }
+    let #(created_at, identity_after_created) = case found {
+      Some(record) -> #(
+        option.unwrap(record.created_at, "2024-01-01T00:00:00Z"),
+        identity_after_id,
+      )
+      None -> synthetic_identity.make_synthetic_timestamp(identity_after_id)
+    }
+    let #(updated_at, identity_after_updated) = case found {
+      Some(record) ->
+        case value == record.value && type_ == record.type_ {
+          True -> #(
+            option.unwrap(record.updated_at, created_at),
+            identity_after_created,
+          )
+          False ->
+            synthetic_identity.make_synthetic_timestamp(identity_after_created)
+        }
+      None -> #(created_at, identity_after_created)
+    }
+    let core =
+      ProductMetafieldRecord(
+        id: id,
+        owner_id: owner_id,
+        namespace: namespace,
+        key: key,
+        type_: type_,
+        value: value,
+        compare_digest: None,
+        json_value: metafields.parse_metafield_json_value(type_, value),
+        created_at: Some(created_at),
+        updated_at: Some(updated_at),
+        owner_type: Some(owner_type),
+      )
+    let record =
+      ProductMetafieldRecord(
+        ..core,
+        compare_digest: Some(
+          metafields.make_metafield_compare_digest(product_metafield_to_core(
+            core,
+          )),
+        ),
+      )
+    let replaced =
+      replace_metafield_by_identity(current, namespace, key, record)
+    #(replaced, list.append(created, [record]), identity_after_updated)
+  })
+}
+
+fn replace_metafield_by_identity(
+  records: List(ProductMetafieldRecord),
+  namespace: String,
+  key: String,
+  record: ProductMetafieldRecord,
+) -> List(ProductMetafieldRecord) {
+  let without =
+    list.filter(records, fn(candidate) {
+      !{ candidate.namespace == namespace && candidate.key == key }
+    })
+  list.append(without, [record])
+}
+
+fn read_metafields_set_namespace(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_optional_string(input, "namespace") {
+    Some(ns) ->
+      case string.trim(ns) {
+        "" -> default_app_metafield_namespace()
+        _ -> ns
+      }
+    None -> default_app_metafield_namespace()
+  }
+}
+
+fn default_app_metafield_namespace() -> String {
+  "app--347082227713"
+}
+
+fn find_owner_metafield(
+  store_in: Store,
+  owner_id: String,
+  namespace: String,
+  key: Option(String),
+) -> Option(ProductMetafieldRecord) {
+  case key {
+    Some(k) ->
+      store.get_effective_metafields_by_owner_id(store_in, owner_id)
+      |> list.find(fn(metafield) {
+        metafield.namespace == namespace && metafield.key == k
+      })
+      |> option.from_result
+    None -> None
+  }
+}
+
+fn owner_type_from_id(owner_id: String) -> Option(String) {
+  case string.split(owner_id, "/") {
+    ["gid:", "", "shopify", "Product", _] -> Some("PRODUCT")
+    ["gid:", "", "shopify", "ProductVariant", _] -> Some("PRODUCTVARIANT")
+    ["gid:", "", "shopify", "Collection", _] -> Some("COLLECTION")
+    ["gid:", "", "shopify", "Customer", _] -> Some("CUSTOMER")
+    _ -> None
+  }
+}
+
+fn make_metafields_set_user_error(
+  index: Option(Int),
+  field_name: Option(String),
+  message: String,
+  code: String,
+) -> MetafieldsSetUserError {
+  let field = case index, field_name {
+    None, _ -> ["metafields"]
+    Some(i), Some(name) -> ["metafields", int.to_string(i), name]
+    Some(i), None -> ["metafields", int.to_string(i)]
+  }
+  MetafieldsSetUserError(
+    field: field,
+    message: message,
+    code: Some(code),
+    element_index: index,
+  )
+}
+
+fn serialize_metafields_set_user_errors(
+  field: Selection,
+  errors: List(MetafieldsSetUserError),
+) -> Json {
+  case child_field(field, "userErrors") {
+    Some(user_error_field) ->
+      json.array(errors, fn(error) {
+        json.object(
+          list.map(
+            get_selected_child_fields(
+              user_error_field,
+              default_selected_field_options(),
+            ),
+            fn(selection) {
+              let key = get_field_response_key(selection)
+              let value = case selection {
+                Field(name: name, ..) ->
+                  case name.value {
+                    "field" -> json.array(error.field, json.string)
+                    "message" -> json.string(error.message)
+                    "code" -> optional_string(error.code)
+                    "elementIndex" -> optional_int(error.element_index)
+                    _ -> json.null()
+                  }
+                _ -> json.null()
+              }
+              #(key, value)
+            },
+          ),
+        )
+      })
+    None ->
+      json.array(errors, fn(error) {
+        json.object([
+          #("field", json.array(error.field, json.string)),
+          #("message", json.string(error.message)),
+        ])
+      })
+  }
+}
+
+fn serialize_metafield_payload(
+  records: List(ProductMetafieldRecord),
+  field: Selection,
+) -> Json {
+  case child_field(field, "metafields") {
+    Some(metafields_field) ->
+      json.array(records, fn(record) {
+        metafields.serialize_metafield_selection(
+          product_metafield_to_core(record),
+          metafields_field,
+          default_selected_field_options(),
+        )
+      })
+    None ->
+      json.array(records, fn(record) {
+        json.object([#("id", json.string(record.id))])
+      })
+  }
+}
+
+fn optional_string(value: Option(String)) -> Json {
+  case value {
+    Some(s) -> json.string(s)
+    None -> json.null()
+  }
+}
+
+fn optional_int(value: Option(Int)) -> Json {
+  case value {
+    Some(i) -> json.int(i)
+    None -> json.null()
+  }
+}
+
+fn optional_string_list(value: Option(List(String))) -> Json {
+  case value {
+    Some(items) -> json.array(items, json.string)
+    None -> json.null()
+  }
+}
+
+fn dedupe_strings(items: List(String)) -> List(String) {
+  dedupe_strings_loop(items, dict.new(), [])
+}
+
+fn dedupe_strings_loop(
+  remaining: List(String),
+  seen: Dict(String, Bool),
+  acc: List(String),
+) -> List(String) {
+  case remaining {
+    [] -> list.reverse(acc)
+    [first, ..rest] ->
+      case dict.get(seen, first) {
+        Ok(_) -> dedupe_strings_loop(rest, seen, acc)
+        Error(_) ->
+          dedupe_strings_loop(rest, dict.insert(seen, first, True), [
+            first,
+            ..acc
+          ])
+      }
+  }
+}
+
+fn enumerate(items: List(a)) -> List(#(Int, a)) {
+  enumerate_loop(items, 0, [])
+}
+
+fn enumerate_loop(
+  items: List(a),
+  index: Int,
+  acc: List(#(Int, a)),
+) -> List(#(Int, a)) {
+  case items {
+    [] -> list.reverse(acc)
+    [first, ..rest] -> enumerate_loop(rest, index + 1, [#(index, first), ..acc])
+  }
 }

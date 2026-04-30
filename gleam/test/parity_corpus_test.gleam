@@ -8,16 +8,29 @@
 //// test harness can't do.
 
 @target(erlang)
+import gleam/dict
+@target(erlang)
 import gleam/list
+@target(erlang)
+import gleam/string
 @target(erlang)
 import parity/classify
 @target(erlang)
 import parity/discover
 @target(erlang)
+import shopify_draft_proxy/graphql/ast.{type Selection}
+@target(erlang)
+import shopify_draft_proxy/graphql/parse_operation
+@target(erlang)
+import shopify_draft_proxy/graphql/root_field
+@target(erlang)
 import simplifile
 
 @target(erlang)
 const parity_root: String = "../config/parity-specs"
+
+@target(erlang)
+const parity_request_root: String = "../config/parity-requests"
 
 @target(erlang)
 pub fn corpus_discovers_all_specs_test() {
@@ -67,6 +80,55 @@ pub fn corpus_every_spec_decodes_test() {
       panic as { "specs failed to decode: " <> int_to_string(count) }
     }
   }
+}
+
+@target(erlang)
+pub fn parity_requests_parse_and_resolve_root_arguments_test() {
+  let assert Ok(all_files) = simplifile.get_files(parity_request_root)
+  let files =
+    list.filter(all_files, fn(path) { string.ends_with(path, ".graphql") })
+  assert list.length(files) >= 750
+  let failures =
+    list.filter_map(files, fn(path) {
+      case simplifile.read(path) {
+        Error(_) -> Ok(path <> ": read failed")
+        Ok(source) ->
+          case parse_operation.parse_operation(source) {
+            Error(_) -> Ok(path <> ": parse/classify failed")
+            Ok(_) ->
+              case root_field.get_root_fields(source) {
+                Error(_) -> Ok(path <> ": root fields failed")
+                Ok(fields) ->
+                  case root_arguments_ok(fields) {
+                    True -> Error(Nil)
+                    False -> Ok(path <> ": root arguments failed")
+                  }
+              }
+          }
+      }
+    })
+  case failures {
+    [] -> Nil
+    [first, ..] -> {
+      let count = list.length(failures)
+      panic as {
+        "parity requests failed GraphQL substrate check: "
+        <> int_to_string(count)
+        <> "; first: "
+        <> first
+      }
+    }
+  }
+}
+
+@target(erlang)
+fn root_arguments_ok(fields: List(Selection)) -> Bool {
+  list.all(fields, fn(field) {
+    case root_field.get_field_arguments(field, dict.new()) {
+      Ok(_) -> True
+      Error(_) -> False
+    }
+  })
 }
 
 @target(erlang)

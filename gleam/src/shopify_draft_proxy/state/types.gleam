@@ -10,7 +10,81 @@
 //// module.
 
 import gleam/dict.{type Dict}
+import gleam/json.{type Json}
 import gleam/option.{type Option}
+
+// ---------------------------------------------------------------------------
+// Metafields domain
+// ---------------------------------------------------------------------------
+
+pub type ProductMetafieldRecord {
+  ProductMetafieldRecord(
+    id: String,
+    owner_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    json_value: Option(Json),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: Bool,
+    eligible: Bool,
+    status: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: MetafieldDefinitionCapabilityRecord,
+    smart_collection_condition: MetafieldDefinitionCapabilityRecord,
+    unique_values: MetafieldDefinitionCapabilityRecord,
+  )
+}
+
+pub type MetafieldDefinitionConstraintValueRecord {
+  MetafieldDefinitionConstraintValueRecord(value: String)
+}
+
+pub type MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: Option(String),
+    values: List(MetafieldDefinitionConstraintValueRecord),
+  )
+}
+
+pub type MetafieldDefinitionTypeRecord {
+  MetafieldDefinitionTypeRecord(name: String, category: Option(String))
+}
+
+pub type MetafieldDefinitionValidationRecord {
+  MetafieldDefinitionValidationRecord(name: String, value: Option(String))
+}
+
+pub type MetafieldDefinitionRecord {
+  MetafieldDefinitionRecord(
+    id: String,
+    name: String,
+    namespace: String,
+    key: String,
+    owner_type: String,
+    type_: MetafieldDefinitionTypeRecord,
+    description: Option(String),
+    validations: List(MetafieldDefinitionValidationRecord),
+    access: Dict(String, Json),
+    capabilities: MetafieldDefinitionCapabilitiesRecord,
+    constraints: Option(MetafieldDefinitionConstraintsRecord),
+    pinned_position: Option(Int),
+    validation_status: String,
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Admin Platform utility domain
@@ -179,6 +253,38 @@ pub type ShopRecord {
     features: ShopFeaturesRecord,
     payment_settings: PaymentSettingsRecord,
     shop_policies: List(ShopPolicyRecord),
+  )
+}
+
+/// JSON-shaped Store Properties resource value. This is used for captured
+/// Location, BusinessEntity, Product, and Collection projection slices whose
+/// full owning domains have not all been ported yet.
+pub type StorePropertyValue {
+  StorePropertyNull
+  StorePropertyString(String)
+  StorePropertyBool(Bool)
+  StorePropertyInt(Int)
+  StorePropertyFloat(Float)
+  StorePropertyList(List(StorePropertyValue))
+  StorePropertyObject(Dict(String, StorePropertyValue))
+}
+
+/// Captured Store Properties resource row, keyed by Shopify GID where the
+/// captured payload has one. `cursor` preserves connection order evidence.
+pub type StorePropertyRecord {
+  StorePropertyRecord(
+    id: String,
+    cursor: Option(String),
+    data: Dict(String, StorePropertyValue),
+  )
+}
+
+/// Locally staged publishable mutation payload for the minimal Product /
+/// Collection publication projection used by Store Properties parity.
+pub type StorePropertyMutationPayloadRecord {
+  StorePropertyMutationPayloadRecord(
+    key: String,
+    data: Dict(String, StorePropertyValue),
   )
 }
 
@@ -431,6 +537,121 @@ pub type BulkOperationRecord {
     query: Option(String),
     cursor: Option(String),
     result_jsonl: Option(String),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Metaobjects domain
+// ---------------------------------------------------------------------------
+
+pub type MetaobjectJsonValue {
+  MetaobjectNull
+  MetaobjectString(String)
+  MetaobjectBool(Bool)
+  MetaobjectInt(Int)
+  MetaobjectFloat(Float)
+  MetaobjectList(List(MetaobjectJsonValue))
+  MetaobjectObject(Dict(String, MetaobjectJsonValue))
+}
+
+pub type MetaobjectDefinitionCapabilityRecord {
+  MetaobjectDefinitionCapabilityRecord(enabled: Bool)
+}
+
+pub type MetaobjectDefinitionCapabilitiesRecord {
+  MetaobjectDefinitionCapabilitiesRecord(
+    publishable: Option(MetaobjectDefinitionCapabilityRecord),
+    translatable: Option(MetaobjectDefinitionCapabilityRecord),
+    renderable: Option(MetaobjectDefinitionCapabilityRecord),
+    online_store: Option(MetaobjectDefinitionCapabilityRecord),
+  )
+}
+
+pub type MetaobjectDefinitionTypeRecord {
+  MetaobjectDefinitionTypeRecord(name: String, category: Option(String))
+}
+
+pub type MetaobjectFieldDefinitionValidationRecord {
+  MetaobjectFieldDefinitionValidationRecord(name: String, value: Option(String))
+}
+
+pub type MetaobjectFieldDefinitionRecord {
+  MetaobjectFieldDefinitionRecord(
+    key: String,
+    name: Option(String),
+    description: Option(String),
+    required: Option(Bool),
+    type_: MetaobjectDefinitionTypeRecord,
+    validations: List(MetaobjectFieldDefinitionValidationRecord),
+  )
+}
+
+pub type MetaobjectStandardTemplateRecord {
+  MetaobjectStandardTemplateRecord(type_: Option(String), name: Option(String))
+}
+
+pub type MetaobjectDefinitionRecord {
+  MetaobjectDefinitionRecord(
+    id: String,
+    type_: String,
+    name: Option(String),
+    description: Option(String),
+    display_name_key: Option(String),
+    access: Dict(String, Option(String)),
+    capabilities: MetaobjectDefinitionCapabilitiesRecord,
+    field_definitions: List(MetaobjectFieldDefinitionRecord),
+    has_thumbnail_field: Option(Bool),
+    metaobjects_count: Option(Int),
+    standard_template: Option(MetaobjectStandardTemplateRecord),
+    created_at: Option(String),
+    updated_at: Option(String),
+  )
+}
+
+pub type MetaobjectFieldDefinitionReferenceRecord {
+  MetaobjectFieldDefinitionReferenceRecord(
+    key: String,
+    name: Option(String),
+    required: Option(Bool),
+    type_: MetaobjectDefinitionTypeRecord,
+  )
+}
+
+pub type MetaobjectFieldRecord {
+  MetaobjectFieldRecord(
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    json_value: MetaobjectJsonValue,
+    definition: Option(MetaobjectFieldDefinitionReferenceRecord),
+  )
+}
+
+pub type MetaobjectPublishableCapabilityRecord {
+  MetaobjectPublishableCapabilityRecord(status: Option(String))
+}
+
+pub type MetaobjectOnlineStoreCapabilityRecord {
+  MetaobjectOnlineStoreCapabilityRecord(template_suffix: Option(String))
+}
+
+pub type MetaobjectCapabilitiesRecord {
+  MetaobjectCapabilitiesRecord(
+    publishable: Option(MetaobjectPublishableCapabilityRecord),
+    online_store: Option(MetaobjectOnlineStoreCapabilityRecord),
+  )
+}
+
+pub type MetaobjectRecord {
+  MetaobjectRecord(
+    id: String,
+    handle: String,
+    type_: String,
+    display_name: Option(String),
+    fields: List(MetaobjectFieldRecord),
+    capabilities: MetaobjectCapabilitiesRecord,
+    created_at: Option(String),
+    updated_at: Option(String),
   )
 }
 

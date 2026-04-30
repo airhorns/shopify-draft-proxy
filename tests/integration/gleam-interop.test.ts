@@ -49,11 +49,12 @@ describe('public TS API', () => {
 
   it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
-      createDraftProxy: (config: {
+      createDraftProxy: (options: {
         readMode: string;
         port: number;
         shopifyAdminOrigin: string;
         snapshotPath?: string;
+        state?: unknown;
       }) => {
         processRequest: (req: { method: string; path: string }) => Promise<{
           status: number;
@@ -83,11 +84,12 @@ describe('public TS API', () => {
 
   it('round-trips state via dumpState/restoreState with the documented schema', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
-      createDraftProxy: (config: {
+      createDraftProxy: (options: {
         readMode: string;
         port: number;
         shopifyAdminOrigin: string;
         snapshotPath?: string;
+        state?: unknown;
       }) => {
         processRequest: (req: { method: string; path: string }) => Promise<{
           status: number;
@@ -110,9 +112,40 @@ describe('public TS API', () => {
       readMode: 'snapshot',
       port: 4000,
       shopifyAdminOrigin: 'https://shopify.com',
+      state: dump,
     });
-    fresh.restoreState(dump);
     expect(fresh.getState()).toBeDefined();
+  });
+
+  it('loads an existing normalized snapshot file when snapshotPath is configured', async () => {
+    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+      createDraftProxy: (config: {
+        readMode: string;
+        port: number;
+        shopifyAdminOrigin: string;
+        snapshotPath?: string;
+      }) => {
+        getConfig: () => { snapshot: { enabled: boolean; path: string | null } };
+        getState: () => unknown;
+      };
+    };
+    const snapshotPath = resolve(repoRoot, 'fixtures/snapshots/dev-store.json');
+    const proxy = shim.createDraftProxy({
+      readMode: 'snapshot',
+      port: 4000,
+      shopifyAdminOrigin: 'https://shopify.com',
+      snapshotPath,
+    });
+    expect(proxy.getConfig().snapshot).toEqual({ enabled: true, path: snapshotPath });
+    expect(proxy.getState()).toMatchObject({
+      baseState: expect.objectContaining({
+        savedSearches: {},
+        webhookSubscriptions: {},
+      }),
+      stagedState: expect.objectContaining({
+        savedSearches: {},
+      }),
+    });
   });
 
   it('supports the JS embeddable lifecycle through the TS-friendly shim', async () => {
@@ -218,14 +251,12 @@ describe('public TS API', () => {
 
       const dump = proxy.dumpState('2026-04-30T00:00:00.000Z');
       expect(dump.schema).toBe(DRAFT_PROXY_STATE_DUMP_SCHEMA);
-      const restored = createDraftProxy(
-        {
-          readMode: 'snapshot',
-          port: 4000,
-          shopifyAdminOrigin: `http://127.0.0.1:${address.port}`,
-        },
-        { state: dump },
-      );
+      const restored = createDraftProxy({
+        readMode: 'snapshot',
+        port: 4000,
+        shopifyAdminOrigin: `http://127.0.0.1:${address.port}`,
+        state: dump,
+      });
       const restoredRead = await restored.processGraphQLRequest({
         query: '{ orderSavedSearches(query: "Promo") { nodes { id name } } }',
       });

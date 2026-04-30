@@ -36,6 +36,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, single_root_log_draft,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -739,6 +742,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -754,6 +758,7 @@ type MutationFieldResult {
     key: String,
     payload: Json,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -798,10 +803,10 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
-  let initial = #([], store, identity, [])
-  let #(data_entries, final_store, final_identity, all_staged) =
+  let initial = #([], store, identity, [], [])
+  let #(data_entries, final_store, final_identity, all_staged, all_drafts) =
     list.fold(fields, initial, fn(acc, field) {
-      let #(entries, current_store, current_identity, staged_ids) = acc
+      let #(entries, current_store, current_identity, staged_ids, drafts) = acc
       case field {
         Field(name: name, ..) -> {
           let dispatch = case name.value {
@@ -918,6 +923,7 @@ fn handle_mutation_fields(
               next_store,
               next_identity,
               list.append(staged_ids, result.staged_resource_ids),
+              list.append(drafts, result.log_drafts),
             )
           }
         }
@@ -929,6 +935,7 @@ fn handle_mutation_fields(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: all_drafts,
   )
 }
 
@@ -939,9 +946,9 @@ fn handle_mutation_fields(
 fn handle_uninstall(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   origin: String,
-  document: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
@@ -957,31 +964,25 @@ fn handle_uninstall(
   let #(_, store_staged) =
     store.stage_app_installation(store_after_ensure, updated)
   let payload = project_uninstall_payload(app, [], field, fragments)
-  let #(store_logged, _, identity_final) =
-    record_log(
-      store_staged,
-      identity_after_ts,
-      "appUninstall",
-      request_path,
-      document,
-      [installation.id],
-      store.Staged,
-    )
+  let draft = make_log_draft("appUninstall", [installation.id], store.Staged)
   #(
-    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-      installation.id,
-    ]),
-    store_logged,
-    identity_final,
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [installation.id],
+      log_drafts: [draft],
+    ),
+    store_staged,
+    identity_after_ts,
   )
 }
 
 fn handle_revoke_access_scopes(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   origin: String,
-  document: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1030,30 +1031,24 @@ fn handle_revoke_access_scopes(
     [] -> store.Staged
     _ -> store.Failed
   }
-  let #(store_logged, _, identity_final) =
-    record_log(
-      store_staged,
-      identity_after_ensure,
-      "appRevokeAccessScopes",
-      request_path,
-      document,
-      [installation.id],
-      status,
-    )
+  let draft = make_log_draft("appRevokeAccessScopes", [installation.id], status)
   #(
-    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-      installation.id,
-    ]),
-    store_logged,
-    identity_final,
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [installation.id],
+      log_drafts: [draft],
+    ),
+    store_staged,
+    identity_after_ensure,
   )
 }
 
 fn handle_delegate_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1109,30 +1104,25 @@ fn handle_delegate_create(
       field,
       fragments,
     )
-  let #(store_logged, _, identity_final) =
-    record_log(
-      store_staged,
-      identity_after_ts,
-      "delegateAccessTokenCreate",
-      request_path,
-      document,
-      [token_gid],
-      store.Staged,
-    )
+  let draft =
+    make_log_draft("delegateAccessTokenCreate", [token_gid], store.Staged)
   #(
-    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-      token_gid,
-    ]),
-    store_logged,
-    identity_final,
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [token_gid],
+      log_drafts: [draft],
+    ),
+    store_staged,
+    identity_after_ts,
   )
 }
 
 fn handle_delegate_destroy(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1160,20 +1150,16 @@ fn handle_delegate_destroy(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store,
-          identity,
-          "delegateAccessTokenDestroy",
-          request_path,
-          document,
-          [],
-          store.Failed,
-        )
+      let draft = make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
       )
     }
     Some(record) -> {
@@ -1182,22 +1168,17 @@ fn handle_delegate_destroy(
       let store_after =
         store.destroy_delegated_access_token(store, record.id, timestamp)
       let payload = project_delegate_destroy_payload(True, [], field, fragments)
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store_after,
-          identity_after_ts,
-          "delegateAccessTokenDestroy",
-          request_path,
-          document,
-          [record.id],
-          store.Staged,
-        )
+      let draft =
+        make_log_draft("delegateAccessTokenDestroy", [record.id], store.Staged)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          record.id,
-        ]),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [record.id],
+          log_drafts: [draft],
+        ),
+        store_after,
+        identity_after_ts,
       )
     }
   }
@@ -1206,9 +1187,9 @@ fn handle_delegate_destroy(
 fn handle_purchase_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   origin: String,
-  document: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1252,31 +1233,26 @@ fn handle_purchase_create(
       field,
       fragments,
     )
-  let #(store_logged, _, identity_final) =
-    record_log(
-      store_staged,
-      identity_after_ts,
-      "appPurchaseOneTimeCreate",
-      request_path,
-      document,
-      [purchase.id],
-      store.Staged,
-    )
+  let draft =
+    make_log_draft("appPurchaseOneTimeCreate", [purchase.id], store.Staged)
   #(
-    MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-      purchase.id,
-    ]),
-    store_logged,
-    identity_final,
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [purchase.id],
+      log_drafts: [draft],
+    ),
+    store_staged,
+    identity_after_ts,
   )
 }
 
 fn handle_subscription_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   origin: String,
-  document: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1352,32 +1328,24 @@ fn handle_subscription_create(
     )
   let staged_ids =
     list.append([subscription.id], list.map(line_items, fn(li) { li.id }))
-  let #(store_logged, _, identity_final) =
-    record_log(
-      store_staged,
-      identity_after_ts,
-      "appSubscriptionCreate",
-      request_path,
-      document,
-      staged_ids,
-      store.Staged,
-    )
+  let draft = make_log_draft("appSubscriptionCreate", staged_ids, store.Staged)
   #(
     MutationFieldResult(
       key: key,
       payload: payload,
       staged_resource_ids: staged_ids,
+      log_drafts: [draft],
     ),
-    store_logged,
-    identity_final,
+    store_staged,
+    identity_after_ts,
   )
 }
 
 fn handle_subscription_cancel(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1406,20 +1374,16 @@ fn handle_subscription_cancel(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store,
-          identity,
-          "appSubscriptionCancel",
-          request_path,
-          document,
-          [],
-          store.Failed,
-        )
+      let draft = make_log_draft("appSubscriptionCancel", [], store.Failed)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
       )
     }
     Some(sub) -> {
@@ -1452,22 +1416,17 @@ fn handle_subscription_cancel(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store_after_install,
-          identity,
-          "appSubscriptionCancel",
-          request_path,
-          document,
-          [cancelled.id],
-          store.Staged,
-        )
+      let draft =
+        make_log_draft("appSubscriptionCancel", [cancelled.id], store.Staged)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          cancelled.id,
-        ]),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [cancelled.id],
+          log_drafts: [draft],
+        ),
+        store_after_install,
+        identity,
       )
     }
   }
@@ -1476,9 +1435,9 @@ fn handle_subscription_cancel(
 fn handle_line_item_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   origin: String,
-  document: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1535,22 +1494,21 @@ fn handle_line_item_update(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store_after_li,
-          identity,
+      let draft =
+        make_log_draft(
           "appSubscriptionLineItemUpdate",
-          request_path,
-          document,
           [updated_line_item.id],
           store.Staged,
         )
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          updated_line_item.id,
-        ]),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [updated_line_item.id],
+          log_drafts: [draft],
+        ),
+        store_after_li,
+        identity,
       )
     }
     _, _ -> {
@@ -1569,20 +1527,17 @@ fn handle_line_item_update(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store,
-          identity,
-          "appSubscriptionLineItemUpdate",
-          request_path,
-          document,
-          [],
-          store.Failed,
-        )
+      let draft =
+        make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
       )
     }
   }
@@ -1591,8 +1546,8 @@ fn handle_line_item_update(
 fn handle_trial_extend(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1622,20 +1577,16 @@ fn handle_trial_extend(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store,
-          identity,
-          "appSubscriptionTrialExtend",
-          request_path,
-          document,
-          [],
-          store.Failed,
-        )
+      let draft = make_log_draft("appSubscriptionTrialExtend", [], store.Failed)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
       )
     }
     Some(sub) -> {
@@ -1652,22 +1603,21 @@ fn handle_trial_extend(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store_after,
-          identity,
+      let draft =
+        make_log_draft(
           "appSubscriptionTrialExtend",
-          request_path,
-          document,
           [extended.id],
           store.Staged,
         )
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          extended.id,
-        ]),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [extended.id],
+          log_drafts: [draft],
+        ),
+        store_after,
+        identity,
       )
     }
   }
@@ -1676,8 +1626,8 @@ fn handle_trial_extend(
 fn handle_usage_record_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1705,20 +1655,16 @@ fn handle_usage_record_create(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store,
-          identity,
-          "appUsageRecordCreate",
-          request_path,
-          document,
-          [],
-          store.Failed,
-        )
+      let draft = make_log_draft("appUsageRecordCreate", [], store.Failed)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
       )
     }
     Some(li) -> {
@@ -1744,22 +1690,17 @@ fn handle_usage_record_create(
           field,
           fragments,
         )
-      let #(store_logged, _, identity_final) =
-        record_log(
-          store_after,
-          identity_after_ts,
-          "appUsageRecordCreate",
-          request_path,
-          document,
-          [record.id],
-          store.Staged,
-        )
+      let draft =
+        make_log_draft("appUsageRecordCreate", [record.id], store.Staged)
       #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          record.id,
-        ]),
-        store_logged,
-        identity_final,
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [record.id],
+          log_drafts: [draft],
+        ),
+        store_after,
+        identity_after_ts,
       )
     }
   }
@@ -1976,65 +1917,18 @@ fn read_line_item_plan(
   #(record, identity_after)
 }
 
-fn record_log(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
+fn make_log_draft(
   root_field_name: String,
-  request_path: String,
-  document: String,
   staged_ids: List(String),
   status: store.EntryStatus,
-) -> #(Store, String, SyntheticIdentityRegistry) {
-  let #(log_id, identity_after_id) =
-    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
-  let #(received_at, identity_after_ts) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_id)
-  let entry =
-    build_log_entry(
-      root_field_name,
-      log_id,
-      received_at,
-      request_path,
-      document,
-      staged_ids,
-      status,
-    )
-  let store_logged = store.record_mutation_log_entry(store, entry)
-  #(store_logged, log_id, identity_after_ts)
-}
-
-fn build_log_entry(
-  root_field_name: String,
-  log_id: String,
-  received_at: String,
-  request_path: String,
-  document: String,
-  staged_ids: List(String),
-  status: store.EntryStatus,
-) -> store.MutationLogEntry {
-  store.MutationLogEntry(
-    id: log_id,
-    received_at: received_at,
-    operation_name: None,
-    path: request_path,
-    query: document,
-    variables: dict.new(),
-    staged_resource_ids: staged_ids,
-    status: status,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
-      operation_name: None,
-      root_fields: [root_field_name],
-      primary_root_field: Some(root_field_name),
-      capability: store.Capability(
-        operation_name: Some(root_field_name),
-        domain: "apps",
-        execution: "stage-locally",
-      ),
-    ),
-    notes: Some(
-      "Locally staged " <> root_field_name <> " in shopify-draft-proxy.",
-    ),
+) -> LogDraft {
+  single_root_log_draft(
+    root_field_name,
+    staged_ids,
+    status,
+    "apps",
+    "stage-locally",
+    Some("Locally staged " <> root_field_name <> " in shopify-draft-proxy."),
   )
 }
 

@@ -1,7 +1,6 @@
-//// Mirrors the slice of `src/state/store.ts` that backs the
-//// saved-searches domain plus the mutation log. Only the saved-search
-//// fields of `BaseState`/`StagedState` are modelled here; every other
-//// resource will land slice-by-slice as its domain handler ports.
+//// Mirrors the slices of `src/state/store.ts` that have been ported to
+//// Gleam plus the mutation log. Additional resources still land
+//// slice-by-slice with their domain handlers.
 ////
 //// The TS class mutates state in place. This Gleam port returns updated
 //// `Store` records from every mutator so callers thread state through
@@ -13,6 +12,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/string
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/types.{
   type AdminPlatformFlowSignatureRecord, type AdminPlatformFlowTriggerRecord,
   type AppInstallationRecord, type AppOneTimePurchaseRecord, type AppRecord,
@@ -21,16 +21,18 @@ import shopify_draft_proxy/state/types.{
   type CartTransformRecord, type CustomerSegmentMembersQueryRecord,
   type DelegatedAccessTokenRecord, type GiftCardConfigurationRecord,
   type GiftCardRecord, type LocaleRecord, type MarketingEngagementRecord,
-  type MarketingRecord, type MarketingValue, type SavedSearchRecord,
-  type SegmentRecord, type ShopLocaleRecord, type ShopRecord,
-  type ShopifyFunctionRecord, type TaxAppConfigurationRecord,
-  type TranslationRecord, type ValidationRecord, type WebhookSubscriptionRecord,
-  BulkOperationRecord, MarketingObject, MarketingString,
+  type MarketingRecord, type MarketingValue, type MetafieldDefinitionRecord,
+  type MetaobjectDefinitionRecord, type MetaobjectRecord,
+  type ProductMetafieldRecord, type SavedSearchRecord, type SegmentRecord,
+  type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
+  type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
+  type TaxAppConfigurationRecord, type TranslationRecord, type ValidationRecord,
+  type WebhookSubscriptionRecord, BulkOperationRecord, MarketingObject,
+  MarketingString,
 } as types_mod
 
-/// Server-authoritative state. Mirrors the saved-search,
-/// webhook-subscription, and apps slices of `StateSnapshot` for
-/// `baseState`. Other resources land slice-by-slice as their domain
+/// Server-authoritative state. Mirrors the ported slices of `StateSnapshot`
+/// for `baseState`. Other resources land slice-by-slice as their domain
 /// handlers port.
 pub type BaseState {
   BaseState(
@@ -43,6 +45,20 @@ pub type BaseState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    locations: Dict(String, StorePropertyRecord),
+    location_order: List(String),
+    deleted_location_ids: Dict(String, Bool),
+    business_entities: Dict(String, StorePropertyRecord),
+    business_entity_order: List(String),
+    publishables: Dict(String, StorePropertyRecord),
+    publishable_order: List(String),
+    store_property_mutation_payloads: Dict(
+      String,
+      StorePropertyMutationPayloadRecord,
+    ),
+    product_metafields: Dict(String, ProductMetafieldRecord),
+    metafield_definitions: Dict(String, MetafieldDefinitionRecord),
+    deleted_metafield_definition_ids: Dict(String, Bool),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -68,6 +84,12 @@ pub type BaseState {
     shopify_function_order: List(String),
     bulk_operations: Dict(String, BulkOperationRecord),
     bulk_operation_order: List(String),
+    metaobject_definitions: Dict(String, MetaobjectDefinitionRecord),
+    metaobject_definition_order: List(String),
+    deleted_metaobject_definition_ids: Dict(String, Bool),
+    metaobjects: Dict(String, MetaobjectRecord),
+    metaobject_order: List(String),
+    deleted_metaobject_ids: Dict(String, Bool),
     marketing_activities: Dict(String, MarketingRecord),
     marketing_activity_order: List(String),
     marketing_events: Dict(String, MarketingRecord),
@@ -114,6 +136,20 @@ pub type StagedState {
     admin_platform_flow_triggers: Dict(String, AdminPlatformFlowTriggerRecord),
     admin_platform_flow_trigger_order: List(String),
     shop: Option(ShopRecord),
+    locations: Dict(String, StorePropertyRecord),
+    location_order: List(String),
+    deleted_location_ids: Dict(String, Bool),
+    business_entities: Dict(String, StorePropertyRecord),
+    business_entity_order: List(String),
+    publishables: Dict(String, StorePropertyRecord),
+    publishable_order: List(String),
+    store_property_mutation_payloads: Dict(
+      String,
+      StorePropertyMutationPayloadRecord,
+    ),
+    product_metafields: Dict(String, ProductMetafieldRecord),
+    metafield_definitions: Dict(String, MetafieldDefinitionRecord),
+    deleted_metafield_definition_ids: Dict(String, Bool),
     saved_searches: Dict(String, SavedSearchRecord),
     saved_search_order: List(String),
     deleted_saved_search_ids: Dict(String, Bool),
@@ -139,6 +175,12 @@ pub type StagedState {
     shopify_function_order: List(String),
     bulk_operations: Dict(String, BulkOperationRecord),
     bulk_operation_order: List(String),
+    metaobject_definitions: Dict(String, MetaobjectDefinitionRecord),
+    metaobject_definition_order: List(String),
+    deleted_metaobject_definition_ids: Dict(String, Bool),
+    metaobjects: Dict(String, MetaobjectRecord),
+    metaobject_order: List(String),
+    deleted_metaobject_ids: Dict(String, Bool),
     marketing_activities: Dict(String, MarketingRecord),
     marketing_activity_order: List(String),
     marketing_events: Dict(String, MarketingRecord),
@@ -247,6 +289,17 @@ pub fn empty_base_state() -> BaseState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    locations: dict.new(),
+    location_order: [],
+    deleted_location_ids: dict.new(),
+    business_entities: dict.new(),
+    business_entity_order: [],
+    publishables: dict.new(),
+    publishable_order: [],
+    store_property_mutation_payloads: dict.new(),
+    product_metafields: dict.new(),
+    metafield_definitions: dict.new(),
+    deleted_metafield_definition_ids: dict.new(),
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -272,6 +325,12 @@ pub fn empty_base_state() -> BaseState {
     shopify_function_order: [],
     bulk_operations: dict.new(),
     bulk_operation_order: [],
+    metaobject_definitions: dict.new(),
+    metaobject_definition_order: [],
+    deleted_metaobject_definition_ids: dict.new(),
+    metaobjects: dict.new(),
+    metaobject_order: [],
+    deleted_metaobject_ids: dict.new(),
     marketing_activities: dict.new(),
     marketing_activity_order: [],
     marketing_events: dict.new(),
@@ -311,6 +370,17 @@ pub fn empty_staged_state() -> StagedState {
     admin_platform_flow_triggers: dict.new(),
     admin_platform_flow_trigger_order: [],
     shop: None,
+    locations: dict.new(),
+    location_order: [],
+    deleted_location_ids: dict.new(),
+    business_entities: dict.new(),
+    business_entity_order: [],
+    publishables: dict.new(),
+    publishable_order: [],
+    store_property_mutation_payloads: dict.new(),
+    product_metafields: dict.new(),
+    metafield_definitions: dict.new(),
+    deleted_metafield_definition_ids: dict.new(),
     saved_searches: dict.new(),
     saved_search_order: [],
     deleted_saved_search_ids: dict.new(),
@@ -336,6 +406,12 @@ pub fn empty_staged_state() -> StagedState {
     shopify_function_order: [],
     bulk_operations: dict.new(),
     bulk_operation_order: [],
+    metaobject_definitions: dict.new(),
+    metaobject_definition_order: [],
+    deleted_metaobject_definition_ids: dict.new(),
+    metaobjects: dict.new(),
+    metaobject_order: [],
+    deleted_metaobject_ids: dict.new(),
     marketing_activities: dict.new(),
     marketing_activity_order: [],
     marketing_events: dict.new(),
@@ -447,6 +523,571 @@ pub fn get_effective_shop(store: Store) -> Option(ShopRecord) {
     Some(shop) -> Some(shop)
     None -> store.base_state.shop
   }
+}
+
+pub fn upsert_base_location(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Store {
+  let base = store.base_state
+  let staged = store.staged_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      locations: dict.insert(base.locations, record.id, record),
+      location_order: append_unique_id(base.location_order, record.id),
+      deleted_location_ids: dict.delete(base.deleted_location_ids, record.id),
+    ),
+    staged_state: StagedState(
+      ..staged,
+      deleted_location_ids: dict.delete(staged.deleted_location_ids, record.id),
+    ),
+  )
+}
+
+pub fn upsert_staged_location(
+  store: Store,
+  record: StorePropertyRecord,
+) -> #(StorePropertyRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let known =
+    list.contains(base.location_order, record.id)
+    || list.contains(staged.location_order, record.id)
+    || dict_has(base.locations, record.id)
+    || dict_has(staged.locations, record.id)
+  let order = case known {
+    True -> staged.location_order
+    False -> list.append(staged.location_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        locations: dict.insert(staged.locations, record.id, record),
+        location_order: order,
+        deleted_location_ids: dict.delete(
+          staged.deleted_location_ids,
+          record.id,
+        ),
+      ),
+    ),
+  )
+}
+
+pub fn delete_staged_location(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      locations: dict.delete(staged.locations, id),
+      deleted_location_ids: dict.insert(staged.deleted_location_ids, id, True),
+    ),
+  )
+}
+
+pub fn get_effective_location_by_id(
+  store: Store,
+  id: String,
+) -> Option(StorePropertyRecord) {
+  case
+    dict_has(store.staged_state.deleted_location_ids, id)
+    || dict_has(store.base_state.deleted_location_ids, id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.locations, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.locations, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_locations(store: Store) -> List(StorePropertyRecord) {
+  let ordered_ids =
+    append_unique_ids(
+      store.base_state.location_order,
+      store.staged_state.location_order,
+    )
+  let ordered =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      case get_effective_location_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_lookup =
+    list.fold(ordered_ids, dict.new(), fn(acc, id) {
+      dict.insert(acc, id, True)
+    })
+  let extras =
+    dict.to_list(store.base_state.locations)
+    |> list.append(dict.to_list(store.staged_state.locations))
+    |> list.filter_map(fn(pair) {
+      let #(id, _) = pair
+      case dict_has(ordered_lookup, id) {
+        True -> Error(Nil)
+        False ->
+          case get_effective_location_by_id(store, id) {
+            Some(record) -> Ok(record)
+            None -> Error(Nil)
+          }
+      }
+    })
+    |> sort_store_property_records
+  list.append(ordered, extras)
+}
+
+pub fn upsert_base_business_entity(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      business_entities: dict.insert(base.business_entities, record.id, record),
+      business_entity_order: append_unique_id(
+        base.business_entity_order,
+        record.id,
+      ),
+    ),
+  )
+}
+
+pub fn get_business_entity_by_id(
+  store: Store,
+  id: String,
+) -> Option(StorePropertyRecord) {
+  case dict.get(store.base_state.business_entities, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.staged_state.business_entities, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_business_entities(
+  store: Store,
+) -> List(StorePropertyRecord) {
+  let ordered_ids =
+    append_unique_ids(
+      store.base_state.business_entity_order,
+      store.staged_state.business_entity_order,
+    )
+  let ordered =
+    ordered_ids
+    |> list.filter_map(fn(id) {
+      case get_business_entity_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_lookup =
+    list.fold(ordered_ids, dict.new(), fn(acc, id) {
+      dict.insert(acc, id, True)
+    })
+  let extras =
+    dict.to_list(store.base_state.business_entities)
+    |> list.append(dict.to_list(store.staged_state.business_entities))
+    |> list.filter_map(fn(pair) {
+      let #(id, _) = pair
+      case dict_has(ordered_lookup, id) {
+        True -> Error(Nil)
+        False ->
+          case get_business_entity_by_id(store, id) {
+            Some(record) -> Ok(record)
+            None -> Error(Nil)
+          }
+      }
+    })
+    |> sort_store_property_records
+  list.append(ordered, extras)
+}
+
+pub fn upsert_base_publishable(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      publishables: dict.insert(base.publishables, record.id, record),
+      publishable_order: append_unique_id(base.publishable_order, record.id),
+    ),
+  )
+}
+
+pub fn upsert_staged_publishable(
+  store: Store,
+  record: StorePropertyRecord,
+) -> #(StorePropertyRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let known =
+    list.contains(base.publishable_order, record.id)
+    || list.contains(staged.publishable_order, record.id)
+    || dict_has(base.publishables, record.id)
+    || dict_has(staged.publishables, record.id)
+  let order = case known {
+    True -> staged.publishable_order
+    False -> list.append(staged.publishable_order, [record.id])
+  }
+  #(
+    record,
+    Store(
+      ..store,
+      staged_state: StagedState(
+        ..staged,
+        publishables: dict.insert(staged.publishables, record.id, record),
+        publishable_order: order,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_publishable_by_id(
+  store: Store,
+  id: String,
+) -> Option(StorePropertyRecord) {
+  case dict.get(store.staged_state.publishables, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.publishables, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn upsert_base_store_property_mutation_payload(
+  store: Store,
+  record: StorePropertyMutationPayloadRecord,
+) -> Store {
+  let base = store.base_state
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..base,
+      store_property_mutation_payloads: dict.insert(
+        base.store_property_mutation_payloads,
+        record.key,
+        record,
+      ),
+    ),
+  )
+}
+
+pub fn get_store_property_mutation_payload(
+  store: Store,
+  key: String,
+) -> Option(StorePropertyMutationPayloadRecord) {
+  case dict.get(store.staged_state.store_property_mutation_payloads, key) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.store_property_mutation_payloads, key) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
+fn append_unique_ids(left: List(String), right: List(String)) -> List(String) {
+  list.fold(right, left, append_unique_id)
+}
+
+fn sort_store_property_records(
+  records: List(StorePropertyRecord),
+) -> List(StorePropertyRecord) {
+  list.sort(records, fn(a, b) { string.compare(a.id, b.id) })
+}
+
+// ---------------------------------------------------------------------------
+// Metafields slice
+// ---------------------------------------------------------------------------
+
+pub fn replace_base_metafields_for_owner(
+  store: Store,
+  owner_id: String,
+  metafields: List(ProductMetafieldRecord),
+) -> Store {
+  let base = store.base_state
+  let retained =
+    base.product_metafields
+    |> dict.to_list
+    |> list.filter(fn(pair) {
+      let #(_, metafield) = pair
+      metafield.owner_id != owner_id
+    })
+    |> dict.from_list
+  let next_bucket =
+    list.fold(metafields, retained, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, metafield)
+    })
+  Store(..store, base_state: BaseState(..base, product_metafields: next_bucket))
+}
+
+pub fn replace_staged_metafields_for_owner(
+  store: Store,
+  owner_id: String,
+  metafields: List(ProductMetafieldRecord),
+) -> Store {
+  let staged = store.staged_state
+  let retained =
+    staged.product_metafields
+    |> dict.to_list
+    |> list.filter(fn(pair) {
+      let #(_, metafield) = pair
+      metafield.owner_id != owner_id
+    })
+    |> dict.from_list
+  let next_bucket =
+    list.fold(metafields, retained, fn(acc, metafield) {
+      dict.insert(acc, metafield.id, metafield)
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, product_metafields: next_bucket),
+  )
+}
+
+pub fn upsert_base_metafield_definitions(
+  store: Store,
+  definitions: List(MetafieldDefinitionRecord),
+) -> Store {
+  list.fold(definitions, store, fn(acc, definition) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        metafield_definitions: dict.insert(
+          base.metafield_definitions,
+          definition.id,
+          definition,
+        ),
+        deleted_metafield_definition_ids: dict.delete(
+          base.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_metafield_definition_ids: dict.delete(
+          staged.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_metafield_definitions(
+  store: Store,
+  definitions: List(MetafieldDefinitionRecord),
+) -> Store {
+  list.fold(definitions, store, fn(acc, definition) {
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      staged_state: StagedState(
+        ..staged,
+        metafield_definitions: dict.insert(
+          staged.metafield_definitions,
+          definition.id,
+          definition,
+        ),
+        deleted_metafield_definition_ids: dict.delete(
+          staged.deleted_metafield_definition_ids,
+          definition.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn stage_delete_metafield_definition(
+  store: Store,
+  definition_id: String,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      metafield_definitions: dict.delete(
+        staged.metafield_definitions,
+        definition_id,
+      ),
+      deleted_metafield_definition_ids: dict.insert(
+        staged.deleted_metafield_definition_ids,
+        definition_id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn delete_product_metafields_for_definition(
+  store: Store,
+  definition: MetafieldDefinitionRecord,
+) -> Store {
+  case definition.owner_type {
+    "PRODUCT" -> {
+      let keep = fn(metafield: ProductMetafieldRecord) {
+        !{
+          metafield.owner_type == Some("PRODUCT")
+          && metafield.namespace == definition.namespace
+          && metafield.key == definition.key
+        }
+      }
+      let base = store.base_state
+      let staged = store.staged_state
+      let base_bucket =
+        base.product_metafields
+        |> dict.to_list
+        |> list.filter(fn(pair) {
+          let #(_, metafield) = pair
+          keep(metafield)
+        })
+        |> dict.from_list
+      let staged_bucket =
+        staged.product_metafields
+        |> dict.to_list
+        |> list.filter(fn(pair) {
+          let #(_, metafield) = pair
+          keep(metafield)
+        })
+        |> dict.from_list
+      Store(
+        ..store,
+        base_state: BaseState(..base, product_metafields: base_bucket),
+        staged_state: StagedState(..staged, product_metafields: staged_bucket),
+      )
+    }
+    _ -> store
+  }
+}
+
+pub fn get_effective_metafields_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> List(ProductMetafieldRecord) {
+  let staged =
+    dict.values(store.staged_state.product_metafields)
+    |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+  let source = case staged {
+    [] ->
+      dict.values(store.base_state.product_metafields)
+      |> list.filter(fn(metafield) { metafield.owner_id == owner_id })
+    _ -> staged
+  }
+  source
+  |> list.sort(fn(left, right) {
+    case
+      bool_compare(
+        string.starts_with(left.namespace, "app--"),
+        string.starts_with(right.namespace, "app--"),
+      )
+    {
+      order.Eq -> resource_ids.compare_shopify_resource_ids(left.id, right.id)
+      other -> other
+    }
+  })
+}
+
+pub fn find_effective_metafield_by_id(
+  store: Store,
+  metafield_id: String,
+) -> Option(ProductMetafieldRecord) {
+  case dict.get(store.staged_state.product_metafields, metafield_id) {
+    Ok(metafield) -> Some(metafield)
+    Error(_) ->
+      case dict.get(store.base_state.product_metafields, metafield_id) {
+        Ok(metafield) -> Some(metafield)
+        Error(_) -> None
+      }
+  }
+}
+
+pub fn list_effective_metafield_definitions(
+  store: Store,
+) -> List(MetafieldDefinitionRecord) {
+  let merged =
+    dict.merge(
+      store.base_state.metafield_definitions,
+      store.staged_state.metafield_definitions,
+    )
+  dict.values(merged)
+  |> list.filter(fn(definition) {
+    !dict_has(
+      store.staged_state.deleted_metafield_definition_ids,
+      definition.id,
+    )
+  })
+  |> list.sort(fn(left, right) {
+    case string_compare(left.owner_type, right.owner_type) {
+      order.Eq ->
+        case string_compare(left.namespace, right.namespace) {
+          order.Eq ->
+            case string_compare(left.key, right.key) {
+              order.Eq -> string_compare(left.id, right.id)
+              other -> other
+            }
+          other -> other
+        }
+      other -> other
+    }
+  })
+}
+
+pub fn get_effective_metafield_definition_by_id(
+  store: Store,
+  definition_id: String,
+) -> Option(MetafieldDefinitionRecord) {
+  case
+    dict_has(store.staged_state.deleted_metafield_definition_ids, definition_id)
+  {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.metafield_definitions, definition_id) {
+        Ok(definition) -> Some(definition)
+        Error(_) ->
+          case dict.get(store.base_state.metafield_definitions, definition_id) {
+            Ok(definition) -> Some(definition)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn find_effective_metafield_definition(
+  store: Store,
+  owner_type: String,
+  namespace: String,
+  key: String,
+) -> Option(MetafieldDefinitionRecord) {
+  list.find(list_effective_metafield_definitions(store), fn(definition) {
+    definition.owner_type == owner_type
+    && definition.namespace == namespace
+    && definition.key == key
+  })
+  |> option.from_result
 }
 
 /// Stage a local Flow signature audit record.
@@ -1991,6 +2632,336 @@ pub fn has_staged_bulk_operations(store: Store) -> Bool {
   !list.is_empty(dict.keys(store.staged_state.bulk_operations))
 }
 
+// ---------------------------------------------------------------------------
+// Metaobjects slice
+// ---------------------------------------------------------------------------
+
+pub fn upsert_base_metaobject_definitions(
+  store: Store,
+  records: List(MetaobjectDefinitionRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        metaobject_definitions: dict.insert(
+          base.metaobject_definitions,
+          record.id,
+          record,
+        ),
+        metaobject_definition_order: append_unique_id(
+          base.metaobject_definition_order,
+          record.id,
+        ),
+        deleted_metaobject_definition_ids: dict.delete(
+          base.deleted_metaobject_definition_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_metaobject_definition_ids: dict.delete(
+          staged.deleted_metaobject_definition_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_metaobject_definition(
+  store: Store,
+  record: MetaobjectDefinitionRecord,
+) -> #(MetaobjectDefinitionRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.metaobject_definition_order, record.id)
+    || list.contains(staged.metaobject_definition_order, record.id)
+  let new_order = case already_known {
+    True -> staged.metaobject_definition_order
+    False -> list.append(staged.metaobject_definition_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      metaobject_definitions: dict.insert(
+        staged.metaobject_definitions,
+        record.id,
+        record,
+      ),
+      metaobject_definition_order: new_order,
+      deleted_metaobject_definition_ids: dict.delete(
+        staged.deleted_metaobject_definition_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_metaobject_definition(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      metaobject_definitions: dict.delete(staged.metaobject_definitions, id),
+      deleted_metaobject_definition_ids: dict.insert(
+        staged.deleted_metaobject_definition_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_metaobject_definition_by_id(
+  store: Store,
+  id: String,
+) -> Option(MetaobjectDefinitionRecord) {
+  case dict_has(store.staged_state.deleted_metaobject_definition_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.metaobject_definitions, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.metaobject_definitions, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn find_effective_metaobject_definition_by_type(
+  store: Store,
+  type_: String,
+) -> Option(MetaobjectDefinitionRecord) {
+  list.find(list_effective_metaobject_definitions(store), fn(record) {
+    record.type_ == type_
+  })
+  |> option.from_result
+}
+
+pub fn list_effective_metaobject_definitions(
+  store: Store,
+) -> List(MetaobjectDefinitionRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.metaobject_definition_order,
+      store.staged_state.metaobject_definition_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_metaobject_definition_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(
+      store.base_state.metaobject_definitions,
+      store.staged_state.metaobject_definitions,
+    )
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(fn(left, right) {
+      case dict.get(merged, left), dict.get(merged, right) {
+        Ok(l), Ok(r) -> compare_metaobject_definitions(l, r)
+        _, _ -> string_compare(left, right)
+      }
+    })
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_metaobject_definition_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn upsert_base_metaobjects(
+  store: Store,
+  records: List(MetaobjectRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    Store(
+      ..acc,
+      base_state: BaseState(
+        ..base,
+        metaobjects: dict.insert(base.metaobjects, record.id, record),
+        metaobject_order: append_unique_id(base.metaobject_order, record.id),
+        deleted_metaobject_ids: dict.delete(
+          base.deleted_metaobject_ids,
+          record.id,
+        ),
+      ),
+      staged_state: StagedState(
+        ..staged,
+        deleted_metaobject_ids: dict.delete(
+          staged.deleted_metaobject_ids,
+          record.id,
+        ),
+      ),
+    )
+  })
+}
+
+pub fn upsert_staged_metaobject(
+  store: Store,
+  record: MetaobjectRecord,
+) -> #(MetaobjectRecord, Store) {
+  let staged = store.staged_state
+  let base = store.base_state
+  let already_known =
+    list.contains(base.metaobject_order, record.id)
+    || list.contains(staged.metaobject_order, record.id)
+  let new_order = case already_known {
+    True -> staged.metaobject_order
+    False -> list.append(staged.metaobject_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      metaobjects: dict.insert(staged.metaobjects, record.id, record),
+      metaobject_order: new_order,
+      deleted_metaobject_ids: dict.delete(
+        staged.deleted_metaobject_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_metaobject(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      metaobjects: dict.delete(staged.metaobjects, id),
+      deleted_metaobject_ids: dict.insert(
+        staged.deleted_metaobject_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_metaobject_by_id(
+  store: Store,
+  id: String,
+) -> Option(MetaobjectRecord) {
+  case dict_has(store.staged_state.deleted_metaobject_ids, id) {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.metaobjects, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.metaobjects, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn find_effective_metaobject_by_handle(
+  store: Store,
+  type_: String,
+  handle: String,
+) -> Option(MetaobjectRecord) {
+  list.find(list_effective_metaobjects(store), fn(record) {
+    record.type_ == type_ && record.handle == handle
+  })
+  |> option.from_result
+}
+
+pub fn list_effective_metaobjects(store: Store) -> List(MetaobjectRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.metaobject_order,
+      store.staged_state.metaobject_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_metaobject_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.metaobjects, store.staged_state.metaobjects)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(fn(left, right) {
+      case dict.get(merged, left), dict.get(merged, right) {
+        Ok(l), Ok(r) -> compare_metaobjects(l, r)
+        _, _ -> string_compare(left, right)
+      }
+    })
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_metaobject_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
+}
+
+pub fn list_effective_metaobjects_by_type(
+  store: Store,
+  type_: String,
+) -> List(MetaobjectRecord) {
+  list.filter(list_effective_metaobjects(store), fn(record) {
+    record.type_ == type_
+  })
+}
+
+pub fn has_effective_metaobjects(store: Store) -> Bool {
+  !list.is_empty(dict.keys(store.base_state.metaobjects))
+  || !list.is_empty(dict.keys(store.staged_state.metaobjects))
+  || !list.is_empty(dict.keys(store.staged_state.deleted_metaobject_ids))
+}
+
+fn compare_metaobject_definitions(
+  left: MetaobjectDefinitionRecord,
+  right: MetaobjectDefinitionRecord,
+) -> order.Order {
+  case string.compare(left.type_, right.type_) {
+    order.Eq -> string_compare(left.id, right.id)
+    other -> other
+  }
+}
+
+fn compare_metaobjects(
+  left: MetaobjectRecord,
+  right: MetaobjectRecord,
+) -> order.Order {
+  case string.compare(left.type_, right.type_) {
+    order.Eq ->
+      case string.compare(left.handle, right.handle) {
+        order.Eq -> string_compare(left.id, right.id)
+        other -> other
+      }
+    other -> other
+  }
+}
+
 /// Stage a `ValidationRecord`. Mirrors `upsertStagedValidation`. Clears
 /// any deletion marker the staged side may carry for the same id.
 pub fn upsert_staged_validation(
@@ -2966,6 +3937,14 @@ fn list_to_set(items: List(String)) -> Dict(String, Bool) {
 
 fn string_compare(a: String, b: String) -> order.Order {
   string.compare(a, b)
+}
+
+fn bool_compare(a: Bool, b: Bool) -> order.Order {
+  case a, b {
+    True, False -> order.Gt
+    False, True -> order.Lt
+    _, _ -> order.Eq
+  }
 }
 
 fn find_app_in_dict(

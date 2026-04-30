@@ -9,22 +9,27 @@
 // the relative import re-pointed) without changing this file's
 // public surface.
 
+import { readFileSync } from 'node:fs';
+
 import {
   Config,
   type DraftProxy as GleamDraftProxy,
+  GraphQLRequestOptions as GleamGraphQLRequestOptions,
   Live,
   LiveHybrid,
   Request as GleamRequest,
   type Response as GleamResponse,
-  Snapshot,
   commit as gleamCommit,
+  Snapshot,
   dump_state,
   dump_state_now,
   get_config_snapshot,
   get_log_snapshot,
   get_state_snapshot,
+  process_graphql_request_async,
   process_request_async,
   reset as gleamReset,
+  restore_snapshot,
   restore_state,
   with_config,
   with_default_registry,
@@ -32,7 +37,13 @@ import {
 import { None, Some } from '../../build/dev/javascript/gleam_stdlib/gleam/option.mjs';
 import { to_string as jsonToString } from '../../build/dev/javascript/gleam_json/gleam/json.mjs';
 import { insert as dictInsert, new$ as dictNew } from '../../build/dev/javascript/gleam_stdlib/gleam/dict.mjs';
-import { Result$Error$0, Result$isOk, Result$Ok$0, type List } from '../../build/dev/javascript/prelude.mjs';
+import {
+  Result$Error$0,
+  Result$isOk,
+  Result$Ok$0,
+  type List,
+  type Result,
+} from '../../build/dev/javascript/prelude.mjs';
 
 import type {
   AppConfig,
@@ -49,10 +60,6 @@ import type {
   ReadMode,
 } from './types.js';
 import { DraftProxyCommitError } from './types.js';
-
-function defaultGraphQLPath(apiVersion: string | undefined): string {
-  return `/admin/api/${apiVersion ?? '2025-01'}/graphql.json`;
-}
 
 function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
   switch (mode) {
@@ -109,9 +116,15 @@ function responseFromGleam(resp: GleamResponse): DraftProxyHttpResponse {
 export class DraftProxy {
   #inner: GleamDraftProxy;
 
-  constructor(config: AppConfig, options: DraftProxyOptions = {}) {
-    this.#inner = with_default_registry(with_config(configToGleam(config)));
-    if (options.state) {
+  constructor(options: DraftProxyOptions) {
+    this.#inner = with_default_registry(with_config(configToGleam(options)));
+    if (options.snapshotPath !== undefined) {
+      this.#inner = unwrapProxyResult(
+        restore_snapshot(this.#inner, readFileSync(options.snapshotPath, 'utf8')),
+        'snapshot loading',
+      );
+    }
+    if (options.state !== undefined) {
       this.restoreState(options.state);
     }
   }
@@ -122,13 +135,18 @@ export class DraftProxy {
     return responseFromGleam(resp);
   }
 
-  processGraphQLRequest(body: unknown, options: DraftProxyGraphQLRequestOptions = {}): Promise<DraftProxyHttpResponse> {
-    return this.processRequest({
-      method: 'POST',
-      path: options.path ?? defaultGraphQLPath(options.apiVersion),
-      ...(options.headers ? { headers: options.headers } : {}),
-      body,
-    });
+  async processGraphQLRequest(
+    body: unknown,
+    options: DraftProxyGraphQLRequestOptions = {},
+  ): Promise<DraftProxyHttpResponse> {
+    const gleamOptions = new GleamGraphQLRequestOptions(
+      options.path === undefined ? new None() : new Some(options.path),
+      options.apiVersion === undefined ? new None() : new Some(options.apiVersion),
+      headersToDict(options.headers),
+    );
+    const [resp, next] = await process_graphql_request_async(this.#inner, bodyToString(body), gleamOptions);
+    this.#inner = next;
+    return responseFromGleam(resp);
   }
 
   reset(): void {
@@ -153,17 +171,7 @@ export class DraftProxy {
   }
 
   restoreState(dump: DraftProxyStateDump): void {
-    const result = restore_state(this.#inner, JSON.stringify(dump));
-    if (Result$isOk(result)) {
-      this.#inner = Result$Ok$0(result) as GleamDraftProxy;
-      return;
-    }
-    const err = Result$Error$0(result);
-    const message =
-      err && typeof err === 'object' && 'message' in err
-        ? String((err as { message: unknown }).message)
-        : 'malformed dump';
-    throw new Error(`DraftProxy.restoreState failed: ${message}`);
+    this.#inner = unwrapProxyResult(restore_state(this.#inner, JSON.stringify(dump)), 'restoreState');
   }
 
   async commit(headers: Record<string, DraftProxyHeaderValue> = {}): Promise<DraftProxyCommitResult> {
@@ -189,6 +197,18 @@ export class DraftProxy {
   }
 }
 
-export function createDraftProxy(config: AppConfig, options?: DraftProxyOptions): DraftProxy {
-  return new DraftProxy(config, options);
+function unwrapProxyResult(result: Result<GleamDraftProxy, unknown>, action: string): GleamDraftProxy {
+  if (Result$isOk(result)) {
+    return Result$Ok$0(result) as GleamDraftProxy;
+  }
+  const err = Result$Error$0(result);
+  const message =
+    err && typeof err === 'object' && 'message' in err
+      ? String((err as { message: unknown }).message)
+      : 'malformed dump';
+  throw new Error(`DraftProxy.${action} failed: ${message}`);
+}
+
+export function createDraftProxy(options: DraftProxyOptions): DraftProxy {
+  return new DraftProxy(options);
 }
