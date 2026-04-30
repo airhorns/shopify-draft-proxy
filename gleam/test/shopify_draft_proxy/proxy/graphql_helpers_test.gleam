@@ -1,10 +1,10 @@
 import gleam/dict
 import gleam/json
-import gleam/option.{Some}
+import gleam/option.{None, Some}
 import shopify_draft_proxy/graphql/ast.{Field, SelectionSet}
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  SrcBool, SrcInt, SrcList, SrcNull, SrcString,
+  SrcBool, SrcFloat, SrcInt, SrcList, SrcNull, SrcString,
 }
 
 /// Pull the selection set from the first root field of `{ root { … } }`.
@@ -178,4 +178,91 @@ pub fn document_fragments_index_by_name_test() {
 pub fn document_fragments_empty_when_no_fragments_test() {
   let fragments = graphql_helpers.get_document_fragments("{ root { id } }")
   assert dict.size(fragments) == 0
+}
+
+pub fn reads_nullable_literal_and_variable_arguments_test() {
+  let field =
+    inner_selections(
+      "query($first: Int, $after: String) { root { products(first: $first, after: $after, last: 2, before: \"cursor:gid://shopify/Product/2\") { nodes { id } } } }",
+    )
+  let assert [products, ..] = field
+  let variables =
+    dict.new()
+    |> dict.insert("first", root_field.IntVal(3))
+    |> dict.insert(
+      "after",
+      root_field.StringVal("cursor:gid://shopify/Product/1"),
+    )
+
+  assert graphql_helpers.read_nullable_int_argument(
+      products,
+      "first",
+      variables,
+    )
+    == Some(3)
+  assert graphql_helpers.read_nullable_int_argument(products, "last", variables)
+    == Some(2)
+  assert graphql_helpers.read_nullable_string_argument(
+      products,
+      "after",
+      variables,
+    )
+    == Some("cursor:gid://shopify/Product/1")
+  assert graphql_helpers.read_nullable_string_argument(
+      products,
+      "before",
+      variables,
+    )
+    == Some("cursor:gid://shopify/Product/2")
+  assert graphql_helpers.read_nullable_int_argument(
+      products,
+      "missing",
+      variables,
+    )
+    == None
+}
+
+pub fn scalar_readers_return_none_on_mismatch_test() {
+  assert graphql_helpers.read_string_value(SrcString("hello")) == Some("hello")
+  assert graphql_helpers.read_string_value(SrcInt(1)) == None
+  assert graphql_helpers.read_number_value(SrcFloat(1.5)) == Some(1.5)
+  assert graphql_helpers.read_number_value(SrcInt(2)) == Some(2.0)
+  assert graphql_helpers.read_number_value(SrcString("2")) == None
+  assert graphql_helpers.read_boolean_value(SrcBool(True)) == Some(True)
+  assert graphql_helpers.read_boolean_value(SrcNull) == None
+}
+
+pub fn plain_object_array_filters_non_objects_test() {
+  let objects =
+    graphql_helpers.read_plain_object_array(
+      SrcList([
+        graphql_helpers.src_object([#("id", SrcString("a"))]),
+        SrcString("skip"),
+        graphql_helpers.src_object([#("id", SrcString("b"))]),
+      ]),
+    )
+  assert list_length(objects) == 2
+}
+
+pub fn graphql_data_response_payload_reads_nested_data_test() {
+  let payload =
+    graphql_helpers.src_object([
+      #("data", graphql_helpers.src_object([#("product", SrcString("value"))])),
+    ])
+  assert graphql_helpers.read_graphql_data_response_payload(payload, "product")
+    == SrcString("value")
+  assert graphql_helpers.read_graphql_data_response_payload(payload, "missing")
+    == SrcNull
+  assert graphql_helpers.read_graphql_data_response_payload(
+      SrcString("bad"),
+      "x",
+    )
+    == SrcNull
+}
+
+fn list_length(xs: List(a)) -> Int {
+  case xs {
+    [] -> 0
+    [_, ..rest] -> 1 + list_length(rest)
+  }
 }

@@ -14,6 +14,7 @@
 - `event(id:)` returns `null` for absent event IDs.
 - `events(...)` returns a non-null empty connection with selected `nodes`, `edges`, and `pageInfo` fields, false page booleans, and null cursors.
 - `eventsCount(...)` returns `{ count: 0, precision: "EXACT" }`.
+- Events read handling has cut over to the Gleam port; the legacy TypeScript runtime handler has been removed.
 
 ## Historical and developer notes
 
@@ -27,7 +28,7 @@ Staged mutations in other domains do not yet write into a shared top-level Event
 
 ### Validation anchors
 
-- Runtime shape coverage: `tests/integration/event-query-shapes.test.ts`
+- Runtime shape coverage: `gleam/test/shopify_draft_proxy/proxy/events_test.gleam` and `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`
 - Executable parity: `config/parity-specs/events/event-empty-read.json`
 - Live fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
 - Root presence evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

@@ -28,6 +28,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -547,6 +548,7 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
   )
 }
 
@@ -593,8 +595,8 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
+  _request_path: String,
+  _document: String,
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -674,26 +676,29 @@ fn handle_mutation_fields(
     Ok(name) -> Some(name)
     Error(_) -> None
   }
-  let #(log_id, identity_after_log) =
-    synthetic_identity.make_synthetic_gid(final_identity, "MutationLogEntry")
-  let #(received_at, identity_after_entry) =
-    synthetic_identity.make_synthetic_timestamp(identity_after_log)
-  let entry =
-    build_log_entry(
-      primary_root,
-      root_names,
-      log_id,
-      received_at,
-      request_path,
-      document,
-      all_staged,
+  let notes = case primary_root {
+    Some("taxAppConfigure") ->
+      "Staged locally in the in-memory tax app configuration metadata store; no tax calculation app callbacks are invoked."
+    _ ->
+      "Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed."
+  }
+  let draft =
+    LogDraft(
+      operation_name: primary_root,
+      root_fields: root_names,
+      primary_root_field: primary_root,
+      domain: "functions",
+      execution: "stage-locally",
+      staged_resource_ids: all_staged,
+      status: store.Staged,
+      notes: Some(notes),
     )
-  let logged_store = store.record_mutation_log_entry(final_store, entry)
   MutationOutcome(
     data: json.object([#("data", json.object(data_entries))]),
-    store: logged_store,
-    identity: identity_after_entry,
+    store: final_store,
+    identity: final_identity,
     staged_resource_ids: all_staged,
+    log_drafts: [draft],
   )
 }
 
@@ -704,45 +709,6 @@ fn mutation_root_names(fields: List(Selection)) -> List(String) {
       _ -> Error(Nil)
     }
   })
-}
-
-fn build_log_entry(
-  primary_root: Option(String),
-  root_fields: List(String),
-  log_id: String,
-  received_at: String,
-  request_path: String,
-  document: String,
-  staged_ids: List(String),
-) -> store.MutationLogEntry {
-  let notes = case primary_root {
-    Some("taxAppConfigure") ->
-      "Staged locally in the in-memory tax app configuration metadata store; no tax calculation app callbacks are invoked."
-    _ ->
-      "Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed."
-  }
-  store.MutationLogEntry(
-    id: log_id,
-    received_at: received_at,
-    operation_name: primary_root,
-    path: request_path,
-    query: document,
-    variables: dict.new(),
-    staged_resource_ids: staged_ids,
-    status: store.Staged,
-    interpreted: store.InterpretedMetadata(
-      operation_type: store.Mutation,
-      operation_name: primary_root,
-      root_fields: root_fields,
-      primary_root_field: primary_root,
-      capability: store.Capability(
-        operation_name: primary_root,
-        domain: "functions",
-        execution: "stage-locally",
-      ),
-    ),
-    notes: Some(notes),
-  )
 }
 
 // ---------------------------------------------------------------------------

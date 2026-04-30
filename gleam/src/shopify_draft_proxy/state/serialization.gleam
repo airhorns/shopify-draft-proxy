@@ -113,6 +113,21 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
     ),
     #("bulkOperationOrder", json.array(state.bulk_operation_order, json.string)),
     #(
+      "metaobjectDefinitions",
+      dict_to_json(state.metaobject_definitions, metaobject_definition_json),
+    ),
+    #(
+      "metaobjectDefinitionOrder",
+      json.array(state.metaobject_definition_order, json.string),
+    ),
+    #(
+      "deletedMetaobjectDefinitionIds",
+      bool_dict_to_json(state.deleted_metaobject_definition_ids),
+    ),
+    #("metaobjects", dict_to_json(state.metaobjects, metaobject_json)),
+    #("metaobjectOrder", json.array(state.metaobject_order, json.string)),
+    #("deletedMetaobjectIds", bool_dict_to_json(state.deleted_metaobject_ids)),
+    #(
       "marketingActivities",
       dict_to_json(state.marketing_activities, marketing_record_json),
     ),
@@ -300,6 +315,21 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
       dict_to_json(state.bulk_operations, bulk_operation_json),
     ),
     #("bulkOperationOrder", json.array(state.bulk_operation_order, json.string)),
+    #(
+      "metaobjectDefinitions",
+      dict_to_json(state.metaobject_definitions, metaobject_definition_json),
+    ),
+    #(
+      "metaobjectDefinitionOrder",
+      json.array(state.metaobject_definition_order, json.string),
+    ),
+    #(
+      "deletedMetaobjectDefinitionIds",
+      bool_dict_to_json(state.deleted_metaobject_definition_ids),
+    ),
+    #("metaobjects", dict_to_json(state.metaobjects, metaobject_json)),
+    #("metaobjectOrder", json.array(state.metaobject_order, json.string)),
+    #("deletedMetaobjectIds", bool_dict_to_json(state.deleted_metaobject_ids)),
     #(
       "marketingActivities",
       dict_to_json(state.marketing_activities, marketing_record_json),
@@ -849,6 +879,199 @@ fn bulk_operation_json(record: types.BulkOperationRecord) -> Json {
   ])
 }
 
+fn metaobject_definition_json(
+  record: types.MetaobjectDefinitionRecord,
+) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("type", json.string(record.type_)),
+    #("name", optional_string(record.name)),
+    #("description", optional_string(record.description)),
+    #("displayNameKey", optional_string(record.display_name_key)),
+    #("access", dict_to_json(record.access, optional_string)),
+    #(
+      "capabilities",
+      metaobject_definition_capabilities_json(record.capabilities),
+    ),
+    #(
+      "fieldDefinitions",
+      json.array(record.field_definitions, metaobject_field_definition_json),
+    ),
+    #("hasThumbnailField", optional_bool(record.has_thumbnail_field)),
+    #("metaobjectsCount", optional_int(record.metaobjects_count)),
+    #(
+      "standardTemplate",
+      optional_to_json(
+        record.standard_template,
+        metaobject_standard_template_json,
+      ),
+    ),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn metaobject_definition_capabilities_json(
+  record: types.MetaobjectDefinitionCapabilitiesRecord,
+) -> Json {
+  json.object([
+    #(
+      "publishable",
+      optional_to_json(
+        record.publishable,
+        metaobject_definition_capability_json,
+      ),
+    ),
+    #(
+      "translatable",
+      optional_to_json(
+        record.translatable,
+        metaobject_definition_capability_json,
+      ),
+    ),
+    #(
+      "renderable",
+      optional_to_json(record.renderable, metaobject_definition_capability_json),
+    ),
+    #(
+      "onlineStore",
+      optional_to_json(
+        record.online_store,
+        metaobject_definition_capability_json,
+      ),
+    ),
+  ])
+}
+
+fn metaobject_definition_capability_json(
+  record: types.MetaobjectDefinitionCapabilityRecord,
+) -> Json {
+  json.object([#("enabled", json.bool(record.enabled))])
+}
+
+fn metaobject_definition_type_json(
+  record: types.MetaobjectDefinitionTypeRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("category", optional_string(record.category)),
+  ])
+}
+
+fn metaobject_field_definition_json(
+  record: types.MetaobjectFieldDefinitionRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("name", optional_string(record.name)),
+    #("description", optional_string(record.description)),
+    #("required", optional_bool(record.required)),
+    #("type", metaobject_definition_type_json(record.type_)),
+    #(
+      "validations",
+      json.array(
+        record.validations,
+        metaobject_field_definition_validation_json,
+      ),
+    ),
+  ])
+}
+
+fn metaobject_field_definition_validation_json(
+  record: types.MetaobjectFieldDefinitionValidationRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("value", optional_string(record.value)),
+  ])
+}
+
+fn metaobject_standard_template_json(
+  record: types.MetaobjectStandardTemplateRecord,
+) -> Json {
+  json.object([
+    #("type", optional_string(record.type_)),
+    #("name", optional_string(record.name)),
+  ])
+}
+
+fn metaobject_json(record: types.MetaobjectRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("handle", json.string(record.handle)),
+    #("type", json.string(record.type_)),
+    #("displayName", optional_string(record.display_name)),
+    #("fields", json.array(record.fields, metaobject_field_json)),
+    #("capabilities", metaobject_capabilities_json(record.capabilities)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn metaobject_field_json(record: types.MetaobjectFieldRecord) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("jsonValue", metaobject_json_value_json(record.json_value)),
+    #(
+      "definition",
+      optional_to_json(record.definition, metaobject_field_definition_ref_json),
+    ),
+  ])
+}
+
+fn metaobject_json_value_json(value: types.MetaobjectJsonValue) -> Json {
+  case value {
+    types.MetaobjectNull -> json.null()
+    types.MetaobjectString(value) -> json.string(value)
+    types.MetaobjectBool(value) -> json.bool(value)
+    types.MetaobjectInt(value) -> json.int(value)
+    types.MetaobjectFloat(value) -> json.float(value)
+    types.MetaobjectList(items) -> json.array(items, metaobject_json_value_json)
+    types.MetaobjectObject(fields) ->
+      dict_to_json(fields, metaobject_json_value_json)
+  }
+}
+
+fn metaobject_field_definition_ref_json(
+  record: types.MetaobjectFieldDefinitionReferenceRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("name", optional_string(record.name)),
+    #("required", optional_bool(record.required)),
+    #("type", metaobject_definition_type_json(record.type_)),
+  ])
+}
+
+fn metaobject_capabilities_json(
+  record: types.MetaobjectCapabilitiesRecord,
+) -> Json {
+  json.object([
+    #(
+      "publishable",
+      optional_to_json(record.publishable, metaobject_publishable_json),
+    ),
+    #(
+      "onlineStore",
+      optional_to_json(record.online_store, metaobject_online_store_json),
+    ),
+  ])
+}
+
+fn metaobject_publishable_json(
+  record: types.MetaobjectPublishableCapabilityRecord,
+) -> Json {
+  json.object([#("status", optional_string(record.status))])
+}
+
+fn metaobject_online_store_json(
+  record: types.MetaobjectOnlineStoreCapabilityRecord,
+) -> Json {
+  json.object([#("templateSuffix", optional_string(record.template_suffix))])
+}
+
 fn marketing_record_json(record: types.MarketingRecord) -> Json {
   json.object([
     #("id", json.string(record.id)),
@@ -1122,6 +1345,19 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   use shopify_function_order <- string_list_field("shopifyFunctionOrder")
   use bulk_operations <- dict_field("bulkOperations", bulk_operation_decoder())
   use bulk_operation_order <- string_list_field("bulkOperationOrder")
+  use metaobject_definitions <- dict_field(
+    "metaobjectDefinitions",
+    metaobject_definition_decoder(),
+  )
+  use metaobject_definition_order <- string_list_field(
+    "metaobjectDefinitionOrder",
+  )
+  use deleted_metaobject_definition_ids <- bool_dict_field(
+    "deletedMetaobjectDefinitionIds",
+  )
+  use metaobjects <- dict_field("metaobjects", metaobject_decoder())
+  use metaobject_order <- string_list_field("metaobjectOrder")
+  use deleted_metaobject_ids <- bool_dict_field("deletedMetaobjectIds")
   use marketing_activities <- dict_field(
     "marketingActivities",
     marketing_record_decoder(),
@@ -1213,6 +1449,12 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     shopify_function_order: shopify_function_order,
     bulk_operations: bulk_operations,
     bulk_operation_order: bulk_operation_order,
+    metaobject_definitions: metaobject_definitions,
+    metaobject_definition_order: metaobject_definition_order,
+    deleted_metaobject_definition_ids: deleted_metaobject_definition_ids,
+    metaobjects: metaobjects,
+    metaobject_order: metaobject_order,
+    deleted_metaobject_ids: deleted_metaobject_ids,
     marketing_activities: marketing_activities,
     marketing_activity_order: marketing_activity_order,
     marketing_events: marketing_events,
@@ -1325,6 +1567,19 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use shopify_function_order <- string_list_field("shopifyFunctionOrder")
   use bulk_operations <- dict_field("bulkOperations", bulk_operation_decoder())
   use bulk_operation_order <- string_list_field("bulkOperationOrder")
+  use metaobject_definitions <- dict_field(
+    "metaobjectDefinitions",
+    metaobject_definition_decoder(),
+  )
+  use metaobject_definition_order <- string_list_field(
+    "metaobjectDefinitionOrder",
+  )
+  use deleted_metaobject_definition_ids <- bool_dict_field(
+    "deletedMetaobjectDefinitionIds",
+  )
+  use metaobjects <- dict_field("metaobjects", metaobject_decoder())
+  use metaobject_order <- string_list_field("metaobjectOrder")
+  use deleted_metaobject_ids <- bool_dict_field("deletedMetaobjectIds")
   use marketing_activities <- dict_field(
     "marketingActivities",
     marketing_record_decoder(),
@@ -1413,6 +1668,12 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     shopify_function_order: shopify_function_order,
     bulk_operations: bulk_operations,
     bulk_operation_order: bulk_operation_order,
+    metaobject_definitions: metaobject_definitions,
+    metaobject_definition_order: metaobject_definition_order,
+    deleted_metaobject_definition_ids: deleted_metaobject_definition_ids,
+    metaobjects: metaobjects,
+    metaobject_order: metaobject_order,
+    deleted_metaobject_ids: deleted_metaobject_ids,
     marketing_activities: marketing_activities,
     marketing_activity_order: marketing_activity_order,
     marketing_events: marketing_events,
@@ -2166,6 +2427,263 @@ fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
     query: query,
     cursor: cursor,
     result_jsonl: result_jsonl,
+  ))
+}
+
+fn metaobject_definition_decoder() -> Decoder(types.MetaobjectDefinitionRecord) {
+  use id <- decode.field("id", decode.string)
+  use type_ <- decode.field("type", decode.string)
+  use name <- optional_string_field("name")
+  use description <- optional_string_field("description")
+  use display_name_key <- optional_string_field("displayNameKey")
+  use access <- optional_field(
+    "access",
+    dict.new(),
+    decode.dict(decode.string, decode.optional(decode.string)),
+  )
+  use capabilities <- decode.field(
+    "capabilities",
+    metaobject_definition_capabilities_decoder(),
+  )
+  use field_definitions <- decode.field(
+    "fieldDefinitions",
+    decode.list(of: metaobject_field_definition_decoder()),
+  )
+  use has_thumbnail_field <- optional_field(
+    "hasThumbnailField",
+    None,
+    decode.optional(decode.bool),
+  )
+  use metaobjects_count <- optional_field(
+    "metaobjectsCount",
+    None,
+    decode.optional(decode.int),
+  )
+  use standard_template <- optional_field(
+    "standardTemplate",
+    None,
+    decode.optional(metaobject_standard_template_decoder()),
+  )
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  decode.success(types.MetaobjectDefinitionRecord(
+    id: id,
+    type_: type_,
+    name: name,
+    description: description,
+    display_name_key: display_name_key,
+    access: access,
+    capabilities: capabilities,
+    field_definitions: field_definitions,
+    has_thumbnail_field: has_thumbnail_field,
+    metaobjects_count: metaobjects_count,
+    standard_template: standard_template,
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
+}
+
+fn metaobject_definition_capabilities_decoder() -> Decoder(
+  types.MetaobjectDefinitionCapabilitiesRecord,
+) {
+  use publishable <- optional_field(
+    "publishable",
+    None,
+    decode.optional(metaobject_definition_capability_decoder()),
+  )
+  use translatable <- optional_field(
+    "translatable",
+    None,
+    decode.optional(metaobject_definition_capability_decoder()),
+  )
+  use renderable <- optional_field(
+    "renderable",
+    None,
+    decode.optional(metaobject_definition_capability_decoder()),
+  )
+  use online_store <- optional_field(
+    "onlineStore",
+    None,
+    decode.optional(metaobject_definition_capability_decoder()),
+  )
+  decode.success(types.MetaobjectDefinitionCapabilitiesRecord(
+    publishable: publishable,
+    translatable: translatable,
+    renderable: renderable,
+    online_store: online_store,
+  ))
+}
+
+fn metaobject_definition_capability_decoder() -> Decoder(
+  types.MetaobjectDefinitionCapabilityRecord,
+) {
+  use enabled <- decode.field("enabled", decode.bool)
+  decode.success(types.MetaobjectDefinitionCapabilityRecord(enabled: enabled))
+}
+
+fn metaobject_definition_type_decoder() -> Decoder(
+  types.MetaobjectDefinitionTypeRecord,
+) {
+  use name <- decode.field("name", decode.string)
+  use category <- optional_string_field("category")
+  decode.success(types.MetaobjectDefinitionTypeRecord(
+    name: name,
+    category: category,
+  ))
+}
+
+fn metaobject_field_definition_decoder() -> Decoder(
+  types.MetaobjectFieldDefinitionRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use name <- optional_string_field("name")
+  use description <- optional_string_field("description")
+  use required <- optional_field("required", None, decode.optional(decode.bool))
+  use type_ <- decode.field("type", metaobject_definition_type_decoder())
+  use validations <- decode.field(
+    "validations",
+    decode.list(of: metaobject_field_definition_validation_decoder()),
+  )
+  decode.success(types.MetaobjectFieldDefinitionRecord(
+    key: key,
+    name: name,
+    description: description,
+    required: required,
+    type_: type_,
+    validations: validations,
+  ))
+}
+
+fn metaobject_field_definition_validation_decoder() -> Decoder(
+  types.MetaobjectFieldDefinitionValidationRecord,
+) {
+  use name <- decode.field("name", decode.string)
+  use value <- optional_string_field("value")
+  decode.success(types.MetaobjectFieldDefinitionValidationRecord(
+    name: name,
+    value: value,
+  ))
+}
+
+fn metaobject_standard_template_decoder() -> Decoder(
+  types.MetaobjectStandardTemplateRecord,
+) {
+  use type_ <- optional_string_field("type")
+  use name <- optional_string_field("name")
+  decode.success(types.MetaobjectStandardTemplateRecord(
+    type_: type_,
+    name: name,
+  ))
+}
+
+fn metaobject_decoder() -> Decoder(types.MetaobjectRecord) {
+  use id <- decode.field("id", decode.string)
+  use handle <- decode.field("handle", decode.string)
+  use type_ <- decode.field("type", decode.string)
+  use display_name <- optional_string_field("displayName")
+  use fields <- decode.field(
+    "fields",
+    decode.list(of: metaobject_field_decoder()),
+  )
+  use capabilities <- decode.field(
+    "capabilities",
+    metaobject_capabilities_decoder(),
+  )
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  decode.success(types.MetaobjectRecord(
+    id: id,
+    handle: handle,
+    type_: type_,
+    display_name: display_name,
+    fields: fields,
+    capabilities: capabilities,
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
+}
+
+fn metaobject_field_decoder() -> Decoder(types.MetaobjectFieldRecord) {
+  use key <- decode.field("key", decode.string)
+  use type_ <- optional_string_field("type")
+  use value <- optional_string_field("value")
+  use json_value <- decode.field("jsonValue", metaobject_json_value_decoder())
+  use definition <- optional_field(
+    "definition",
+    None,
+    decode.optional(metaobject_field_definition_ref_decoder()),
+  )
+  decode.success(types.MetaobjectFieldRecord(
+    key: key,
+    type_: type_,
+    value: value,
+    json_value: json_value,
+    definition: definition,
+  ))
+}
+
+fn metaobject_json_value_decoder() -> Decoder(types.MetaobjectJsonValue) {
+  decode.recursive(fn() {
+    decode.one_of(decode.bool |> decode.map(types.MetaobjectBool), or: [
+      decode.int |> decode.map(types.MetaobjectInt),
+      decode.float |> decode.map(types.MetaobjectFloat),
+      decode.string |> decode.map(types.MetaobjectString),
+      decode.list(of: metaobject_json_value_decoder())
+        |> decode.map(types.MetaobjectList),
+      decode.dict(decode.string, metaobject_json_value_decoder())
+        |> decode.map(types.MetaobjectObject),
+      decode.success(types.MetaobjectNull),
+    ])
+  })
+}
+
+fn metaobject_field_definition_ref_decoder() -> Decoder(
+  types.MetaobjectFieldDefinitionReferenceRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use name <- optional_string_field("name")
+  use required <- optional_field("required", None, decode.optional(decode.bool))
+  use type_ <- decode.field("type", metaobject_definition_type_decoder())
+  decode.success(types.MetaobjectFieldDefinitionReferenceRecord(
+    key: key,
+    name: name,
+    required: required,
+    type_: type_,
+  ))
+}
+
+fn metaobject_capabilities_decoder() -> Decoder(
+  types.MetaobjectCapabilitiesRecord,
+) {
+  use publishable <- optional_field(
+    "publishable",
+    None,
+    decode.optional(metaobject_publishable_decoder()),
+  )
+  use online_store <- optional_field(
+    "onlineStore",
+    None,
+    decode.optional(metaobject_online_store_decoder()),
+  )
+  decode.success(types.MetaobjectCapabilitiesRecord(
+    publishable: publishable,
+    online_store: online_store,
+  ))
+}
+
+fn metaobject_publishable_decoder() -> Decoder(
+  types.MetaobjectPublishableCapabilityRecord,
+) {
+  use status <- optional_string_field("status")
+  decode.success(types.MetaobjectPublishableCapabilityRecord(status: status))
+}
+
+fn metaobject_online_store_decoder() -> Decoder(
+  types.MetaobjectOnlineStoreCapabilityRecord,
+) {
+  use template_suffix <- optional_string_field("templateSuffix")
+  decode.success(types.MetaobjectOnlineStoreCapabilityRecord(
+    template_suffix: template_suffix,
   ))
 }
 
