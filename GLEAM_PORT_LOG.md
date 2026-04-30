@@ -9,6 +9,58 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Documentation pass: Gleam-first public docs
+
+Updates the repository-facing docs so the Gleam port is presented as the current
+implementation direction and the legacy TypeScript/Koa runtime is documented as
+a temporary compatibility baseline. This pass does not add endpoint behavior or
+expand domain support; it aligns public docs with the HAR-475 generated port
+plan and keeps unsupported cutover boundaries explicit.
+
+| Module                 | Change                                                                                                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `README.md`            | Replaces the TypeScript/Koa-forward quickstart with Gleam-first install, JS embedding, Elixir embedding, state-threading, route, mode, and conformance guidance.  |
+| `gleam/README.md`      | Removes stale TODO callouts and documents current package installation posture, supported routes, JS/Elixir embedding, runtime modes, and unsupported boundaries. |
+| `docs/architecture.md` | Adds the Gleam transition architecture and clarifies where legacy TypeScript/Koa adapters remain temporary during cutover.                                        |
+
+Validation: `corepack pnpm lint`, `corepack pnpm gleam:test:js`,
+`docker run --rm -v "$PWD:/workspace" -w /workspace/gleam
+ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine gleam test --target erlang`,
+`corepack pnpm conformance:check`, and `git diff --check` are green. The first
+native Erlang-target attempt failed because the host lacks `escript`; the first
+container attempt mounted only `gleam/` and therefore could not see
+`../config/parity-specs`, then the corrected repository-root mount passed.
+
+### Findings
+
+- The root README still described the TypeScript/Koa runtime as the main public
+  surface even though the port plan treats Gleam as the implementation
+  direction.
+- `gleam/README.md` still had TODO callouts for areas that now need explicit
+  supported/unsupported boundary documentation: package installation,
+  `POST /__meta/commit`, bulk artifacts, staged uploads, JS shim cutover, and
+  Elixir wrapper ergonomics.
+- The architecture doc needed only transition-level updates; endpoint-specific
+  fidelity notes remain under `docs/endpoints/`.
+
+### Risks / open items
+
+- This pass intentionally does not implement the JS HTTP server adapter,
+  package publishing cutover, friendly Elixir wrapper, staged-upload byte
+  serving, or bulk result route serving.
+- `docs/original-intent.md` was left unchanged because the project mission did
+  not change; the TypeScript/Koa constraints there describe the original v1
+  context, not a new runtime goal.
+
+### Next candidates
+
+- Continue HAR-482/HAR-485/HAR-486 for JS API compatibility, package cutover,
+  and TypeScript runtime deletion.
+- Continue the HAR-475 child domain issues to shrink the remaining partial
+  coverage called out by the docs.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

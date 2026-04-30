@@ -3,91 +3,90 @@
 `shopify-draft-proxy` is a high-fidelity Shopify Admin GraphQL digital twin for
 test environments.
 
-Point an app at this proxy instead of Shopify. Reads can still come from the
-real shop, but supported mutations are staged in local in-memory state. The
-proxy returns Shopify-like mutation payloads and makes later reads behave as if
-the writes already happened, while the real store stays unchanged until an
-explicit `__meta/commit`.
+Point an app at this proxy instead of Shopify. Supported mutations are staged in
+local in-memory state, mutation payloads are synthesized with Shopify-like
+shapes, and later reads behave as if the writes happened. The real store remains
+unchanged during normal supported mutation handling until an explicit
+`/__meta/commit`.
 
 This is not a generic mock server. The goal is to model Shopify domain behavior
 closely enough that app tests can exercise realistic write/read flows without
 normal test runs mutating a dev store.
 
-## What it does
+## Implementation Status
+
+The current implementation track is the Gleam port in `gleam/`. Gleam is the
+runtime direction for the package because the same domain model can compile to
+JavaScript for Node/TypeScript consumers and to Erlang for Elixir/BEAM
+consumers.
+
+The legacy TypeScript/Koa runtime in `src/` remains in the repository as a
+temporary compatibility baseline while the port reaches parity. It still carries
+some route coverage that the Gleam implementation is actively absorbing, but it
+is not the future-facing system. Once port parity is complete, the TypeScript
+runtime will be deleted and the Gleam package layout will be promoted to the
+repository root.
+
+## What It Does
 
 - Preserves Shopify-like versioned Admin GraphQL routes:
   `/admin/api/:version/graphql.json`.
-- Forwards existing Shopify auth headers unchanged when it needs to call
-  upstream Shopify.
+- Forwards Shopify auth headers unchanged when an upstream Shopify call is
+  required.
 - Stages supported mutations locally and records the original raw GraphQL body
   for later commit replay.
-- Overlays staged local effects onto downstream reads.
-- Proxies unsupported mutations to Shopify as an escape hatch and records that
-  fact in logs/observability.
-- Exposes a meta API for health, configuration, staged-state inspection, reset,
-  and commit.
+- Overlays staged local effects onto downstream reads for ported domains.
+- Uses explicit unsupported boundaries for missing domains or missing runtime
+  adapters instead of pretending partial support is complete.
+- Exposes meta APIs for health, configuration, staged-state inspection, reset,
+  log inspection, and commit.
 - Uses conformance captures and parity tests to keep behavior grounded in real
   Shopify responses.
 
-Products are the first deep fidelity target. Other Admin GraphQL areas are
-covered incrementally as they gain local models, fixtures, and tests.
+## Install From Source
 
-## Quick start
-
-Prerequisites:
-
-- Node 22 or newer
-- Corepack
-- A Shopify dev store plus an app Admin API access token
-
-Install dependencies:
+The release packaging cutover is still in progress. For repository work, install
+the root toolchain and the Gleam package dependencies:
 
 ```sh
 corepack pnpm install
+cd gleam
+gleam deps download
 ```
 
-Set runtime configuration:
+Useful root scripts:
 
 ```sh
-export SHOPIFY_ADMIN_ORIGIN="https://your-store.myshopify.com"
-export SHOPIFY_ACCESS_TOKEN="shpat_or_shpca_from_your_app_install"
-export SHOPIFY_DRAFT_PROXY_READ_MODE="live-hybrid"
-export API_VERSION="2025-01"
-export PROXY="http://localhost:3000"
+corepack pnpm gleam:test
+corepack pnpm gleam:smoke:js
+corepack pnpm elixir:smoke
+corepack pnpm conformance:check
+corepack pnpm conformance:parity
 ```
 
-Start the proxy:
+The eventual package names are:
 
-```sh
-SHOPIFY_ADMIN_ORIGIN="$SHOPIFY_ADMIN_ORIGIN" \
-SHOPIFY_DRAFT_PROXY_READ_MODE="$SHOPIFY_DRAFT_PROXY_READ_MODE" \
-PORT=3000 \
-corepack pnpm dev
-```
+- npm: `shopify-draft-proxy`
+- Hex/Gleam: `shopify_draft_proxy`
 
-Check that it is running:
+Until the packaging cutover lands, JS callers can use the checked-in Gleam JS
+shim under `gleam/js/`, and Elixir callers can use the local Erlang shipment
+smoke project under `gleam/elixir_smoke/`.
 
-```sh
-curl -sS "$PROXY/__meta/health"
-curl -sS "$PROXY/__meta/config"
-```
+## Embedding From JavaScript
 
-## Public TypeScript API
-
-The proxy can also run as an embedded in-memory library without starting the
-Koa webservice.
+The JS-facing package will keep the existing `createDraftProxy(config)` shape.
+The implementation behind that shape is the Gleam-emitted ESM plus a thin
+TypeScript shim.
 
 ```ts
-import { createDraftProxy, type AppConfig } from 'shopify-draft-proxy';
+import { createDraftProxy } from 'shopify-draft-proxy';
 
-const config: AppConfig = {
-  port: 3000,
-  shopifyAdminOrigin: 'https://your-store.myshopify.com',
+const proxy = createDraftProxy({
   readMode: 'snapshot',
-  snapshotPath: './fixtures/normalized-state.json',
-};
-
-const proxy = createDraftProxy(config);
+  port: 4000,
+  shopifyAdminOrigin: 'https://your-store.myshopify.com',
+});
 
 const response = await proxy.processRequest({
   method: 'POST',
@@ -96,325 +95,170 @@ const response = await proxy.processRequest({
     'x-shopify-access-token': 'shpat_test_token',
   },
   body: {
-    query:
-      'mutation { productCreate(product: { title: "Embedded Hat", status: DRAFT }) { product { id title } userErrors { field message } } }',
+    query: '{ shop { name } }',
   },
 });
 
 console.log(response.status, response.body);
 ```
 
-`createDraftProxy(config)` creates an isolated proxy instance with its own
-in-memory store, mutation log, snapshot baseline, and synthetic ID/timestamp
-registry.
+Each `DraftProxy` owns its in-memory store, mutation log, snapshot baseline, and
+synthetic identity registry. The JS shim presents an imperative object API, but
+the Gleam core remains explicit about state internally.
 
-Public instance methods use ordinary TypeScript return values. HTTP-style
-`{ status, body }` shaping is limited to `processRequest(...)` and the Koa
-adapter.
+## Embedding From Elixir
 
-- `processRequest({ method, path, headers, body })`: handles Shopify Admin
-  GraphQL routes and `__meta` routes in HTTP-shaped request form.
-- `processGraphQLRequest(body, { apiVersion, path, headers })`: convenience
-  wrapper for a versioned Admin GraphQL `POST`; returns the same HTTP-shaped
-  result as `processRequest`.
-- `getConfig()`, `getLog()`, and `getState()`: meta API equivalents for
-  inspection.
-- `reset()`: discard staged state, logs, and generated IDs while restoring the
-  startup snapshot baseline. This method returns `void`; the
-  HTTP meta reset route converts success into `{ ok: true, message: ... }`.
-- `commit(headers)`: replay pending staged mutations to Shopify in original
-  order using the supplied auth/request headers. This method returns a commit
-  report when all replay attempts succeed and throws
-  `DraftProxyCommitError` with the partial report when replay stops on a
-  failure; the HTTP meta commit route converts that into its legacy `{ ok,
-stopIndex, attempts }` response body.
-
-The runnable Koa service is mounted on the same public API:
-
-```ts
-import { createApp, createDraftProxy } from 'shopify-draft-proxy';
-
-const proxy = createDraftProxy(config);
-const app = createApp(config, proxy);
-```
-
-When no proxy is supplied, `createApp(config)` creates a new isolated
-`DraftProxy` for that Koa app. The webservice does not share a process-wide
-runtime store with other embedded or server instances.
-
-## Runtime modes
-
-`SHOPIFY_DRAFT_PROXY_READ_MODE` controls how reads are answered.
-
-- `live-hybrid` is the default. Reads go to Shopify, then staged local effects
-  are overlaid when the proxy has a supported local model.
-- `snapshot` answers supported reads from a normalized snapshot plus staged
-  state. Set `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH` to a snapshot JSON file.
-- `passthrough` forwards reads without an overlay. This is useful as a
-  debugging baseline.
-
-Supported mutations are still staged locally instead of being sent to Shopify
-during normal runtime. `POST /__meta/commit` is the explicit exception: it
-replays pending staged mutations upstream in their original order.
-
-## Example request flows
-
-These examples use product operations because product fidelity is the primary
-target.
-
-### 1. Read through the proxy
-
-The app sends the same Admin GraphQL request it would normally send to Shopify,
-but to the proxy host:
+The same Gleam core compiles to BEAM. Before Hex publication, the local smoke
+path is:
 
 ```sh
-curl -sS "$PROXY/admin/api/$API_VERSION/graphql.json" \
-  -H "Content-Type: application/json" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
-  --data '{"query":"query { products(first: 3) { nodes { id title handle status } } }"}'
+cd gleam
+gleam export erlang-shipment
+cd elixir_smoke
+mix test
 ```
 
-In `live-hybrid` mode, if there is no relevant staged state, this should match
-the upstream Shopify response for the same app token.
+Once the package is published, an Elixir application will depend on the Hex
+package normally:
 
-### 2. Stage a supported write locally
-
-Send a supported mutation to the same GraphQL route:
-
-```sh
-curl -sS "$PROXY/admin/api/$API_VERSION/graphql.json" \
-  -H "Content-Type: application/json" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
-  --data '{"query":"mutation { productCreate(product: { title: \"Draft Proxy Hat\", status: DRAFT }) { product { id title handle status createdAt updatedAt } userErrors { field message } } }"}' \
-  | tee /tmp/proxy-product-create.json
-```
-
-The response is synthesized by the proxy. The returned product ID is stable for
-the current proxy session and the raw mutation body is appended to the local
-mutation log.
-
-Inspect the log:
-
-```sh
-curl -sS "$PROXY/__meta/log"
-```
-
-The new entry should have `status: "staged"` and `operationName:
-"productCreate"`.
-
-### 3. Read your staged write back
-
-Extract the staged product ID:
-
-```sh
-export STAGED_PRODUCT_ID="$(
-  node -e "const fs = require('node:fs'); const body = JSON.parse(fs.readFileSync('/tmp/proxy-product-create.json', 'utf8')); console.log(body.data.productCreate.product.id);"
-)"
-```
-
-Read the product through the proxy:
-
-```sh
-curl -sS "$PROXY/admin/api/$API_VERSION/graphql.json" \
-  -H "Content-Type: application/json" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
-  --data "{\"query\":\"query { product(id: \\\"$STAGED_PRODUCT_ID\\\") { id title handle status createdAt updatedAt } }\"}"
-```
-
-Expected result: the proxy returns the staged product even though Shopify has
-not been mutated.
-
-### 4. Compare with direct Shopify
-
-Call Shopify directly with the staged synthetic ID:
-
-```sh
-curl -sS "$SHOPIFY_ADMIN_ORIGIN/admin/api/$API_VERSION/graphql.json" \
-  -H "Content-Type: application/json" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN" \
-  --data "{\"query\":\"query { product(id: \\\"$STAGED_PRODUCT_ID\\\") { id title handle status } }\"}"
-```
-
-Expected result: Shopify should not know about that staged local ID. This is the
-normal safety property: supported mutations do not touch the real store at
-runtime.
-
-### 5. Discard staged work
-
-Reset drops staged state, generated IDs, caches, and logs. In snapshot mode it
-restores the startup snapshot baseline.
-
-```sh
-curl -sS -X POST "$PROXY/__meta/reset"
-curl -sS "$PROXY/__meta/log"
-```
-
-### 6. Commit staged work intentionally
-
-Only call commit when you want the staged mutations to run against Shopify.
-
-```sh
-curl -sS -X POST "$PROXY/__meta/commit" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN"
-```
-
-Commit replays pending `staged` log entries to Shopify in original order, using
-the original GraphQL route path and request body. It stops on the first failed
-upstream attempt and returns a report with each attempt, upstream status/body or
-transport error, and `stopIndex` when applicable.
-
-### 7. Unsupported mutation escape hatch
-
-If a mutation is not supported by a local model, the proxy forwards it to
-Shopify unchanged. That can create real side effects. Unsupported mutation
-passthrough is visible in structured logs and in `GET /__meta/log` with
-`status: "proxied"` so tests and operators can detect it.
-
-## Meta API
-
-The meta API runs on the same Koa server as the proxy.
-
-### `GET /__meta`
-
-Returns a small operator web UI for inspecting the current mutation log and
-state, and for triggering reset or commit actions.
-
-### `GET /__meta/health`
-
-Returns a simple liveness payload:
-
-```json
-{
-  "ok": true,
-  "message": "shopify-draft-proxy is running"
-}
-```
-
-### `GET /__meta/config`
-
-Returns runtime configuration visible to the proxy:
-
-```json
-{
-  "runtime": {
-    "readMode": "live-hybrid"
-  },
-  "proxy": {
-    "port": 3000,
-    "shopifyAdminOrigin": "https://your-store.myshopify.com"
-  },
-  "snapshot": {
-    "enabled": false,
-    "path": null
-  }
-}
-```
-
-### `GET /__meta/log`
-
-Returns ordered mutation-log entries:
-
-```json
-{
-  "entries": [
-    {
-      "id": "gid://shopify/MutationLogEntry/...",
-      "operationName": "productCreate",
-      "path": "/admin/api/2025-01/graphql.json",
-      "status": "staged"
-    }
+```elixir
+defp deps do
+  [
+    {:shopify_draft_proxy, "~> 0.1"}
   ]
-}
+end
 ```
 
-Entries retain the original GraphQL query, variables, request body, interpreted
-capability metadata, and status. Supported local writes use `staged`;
-unsupported passthrough writes use `proxied`; commit updates entries to
-`committed` or `failed`.
+Gleam modules are callable from Elixir as Erlang modules. The current direct
+interop shape is intentionally low-level:
 
-### `GET /__meta/state`
+```elixir
+alias :shopify_draft_proxy@proxy@draft_proxy, as: DraftProxy
 
-Returns a debug snapshot of the in-memory object graph:
+proxy = DraftProxy.new()
+request = {:request, "GET", "/__meta/health", %{}, ""}
 
-- `baseState` for snapshot-derived or hydrated upstream data
-- `stagedState` for local inserts, updates, deletes, and derived indexes
-
-This endpoint is for tests and operators. It is not a Shopify API surface.
-
-### `POST /__meta/reset`
-
-Resets runtime state:
-
-- discards staged state
-- clears mutation logs and generated IDs
-- restores the initial normalized snapshot baseline when one was loaded
-
-Example:
-
-```sh
-curl -sS -X POST "$PROXY/__meta/reset"
+{response, next_proxy} = DraftProxy.process_request(proxy, request)
+{:response, status, body, _headers} = response
 ```
 
-### `POST /__meta/commit`
+Thread `next_proxy` into the next call to preserve staged state. A friendlier
+Elixir wrapper is part of the port completion work; until then, adapter code can
+call the Erlang-shaped Gleam API directly.
 
-Replays pending staged mutations to Shopify:
+## State Threading
 
-- uses the original route path and request body
-- sends attempts in original log order
-- maps committed synthetic IDs to authoritative Shopify IDs when possible
-- stops at the first HTTP, GraphQL, or transport failure
-- returns `ok`, `stopIndex`, and an `attempts` array
+Gleam returns the next proxy value from request processing:
 
-Example:
-
-```sh
-curl -sS -X POST "$PROXY/__meta/commit" \
-  -H "X-Shopify-Access-Token: $SHOPIFY_ACCESS_TOKEN"
+```gleam
+let #(response, next_proxy) = draft_proxy.process_request(proxy, request)
 ```
 
-## Configuration
+That is deliberate. Runtime state is owned by a `DraftProxy` value rather than
+by process-wide mutable state, and callers must thread the returned proxy
+forward. JS wraps this in a mutable class for compatibility with existing
+TypeScript consumers; Elixir/BEAM callers should keep the returned value in
+their test process or wrapper state.
 
-Runtime environment variables:
+## Runtime Modes
 
-- `SHOPIFY_ADMIN_ORIGIN`: required, for example
-  `https://your-store.myshopify.com`
-- `SHOPIFY_DRAFT_PROXY_READ_MODE`: optional, one of `live-hybrid`, `snapshot`,
-  or `passthrough`; defaults to `live-hybrid`
-- `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH`: optional normalized snapshot JSON path
-- `PORT`: optional; defaults to `3000`
+`snapshot` answers supported reads from local snapshot/staged state. Absent
+data should match Shopify's null/empty behavior rather than inventing records.
 
-Conformance credentials are intentionally separate from normal runtime config.
-Live conformance auth is stored outside the repo at
-`~/.shopify-draft-proxy/conformance-admin-auth.json` and accessed through the
-repo conformance scripts.
+`live-hybrid` sends unknown or unimplemented reads upstream and handles ported
+domains locally. On JavaScript this upstream path is async, so callers must use
+the async JS shim or `process_request_async` when live upstream fetches may be
+needed.
 
-## Development
+The legacy TypeScript runtime names its third debugging mode `passthrough`. The
+Gleam API currently exposes a `Live` variant for the same future need, but the
+fully documented live-only server behavior is still part of the remaining port
+work.
 
-Common commands:
+Supported mutations are still staged locally in every mode. `POST
+/__meta/commit` is the explicit exception: it replays pending staged mutations
+upstream in their original order.
+
+## Supported Routes
+
+The Gleam core currently routes:
+
+- `POST /admin/api/:version/graphql.json`
+- `GET /__meta/health`
+- `GET /__meta/config`
+- `GET /__meta/log`
+- `GET /__meta/state`
+- `POST /__meta/reset`
+- `POST /__meta/commit`
+
+`POST /__meta/commit` is synchronous on the Erlang target. On JavaScript,
+commit replay uses `fetch`, so synchronous `process_request` returns a clear
+501 message and async callers should use `process_request_async` or the JS
+shim's async `processRequest`.
+
+The legacy TypeScript/Koa server still serves the operator UI at `GET /__meta`
+and the in-memory bulk operation artifact route
+`GET /__bulk_operations/:id/result.jsonl`. The Gleam JS HTTP server adapter,
+staged-upload byte handoff, and bulk artifact serving are tracked as remaining
+cutover work.
+
+## Current Domain Coverage
+
+The Gleam dispatcher has partial, growing coverage for endpoint groups that have
+already been implemented in the legacy runtime. Recent passes include events,
+delivery settings, saved searches, webhooks, apps, functions, gift cards,
+segments, metafield definitions, localization, metaobject definitions,
+marketing, bulk operations, media, Admin Platform utilities, and Store
+Properties shop/policy behavior.
+
+Coverage is intentionally domain-specific. A root is not considered supported
+until the local lifecycle and downstream read-after-write behavior are modeled
+for that domain. Validation-only or branch-only handling is documented as a
+guardrail, not full support.
+
+## Conformance Workflow
+
+Conformance remains the fidelity standard for the port:
+
+1. Capture real Shopify request/response fixtures against disposable test
+   shops.
+2. Keep parity specs and fixture bytes stable.
+3. Replay runnable scenarios against the proxy.
+4. Compare strict JSON payload slices, allowing only explicit volatile paths.
+5. Use failures to drive domain modeling rather than weakening scenario files.
+
+Local checks:
 
 ```sh
-corepack pnpm dev
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm lint
 corepack pnpm conformance:check
 corepack pnpm conformance:parity
 ```
 
-Important docs:
+Live capture credentials are intentionally separate from normal runtime config
+and are loaded through the repository conformance auth helpers, not from copied
+workspace `.env` token values.
 
+## Intentionally Unsupported Boundaries
+
+- The legacy TypeScript runtime is still present only as a temporary parity
+  baseline and compatibility bridge.
+- The Gleam JS HTTP server adapter is not the primary shipped server yet.
+- The friendly Elixir wrapper is not complete; direct Erlang-shaped calls are
+  the current BEAM interop boundary.
+- The package publishing cutover to npm and Hex is not complete.
+- Some endpoint groups and Relay `node`/`nodes` resolvers remain partial until
+  their generated port issues land.
+- Staged-upload byte serving and bulk operation result-file serving still need
+  the Gleam HTTP artifact route work.
+
+## Important Docs
+
+- `GLEAM_PORT_INTENT.md`: why the port exists and the non-negotiable parity bar
+- `GLEAM_PORT_LOG.md`: newest-first narrative of landed Gleam port passes
+- `gleam/README.md`: detailed Gleam, JS, and Elixir embedder notes
 - `docs/original-intent.md`: project intent, non-goals, and fidelity standard
 - `docs/architecture.md`: request flow, state model, runtime modes, and meta API
-- `docs/simple-demo-guide.md`: longer copy-pasteable product staging demo
 - `docs/conformance-capture.md`: indexed capture-command lookup by domain
 - `docs/helpers.md`: shared helper APIs to use before adding new utilities
 - `docs/hard-and-weird-notes.md`: captured Shopify quirks and fidelity traps
 - `docs/endpoints/`: endpoint-specific behavior and coverage notes
-
-## Current posture
-
-The proxy is intentionally coverage-driven. A mutation root is considered
-supported only when the local model can emulate its supported lifecycle behavior
-and downstream read-after-write effects without normal runtime Shopify writes.
-Validation-only or branch-only handling is documented as guardrail coverage, not
-as full operation support.
