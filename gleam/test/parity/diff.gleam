@@ -81,33 +81,70 @@ fn is_expected(
 fn path_matches(pattern: String, path: String) -> Bool {
   case pattern == path {
     True -> True
-    False -> wildcard_path_matches(pattern, path)
+    False -> wildcard_segments_match(string.split(pattern, on: "[*]"), path)
   }
 }
 
-fn wildcard_path_matches(pattern: String, path: String) -> Bool {
-  case string.split(pattern, on: "[*]") {
-    [prefix, suffix] ->
-      string.starts_with(path, prefix)
-      && string.ends_with(path, suffix)
-      && wildcard_index_segment(path, prefix, suffix)
-    _ -> False
+fn wildcard_segments_match(segments: List(String), path: String) -> Bool {
+  case segments {
+    [] -> False
+    [_] -> False
+    [prefix, ..rest] ->
+      case string.starts_with(path, prefix) {
+        False -> False
+        True ->
+          wildcard_segments_match_loop(
+            rest,
+            string.drop_start(path, string.length(prefix)),
+          )
+      }
   }
 }
 
-fn wildcard_index_segment(
-  path: String,
-  prefix: String,
-  suffix: String,
+fn wildcard_segments_match_loop(
+  segments: List(String),
+  remaining_path: String,
 ) -> Bool {
-  let middle_start = string.length(prefix)
-  let middle_end = string.length(path) - string.length(suffix)
-  case middle_end > middle_start {
-    True -> {
-      let middle = string.slice(path, middle_start, middle_end - middle_start)
-      string.starts_with(middle, "[") && string.ends_with(middle, "]")
-    }
-    False -> False
+  case segments {
+    [] -> remaining_path == ""
+    [suffix] ->
+      case consume_wildcard_index(remaining_path) {
+        Some(after_index) -> after_index == suffix
+        None -> False
+      }
+    [segment, ..rest] ->
+      case consume_wildcard_index(remaining_path) {
+        Some(after_index) ->
+          case string.starts_with(after_index, segment) {
+            False -> False
+            True ->
+              wildcard_segments_match_loop(
+                rest,
+                string.drop_start(after_index, string.length(segment)),
+              )
+          }
+        None -> False
+      }
+  }
+}
+
+fn consume_wildcard_index(path: String) -> Option(String) {
+  case string.starts_with(path, "[") {
+    False -> None
+    True -> consume_wildcard_index_loop(string.drop_start(path, 1))
+  }
+}
+
+fn consume_wildcard_index_loop(path: String) -> Option(String) {
+  case string.pop_grapheme(path) {
+    Error(_) -> None
+    Ok(#(g, rest)) ->
+      case g {
+        "]" -> Some(rest)
+        "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ->
+          consume_wildcard_index_loop(rest)
+        _ -> None
+      }
   }
 }
 

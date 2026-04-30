@@ -11,13 +11,6 @@ import {
   serializeCompanyAddressNodeById,
   serializeCompanyContactRoleAssignmentNodeById,
 } from './b2b.js';
-import {
-  serializeAppInstallationNodeById,
-  serializeAppNodeById,
-  serializeAppOneTimePurchaseNodeById,
-  serializeAppSubscriptionNodeById,
-  serializeAppUsageRecordNodeById,
-} from './apps.js';
 import { handleBulkOperationQuery } from './bulk-operations.js';
 import { handleCustomerQuery } from './customers.js';
 import { handleDeliveryProfileQuery, serializeDeliveryProfileNestedNodeById } from './delivery-profiles.js';
@@ -972,26 +965,6 @@ const LOCAL_NODE_RESOLVERS: Record<string, AdminPlatformNodeResolver> = {
       serializeSavedSearchNodeById(runtime, id, syntheticNodeField(selectedFields), fragments),
   },
 
-  App: {
-    typename: 'App',
-    serialize: (runtime, id, selectedFields) => serializeAppNodeById(runtime, id, selectedFields),
-  },
-  AppInstallation: {
-    typename: 'AppInstallation',
-    serialize: (runtime, id, selectedFields) => serializeAppInstallationNodeById(runtime, id, selectedFields),
-  },
-  AppPurchaseOneTime: {
-    typename: 'AppPurchaseOneTime',
-    serialize: (runtime, id, selectedFields) => serializeAppOneTimePurchaseNodeById(runtime, id, selectedFields),
-  },
-  AppSubscription: {
-    typename: 'AppSubscription',
-    serialize: (runtime, id, selectedFields) => serializeAppSubscriptionNodeById(runtime, id, selectedFields),
-  },
-  AppUsageRecord: {
-    typename: 'AppUsageRecord',
-    serialize: (runtime, id, selectedFields) => serializeAppUsageRecordNodeById(runtime, id, selectedFields),
-  },
 };
 const DISCOUNT_NODE_RESOLVER = LOCAL_NODE_RESOLVERS['DiscountNode'];
 

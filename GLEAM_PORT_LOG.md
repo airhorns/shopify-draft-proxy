@@ -9,6 +9,62 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 — Pass 33: apps billing/access parity cutover
+
+Completes the broader Apps billing/access parity scenario in the Gleam runner.
+Both checked-in app parity specs now execute against the Gleam proxy, including
+subscription billing lifecycle, one-time purchases, usage records, access-scope
+revocation, app uninstall read suppression, delegated-token create/destroy, and
+generic Admin Platform `node` reads for locally staged app resources.
+
+The TypeScript app runtime has been removed from the legacy dispatcher and TS
+parity harness now that the app-domain parity evidence is executable in Gleam.
+
+| Module                                                        | Change                                                                                                                                               |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/apps.gleam`              | Exposes app-owned generic Node serializers for App, AppInstallation, AppPurchaseOneTime, AppSubscription, and AppUsageRecord.                        |
+| `gleam/src/shopify_draft_proxy/proxy/admin_platform.gleam`    | Routes app-owned GIDs through the Apps serializers so multi-step billing parity can read staged app resources through `node(id:)`.                   |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`             | Suppresses uninstalled app installations from effective/current reads and hides destroyed delegated tokens from token-hash lookup.                   |
+| `gleam/test/parity/runner.gleam`                              | Adds `fromProxyResponse` variable substitution so later targets can reference earlier named target responses, not only the primary response.         |
+| `gleam/test/parity/diff.gleam`                                | Supports expected-difference paths with multiple `[*]` segments, needed for nested app subscription line item IDs.                                  |
+| `gleam/test/parity_test.gleam`                                | Enables `app-billing-access-local-staging` alongside the existing current delegate-token input scenario.                                             |
+| `src/proxy/apps.ts`, `src/proxy/routes.ts`, `src/proxy/admin-platform.ts`, `scripts/conformance-parity-lib.ts` | Removes the legacy TypeScript app runtime wiring and TS app parity harness imports. |
+
+Validation: `gleam test --target javascript` is green at 682 tests.
+`gleam test --target erlang` is green at 678 tests via the
+`ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine` container because the host
+lacks `escript`. `corepack pnpm typecheck` and `git diff --check` are green.
+
+### Findings
+
+- Broad app parity needed target-to-target variable references such as
+  `fromProxyResponse`, because delegated-token destroy and app-node reads depend
+  on responses produced by earlier non-primary targets.
+- Apps now exercise multi-wildcard expected-difference paths such as
+  `$.allSubscriptions.nodes[*].lineItems[*].id`; the Gleam diff matcher needed
+  to support more than one wildcard index segment.
+- Shopify-like downstream reads hide uninstalled app installations and destroyed
+  delegated tokens, while still leaving app identity records resolvable where
+  later node reads need them.
+
+### Risks / open items
+
+- The root TypeScript server remains the legacy shell for unported domains; Apps
+  runtime coverage is now expected through the Gleam port and its parity suite.
+- Several previously ported domains still have TypeScript runtime modules in
+  main and should be cut over by their own parity-completion passes.
+
+### Pass 34 candidates
+
+- Continue Store Properties with locations and fulfillment/carrier-service
+  lifecycle roots, reusing the existing shop slice.
+- Continue Marketing parity-runner seeding so captured Marketing read/update
+  scenarios can execute against the Gleam proxy.
+- Audit other already-ported domains for the same TypeScript-runtime cutover
+  once their broad parity specs are enabled in Gleam.
+
+---
+
 ## 2026-04-30 — Pass 32: store-properties shop and policy foundation
 
 Ports the Store Properties shop slice into the Gleam dispatcher. The new domain

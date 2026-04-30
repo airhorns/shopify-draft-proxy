@@ -1,4 +1,4 @@
-//// Mirrors `src/proxy/apps.ts`.
+//// Apps billing/access draft runtime.
 ////
 //// Pass 16 lands the six query roots (`app`, `appByHandle`, `appByKey`,
 //// `appInstallation`, `appInstallations`, `currentAppInstallation`) plus
@@ -14,8 +14,7 @@
 ////
 //// Note: the read path is pure of the store. Mutations thread
 //// `(store, identity)` forward and may auto-create a default app
-//// installation when one isn't registered yet — mirroring TS
-//// `ensureCurrentInstallation`.
+//// installation when one isn't registered yet.
 
 import gleam/dict.{type Dict}
 import gleam/float
@@ -324,6 +323,87 @@ fn installation_cursor_value(
   _index: Int,
 ) -> String {
   record.id
+}
+
+pub fn serialize_app_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_app_by_id(store, id) {
+    Some(app) ->
+      project_graphql_value(app_to_source(app), selections, fragments)
+    None -> json.null()
+  }
+}
+
+pub fn serialize_app_installation_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_app_installation_by_id(store, id) {
+    Some(installation) ->
+      project_graphql_value(
+        app_installation_to_source(store, installation, fragments),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_app_subscription_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_app_subscription_by_id(store, id) {
+    Some(subscription) ->
+      project_graphql_value(
+        subscription_to_source(store, subscription, fragments),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_app_one_time_purchase_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_app_one_time_purchase_by_id(store, id) {
+    Some(purchase) ->
+      project_graphql_value(
+        one_time_purchase_to_source(purchase),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
+}
+
+pub fn serialize_app_usage_record_node_by_id(
+  store: Store,
+  id: String,
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> Json {
+  case store.get_effective_app_usage_record_by_id(store, id) {
+    Some(record) ->
+      project_graphql_value(
+        usage_record_to_source(store, record),
+        selections,
+        fragments,
+      )
+    None -> json.null()
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1031,8 +1111,7 @@ fn handle_revoke_access_scopes(
     [] -> store.Staged
     _ -> store.Failed
   }
-  let draft =
-    make_log_draft("appRevokeAccessScopes", [installation.id], status)
+  let draft = make_log_draft("appRevokeAccessScopes", [installation.id], status)
   #(
     MutationFieldResult(
       key: key,
@@ -1151,8 +1230,7 @@ fn handle_delegate_destroy(
           field,
           fragments,
         )
-      let draft =
-        make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
+      let draft = make_log_draft("delegateAccessTokenDestroy", [], store.Failed)
       #(
         MutationFieldResult(
           key: key,
