@@ -272,6 +272,11 @@ adding broad synthetic-id/timestamp expected differences.
   `value` is missing or null. Do not serialize those branches as
   `metafieldsSet.userErrors`, and abort the local mutation without staging
   store changes or draft log entries.
+- Product `metafieldsSet` owner-expansion parity needs argument-aware
+  serialization on every selected owner shape. ProductVariant and Collection
+  `metafield` / `metafields` fields must read from owner-scoped staged
+  metafields, including nested Product `variants`, instead of falling through
+  generic source projection.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

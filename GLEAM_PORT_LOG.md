@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 95: product metafieldsSet owner expansion
+
+Promotes the captured Product `metafieldsSet` owner expansion scenario into the
+Gleam parity suite. The Products serializer now handles owner-scoped
+`metafield` and `metafields` fields on ProductVariant and Collection records,
+including Product-nested `variants` connections, so the staged metafieldsSet
+mutation is visible through the downstream owner reads without falling back to
+runtime Shopify writes.
+
+| Module                                                            | Change                                                                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/metafield_definitions.gleam` | Preserves `metafieldsSet` owner/input order across JavaScript and Erlang targets.               |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`              | Serializes ProductVariant and Collection owner metafield fields from staged owner-scoped state. |
+| `gleam/test/parity/runner.gleam`                                  | Seeds the owner-expansion capture's Product, ProductVariant, and Collection preconditions.      |
+| `config/gleam-port-ci-gates.json`                                 | Removes the newly passing owner-expansion spec from expected failures.                          |
+| `.agents/skills/gleam-port/SKILL.md`                              | Records the owner-expansion serializer trap for future product passes.                          |
+
+Validation:
+Focused JavaScript parity is green for
+`metafieldsSet-owner-expansion.json`. Full JavaScript is green at 711 tests.
+Host Erlang still fails with the known local `Undef` runner class; the Docker
+Erlang fallback is green at 707 tests. `corepack pnpm gleam:port:coverage`,
+`corepack pnpm lint`, and whitespace checks are green. Product parity
+inventory remains 115 checked-in specs, with 92 product specs executable in
+the Gleam parity suite and 23 product specs still expected-failing.
+
+### Findings
+
+- ProductVariant and Collection owner projections cannot use generic JSON
+  source projection for `metafield` / `metafields` because those fields depend
+  on GraphQL arguments and the staged owner-scoped metafield slice.
+- The owner-expansion fixture also needs Collection base-state seeding from
+  the capture before replaying the local `metafieldsSet` mutation; otherwise
+  the downstream Collection owner read correctly remains `null`.
+- `metafieldsSet` mutation payload order must follow the supplied input owner
+  order. Grouping by owner through a dictionary made JavaScript and Erlang
+  disagree on payload order even though both staged the same owner data.
+
+### Risks / open items
+
+- Selling plans, media, advanced search, inventory contracts, duplicate,
+  productSet/media roots, and broader validation atomicity parity remain
+  incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 96 candidates
+
+- Port selling-plan group behavior with strict captured lifecycle evidence.
+- Continue product media / duplicate / productSet roots with strict captured
+  fixture replay.
+- Continue advanced product search/sort/read parity.
+
+---
+
 ## 2026-04-30 - Pass 94: product metafieldsSet invalid variables
 
 Promotes the captured Product `metafieldsSet` missing required variable-input

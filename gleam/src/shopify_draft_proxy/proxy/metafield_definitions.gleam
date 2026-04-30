@@ -3161,17 +3161,33 @@ fn upsert_metafields_set_inputs(
 fn group_metafields_by_owner(
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> List(#(String, List(Dict(String, root_field.ResolvedValue)))) {
-  let grouped =
-    list.fold(inputs, dict.new(), fn(acc, input) {
-      case read_optional_string(input, "ownerId") {
-        Some(owner_id) -> {
-          let existing = dict.get(acc, owner_id) |> result.unwrap([])
-          dict.insert(acc, owner_id, list.append(existing, [input]))
-        }
-        None -> acc
+  list.fold(inputs, [], fn(groups, input) {
+    case read_optional_string(input, "ownerId") {
+      Some(owner_id) ->
+        append_metafields_set_owner_input(groups, owner_id, input)
+      None -> groups
+    }
+  })
+}
+
+fn append_metafields_set_owner_input(
+  groups: List(#(String, List(Dict(String, root_field.ResolvedValue)))),
+  owner_id: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(String, List(Dict(String, root_field.ResolvedValue)))) {
+  case groups {
+    [] -> [#(owner_id, [input])]
+    [first, ..rest] -> {
+      let #(group_owner_id, group_inputs) = first
+      case group_owner_id == owner_id {
+        True -> [#(group_owner_id, list.append(group_inputs, [input])), ..rest]
+        False -> [
+          first,
+          ..append_metafields_set_owner_input(rest, owner_id, input)
+        ]
       }
-    })
-  dict.to_list(grouped)
+    }
+  }
 }
 
 fn upsert_owner_metafields(

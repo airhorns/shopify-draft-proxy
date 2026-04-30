@@ -339,7 +339,8 @@ fn seed_capture_preconditions(
     | "metafields-set-null-create"
     | "metafields-set-missing-namespace"
     | "metafields-set-missing-type"
-    | "metafields-set-over-limit" ->
+    | "metafields-set-over-limit"
+    | "metafields-set-owner-expansion" ->
       seed_metafields_set_preconditions(capture, proxy)
     "metafields-delete-live-parity"
     | "metafield-delete-compatibility-live-parity" ->
@@ -1958,6 +1959,7 @@ fn seed_metafields_set_preconditions(
   capture: JsonValue,
   proxy: DraftProxy,
 ) -> DraftProxy {
+  let proxy = seed_metafields_set_collection_preconditions(capture, proxy)
   let #(proxy, seeded_from_precondition) = case
     jsonpath.lookup(capture, "$.preconditionRead.data.product")
   {
@@ -2024,6 +2026,28 @@ fn seed_metafields_set_preconditions(
       draft_proxy.DraftProxy(..proxy, store: store)
     }
   }
+}
+
+fn seed_metafields_set_collection_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  let collection_sources =
+    [
+      read_object_field(capture, "seedCollection"),
+      jsonpath.lookup(capture, "$.downstreamRead.data.collection"),
+    ]
+    |> list.filter_map(fn(source) {
+      case source {
+        Some(value) -> Ok(value)
+        None -> Error(Nil)
+      }
+    })
+  let collections =
+    collection_sources
+    |> list.filter_map(make_seed_collection_relaxed)
+  let store = store_mod.upsert_base_collections(proxy.store, collections)
+  draft_proxy.DraftProxy(..proxy, store: store)
 }
 
 fn seed_metafields_delete_preconditions(

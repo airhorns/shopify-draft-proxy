@@ -479,6 +479,16 @@ fn serialize_product_selection(
                 variables,
               ),
             )
+            "variants" -> #(
+              key,
+              serialize_product_variants_for_product_connection(
+                store,
+                product,
+                selection,
+                variables,
+                fragments,
+              ),
+            )
             _ -> #(
               key,
               project_graphql_field_value(source, selection, fragments),
@@ -807,6 +817,15 @@ fn serialize_collection_field(
         field,
         variables,
         fragments,
+      )
+    "metafield" ->
+      serialize_product_metafield(store, collection.id, field, variables)
+    "metafields" ->
+      serialize_product_metafields_connection(
+        store,
+        collection.id,
+        field,
+        variables,
       )
     _ -> json.null()
   }
@@ -2051,9 +2070,12 @@ fn serialize_product_variant_root(
     Some(id) ->
       case store.get_effective_variant_by_id(store, id) {
         Some(variant) ->
-          project_graphql_value(
-            product_variant_source(store, variant),
+          serialize_product_variant_object(
+            store,
+            variant,
             get_selected_child_fields(field, default_selected_field_options()),
+            field,
+            variables,
             fragments,
           )
         None -> json.null()
@@ -2074,12 +2096,15 @@ fn serialize_product_variant_by_identifier_root(
         Some(id) ->
           case store.get_effective_variant_by_id(store, id) {
             Some(variant) ->
-              project_graphql_value(
-                product_variant_source(store, variant),
+              serialize_product_variant_object(
+                store,
+                variant,
                 get_selected_child_fields(
                   field,
                   default_selected_field_options(),
                 ),
+                field,
+                variables,
                 fragments,
               )
             None -> json.null()
@@ -2562,12 +2587,15 @@ fn serialize_product_variants_connection(
       has_previous_page: window.has_previous_page,
       get_cursor_value: product_variant_cursor,
       serialize_node: fn(variant, node_field, _index) {
-        project_graphql_value(
-          product_variant_source(store, variant),
+        serialize_product_variant_object(
+          store,
+          variant,
           get_selected_child_fields(
             node_field,
             default_selected_field_options(),
           ),
+          node_field,
+          variables,
           fragments,
         )
       },
@@ -3146,6 +3174,86 @@ fn product_variants_connection_source(
     ),
     #("pageInfo", connection_page_info_source(variants, product_variant_cursor)),
   ])
+}
+
+fn serialize_product_variants_for_product_connection(
+  store: Store,
+  product: ProductRecord,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let variants = store.get_effective_variants_by_product_id(store, product.id)
+  let window =
+    paginate_connection_items(
+      variants,
+      field,
+      variables,
+      product_variant_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: product_variant_cursor,
+      serialize_node: fn(variant, node_field, _index) {
+        serialize_product_variant_object(
+          store,
+          variant,
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          node_field,
+          variables,
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn serialize_product_variant_object(
+  store: Store,
+  variant: ProductVariantRecord,
+  selections: List(Selection),
+  owner_field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let source = product_variant_source(store, variant)
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      let value = case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "metafield" ->
+              serialize_product_metafield(
+                store,
+                variant.id,
+                selection,
+                variables,
+              )
+            "metafields" ->
+              serialize_product_metafields_connection(
+                store,
+                variant.id,
+                selection,
+                variables,
+              )
+            _ -> project_graphql_field_value(source, selection, fragments)
+          }
+        _ -> project_graphql_field_value(source, owner_field, fragments)
+      }
+      #(key, value)
+    }),
+  )
 }
 
 pub fn product_variant_source(
