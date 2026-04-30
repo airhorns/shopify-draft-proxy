@@ -1,4 +1,5 @@
 import gleam/dict.{type Dict}
+import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/int
 import gleam/json.{type Json}
@@ -49,6 +50,18 @@ pub fn serialize_base_state(state: store.BaseState) -> Json {
         state.store_property_mutation_payloads,
         store_property_mutation_payload_json,
       ),
+    ),
+    #(
+      "productMetafields",
+      dict_to_json(state.product_metafields, product_metafield_json),
+    ),
+    #(
+      "metafieldDefinitions",
+      dict_to_json(state.metafield_definitions, metafield_definition_json),
+    ),
+    #(
+      "deletedMetafieldDefinitionIds",
+      bool_dict_to_json(state.deleted_metafield_definition_ids),
     ),
     #("savedSearches", dict_to_json(state.saved_searches, saved_search_json)),
     #("savedSearchOrder", json.array(state.saved_search_order, json.string)),
@@ -275,6 +288,18 @@ pub fn serialize_staged_state(state: store.StagedState) -> Json {
         state.store_property_mutation_payloads,
         store_property_mutation_payload_json,
       ),
+    ),
+    #(
+      "productMetafields",
+      dict_to_json(state.product_metafields, product_metafield_json),
+    ),
+    #(
+      "metafieldDefinitions",
+      dict_to_json(state.metafield_definitions, metafield_definition_json),
+    ),
+    #(
+      "deletedMetafieldDefinitionIds",
+      bool_dict_to_json(state.deleted_metafield_definition_ids),
     ),
     #("savedSearches", dict_to_json(state.saved_searches, saved_search_json)),
     #("savedSearchOrder", json.array(state.saved_search_order, json.string)),
@@ -961,6 +986,117 @@ fn bulk_operation_json(record: types.BulkOperationRecord) -> Json {
   ])
 }
 
+fn product_metafield_json(record: types.ProductMetafieldRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("ownerId", json.string(record.owner_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("jsonValue", optional_to_json(record.json_value, fn(value) { value })),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("ownerType", optional_string(record.owner_type)),
+  ])
+}
+
+fn metafield_definition_json(record: types.MetafieldDefinitionRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("name", json.string(record.name)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("ownerType", json.string(record.owner_type)),
+    #("type", metafield_definition_type_json(record.type_)),
+    #("description", optional_string(record.description)),
+    #(
+      "validations",
+      json.array(record.validations, metafield_definition_validation_json),
+    ),
+    #("access", dict_to_json(record.access, fn(value) { value })),
+    #(
+      "capabilities",
+      metafield_definition_capabilities_json(record.capabilities),
+    ),
+    #(
+      "constraints",
+      optional_to_json(
+        record.constraints,
+        metafield_definition_constraints_json,
+      ),
+    ),
+    #("pinnedPosition", optional_int(record.pinned_position)),
+    #("validationStatus", json.string(record.validation_status)),
+  ])
+}
+
+fn metafield_definition_type_json(
+  record: types.MetafieldDefinitionTypeRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("category", optional_string(record.category)),
+  ])
+}
+
+fn metafield_definition_validation_json(
+  record: types.MetafieldDefinitionValidationRecord,
+) -> Json {
+  json.object([
+    #("name", json.string(record.name)),
+    #("value", optional_string(record.value)),
+  ])
+}
+
+fn metafield_definition_capabilities_json(
+  record: types.MetafieldDefinitionCapabilitiesRecord,
+) -> Json {
+  json.object([
+    #(
+      "adminFilterable",
+      metafield_definition_capability_json(record.admin_filterable),
+    ),
+    #(
+      "smartCollectionCondition",
+      metafield_definition_capability_json(record.smart_collection_condition),
+    ),
+    #(
+      "uniqueValues",
+      metafield_definition_capability_json(record.unique_values),
+    ),
+  ])
+}
+
+fn metafield_definition_capability_json(
+  record: types.MetafieldDefinitionCapabilityRecord,
+) -> Json {
+  json.object([
+    #("enabled", json.bool(record.enabled)),
+    #("eligible", json.bool(record.eligible)),
+    #("status", optional_string(record.status)),
+  ])
+}
+
+fn metafield_definition_constraints_json(
+  record: types.MetafieldDefinitionConstraintsRecord,
+) -> Json {
+  json.object([
+    #("key", optional_string(record.key)),
+    #(
+      "values",
+      json.array(record.values, metafield_definition_constraint_value_json),
+    ),
+  ])
+}
+
+fn metafield_definition_constraint_value_json(
+  record: types.MetafieldDefinitionConstraintValueRecord,
+) -> Json {
+  json.object([#("value", json.string(record.value))])
+}
+
 fn metaobject_definition_json(
   record: types.MetaobjectDefinitionRecord,
 ) -> Json {
@@ -1386,6 +1522,17 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     "storePropertyMutationPayloads",
     store_property_mutation_payload_decoder(),
   )
+  use product_metafields <- dict_field(
+    "productMetafields",
+    product_metafield_decoder(),
+  )
+  use metafield_definitions <- dict_field(
+    "metafieldDefinitions",
+    metafield_definition_decoder(),
+  )
+  use deleted_metafield_definition_ids <- bool_dict_field(
+    "deletedMetafieldDefinitionIds",
+  )
   use saved_searches <- dict_field("savedSearches", saved_search_decoder())
   use saved_search_order <- string_list_field("savedSearchOrder")
   use deleted_saved_search_ids <- bool_dict_field("deletedSavedSearchIds")
@@ -1531,6 +1678,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     publishables: publishables,
     publishable_order: publishable_order,
     store_property_mutation_payloads: store_property_mutation_payloads,
+    product_metafields: product_metafields,
+    metafield_definitions: metafield_definitions,
+    deleted_metafield_definition_ids: deleted_metafield_definition_ids,
     saved_searches: saved_searches,
     saved_search_order: saved_search_order,
     deleted_saved_search_ids: deleted_saved_search_ids,
@@ -1632,6 +1782,17 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use store_property_mutation_payloads <- dict_field(
     "storePropertyMutationPayloads",
     store_property_mutation_payload_decoder(),
+  )
+  use product_metafields <- dict_field(
+    "productMetafields",
+    product_metafield_decoder(),
+  )
+  use metafield_definitions <- dict_field(
+    "metafieldDefinitions",
+    metafield_definition_decoder(),
+  )
+  use deleted_metafield_definition_ids <- bool_dict_field(
+    "deletedMetafieldDefinitionIds",
   )
   use saved_searches <- dict_field("savedSearches", saved_search_decoder())
   use saved_search_order <- string_list_field("savedSearchOrder")
@@ -1775,6 +1936,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     publishables: publishables,
     publishable_order: publishable_order,
     store_property_mutation_payloads: store_property_mutation_payloads,
+    product_metafields: product_metafields,
+    metafield_definitions: metafield_definitions,
+    deleted_metafield_definition_ids: deleted_metafield_definition_ids,
     saved_searches: saved_searches,
     saved_search_order: saved_search_order,
     deleted_saved_search_ids: deleted_saved_search_ids,
@@ -1878,6 +2042,53 @@ fn bool_dict_field(
   next: fn(Dict(String, Bool)) -> Decoder(a),
 ) -> Decoder(a) {
   dict_field(name, decode.bool, next)
+}
+
+fn runtime_json_decoder() -> Decoder(Json) {
+  decode.dynamic |> decode.map(runtime_json_from_dynamic)
+}
+
+fn runtime_json_from_dynamic(value: Dynamic) -> Json {
+  case decode.run(value, decode.bool) {
+    Ok(b) -> json.bool(b)
+    Error(_) -> runtime_json_from_non_bool_dynamic(value)
+  }
+}
+
+fn runtime_json_from_non_bool_dynamic(value: Dynamic) -> Json {
+  case decode.run(value, decode.optional(decode.dynamic)) {
+    Ok(None) -> json.null()
+    _ -> runtime_json_from_present_dynamic(value)
+  }
+}
+
+fn runtime_json_from_present_dynamic(value: Dynamic) -> Json {
+  case decode.run(value, decode.int) {
+    Ok(i) -> json.int(i)
+    Error(_) ->
+      case decode.run(value, decode.float) {
+        Ok(f) -> json.float(f)
+        Error(_) ->
+          case decode.run(value, decode.string) {
+            Ok(s) -> json.string(s)
+            Error(_) ->
+              case decode.run(value, decode.list(decode.dynamic)) {
+                Ok(items) -> json.array(items, runtime_json_from_dynamic)
+                Error(_) ->
+                  case
+                    decode.run(
+                      value,
+                      decode.dict(decode.string, decode.dynamic),
+                    )
+                  {
+                    Ok(fields) ->
+                      dict_to_json(fields, runtime_json_from_dynamic)
+                    Error(_) -> json.null()
+                  }
+              }
+          }
+      }
+  }
 }
 
 fn float_decoder() -> Decoder(Float) {
@@ -2590,6 +2801,164 @@ fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
     cursor: cursor,
     result_jsonl: result_jsonl,
   ))
+}
+
+fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
+  use id <- decode.field("id", decode.string)
+  use owner_id <- decode.field("ownerId", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use type_ <- optional_string_field("type")
+  use value <- optional_string_field("value")
+  use compare_digest <- optional_string_field("compareDigest")
+  use json_value <- optional_field(
+    "jsonValue",
+    None,
+    decode.optional(runtime_json_decoder()),
+  )
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  use owner_type <- optional_string_field("ownerType")
+  decode.success(types.ProductMetafieldRecord(
+    id: id,
+    owner_id: owner_id,
+    namespace: namespace,
+    key: key,
+    type_: type_,
+    value: value,
+    compare_digest: compare_digest,
+    json_value: json_value,
+    created_at: created_at,
+    updated_at: updated_at,
+    owner_type: owner_type,
+  ))
+}
+
+fn metafield_definition_decoder() -> Decoder(types.MetafieldDefinitionRecord) {
+  use id <- decode.field("id", decode.string)
+  use name <- decode.field("name", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use owner_type <- decode.field("ownerType", decode.string)
+  use type_ <- decode.field("type", metafield_definition_type_decoder())
+  use description <- optional_string_field("description")
+  use validations <- decode.field(
+    "validations",
+    decode.list(of: metafield_definition_validation_decoder()),
+  )
+  use access <- optional_field(
+    "access",
+    dict.new(),
+    decode.dict(decode.string, runtime_json_decoder()),
+  )
+  use capabilities <- decode.field(
+    "capabilities",
+    metafield_definition_capabilities_decoder(),
+  )
+  use constraints <- optional_field(
+    "constraints",
+    None,
+    decode.optional(metafield_definition_constraints_decoder()),
+  )
+  use pinned_position <- optional_field(
+    "pinnedPosition",
+    None,
+    decode.optional(decode.int),
+  )
+  use validation_status <- decode.field("validationStatus", decode.string)
+  decode.success(types.MetafieldDefinitionRecord(
+    id: id,
+    name: name,
+    namespace: namespace,
+    key: key,
+    owner_type: owner_type,
+    type_: type_,
+    description: description,
+    validations: validations,
+    access: access,
+    capabilities: capabilities,
+    constraints: constraints,
+    pinned_position: pinned_position,
+    validation_status: validation_status,
+  ))
+}
+
+fn metafield_definition_type_decoder() -> Decoder(
+  types.MetafieldDefinitionTypeRecord,
+) {
+  use name <- decode.field("name", decode.string)
+  use category <- optional_string_field("category")
+  decode.success(types.MetafieldDefinitionTypeRecord(
+    name: name,
+    category: category,
+  ))
+}
+
+fn metafield_definition_validation_decoder() -> Decoder(
+  types.MetafieldDefinitionValidationRecord,
+) {
+  use name <- decode.field("name", decode.string)
+  use value <- optional_string_field("value")
+  decode.success(types.MetafieldDefinitionValidationRecord(
+    name: name,
+    value: value,
+  ))
+}
+
+fn metafield_definition_capabilities_decoder() -> Decoder(
+  types.MetafieldDefinitionCapabilitiesRecord,
+) {
+  use admin_filterable <- decode.field(
+    "adminFilterable",
+    metafield_definition_capability_decoder(),
+  )
+  use smart_collection_condition <- decode.field(
+    "smartCollectionCondition",
+    metafield_definition_capability_decoder(),
+  )
+  use unique_values <- decode.field(
+    "uniqueValues",
+    metafield_definition_capability_decoder(),
+  )
+  decode.success(types.MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: admin_filterable,
+    smart_collection_condition: smart_collection_condition,
+    unique_values: unique_values,
+  ))
+}
+
+fn metafield_definition_capability_decoder() -> Decoder(
+  types.MetafieldDefinitionCapabilityRecord,
+) {
+  use enabled <- decode.field("enabled", decode.bool)
+  use eligible <- decode.field("eligible", decode.bool)
+  use status <- optional_string_field("status")
+  decode.success(types.MetafieldDefinitionCapabilityRecord(
+    enabled: enabled,
+    eligible: eligible,
+    status: status,
+  ))
+}
+
+fn metafield_definition_constraints_decoder() -> Decoder(
+  types.MetafieldDefinitionConstraintsRecord,
+) {
+  use key <- optional_string_field("key")
+  use values <- decode.field(
+    "values",
+    decode.list(of: metafield_definition_constraint_value_decoder()),
+  )
+  decode.success(types.MetafieldDefinitionConstraintsRecord(
+    key: key,
+    values: values,
+  ))
+}
+
+fn metafield_definition_constraint_value_decoder() -> Decoder(
+  types.MetafieldDefinitionConstraintValueRecord,
+) {
+  use value <- decode.field("value", decode.string)
+  decode.success(types.MetafieldDefinitionConstraintValueRecord(value: value))
 }
 
 fn metaobject_definition_decoder() -> Decoder(types.MetaobjectDefinitionRecord) {

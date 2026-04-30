@@ -10,7 +10,81 @@
 //// module.
 
 import gleam/dict.{type Dict}
+import gleam/json.{type Json}
 import gleam/option.{type Option}
+
+// ---------------------------------------------------------------------------
+// Metafields domain
+// ---------------------------------------------------------------------------
+
+pub type ProductMetafieldRecord {
+  ProductMetafieldRecord(
+    id: String,
+    owner_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    json_value: Option(Json),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: Bool,
+    eligible: Bool,
+    status: Option(String),
+  )
+}
+
+pub type MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: MetafieldDefinitionCapabilityRecord,
+    smart_collection_condition: MetafieldDefinitionCapabilityRecord,
+    unique_values: MetafieldDefinitionCapabilityRecord,
+  )
+}
+
+pub type MetafieldDefinitionConstraintValueRecord {
+  MetafieldDefinitionConstraintValueRecord(value: String)
+}
+
+pub type MetafieldDefinitionConstraintsRecord {
+  MetafieldDefinitionConstraintsRecord(
+    key: Option(String),
+    values: List(MetafieldDefinitionConstraintValueRecord),
+  )
+}
+
+pub type MetafieldDefinitionTypeRecord {
+  MetafieldDefinitionTypeRecord(name: String, category: Option(String))
+}
+
+pub type MetafieldDefinitionValidationRecord {
+  MetafieldDefinitionValidationRecord(name: String, value: Option(String))
+}
+
+pub type MetafieldDefinitionRecord {
+  MetafieldDefinitionRecord(
+    id: String,
+    name: String,
+    namespace: String,
+    key: String,
+    owner_type: String,
+    type_: MetafieldDefinitionTypeRecord,
+    description: Option(String),
+    validations: List(MetafieldDefinitionValidationRecord),
+    access: Dict(String, Json),
+    capabilities: MetafieldDefinitionCapabilitiesRecord,
+    constraints: Option(MetafieldDefinitionConstraintsRecord),
+    pinned_position: Option(Int),
+    validation_status: String,
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Admin Platform utility domain
