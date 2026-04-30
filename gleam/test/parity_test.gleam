@@ -92,6 +92,12 @@ pub fn product_feeds_empty_read_test() {
   check("config/parity-specs/products/product-feeds-empty-read.json")
 }
 
+pub fn product_feed_lifecycle_local_runtime_test() {
+  check(
+    "config/parity-specs/products/product-feed-lifecycle-local-runtime.json",
+  )
+}
+
 pub fn product_detail_read_test() {
   check("config/parity-specs/products/product-detail-read.json")
 }

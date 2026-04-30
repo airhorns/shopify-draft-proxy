@@ -9,6 +9,67 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 83: product feed lifecycle
+
+Completes the captured product feed local-runtime lifecycle in the Gleam
+Products handler. The pass adds a normalized product-feed state slice, routes
+`productFeed` and `productFeeds` reads through the local Products dispatcher,
+and stages `productFeedCreate`, `productFullSync`, and `productFeedDelete`
+without runtime Shopify writes. Downstream reads now expose the staged ACTIVE
+feed, connection cursors, and null/empty no-data behavior after deletion.
+
+The pass promotes `product-feed-lifecycle-local-runtime` into the Gleam parity
+suite. The checked-in fixture, request documents, variables capture path, and
+strict comparison contract stay unchanged.
+
+| Module                                               | Change                                                                 |
+| ---------------------------------------------------- | ---------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`    | Adds `ProductFeedRecord` for the captured feed fields.                 |
+| `gleam/src/shopify_draft_proxy/state/store.gleam`    | Adds base/staged product-feed storage, ordering, deletion, and lookup. |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Stages feed lifecycle mutations and serializes feed reads.             |
+| `gleam/test/parity_test.gleam`                       | Enables the strict product-feed lifecycle parity spec.                 |
+
+Validation:
+`gleam test --target javascript product_feed_lifecycle_local_runtime_test` is
+green at 785 tests, and full `gleam test --target javascript` is green at 785
+tests on the host Node runtime. Host `gleam test --target erlang` still fails
+before tests execute on the local Erlang install with the known `undef` runner
+issue; after clearing host-built Erlang artifacts, the Docker Erlang fallback is
+green at 781 tests. Product parity inventory remains 115 checked-in specs, with
+71 product specs executable in the Gleam parity suite plus the admin-platform
+ProductOption node scenario after this pass.
+
+### Findings
+
+- The pre-implementation signal was strict parity replay returning HTTP 400 for
+  `productFeedCreate`: `No mutation dispatcher implemented for root field`.
+- The captured local-runtime fixture expects `gid://shopify/ProductFeed/2`
+  because the TypeScript path reserves a mutation-log synthetic id before
+  minting the feed id; the Gleam handler preserves that observable sequence for
+  this staged root.
+- Product feed delete needs a real deleted-id marker so the same read document
+  returns `productFeed: null` and an empty `productFeeds` connection with null
+  cursors after deletion.
+
+### Risks / open items
+
+- Broader publication roots, product feedback, selling plans, product
+  metafields, media, advanced search, inventory shipment/transfer, and broader
+  validation atomicity parity remain incomplete in Gleam.
+- Only 71 of 115 checked-in product parity specs are enabled by the Gleam
+  parity suite after this pass.
+
+### Pass 84 candidates
+
+- Port product feedback lifecycle now that product-feed local-runtime behavior
+  is represented.
+- Continue the broader publication roots local-runtime scenario now that
+  top-level publications and product publish/unpublish are represented.
+- Continue remaining inventory shipment/transfer roots with strict captured
+  fixture replay.
+
+---
+
 ## 2026-04-30 - Pass 82: product publication publish/unpublish
 
 Completes the captured `productPublish` and `productUnpublish` payload and

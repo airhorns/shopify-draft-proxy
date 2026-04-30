@@ -52,15 +52,15 @@ import shopify_draft_proxy/state/types.{
   type InventoryMeasurementRecord, type InventoryQuantityRecord,
   type InventoryWeightRecord, type InventoryWeightValue, type LocationRecord,
   type ProductCategoryRecord, type ProductCollectionRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
-  type ProductSeoRecord, type ProductVariantRecord,
-  type ProductVariantSelectedOptionRecord, type PublicationRecord,
-  CollectionRecord, InventoryItemRecord, InventoryLevelRecord,
-  InventoryLocationRecord, InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  ProductCollectionRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  type ProductFeedRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord, type ProductSeoRecord,
+  type ProductVariantRecord, type ProductVariantSelectedOptionRecord,
+  type PublicationRecord, CollectionRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
+  InventoryQuantityRecord, InventoryWeightFloat, InventoryWeightInt,
+  InventoryWeightRecord, ProductCollectionRecord, ProductFeedRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
 
 pub type ProductsError {
@@ -132,6 +132,9 @@ pub fn is_products_mutation_root(name: String) -> Bool {
     | "collectionCreate"
     | "productPublish"
     | "productUnpublish"
+    | "productFeedCreate"
+    | "productFeedDelete"
+    | "productFullSync"
     | "tagsAdd"
     | "tagsRemove" -> True
     _ -> False
@@ -192,8 +195,9 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
-            "productFeed" | "productResourceFeedback" | "productOperation" ->
-              json.null()
+            "productFeed" ->
+              serialize_product_feed_root(store, field, variables, fragments)
+            "productResourceFeedback" | "productOperation" -> json.null()
             "inventoryItem" ->
               serialize_inventory_item_root(store, field, variables, fragments)
             "inventoryLevel" ->
@@ -255,7 +259,14 @@ fn serialize_root_fields(
                 variables,
                 fragments,
               )
-            "productFeeds" | "productSavedSearches" ->
+            "productFeeds" ->
+              serialize_product_feeds_connection(
+                store,
+                field,
+                variables,
+                fragments,
+              )
+            "productSavedSearches" ->
               serialize_empty_connection(
                 field,
                 default_selected_field_options(),
@@ -832,6 +843,79 @@ fn publication_source(publication: PublicationRecord) -> SourceValue {
     #("__typename", SrcString("Publication")),
     #("id", SrcString(publication.id)),
     #("name", SrcString(publication.name)),
+  ])
+}
+
+fn serialize_product_feed_root(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  case read_string_argument(field, variables, "id") {
+    Some(id) ->
+      case store.get_effective_product_feed_by_id(store, id) {
+        Some(feed) ->
+          project_graphql_value(
+            product_feed_source(feed),
+            get_selected_child_fields(field, default_selected_field_options()),
+            fragments,
+          )
+        None -> json.null()
+      }
+    None -> json.null()
+  }
+}
+
+fn serialize_product_feeds_connection(
+  store: Store,
+  field: Selection,
+  variables: Dict(String, ResolvedValue),
+  fragments: FragmentMap,
+) -> Json {
+  let feeds = store.list_effective_product_feeds(store)
+  let window =
+    paginate_connection_items(
+      feeds,
+      field,
+      variables,
+      product_feed_cursor,
+      default_connection_window_options(),
+    )
+  serialize_connection(
+    field,
+    SerializeConnectionConfig(
+      items: window.items,
+      has_next_page: window.has_next_page,
+      has_previous_page: window.has_previous_page,
+      get_cursor_value: product_feed_cursor,
+      serialize_node: fn(feed, node_field, _index) {
+        project_graphql_value(
+          product_feed_source(feed),
+          get_selected_child_fields(
+            node_field,
+            default_selected_field_options(),
+          ),
+          fragments,
+        )
+      },
+      selected_field_options: default_selected_field_options(),
+      page_info_options: default_connection_page_info_options(),
+    ),
+  )
+}
+
+fn product_feed_cursor(feed: ProductFeedRecord, _index: Int) -> String {
+  feed.id
+}
+
+fn product_feed_source(feed: ProductFeedRecord) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ProductFeed")),
+    #("id", SrcString(feed.id)),
+    #("country", optional_string_source(feed.country)),
+    #("language", optional_string_source(feed.language)),
+    #("status", SrcString(feed.status)),
   ])
 }
 
@@ -3410,6 +3494,87 @@ fn handle_mutation_fields(
                 list.append(drafts, [draft]),
               )
             }
+            "productFeedCreate" -> {
+              let result =
+                handle_product_feed_create(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productFeedCreate locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productFeedDelete" -> {
+              let result =
+                handle_product_feed_delete(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productFeedDelete locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
+            "productFullSync" -> {
+              let result =
+                handle_product_full_sync(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_resource_ids,
+                  store.Staged,
+                  "products",
+                  "stage-locally",
+                  Some("Gleam staged productFullSync locally."),
+                )
+              #(
+                list.append(entries, [#(result.key, result.payload)]),
+                errors,
+                result.store,
+                result.identity,
+                list.append(staged_ids, result.staged_resource_ids),
+                list.append(drafts, [draft]),
+              )
+            }
             "tagsAdd" -> {
               let result =
                 handle_tags_update(
@@ -4073,6 +4238,151 @@ fn handle_product_publication_mutation(
           )
         }
       }
+  }
+}
+
+fn handle_product_feed_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let input = read_arg_object(args, "input") |> option.unwrap(dict.new())
+  // The captured local-runtime fixture comes from the TS path where the
+  // mutation-log entry consumes the first synthetic id before the feed is
+  // minted, so preserve that observable id sequence for this staged root.
+  let #(_, identity_after_log_slot) =
+    synthetic_identity.make_synthetic_gid(identity, "MutationLogEntry")
+  let #(feed_id, next_identity) =
+    synthetic_identity.make_synthetic_gid(
+      identity_after_log_slot,
+      "ProductFeed",
+    )
+  let feed =
+    ProductFeedRecord(
+      id: feed_id,
+      country: read_string_field(input, "country"),
+      language: read_string_field(input, "language"),
+      status: "ACTIVE",
+    )
+  let #(staged_feed, next_store) = store.upsert_staged_product_feed(store, feed)
+  mutation_result(
+    key,
+    product_feed_create_payload(staged_feed, [], field, fragments),
+    next_store,
+    next_identity,
+    [staged_feed.id],
+  )
+}
+
+fn handle_product_feed_delete(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  case id {
+    Some(feed_id) ->
+      case store.get_effective_product_feed_by_id(store, feed_id) {
+        Some(_) -> {
+          let next_store = store.delete_staged_product_feed(store, feed_id)
+          mutation_result(
+            key,
+            product_feed_delete_payload(Some(feed_id), [], field, fragments),
+            next_store,
+            identity,
+            [feed_id],
+          )
+        }
+        None ->
+          mutation_result(
+            key,
+            product_feed_delete_payload(
+              None,
+              [
+                ProductUserError(["id"], "ProductFeed does not exist", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    None ->
+      mutation_result(
+        key,
+        product_feed_delete_payload(
+          None,
+          [ProductUserError(["id"], "ProductFeed does not exist", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn handle_product_full_sync(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, ResolvedValue),
+) -> MutationFieldResult {
+  let key = get_field_response_key(field)
+  let args = field_args(field, variables)
+  let id = read_arg_string(args, "id")
+  case id {
+    Some(feed_id) ->
+      case store.get_effective_product_feed_by_id(store, feed_id) {
+        Some(_) ->
+          mutation_result(
+            key,
+            product_full_sync_payload(Some(feed_id), [], field, fragments),
+            store,
+            identity,
+            [feed_id],
+          )
+        None ->
+          mutation_result(
+            key,
+            product_full_sync_payload(
+              None,
+              [
+                ProductUserError(["id"], "ProductFeed does not exist", None),
+              ],
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+            [],
+          )
+      }
+    None ->
+      mutation_result(
+        key,
+        product_full_sync_payload(
+          None,
+          [ProductUserError(["id"], "ProductFeed does not exist", None)],
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+        [],
+      )
   }
 }
 
@@ -7349,6 +7659,57 @@ fn product_publication_payload(
     src_object([
       #("__typename", SrcString(typename)),
       #("product", product_value),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_feed_create_payload(
+  feed: ProductFeedRecord,
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductFeedCreatePayload")),
+      #("productFeed", product_feed_source(feed)),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_feed_delete_payload(
+  deleted_id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductFeedDeletePayload")),
+      #("deletedId", optional_string_source(deleted_id)),
+      #("userErrors", user_errors_source(user_errors)),
+    ]),
+    get_selected_child_fields(field, default_selected_field_options()),
+    fragments,
+  )
+}
+
+fn product_full_sync_payload(
+  id: Option(String),
+  user_errors: List(ProductUserError),
+  field: Selection,
+  fragments: FragmentMap,
+) -> Json {
+  project_graphql_value(
+    src_object([
+      #("__typename", SrcString("ProductFullSyncPayload")),
+      #("id", optional_string_source(id)),
       #("userErrors", user_errors_source(user_errors)),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),

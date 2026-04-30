@@ -24,7 +24,7 @@ import shopify_draft_proxy/state/types.{
   type GiftCardConfigurationRecord, type GiftCardRecord,
   type InventoryLevelRecord, type LocaleRecord, type LocationRecord,
   type MarketingEngagementRecord, type MarketingRecord, type MarketingValue,
-  type ProductCollectionRecord, type ProductOptionRecord,
+  type ProductCollectionRecord, type ProductFeedRecord, type ProductOptionRecord,
   type ProductOptionValueRecord, type ProductRecord, type ProductVariantRecord,
   type PublicationRecord, type SavedSearchRecord, type SegmentRecord,
   type ShopLocaleRecord, type ShopRecord, type ShopifyFunctionRecord,
@@ -55,6 +55,9 @@ pub type BaseState {
     location_order: List(String),
     publications: Dict(String, PublicationRecord),
     publication_order: List(String),
+    product_feeds: Dict(String, ProductFeedRecord),
+    product_feed_order: List(String),
+    deleted_product_feed_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -139,6 +142,9 @@ pub type StagedState {
     product_collections: Dict(String, ProductCollectionRecord),
     staged_product_collection_families: Dict(String, Bool),
     deleted_collection_ids: Dict(String, Bool),
+    product_feeds: Dict(String, ProductFeedRecord),
+    product_feed_order: List(String),
+    deleted_product_feed_ids: Dict(String, Bool),
     backup_region: Option(BackupRegionRecord),
     admin_platform_flow_signatures: Dict(
       String,
@@ -291,6 +297,9 @@ pub fn empty_base_state() -> BaseState {
     location_order: [],
     publications: dict.new(),
     publication_order: [],
+    product_feeds: dict.new(),
+    product_feed_order: [],
+    deleted_product_feed_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -368,6 +377,9 @@ pub fn empty_staged_state() -> StagedState {
     product_collections: dict.new(),
     staged_product_collection_families: dict.new(),
     deleted_collection_ids: dict.new(),
+    product_feeds: dict.new(),
+    product_feed_order: [],
+    deleted_product_feed_ids: dict.new(),
     backup_region: None,
     admin_platform_flow_signatures: dict.new(),
     admin_platform_flow_signature_order: [],
@@ -790,6 +802,129 @@ pub fn list_effective_publications(store: Store) -> List(PublicationRecord) {
       }
     })
   list.append(ordered_records, unordered)
+}
+
+pub fn upsert_base_product_feeds(
+  store: Store,
+  records: List(ProductFeedRecord),
+) -> Store {
+  list.fold(records, store, fn(acc, record) {
+    let base = acc.base_state
+    let staged = acc.staged_state
+    let new_base =
+      BaseState(
+        ..base,
+        product_feeds: dict.insert(base.product_feeds, record.id, record),
+        product_feed_order: append_unique_id(base.product_feed_order, record.id),
+        deleted_product_feed_ids: dict.delete(
+          base.deleted_product_feed_ids,
+          record.id,
+        ),
+      )
+    let new_staged =
+      StagedState(
+        ..staged,
+        deleted_product_feed_ids: dict.delete(
+          staged.deleted_product_feed_ids,
+          record.id,
+        ),
+      )
+    Store(..acc, base_state: new_base, staged_state: new_staged)
+  })
+}
+
+pub fn upsert_staged_product_feed(
+  store: Store,
+  record: ProductFeedRecord,
+) -> #(ProductFeedRecord, Store) {
+  let base = store.base_state
+  let staged = store.staged_state
+  let already_known =
+    list.contains(base.product_feed_order, record.id)
+    || list.contains(staged.product_feed_order, record.id)
+  let new_order = case already_known {
+    True -> staged.product_feed_order
+    False -> list.append(staged.product_feed_order, [record.id])
+  }
+  let new_staged =
+    StagedState(
+      ..staged,
+      product_feeds: dict.insert(staged.product_feeds, record.id, record),
+      product_feed_order: new_order,
+      deleted_product_feed_ids: dict.delete(
+        staged.deleted_product_feed_ids,
+        record.id,
+      ),
+    )
+  #(record, Store(..store, staged_state: new_staged))
+}
+
+pub fn delete_staged_product_feed(store: Store, id: String) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      product_feeds: dict.delete(staged.product_feeds, id),
+      deleted_product_feed_ids: dict.insert(
+        staged.deleted_product_feed_ids,
+        id,
+        True,
+      ),
+    ),
+  )
+}
+
+pub fn get_effective_product_feed_by_id(
+  store: Store,
+  id: String,
+) -> Option(ProductFeedRecord) {
+  let deleted =
+    dict_has(store.base_state.deleted_product_feed_ids, id)
+    || dict_has(store.staged_state.deleted_product_feed_ids, id)
+  case deleted {
+    True -> None
+    False ->
+      case dict.get(store.staged_state.product_feeds, id) {
+        Ok(record) -> Some(record)
+        Error(_) ->
+          case dict.get(store.base_state.product_feeds, id) {
+            Ok(record) -> Some(record)
+            Error(_) -> None
+          }
+      }
+  }
+}
+
+pub fn list_effective_product_feeds(store: Store) -> List(ProductFeedRecord) {
+  let ordered_ids =
+    list.append(
+      store.base_state.product_feed_order,
+      store.staged_state.product_feed_order,
+    )
+    |> dedupe_strings()
+  let ordered_records =
+    list.filter_map(ordered_ids, fn(id) {
+      case get_effective_product_feed_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  let ordered_set = list_to_set(ordered_ids)
+  let merged =
+    dict.merge(store.base_state.product_feeds, store.staged_state.product_feeds)
+  let unordered_ids =
+    dict.keys(merged)
+    |> list.filter(fn(id) { !dict_has(ordered_set, id) })
+    |> list.sort(string_compare)
+  let unordered_records =
+    list.filter_map(unordered_ids, fn(id) {
+      case get_effective_product_feed_by_id(store, id) {
+        Some(record) -> Ok(record)
+        None -> Error(Nil)
+      }
+    })
+  list.append(ordered_records, unordered_records)
 }
 
 pub fn replace_base_products_for_collection(

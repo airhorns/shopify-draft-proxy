@@ -106,6 +106,15 @@ pub type PublicationRecord {
   PublicationRecord(id: String, name: String, cursor: Option(String))
 }
 
+pub type ProductFeedRecord {
+  ProductFeedRecord(
+    id: String,
+    country: Option(String),
+    language: Option(String),
+    status: String,
+  )
+}
+
 pub type InventoryQuantityRecord {
   InventoryQuantityRecord(
     name: String,
