@@ -104,6 +104,10 @@ pub fn delegate_access_token_current_input_local_staging_test() {
   )
 }
 
+pub fn app_billing_access_local_staging_test() {
+  check("config/parity-specs/apps/app-billing-access-local-staging.json")
+}
+
 // NOTE: scenarios that require pre-seeded store state (e.g. captured
 // shopifyFunctions, segments-baseline-read) are deferred until the
 // runner gains snapshot-seeding support. The capture already contains
