@@ -9,6 +9,64 @@ Newer entries go at the top.
 
 ---
 
+## 2026-04-30 - Pass 102: product media async plan parity
+
+Promotes the three captured Product media async plan fixtures into the Gleam
+parity suite. The runner now hydrates the captured existing Product/media rows
+needed by update/delete media captures, while `productCreateMedia` keeps the
+mutation payload `UPLOADED` and makes the immediate downstream Product media
+read observe Shopify's null-url `PROCESSING` state before later successful media
+operations can settle staged media to `READY`.
+
+| Module                                               | Change                                                                                          |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam` | Models create-media `UPLOADED` -> immediate `PROCESSING` lifecycle and delete product payloads. |
+| `gleam/test/parity/runner.gleam`                     | Seeds captured media plan Product/media preconditions without changing captures/specs.          |
+| `config/gleam-port-ci-gates.json`                    | Removes the three newly passing media plan parity specs.                                        |
+| `docs/endpoints/products.md`                         | Documents the captured async media lifecycle boundary.                                          |
+| `.agents/skills/gleam-port/SKILL.md`                 | Records the media plan seeding and async lifecycle traps.                                       |
+
+Validation:
+Focused JavaScript parity is green for `productCreateMedia-parity-plan.json`,
+`productUpdateMedia-parity-plan.json`, and
+`productDeleteMedia-parity-plan.json`. Full JavaScript is green at 716 tests.
+Host Erlang still fails with the known local `Undef` runner class; the Docker
+Erlang fallback is green at 712 tests. `corepack pnpm gleam:port:coverage` is
+green with 379 specs and 191 expected failures. `corepack pnpm lint` and
+whitespace checks are green. Product parity inventory remains 115 checked-in
+specs, with 101 product specs executable in the Gleam parity suite and 14
+product specs still expected-failing.
+
+### Findings
+
+- The create media plan fixture has no explicit seed rows. The runner must seed
+  only the captured `mutation.variables.productId` Product, then let the
+  runtime create the staged MediaImage so the mutation payload and downstream
+  read use the same local media ID.
+- Update media plan captures assume an existing READY media row with captured
+  image URLs; delete media plan captures need the existing media ID plus the
+  captured deleted ProductImage ID even though the downstream Product media
+  connection is empty after deletion.
+- Shopify returns null `preview.image` and null `MediaImage.image` objects for
+  newly uploaded/processing image media. Product media projection now returns
+  `null` for absent image objects instead of an object with `url: null`.
+
+### Risks / open items
+
+- Selling-plan group membership, duplicate, productSet, advanced search, and
+  remaining validation atomicity parity remain incomplete in Gleam.
+- Product parity is still not complete; the TypeScript product runtime remains
+  intact until full parity and final cutover.
+
+### Pass 103 candidates
+
+- Continue duplicate / productSet roots and validation atomicity.
+- Continue advanced product search/sort/read parity.
+- Continue selling-plan product/variant association or selling-plan group
+  lifecycle parity.
+
+---
+
 ## 2026-04-30 - Pass 101: product relationship roots parity
 
 Promotes the captured Product relationship roots fixture into the Gleam parity

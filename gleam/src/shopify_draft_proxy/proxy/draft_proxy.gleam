@@ -46,8 +46,8 @@ import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/operation_registry.{type RegistryEntry}
 import shopify_draft_proxy/proxy/operation_registry_data
-import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/privacy
+import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/proxy/store_properties

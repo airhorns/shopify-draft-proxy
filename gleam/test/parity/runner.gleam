@@ -335,6 +335,12 @@ fn seed_capture_preconditions(
       seed_product_reorder_media_preconditions(capture, proxy)
     "product-relationship-roots-live-parity" ->
       seed_product_relationship_roots_preconditions(capture, proxy)
+    "product-create-media-live-parity" ->
+      seed_product_create_media_plan_preconditions(capture, proxy)
+    "product-update-media-live-parity" ->
+      seed_product_update_media_plan_preconditions(capture, proxy)
+    "product-delete-media-live-parity" ->
+      seed_product_delete_media_plan_preconditions(capture, proxy)
     "productPublish-parity-plan"
     | "productPublish-aggregate-parity"
     | "productUnpublish-parity-plan"
@@ -1878,6 +1884,136 @@ fn seed_product_media_preconditions(
       )
     })
   draft_proxy.DraftProxy(..proxy, store: store)
+}
+
+fn seed_product_create_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> seed_media_plan_product(product_id, proxy)
+    None -> proxy
+  }
+}
+
+fn seed_product_update_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> {
+      let proxy = seed_media_plan_product(product_id, proxy)
+      let media =
+        seed_media_nodes_at(
+          capture,
+          "$.mutation.response.data.productUpdateMedia.media",
+          product_id,
+        )
+      seed_media_plan_records(product_id, media, proxy)
+    }
+    None -> proxy
+  }
+}
+
+fn seed_product_delete_media_plan_preconditions(
+  capture: JsonValue,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case jsonpath_string(capture, "$.mutation.variables.productId") {
+    Some(product_id) -> {
+      let proxy = seed_media_plan_product(product_id, proxy)
+      let media_ids =
+        jsonpath_string_array(capture, "$.mutation.variables.mediaIds")
+      let product_image_ids =
+        jsonpath_string_array(
+          capture,
+          "$.mutation.response.data.productDeleteMedia.deletedProductImageIds",
+        )
+      let media =
+        media_ids
+        |> enumerate_strings()
+        |> list.map(fn(entry) {
+          let #(id, index) = entry
+          ProductMediaRecord(
+            key: product_id <> ":media:" <> int.to_string(index) <> ":" <> id,
+            product_id: product_id,
+            position: index,
+            id: Some(id),
+            media_content_type: Some("IMAGE"),
+            alt: None,
+            status: Some("READY"),
+            product_image_id: string_at(product_image_ids, index),
+            image_url: None,
+            image_width: None,
+            image_height: None,
+            preview_image_url: None,
+            source_url: None,
+          )
+        })
+      seed_media_plan_records(product_id, media, proxy)
+    }
+    None -> proxy
+  }
+}
+
+fn string_at(items: List(String), index: Int) -> Option(String) {
+  case items, index {
+    [first, ..], 0 -> Some(first)
+    [_, ..rest], index if index > 0 -> string_at(rest, index - 1)
+    _, _ -> None
+  }
+}
+
+fn seed_media_plan_product(
+  product_id: String,
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case store_mod.get_effective_product_by_id(proxy.store, product_id) {
+    Some(_) -> proxy
+    None ->
+      seed_product_and_base_variants(
+        proxy,
+        make_seed_product_relaxed(
+          JObject([
+            #("id", JString(product_id)),
+            #("title", JString("Seed product")),
+          ]),
+        ),
+        [],
+      )
+  }
+}
+
+fn seed_media_plan_records(
+  product_id: String,
+  media: List(ProductMediaRecord),
+  proxy: DraftProxy,
+) -> DraftProxy {
+  case media {
+    [] -> proxy
+    _ -> {
+      let store =
+        store_mod.replace_base_media_for_product(proxy.store, product_id, media)
+      draft_proxy.DraftProxy(..proxy, store: store)
+    }
+  }
+}
+
+fn seed_media_nodes_at(
+  capture: JsonValue,
+  path: String,
+  product_id: String,
+) -> List(ProductMediaRecord) {
+  case jsonpath.lookup(capture, path) {
+    Some(JArray(nodes)) ->
+      nodes
+      |> enumerate_json_values()
+      |> list.filter_map(fn(entry) {
+        let #(node, index) = entry
+        make_seed_product_media_from_node(product_id, node, index)
+      })
+    _ -> []
+  }
 }
 
 fn make_seed_product_media(
@@ -3556,12 +3692,14 @@ fn make_seed_product_media_from_node(
     media_content_type: read_string_field(source, "mediaContentType"),
     alt: read_string_field(source, "alt"),
     status: read_string_field(source, "status"),
-    product_image_id: None,
-    image_url: None,
+    product_image_id: read_string_field(source, "productImageId"),
+    image_url: jsonpath_string(source, "$.image.url")
+      |> option.or(read_string_field(source, "imageUrl")),
     image_width: None,
     image_height: None,
-    preview_image_url: None,
-    source_url: None,
+    preview_image_url: jsonpath_string(source, "$.preview.image.url")
+      |> option.or(read_string_field(source, "previewImageUrl")),
+    source_url: read_string_field(source, "sourceUrl"),
   ))
 }
 
@@ -5926,6 +6064,26 @@ fn required_int_field(value: JsonValue, name: String) -> Result(Int, Nil) {
   case read_int_field(value, name) {
     Some(i) -> Ok(i)
     None -> Error(Nil)
+  }
+}
+
+fn jsonpath_string(value: JsonValue, path: String) -> Option(String) {
+  case jsonpath.lookup(value, path) {
+    Some(JString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn jsonpath_string_array(value: JsonValue, path: String) -> List(String) {
+  case jsonpath.lookup(value, path) {
+    Some(JArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          JString(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 

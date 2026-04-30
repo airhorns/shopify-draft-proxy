@@ -291,16 +291,12 @@
     {
       "specPath": "config/parity-specs/metaobjects/custom-data-metaobject-field-type-matrix.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": [
-        "erlang"
-      ]
+      "targets": ["erlang"]
     },
     {
       "specPath": "config/parity-specs/metaobjects/metaobject-definitions-read.json",
       "reason": "Expected on Erlang until target-specific metaobject parity drift is ported.",
-      "targets": [
-        "erlang"
-      ]
+      "targets": ["erlang"]
     },
     {
       "specPath": "config/parity-specs/online-store-article-media-navigation-follow-through.json",
@@ -675,14 +671,6 @@
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {
-      "specPath": "config/parity-specs/products/productCreateMedia-parity-plan.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/productDeleteMedia-parity-plan.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
       "specPath": "config/parity-specs/products/productDuplicate-async-missing.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
@@ -720,10 +708,6 @@
     },
     {
       "specPath": "config/parity-specs/products/productSet-parity-plan.json",
-      "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
-    },
-    {
-      "specPath": "config/parity-specs/products/productUpdateMedia-parity-plan.json",
       "reason": "Expected until this scenario owning domain or runner seeding is ported to Gleam parity."
     },
     {

@@ -326,6 +326,14 @@ synthetic-id/timestamp expected differences.
   media records; do not duplicate media rows per variant. Relationship captures
   may need `seedCollections` hydrated in addition to generic `seedProducts` and
   `seedProductMedia`.
+- Product media async plan fixtures depend on timing-sensitive lifecycle state:
+  create returns `UPLOADED` in the mutation payload, the immediate downstream
+  Product media read is null-url `PROCESSING`, and later successful media
+  operations may observe the same local staged media as `READY`. Do not seed the
+  create plan's media row before the primary request; seed only the Product.
+  Update/delete plan captures need the captured Product and existing media row
+  hydrated from mutation/downstream data, including deleted ProductImage IDs for
+  delete payload parity.
 - Gift Cards has executable Gleam lifecycle/search parity, but the TypeScript
   gift-card runtime and legacy integration coverage stay in place until a later
   reviewer-approved runtime cutover.

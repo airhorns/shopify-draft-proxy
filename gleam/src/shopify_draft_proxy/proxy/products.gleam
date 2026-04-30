@@ -3064,9 +3064,10 @@ fn product_media_preview_source(media: ProductMediaRecord) -> SourceValue {
 }
 
 fn product_media_image_source(url: Option(String)) -> SourceValue {
-  src_object([
-    #("url", optional_string_source(url)),
-  ])
+  case url {
+    Some(url) -> src_object([#("url", SrcString(url))])
+    None -> SrcNull
+  }
 }
 
 fn count_source(count: Int) -> SourceValue {
@@ -6972,7 +6973,12 @@ fn handle_product_create_media(
                 None ->
                   mutation_result(
                     key,
-                    product_media_not_found_payload("create", field, fragments),
+                    product_media_not_found_payload(
+                      store,
+                      "create",
+                      field,
+                      fragments,
+                    ),
                     store,
                     identity,
                     [],
@@ -7057,7 +7063,7 @@ fn stage_product_create_media(
         product_id,
         list.append(
           existing_media,
-          list.map(created_media, transition_media_to_ready),
+          list.map(created_media, transition_created_media_to_processing),
         ),
       )
   }
@@ -7113,7 +7119,7 @@ fn handle_product_update_media(
         None ->
           mutation_result(
             key,
-            product_media_not_found_payload("update", field, fragments),
+            product_media_not_found_payload(store, "update", field, fragments),
             store,
             identity,
             [],
@@ -7199,7 +7205,7 @@ fn stage_product_update_media(
             |> list.map(fn(media) {
               case find_media_update(updates, media.id) {
                 Some(update) -> update_media_record(media, update)
-                None -> media
+                None -> settle_media_to_ready(media)
               }
             })
           let changed_media =
@@ -7248,6 +7254,8 @@ fn handle_product_delete_media(
       mutation_result(
         key,
         product_delete_media_payload(
+          store,
+          None,
           SrcList([]),
           SrcList([]),
           [ProductUserError(["productId"], "Product id is required", None)],
@@ -7263,7 +7271,7 @@ fn handle_product_delete_media(
         None ->
           mutation_result(
             key,
-            product_media_not_found_payload("delete", field, fragments),
+            product_media_not_found_payload(store, "delete", field, fragments),
             store,
             identity,
             [],
@@ -7298,6 +7306,8 @@ fn stage_product_delete_media(
       mutation_result(
         key,
         product_delete_media_payload(
+          store,
+          None,
           SrcNull,
           SrcNull,
           [
@@ -7337,9 +7347,12 @@ fn stage_product_delete_media(
         deleted_media |> list.filter_map(media_record_id_result)
       let deleted_product_image_ids =
         deleted_media |> list.filter_map(product_media_product_image_id_result)
+      let product = store.get_effective_product_by_id(next_store, product_id)
       mutation_result(
         key,
         product_delete_media_payload(
+          next_store,
+          product,
           SrcList(list.map(deleted_media_ids, SrcString)),
           SrcList(list.map(deleted_product_image_ids, SrcString)),
           [],
@@ -7851,6 +7864,24 @@ fn make_synthetic_product_image_id(
   }
 }
 
+fn transition_created_media_to_processing(
+  media: ProductMediaRecord,
+) -> ProductMediaRecord {
+  ProductMediaRecord(
+    ..media,
+    status: Some("PROCESSING"),
+    image_url: None,
+    preview_image_url: None,
+  )
+}
+
+fn settle_media_to_ready(media: ProductMediaRecord) -> ProductMediaRecord {
+  case media.status {
+    Some("PROCESSING") -> transition_media_to_ready(media)
+    _ -> media
+  }
+}
+
 fn transition_media_to_ready(media: ProductMediaRecord) -> ProductMediaRecord {
   let ready_url =
     media.source_url
@@ -8038,19 +8069,25 @@ fn product_update_media_payload_with_media_value(
 }
 
 fn product_delete_media_payload(
+  store: Store,
+  product: Option(ProductRecord),
   deleted_media_ids: SourceValue,
   deleted_product_image_ids: SourceValue,
   user_errors: List(ProductUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
+  let product_value = case product {
+    Some(product) -> product_source_with_store(store, product)
+    None -> SrcNull
+  }
   project_graphql_value(
     src_object([
       #("__typename", SrcString("ProductDeleteMediaPayload")),
       #("deletedMediaIds", deleted_media_ids),
       #("deletedProductImageIds", deleted_product_image_ids),
       #("mediaUserErrors", user_errors_source(user_errors)),
-      #("product", SrcNull),
+      #("product", product_value),
     ]),
     get_selected_child_fields(field, default_selected_field_options()),
     fragments,
@@ -8110,6 +8147,7 @@ fn product_variant_media_payload(
 }
 
 fn product_media_not_found_payload(
+  store: Store,
   shape: String,
   field: Selection,
   fragments: FragmentMap,
@@ -8117,6 +8155,8 @@ fn product_media_not_found_payload(
   case shape {
     "delete" ->
       product_delete_media_payload(
+        store,
+        None,
         SrcNull,
         SrcNull,
         [ProductUserError(["productId"], "Product does not exist", None)],
