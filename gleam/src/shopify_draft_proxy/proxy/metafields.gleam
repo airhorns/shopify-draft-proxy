@@ -1,16 +1,9 @@
 //// Mirrors the read path of `src/proxy/metafields.ts`.
 ////
-//// This is a substrate port: only the projection helpers
-//// (`serializeMetafieldSelection*`) and the `compareDigest` builder
-//// land here. The mutation paths (`upsertOwnerMetafields`,
-//// `normalizeOwnerMetafield`, `mergeMetafieldRecords`,
-//// `readMetafieldInputObjects`) are deferred — they depend on the
-//// 360-LOC `products/metafield-values.ts` substrate which has its
-//// own `parseMetafieldJsonValue` / `normalizeMetafieldValue`
-//// machinery and a non-trivial value-shape pipeline. Read-path
-//// consumers (every domain that exposes a `metafields(...)`
-//// connection) only need projection, which is what this module
-//// covers.
+//// This module carries the shared projection helpers
+//// (`serializeMetafieldSelection*`), `compareDigest` builder, and
+//// Shopify-like value normalization/`jsonValue` parsing used by
+//// owner-scoped metafield staging.
 ////
 //// `MetafieldRecordCore` is the projection-shaped record. Mutation
 //// passes will likely wrap it in an owner-scoped variant; the read
@@ -18,11 +11,15 @@
 
 import gleam/bit_array
 import gleam/dict.{type Dict}
+import gleam/float
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type SelectedFieldOptions, ConnectionPageInfoOptions,
   SerializeConnectionConfig, default_connection_page_info_options,
@@ -95,10 +92,9 @@ fn option_json_to_json(value: Option(Json)) -> Json {
 
 /// Project a metafield onto a list of selection nodes. Mirrors
 /// `serializeMetafieldSelectionSet`. Unknown fields fall through to
-/// `null`, matching the TS default branch. The `jsonValue` and
-/// `definition` cases that depend on `parseMetafieldJsonValue` /
-/// definition lookup return `null` here because those substrate
-/// pieces haven't been ported yet.
+/// `null`, matching the TS default branch. `definition` still returns
+/// `null` here because owner-specific callers handle definition-backed
+/// behavior at their own boundary.
 pub fn serialize_metafield_selection_set(
   metafield: MetafieldRecordCore,
   selections: List(Selection),
@@ -194,4 +190,441 @@ pub fn serialize_metafields_connection(
 
 fn cursor_value(record: MetafieldRecordCore, _index: Int) -> String {
   record.id
+}
+
+pub fn normalize_metafield_value(
+  type_: Option(String),
+  value: Option(String),
+) -> Option(String) {
+  case value {
+    None -> None
+    Some(raw) ->
+      case type_ {
+        Some("date_time") -> Some(normalize_date_time_value(raw))
+        Some("rating") -> Some(normalize_rating_value_string(raw))
+        Some(type_name) ->
+          case string.starts_with(type_name, "list.") {
+            True ->
+              Some(normalize_list_metafield_value_string(
+                string.drop_start(type_name, 5),
+                raw,
+              ))
+            False ->
+              case is_measurement_metafield_type_name(type_name) {
+                True -> Some(normalize_measurement_value_string(raw))
+                False -> Some(raw)
+              }
+          }
+        None -> Some(raw)
+      }
+  }
+}
+
+pub fn parse_metafield_json_value(
+  type_: Option(String),
+  value: Option(String),
+) -> Option(Json) {
+  case value {
+    None -> Some(json.null())
+    Some(raw) ->
+      case type_ {
+        Some("date_time") -> Some(json.string(normalize_date_time_value(raw)))
+        Some("number_decimal") | Some("float") -> Some(json.string(raw))
+        Some("rating") -> Some(parse_rating_json_value(raw))
+        Some(type_name) ->
+          case string.starts_with(type_name, "list.") {
+            True ->
+              Some(parse_list_metafield_json_value(
+                string.drop_start(type_name, 5),
+                raw,
+              ))
+            False ->
+              case is_measurement_metafield_type_name(type_name) {
+                True -> Some(parse_measurement_json_value(type_name, raw))
+                False ->
+                  case should_parse_metafield_json_value(type_name) {
+                    True -> Some(parse_json_or_string(raw))
+                    False ->
+                      case type_name {
+                        "number_integer" | "integer" ->
+                          case int.parse(raw) {
+                            Ok(n) -> Some(json.int(n))
+                            Error(_) -> Some(json.string(raw))
+                          }
+                        "boolean" -> Some(json.bool(raw == "true"))
+                        _ -> Some(json.string(raw))
+                      }
+                  }
+              }
+          }
+        None -> Some(json.string(raw))
+      }
+  }
+}
+
+fn parse_json_or_string(raw: String) -> Json {
+  commit.parse_json_value(raw)
+  |> commit.json_value_to_json
+}
+
+fn normalize_date_time_value(value: String) -> String {
+  let lowered = string.lowercase(value)
+  case string.ends_with(lowered, "z") {
+    True -> string.drop_end(value, 1) <> "+00:00"
+    False ->
+      case has_timezone_offset(value) {
+        True -> value
+        False -> value <> "+00:00"
+      }
+  }
+}
+
+fn has_timezone_offset(value: String) -> Bool {
+  let len = string.length(value)
+  case len >= 6 {
+    False -> False
+    True -> {
+      let sign = string.slice(value, len - 6, 1)
+      let colon = string.slice(value, len - 3, 1)
+      let sign_ok = sign == "+" || sign == "-"
+      sign_ok && colon == ":"
+    }
+  }
+}
+
+fn should_parse_metafield_json_value(type_name: String) -> Bool {
+  string.starts_with(type_name, "list.")
+  || list.contains(json_object_metafield_types(), type_name)
+}
+
+fn json_object_metafield_types() -> List(String) {
+  [
+    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity",
+    "capacitance", "concentration", "data_storage_capacity",
+    "data_transfer_rate", "dimension", "display_density", "distance", "duration",
+    "electric_current", "electrical_resistance", "energy", "frequency",
+    "illuminance", "inductance", "json", "json_string", "link", "luminous_flux",
+    "mass_flow_rate", "money", "power", "pressure", "rating", "resolution",
+    "rich_text_field", "rotational_speed", "sound_level", "speed", "temperature",
+    "thermal_power", "voltage", "volume", "volumetric_flow_rate", "weight",
+  ]
+}
+
+fn measurement_metafield_types() -> List(String) {
+  [
+    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity",
+    "capacitance", "concentration", "data_storage_capacity",
+    "data_transfer_rate", "dimension", "display_density", "distance", "duration",
+    "electric_current", "electrical_resistance", "energy", "frequency",
+    "illuminance", "inductance", "luminous_flux", "mass_flow_rate", "power",
+    "pressure", "resolution", "rotational_speed", "sound_level", "speed",
+    "temperature", "thermal_power", "voltage", "volume", "volumetric_flow_rate",
+    "weight",
+  ]
+}
+
+fn is_measurement_metafield_type_name(type_name: String) -> Bool {
+  list.contains(measurement_metafield_types(), type_name)
+}
+
+fn parse_measurement_json_value(type_name: String, raw: String) -> Json {
+  case
+    normalize_measurement_json_object(
+      type_name,
+      commit.parse_json_value(raw),
+      False,
+    )
+  {
+    Some(j) -> j
+    None -> parse_json_or_string(raw)
+  }
+}
+
+fn normalize_measurement_json_object(
+  type_name: String,
+  raw: commit.JsonValue,
+  list_json_unit: Bool,
+) -> Option(Json) {
+  case raw {
+    commit.JsonObject(fields) -> {
+      let value = json_number_field(fields, "value")
+      let unit = json_string_field(fields, "unit")
+      case value, unit {
+        Some(value_json), Some(unit_value) -> {
+          let normalized_unit = case list_json_unit {
+            True ->
+              string.lowercase(normalize_list_measurement_unit(
+                type_name,
+                unit_value,
+              ))
+            False -> string.uppercase(unit_value)
+          }
+          Some(
+            json.object([
+              #("value", value_json),
+              #("unit", json.string(normalized_unit)),
+            ]),
+          )
+        }
+        _, _ -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn normalize_measurement_value_string(raw: String) -> String {
+  case commit.parse_json_value(raw) {
+    commit.JsonObject(fields) -> {
+      let value = json_number_string_field(fields, "value")
+      let unit = json_string_field(fields, "unit")
+      case value, unit {
+        Some(value_string), Some(unit_value) ->
+          "{\"value\":"
+          <> value_string
+          <> ",\"unit\":\""
+          <> string.uppercase(unit_value)
+          <> "\"}"
+        _, _ -> raw
+      }
+    }
+    _ -> raw
+  }
+}
+
+fn normalize_list_measurement_unit(type_name: String, unit: String) -> String {
+  let lowered = string.lowercase(unit)
+  case type_name, lowered {
+    "dimension", "centimeters" -> "cm"
+    "volume", "milliliters" -> "ml"
+    "weight", "kilograms" -> "kg"
+    _, _ -> lowered
+  }
+}
+
+fn json_number_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(Json) {
+  case lookup_json_field(fields, key) {
+    Some(commit.JsonInt(n)) -> Some(json.int(n))
+    Some(commit.JsonFloat(f)) -> Some(json_number_from_float(f))
+    Some(commit.JsonString(s)) ->
+      case int.parse(s) {
+        Ok(n) -> Some(json.int(n))
+        Error(_) ->
+          case float.parse(s) {
+            Ok(f) -> Some(json_number_from_float(f))
+            Error(_) -> None
+          }
+      }
+    _ -> None
+  }
+}
+
+fn json_number_from_float(value: Float) -> Json {
+  let truncated = float.truncate(value)
+  case int.to_float(truncated) == value {
+    True -> json.int(truncated)
+    False -> json.float(value)
+  }
+}
+
+fn json_number_string_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(String) {
+  case lookup_json_field(fields, key) {
+    Some(commit.JsonInt(n)) -> Some(int.to_string(n) <> ".0")
+    Some(commit.JsonFloat(f)) -> Some(float.to_string(f))
+    Some(commit.JsonString(s)) ->
+      case int.parse(s) {
+        Ok(n) -> Some(int.to_string(n) <> ".0")
+        Error(_) ->
+          case float.parse(s) {
+            Ok(f) -> Some(float.to_string(f))
+            Error(_) -> None
+          }
+      }
+    _ -> None
+  }
+}
+
+fn json_string_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(String) {
+  case lookup_json_field(fields, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn lookup_json_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(commit.JsonValue) {
+  list.find(fields, fn(pair) {
+    let #(field_key, _) = pair
+    field_key == key
+  })
+  |> option.from_result
+  |> option.map(fn(pair) {
+    let #(_, value) = pair
+    value
+  })
+}
+
+fn parse_rating_json_value(raw: String) -> Json {
+  case normalize_rating_json_object(commit.parse_json_value(raw)) {
+    Some(j) -> j
+    None -> parse_json_or_string(raw)
+  }
+}
+
+fn normalize_rating_value_string(raw: String) -> String {
+  case normalize_rating_json_object(commit.parse_json_value(raw)) {
+    Some(j) -> json.to_string(j)
+    None -> raw
+  }
+}
+
+fn normalize_rating_json_object(raw: commit.JsonValue) -> Option(Json) {
+  case raw {
+    commit.JsonObject(fields) -> {
+      let scale_min = json_string_field(fields, "scale_min")
+      let scale_max = json_string_field(fields, "scale_max")
+      let value = json_string_field(fields, "value")
+      case scale_min, scale_max, value {
+        Some(min), Some(max), Some(rating) ->
+          Some(
+            json.object([
+              #("scale_min", json.string(min)),
+              #("scale_max", json.string(max)),
+              #("value", json.string(rating)),
+            ]),
+          )
+        _, _, _ -> None
+      }
+    }
+    _ -> None
+  }
+}
+
+fn parse_list_metafield_json_value(type_name: String, raw: String) -> Json {
+  case commit.parse_json_value(raw) {
+    commit.JsonArray(items) -> {
+      let mapped =
+        list.map(items, fn(item) {
+          case type_name {
+            "date_time" ->
+              case item {
+                commit.JsonString(s) ->
+                  json.string(normalize_date_time_value(s))
+                _ -> commit.json_value_to_json(item)
+              }
+            "number_decimal" | "float" ->
+              case item {
+                commit.JsonInt(n) -> json.string(int.to_string(n))
+                commit.JsonFloat(f) -> json.string(float.to_string(f))
+                commit.JsonString(s) -> json.string(s)
+                _ -> commit.json_value_to_json(item)
+              }
+            "rating" ->
+              normalize_rating_json_object(item)
+              |> option.unwrap(commit.json_value_to_json(item))
+            _ ->
+              case is_measurement_metafield_type_name(type_name) {
+                True ->
+                  normalize_measurement_json_object(type_name, item, True)
+                  |> option.unwrap(commit.json_value_to_json(item))
+                False -> commit.json_value_to_json(item)
+              }
+          }
+        })
+      json.array(mapped, fn(x) { x })
+    }
+    other -> commit.json_value_to_json(other)
+  }
+}
+
+fn normalize_list_metafield_value_string(
+  type_name: String,
+  raw: String,
+) -> String {
+  case commit.parse_json_value(raw) {
+    commit.JsonArray(items) -> {
+      case type_name {
+        "date_time" ->
+          json.array(items, fn(item) {
+            case item {
+              commit.JsonString(s) -> json.string(normalize_date_time_value(s))
+              _ -> commit.json_value_to_json(item)
+            }
+          })
+          |> json.to_string
+        "number_decimal" | "float" ->
+          json.array(items, fn(item) {
+            case item {
+              commit.JsonInt(n) -> json.string(int.to_string(n))
+              commit.JsonFloat(f) -> json.string(float.to_string(f))
+              commit.JsonString(s) -> json.string(s)
+              _ -> commit.json_value_to_json(item)
+            }
+          })
+          |> json.to_string
+        "rating" ->
+          json.array(items, fn(item) {
+            normalize_rating_json_object(item)
+            |> option.unwrap(commit.json_value_to_json(item))
+          })
+          |> json.to_string
+        _ ->
+          case is_measurement_metafield_type_name(type_name) {
+            True -> {
+              let serialized =
+                list.map(items, serialize_measurement_value_object)
+              case list.all(serialized, fn(item) { item != None }) {
+                True ->
+                  "["
+                  <> string.join(
+                    list.filter_map(serialized, fn(item) {
+                      case item {
+                        Some(s) -> Ok(s)
+                        None -> Error(Nil)
+                      }
+                    }),
+                    ",",
+                  )
+                  <> "]"
+                False -> raw
+              }
+            }
+            False -> raw
+          }
+      }
+    }
+    _ -> raw
+  }
+}
+
+fn serialize_measurement_value_object(raw: commit.JsonValue) -> Option(String) {
+  case raw {
+    commit.JsonObject(fields) -> {
+      let value = json_number_string_field(fields, "value")
+      let unit = json_string_field(fields, "unit")
+      case value, unit {
+        Some(value_string), Some(unit_value) ->
+          Some(
+            "{\"value\":"
+            <> value_string
+            <> ",\"unit\":\""
+            <> string.uppercase(unit_value)
+            <> "\"}",
+          )
+        _, _ -> None
+      }
+    }
+    _ -> None
+  }
 }

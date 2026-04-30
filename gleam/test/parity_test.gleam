@@ -172,6 +172,28 @@ pub fn metafield_definitions_product_empty_read_test() {
   )
 }
 
+pub fn metafield_definitions_product_read_test() {
+  check(
+    "config/parity-specs/metafields/metafield-definitions-product-read.json",
+  )
+}
+
+pub fn metafield_definition_pinning_parity_test() {
+  check(
+    "config/parity-specs/metafields/metafield-definition-pinning-parity.json",
+  )
+}
+
+pub fn metafield_definition_lifecycle_mutations_test() {
+  check(
+    "config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json",
+  )
+}
+
+pub fn custom_data_metafield_type_matrix_test() {
+  check("config/parity-specs/metafields/custom-data-metafield-type-matrix.json")
+}
+
 pub fn standard_metafield_definition_enable_validation_test() {
   check(
     "config/parity-specs/metafields/standard-metafield-definition-enable-validation.json",

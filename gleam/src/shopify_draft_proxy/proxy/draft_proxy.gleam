@@ -1031,7 +1031,7 @@ fn route_query(
     Ok(MetafieldDefinitionsDomain) ->
       respond(
         proxy,
-        metafield_definitions.process(query),
+        metafield_definitions.process(proxy.store, query, variables),
         "Failed to handle metafield definitions query",
       )
     Ok(LocalizationDomain) ->

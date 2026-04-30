@@ -196,11 +196,21 @@ fn target_decoder() -> Decoder(Target) {
     [],
     decode.list(expected_difference_decoder()),
   )
+  use excluded_paths <- decode.optional_field(
+    "excludedPaths",
+    [],
+    decode.list(decode.string),
+  )
   use request <- decode.optional_field(
     "proxyRequest",
     ReusePrimary,
     decode.map(proxy_request_decoder(), OverrideRequest),
   )
+  let expected_differences =
+    list.append(
+      expected_differences,
+      list.map(excluded_paths, diff.expected_ignore),
+    )
   decode.success(Target(
     name: name,
     capture_path: capture_path,
